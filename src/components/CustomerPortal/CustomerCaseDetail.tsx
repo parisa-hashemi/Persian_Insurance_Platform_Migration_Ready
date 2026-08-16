@@ -54,6 +54,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     claimCase.payoutInfo?.beneficiary || claimCase.victimName || ''
   );
   const [showBankForm, setShowForm] = useState(false);
+  const [selectedAssessmentModal, setSelectedAssessmentModal] = useState<any | null>(null);
 
   // Dispute state
   const [showDisputeModal, setShowDisputeModal] = useState(false);
@@ -1113,98 +1114,67 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
         )}
 
-        {/* Shared Case Collaboration Banner */}
-        <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white p-5 sm:p-6 rounded-3xl shadow-lg space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-blue-500/20 border border-blue-400/40 text-blue-300 flex items-center justify-center font-bold shadow-xs">
-                <UserCheck className="w-6 h-6 text-blue-300" />
-              </div>
-              <div>
+        {/* Insurance Policy & Financial Coverage Limits Card */}
+        {(() => {
+          const calc = calculateClaimDamageWithPolicyLimits(claimCase);
+          const policyLimit = calc.policyMaxFinancialLimit;
+          return (
+            <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-blue-950 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-indigo-500/30 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 flex items-center justify-center font-bold shadow-xs">
+                    <Shield className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
+                      اطلاعات بیمه‌نامه و سقف تعهدات مالی
+                    </h3>
+                    <p className="text-[11px] text-slate-300">
+                      استعلام برخط سامانه سنهاب بیمه مرکزی ({getInsurerPersianName(claimCase.culpritInsurer)})
+                    </p>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-extrabold text-white">پرونده مشترک خسارت</h3>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-400/20 text-blue-200 border border-blue-400/40">
-                    دسترسی دوطرفه
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    استعلام معتبر سنهاب
                   </span>
                 </div>
-                <p className="text-xs text-slate-300 mt-0.5">
-                  این پرونده بین هر دو طرف حادثه مشترک است و تمام مدارک ارسالی در یک پرونده واحد توسط ارزیاب بررسی می‌شود.
-                </p>
               </div>
-            </div>
 
-            <div className="px-3.5 py-1.5 rounded-2xl bg-white/10 backdrop-blur-xs border border-white/20 text-xs font-bold text-amber-300">
-              نقش شما: <span className="font-extrabold text-white">{myRoleLabel}</span>
-            </div>
-          </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                  <span className="text-slate-400 text-[10px] block mb-1">شماره بیمه‌نامه شخص ثالث</span>
+                  <span className="font-mono font-bold text-white text-xs" dir="ltr">
+                    {claimCase.culpritPolicyNumber || 'DAN-1403-882194'}
+                  </span>
+                </div>
 
-          {/* Both Parties Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className={`p-4 rounded-2xl border transition-all ${
-              isPartyOne
-                ? 'bg-blue-950/80 border-blue-400/60 shadow-md ring-2 ring-blue-400/30'
-                : 'bg-white/5 border-white/10'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/30 text-blue-200 border border-blue-400/30">
-                  طرف اول (ایجادکننده)
-                </span>
-                {isPartyOne && (
-                  <span className="text-[10px] bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full font-bold">
-                    شما
+                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                  <span className="text-slate-400 text-[10px] block mb-1">سقف تعهد مالی بیمه‌نامه</span>
+                  <span className="font-mono font-extrabold text-amber-300 text-xs">
+                    {formatCurrency(policyLimit)}
                   </span>
-                )}
-              </div>
-              <p className="font-black text-white text-sm">{p1DisplayName}</p>
-              <div className="flex flex-wrap items-center justify-between text-xs text-slate-300 mt-1 gap-1">
-                <span className="font-mono" dir="ltr">{p1DisplayPhone}</span>
-                {p1DisplayNationalId && (
-                  <span className="font-mono text-[11px] text-blue-200 bg-blue-900/60 px-2 py-0.5 rounded-md border border-blue-400/30" dir="ltr">
-                    کد ملی: {p1DisplayNationalId}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-white/10 mt-2">
-                <span>نقش: <strong className="text-slate-200">{partyOneRole}</strong></span>
-                <span>پلاک: <strong className="text-slate-200">{p1DisplayPlate}</strong></span>
-              </div>
-            </div>
+                </div>
 
-            <div className={`p-4 rounded-2xl border transition-all ${
-              isPartyTwo
-                ? 'bg-amber-950/80 border-amber-400/60 shadow-md ring-2 ring-amber-400/30'
-                : 'bg-white/5 border-white/10'
-            }`}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/30 text-amber-200 border border-amber-400/30">
-                  طرف دوم (طرف مقابل)
-                </span>
-                {isPartyTwo && (
-                  <span className="text-[10px] bg-emerald-500/30 text-emerald-200 px-2 py-0.5 rounded-full font-bold">
-                    شما
+                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                  <span className="text-slate-400 text-[10px] block mb-1">کد رهگیری سامانه سنهاب</span>
+                  <span className="font-mono font-bold text-blue-200 text-xs" dir="ltr">
+                    {claimCase.sanhabInquiry?.trackingCode || 'SNH-994821'}
                   </span>
-                )}
-              </div>
-              <p className="font-black text-white text-sm">{p2DisplayName}</p>
-              <div className="flex flex-wrap items-center justify-between text-xs text-slate-300 mt-1 gap-1">
-                <span className="font-mono text-xs" dir="ltr">
-                  {isPartyTwo
-                    ? p2DisplayPhone
-                    : '*** (محرمانه - حفظ حریم خصوصی)'}
-                </span>
-                {isPartyTwo && p2DisplayNationalId && (
-                  <span className="font-mono text-[11px] text-amber-200 bg-amber-900/60 px-2 py-0.5 rounded-md border border-amber-400/30" dir="ltr">
-                    کد ملی: {p2DisplayNationalId}
+                </div>
+
+                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
+                  <span className="text-slate-400 text-[10px] block mb-1">وضعیت شمول خودرو</span>
+                  <span className="font-bold text-emerald-300 text-xs">
+                    خودروی متعارف (۱۰۰٪ شمول)
                   </span>
-                )}
-              </div>
-              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-white/10 mt-2">
-                <span>نقش: <strong className="text-slate-200">{partyTwoRole}</strong></span>
-                <span>پلاک: <strong className="text-slate-200">{p2DisplayPlate}</strong></span>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
+          );
+        })()}
 
         {/* PARTY ONE POST-CREATION STATUS BANNER (When no expert requests exist yet) */}
         {isPartyOne && pendingDocRequests.length === 0 && myDocChat.length === 0 && (
@@ -1381,227 +1351,6 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
         )}
 
-        {/* UNIFIED DOCUMENT REPOSITORY & MEDIA GALLERY — SHOWN ONLY IF DOCS EXIST OR FOR PARTY TWO */}
-        {((claimCase.additionalDocs && claimCase.additionalDocs.filter(doc => {
-          if (doc.visibility === 'EXPERT_ONLY') return false;
-          if (doc.visibility === 'PARTY_ONLY' && doc.uploaderParty && doc.uploaderParty !== myPartyKey) return false;
-          if (doc.docType === 'مدرک/پاسخ چت اختصاصی' && doc.uploaderParty && doc.uploaderParty !== myPartyKey) return false;
-          return true;
-        }).length > 0) || isPartyTwo) && (
-          <div className="bg-slate-50/90 border border-slate-200/90 rounded-3xl p-5 sm:p-6 space-y-5">
-            {/* Header & Add Button */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-blue-900 text-white flex items-center justify-center font-bold shadow-xs">
-                  <Paperclip className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                    مستندات و فایل‌های یکپارچه پرونده مشترک
-                  </h3>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    مدارک و ویدیوهای بارگذاری‌شده توسط طرف اول، طرف دوم و کارشناس ارزیاب
-                  </p>
-                </div>
-              </div>
-
-              {/* Upload button ONLY for Party Two or when Party One has explicit requests */}
-              {(isPartyTwo || (isPartyOne && pendingDocRequests.length > 0)) && (
-                <button
-                  onClick={() => setShowAddDocModal(true)}
-                  className="px-4 py-2.5 rounded-2xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold text-xs shadow-md shadow-blue-900/20 transition-all flex items-center justify-center gap-2 active:scale-95 shrink-0"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>افزودن مدرک جدید به پرونده</span>
-                </button>
-              )}
-            </div>
-
-            {/* Success Banner */}
-            {uploadSuccessMsg && (
-              <div className="p-3.5 bg-emerald-100 border border-emerald-300 rounded-2xl text-emerald-900 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>{uploadSuccessMsg}</span>
-              </div>
-            )}
-
-            {/* Document Filter Bar */}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-slate-500 font-bold ml-1 flex items-center gap-1">
-                <Filter className="w-3.5 h-3.5" />
-                فیلتر:
-              </span>
-              <button
-                type="button"
-                onClick={() => setDocFilter('ALL')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  docFilter === 'ALL'
-                    ? 'bg-blue-900 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                همه مدارک ({claimCase.additionalDocs?.length || 0})
-              </button>
-              <button
-                type="button"
-                onClick={() => setDocFilter('PARTY_ONE')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  docFilter === 'PARTY_ONE'
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                طرف اول (ایجادکننده)
-              </button>
-              <button
-                type="button"
-                onClick={() => setDocFilter('PARTY_TWO')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  docFilter === 'PARTY_TWO'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                طرف دوم (طرف مقابل)
-              </button>
-              <button
-                type="button"
-                onClick={() => setDocFilter('IMAGE')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  docFilter === 'IMAGE'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                تصاویر
-              </button>
-              <button
-                type="button"
-                onClick={() => setDocFilter('VIDEO')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                  docFilter === 'VIDEO'
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                ویدیوها
-              </button>
-            </div>
-
-            {/* Documents Grid */}
-            {(!claimCase.additionalDocs || claimCase.additionalDocs.length === 0) ? (
-              <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center space-y-2">
-                <Paperclip className="w-8 h-8 text-slate-300 mx-auto" />
-                <p className="text-xs font-bold text-slate-500">
-                  هنوز مدرکی در پرونده مشترک بارگذاری نشده است.
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  هر دو طرف (طرف اول و طرف دوم) می‌توانند مدارک، عکس‌ها و ویدیوهای تصادف را بارگذاری نمایند.
-                </p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                {claimCase.additionalDocs
-                  .filter(doc => {
-                    if (doc.visibility === 'EXPERT_ONLY') return false;
-                    if (doc.visibility === 'PARTY_ONLY' && doc.uploaderParty && doc.uploaderParty !== myPartyKey) return false;
-                    if (doc.docType === 'مدرک/پاسخ چت اختصاصی' && doc.uploaderParty && doc.uploaderParty !== myPartyKey) return false;
-
-                    if (docFilter === 'PARTY_ONE') return doc.uploaderParty === 'PARTY_ONE' || doc.uploaderRole?.includes('زیان‌دیده') || doc.uploaderRole?.includes('اول');
-                    if (docFilter === 'PARTY_TWO') return doc.uploaderParty === 'PARTY_TWO' || doc.uploaderRole?.includes('مقصر') || doc.uploaderRole?.includes('دوم');
-                    if (docFilter === 'IMAGE') return doc.fileType === 'image' || !doc.fileType;
-                    if (docFilter === 'VIDEO') return doc.fileType === 'video';
-                    if (docFilter === 'PDF') return doc.fileType === 'pdf';
-                    return true;
-                  })
-                  .map((doc) => {
-                    const isUploadedByMe = doc.uploadedBy === session.name || (isPartyOne && doc.uploaderParty === 'PARTY_ONE') || (isPartyTwo && doc.uploaderParty === 'PARTY_TWO');
-
-                    return (
-                      <div
-                        key={doc.id}
-                        className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2.5 shadow-2xs hover:border-blue-300 transition-all group"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-1.5">
-                              {doc.fileType === 'video' ? (
-                                <Video className="w-4 h-4 text-purple-600 shrink-0" />
-                              ) : doc.fileType === 'pdf' ? (
-                                <FileText className="w-4 h-4 text-rose-600 shrink-0" />
-                              ) : (
-                                <ImageIcon className="w-4 h-4 text-blue-600 shrink-0" />
-                              )}
-                              <span className="font-extrabold text-slate-900 text-xs">{doc.title}</span>
-                            </div>
-                            <span className="text-[10px] text-slate-500 block">{doc.docType}</span>
-                          </div>
-
-                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border shrink-0 ${
-                            doc.uploaderParty === 'PARTY_ONE' || doc.uploaderRole?.includes('اول') || doc.uploaderRole?.includes('زیان‌دیده')
-                              ? 'bg-blue-50 text-blue-800 border-blue-200'
-                              : 'bg-amber-50 text-amber-900 border-amber-200'
-                          }`}>
-                            توسط {doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول' : 'طرف دوم')}
-                          </span>
-                        </div>
-
-                        {doc.note && (
-                          <p className="text-xs text-slate-700 bg-slate-50 p-2.5 rounded-xl border border-slate-100 leading-relaxed font-medium">
-                            {doc.note}
-                          </p>
-                        )}
-
-                        {doc.dataUrl && (
-                          <div className="relative group rounded-xl overflow-hidden border border-slate-200 h-32 bg-slate-100">
-                            {doc.fileType === 'video' ? (
-                              <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center text-white space-y-1">
-                                <Video className="w-8 h-8 text-purple-400" />
-                                <span className="text-[10px] font-bold">ویدیوی ضمیمه‌شده</span>
-                              </div>
-                            ) : (
-                              <img
-                                src={doc.dataUrl}
-                                alt={doc.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                              />
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setPreviewImageModal(doc.dataUrl || null)}
-                              className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1"
-                            >
-                              <Eye className="w-4 h-4" />
-                              <span>مشاهده</span>
-                            </button>
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[10px] text-slate-500">
-                          <span className="font-mono">{doc.uploadedAt}</span>
-                          <div className="flex items-center gap-2">
-                            <span className="bg-slate-100 px-2 py-0.5 rounded-md font-mono">{doc.fileSize || '1.2 MB'}</span>
-                            {isUploadedByMe && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteDoc(doc.id)}
-                                className="text-rose-600 hover:text-rose-700 font-bold flex items-center gap-1 p-1 hover:bg-rose-50 rounded-md transition-colors"
-                                title="حذف این مدرک"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                                <span>حذف</span>
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* PARTY COMMENTS & EXPLANATIONS SECTION — ONLY SHOWN IF PARTY COMMENTS ACTUALLY EXIST */}
         {claimCase.partyComments && claimCase.partyComments.length > 0 && (
           <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
@@ -1763,321 +1512,412 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
         )}
 
-        {/* Assessment Result Banner — SHOWN ONLY WHEN APPROVED BY REVIEWER OR FINAL */}
-        {claimCase.assessment && (claimCase.reviewerApproval?.approved || claimCase.status === 'در انتظار تایید کاربر' || claimCase.status === 'تصمیم نهایی - غیرقابل اعتراض' || claimCase.isFinalDecision || claimCase.status.includes('پرداخت')) && (
-          <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-3xl p-6 space-y-5 shadow-sm">
-            <div className="flex items-center justify-between border-b border-emerald-200/80 pb-3">
-              <h3 className="font-extrabold text-emerald-950 text-sm sm:text-base flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                نتیجه برآورد رسمی خسارت
-              </h3>
-              <div className="flex items-center gap-2">
-                {(claimCase.isFinalDecision || claimCase.status === 'تصمیم نهایی - غیرقابل اعتراض') && (
-                  <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-600 text-white shadow-xs">
-                    رای نهایی و قطعی
-                  </span>
-                )}
-                <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-200 text-emerald-900 border border-emerald-300">
-                  نسخه {claimCase.assessment.version}
+        {/* ASSESSMENTS SECTION — DISTINCT INTERACTIVE CARDS FOR EVERY ASSESSMENT (FIELD & DESK) */}
+        {(() => {
+          const calc = calculateClaimDamageWithPolicyLimits(claimCase);
+
+          const hasFieldAssessment = Boolean(
+            claimCase.fieldExpertVerdict ||
+            claimCase.fieldExpertFinal ||
+            claimCase.fieldExpertReportNote ||
+            claimCase.assessment?.fieldInspectionConfirmed ||
+            (claimCase.assessment && claimCase.assessment.assessorId?.startsWith('fed')) ||
+            (claimCase.assignedFieldExpert && (claimCase.status?.includes('میدانی') || claimCase.fieldVisitStarted || (claimCase.additionalDocs?.some(d => d.uploaderRole?.includes('میدانی')))))
+          );
+
+          const fieldDocs = (claimCase.additionalDocs || []).filter(
+            (d) => d.uploaderRole?.includes('میدانی') || d.title?.includes('بازدید میدانی') || d.title?.includes('میدانی') || d.docType?.includes('بازدید میدانی')
+          );
+
+          // Standard items for field inspection or desk assessment if dynamic parts array is empty:
+          const defaultFieldParts = [
+            { id: 1, name: 'سپر جلو و متعلقات پوسته', operation: 'تعویض کامل قطعه', partPrice: 65000000, labor: 12000000, salvage: 4000000, total: 73000000 },
+            { id: 2, name: 'گلگیر جلو راست (اصلی)', operation: 'صافکاری تخصصی و رنگ‌کوره', partPrice: 0, labor: 35000000, salvage: 0, total: 35000000 },
+            { id: 3, name: 'مجموعه چراغ جلو راست (LED)', operation: 'تعویض کامل قطعه', partPrice: 58000000, labor: 8000000, salvage: 3000000, total: 63000000 },
+            { id: 4, name: 'سینی جلو و براکت‌های دیاق', operation: 'شاسی‌کشی و رفع دفرمگی', partPrice: 0, labor: 28000000, salvage: 0, total: 28000000 },
+            { id: 5, name: 'جلوپنجره و آرم', operation: 'تعویض قطعه', partPrice: 22000000, labor: 5000000, salvage: 1000000, total: 26000000 },
+            { id: 6, name: 'اجرت رنگ‌آمیزی و کوره پولیش', operation: 'نقاشی و آسترکشی', partPrice: 0, labor: 20000000, salvage: 0, total: 20000000 }
+          ];
+
+          const dynamicParts = (claimCase.assessment?.parts && claimCase.assessment.parts.length > 0)
+            ? claimCase.assessment.parts.map((p, idx) => ({
+                id: idx + 1,
+                name: p.name,
+                operation: p.type === 'replace' ? 'تعویض کامل قطعه' : 'صافکاری و نقاشی',
+                partPrice: p.price || (p.type === 'replace' ? 45000000 : 0),
+                labor: p.labor || 15000000,
+                salvage: p.depreciation || 0,
+                total: (p.price || (p.type === 'replace' ? 45000000 : 0)) + (p.labor || 15000000) - (p.depreciation || 0)
+              }))
+            : defaultFieldParts;
+
+          const carDamageSpotsData = claimCase.carDamageSpots || {
+            front_bumper: {
+              type: 'نیاز به تعویض کامل',
+              severity: 'major',
+              operation: 'تعویض پوسته و دیاق',
+              color: 'red',
+              note: 'شکستگی عمیق پوسته و دیاق سپر جلو در اثر برخورد مستقیم'
+            },
+            fender_fr: {
+              type: 'تعمیر و صافکاری',
+              severity: 'moderate',
+              operation: 'صافکاری بی‌رنگ و لیسه‌گیری',
+              color: 'orange',
+              note: 'دفرمگی و خط و خش گلگیر جلو سمت راست'
+            },
+            hood: {
+              type: 'تعمیر و رگلاژ',
+              severity: 'minor',
+              operation: 'رگلاژ و لیسه‌گیری لبه کاپوت',
+              color: 'yellow',
+              note: 'برخورد سطحی لبه کاپوت موتور با فشار دیاق'
+            }
+          };
+
+          // Build list of assessment cards to render
+          const cards: Array<any> = [];
+
+          // 1. Field Expert Assessment Card
+          if (hasFieldAssessment) {
+            cards.push({
+              id: 'card_field_expert',
+              type: 'FIELD_EXPERT',
+              title: 'کارشناسی میدانی و بازرسی فیزیکی در محل حادثه',
+              badge: 'بازدید حضوری و اصالت‌سنجی فیزیکی',
+              expertName: claimCase.assignedFieldExpert?.name || claimCase.assessment?.assessorName || 'مهندس کامران رستمی (کارشناس رسمی میدانی)',
+              expertRole: 'کارشناس رسمی بازدید میدانی بیمه',
+              stampCode: claimCase.assignedFieldExpert?.nationalId ? `EXP-FLD-${claimCase.assignedFieldExpert.nationalId.slice(-4)}` : 'EXP-FLD-9821',
+              date: claimCase.fieldExpertCompletedAt || claimCase.assessment?.submittedAt || '۱۴۰۳/۱۱/۲۰',
+              verdict: claimCase.fieldExpertVerdict === 'FRAUD_REJECTED'
+                ? 'رد اصالت - تصادف ساختگی و صوری'
+                : claimCase.fieldExpertVerdict === 'PARTIAL_MISMATCH'
+                ? 'عدم انطباق جزئی قطعات با صحنه تصادف'
+                : 'عدم صوری بودن و تایید قطعی اصالت فیزیکی صحنه تصادف',
+              verdictType: claimCase.fieldExpertVerdict === 'FRAUD_REJECTED' ? 'danger' : claimCase.fieldExpertVerdict === 'PARTIAL_MISMATCH' ? 'warning' : 'success',
+              directDamage: calc.directDamageAmount || claimCase.assessment?.gross || 245000000,
+              diminution: calc.diminutionAmount,
+              diminutionPercent: calc.diminutionPercent,
+              salvage: claimCase.assessment?.salvage || calc.franchiseAmount || 0,
+              totalClaim: calc.totalClaimAmount,
+              policyCeiling: calc.policyMaxFinancialLimit,
+              insurerPayable: claimCase.assessment?.payable || calc.insurerPayablePortion || 245000000,
+              culpritDebt: calc.culpritExcessDebt,
+              exceedsCeiling: calc.exceedsCeiling,
+              notes: claimCase.fieldExpertReportNote || claimCase.assessment?.reviewerNote || claimCase.assessment?.notes || 'بررسی فیزیکی صحنه تصادف، انطباق قطعات، ارتفاع برخورد و اصالت‌سنجی در محل حادثه با حضور طرفین انجام شد و آسیب‌ها به تایید رسید.',
+              victimSms: calc.victimSmsText,
+              culpritSms: calc.culpritSmsText,
+              photos: fieldDocs,
+              isFinal: true, // No objection allowed!
+              parts: dynamicParts,
+              damageSpots: carDamageSpotsData
+            });
+          }
+
+          // 2. Damage Assessor Assessments (History or Current)
+          if (claimCase.assessments && claimCase.assessments.length > 0) {
+            claimCase.assessments.forEach((a, idx) => {
+              cards.push({
+                id: `card_desk_assessor_${idx}`,
+                type: 'DAMAGE_ASSESSOR',
+                title: `کارشناسی ارزیاب خسارت (ارزیابی آنلاین - ${a.round || `مرحله ${idx + 1}`})`,
+                badge: `ارزیابی تخصصی میزی - نوبت ${idx + 1}`,
+                version: idx + 1,
+                expertName: a.expertName || claimCase.assignedExpert?.name || 'فاطمه احمدی',
+                expertRole: 'کارشناس ارزیاب خسارت خودرو',
+                stampCode: `EXP-ONL-${8300 + idx}`,
+                date: a.submittedAt || '۱۴۰۳/۱۱/۱۸',
+                verdict: 'تایید کیفیت برآورد خسارت توسط بازبین ارشد بیمه‌گر',
+                verdictType: 'info',
+                directDamage: a.gross || calc.directDamageAmount,
+                diminution: calc.diminutionAmount,
+                diminutionPercent: calc.diminutionPercent,
+                salvage: a.deductions || calc.franchiseAmount || 0,
+                totalClaim: (a.gross || calc.directDamageAmount) + calc.diminutionAmount - (a.deductions || 0),
+                policyCeiling: calc.policyMaxFinancialLimit,
+                insurerPayable: a.payable || calc.insurerPayablePortion,
+                culpritDebt: calc.culpritExcessDebt,
+                exceedsCeiling: calc.exceedsCeiling,
+                notes: a.reviewerNote || claimCase.assessment?.reviewerNote || 'برآورد هزینه تعویض و تعمیر قطعات با استعلام نرخ روز بازار و دستمزد اتحادیه',
+                victimSms: calc.victimSmsText,
+                culpritSms: calc.culpritSmsText,
+                photos: [],
+                isFinal: Boolean(claimCase.isFinalDecision || claimCase.status === 'تصمیم نهایی - غیرقابل اعتراض'),
+                objectionStage: claimCase.objectionStage || 0,
+                parts: dynamicParts,
+                damageSpots: carDamageSpotsData
+              });
+            });
+          } else if (claimCase.assessment && !hasFieldAssessment) {
+            cards.push({
+              id: 'card_desk_assessor_main',
+              type: 'DAMAGE_ASSESSOR',
+              title: 'کارشناسی ارزیاب خسارت (ارزیابی آنلاین و میزی)',
+              badge: `ارزیابی تخصصی میزی - نسخه ${claimCase.assessment.version || 1}`,
+              version: claimCase.assessment.version || 1,
+              expertName: claimCase.assignedExpert?.name || claimCase.assessment.submittedBy || 'فاطمه احمدی',
+              expertRole: 'کارشناس ارزیاب خسارت خودرو',
+              stampCode: 'EXP-ONL-8340',
+              date: claimCase.assessment.submittedAt || '۱۴۰۳/۱۱/۱۸',
+              verdict: 'تایید شده توسط بازبین ارشد شرکت بیمه',
+              verdictType: 'info',
+              directDamage: calc.directDamageAmount,
+              diminution: calc.diminutionAmount,
+              diminutionPercent: calc.diminutionPercent,
+              salvage: calc.franchiseAmount,
+              totalClaim: calc.totalClaimAmount,
+              policyCeiling: calc.policyMaxFinancialLimit,
+              insurerPayable: calc.insurerPayablePortion,
+              culpritDebt: calc.culpritExcessDebt,
+              exceedsCeiling: calc.exceedsCeiling,
+              notes: claimCase.assessment.reviewerNote || 'برآورد هزینه‌های فیزیکی و دستمزد بر اساس نرخ‌های مصوب سندیکای بیمه‌گران',
+              victimSms: calc.victimSmsText,
+              culpritSms: calc.culpritSmsText,
+              photos: [],
+              isFinal: Boolean(claimCase.isFinalDecision || claimCase.status === 'تصمیم نهایی - غیرقابل اعتراض'),
+              objectionStage: claimCase.objectionStage || 0,
+              parts: dynamicParts,
+              damageSpots: carDamageSpotsData
+            });
+          }
+
+          if (cards.length === 0) return null;
+
+          return (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-blue-900 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-sm sm:text-base">
+                      کارت‌های کارشناسی و نتایج ارزیابی خسارت پرونده
+                    </h3>
+                    <p className="text-[11px] text-slate-500">
+                      برای مشاهده جزئیات کامل قطعات، قیمت‌ها، دیاگرام ۲بعدی و پیامک‌های ارسالی، روی هر کارت کلیک کنید.
+                    </p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 bg-blue-50 text-blue-900 font-extrabold text-xs rounded-full border border-blue-200">
+                  {cards.length} کارت کارشناسی
                 </span>
               </div>
-            </div>
 
-            {(() => {
-              const calc = calculateClaimDamageWithPolicyLimits(claimCase);
-              return (
-                <div className="space-y-4">
-                  {/* Financial Grid */}
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                    <div className="bg-white p-3.5 rounded-2xl border border-emerald-200/80 shadow-2xs">
-                      <span className="text-slate-500 block mb-1 font-bold">خسارت فیزیکی قطعات و اجرت</span>
-                      <span className="font-bold text-slate-800 text-sm">
-                        {formatCurrency(calc.directDamageAmount)}
-                      </span>
-                    </div>
-
-                    <div className="bg-white p-3.5 rounded-2xl border border-emerald-200/80 shadow-2xs">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-slate-500 font-bold">افت ارزش خودرو</span>
-                        {calc.isEligibleForDiminution && (
-                          <span className="text-[10px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                            {calc.diminutionPercent}%
-                          </span>
-                        )}
-                      </div>
-                      <span className={`font-bold text-sm ${calc.diminutionAmount > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
-                        {calc.diminutionAmount > 0 ? formatCurrency(calc.diminutionAmount) : 'شامل نمی‌شود'}
-                      </span>
-                    </div>
-
-                    <div className="bg-white p-3.5 rounded-2xl border border-emerald-200/80 shadow-2xs">
-                      <span className="text-slate-500 block mb-1 font-bold">کسورات فرانشیز و استهلاک</span>
-                      <span className="font-bold text-rose-700 text-sm">
-                        {calc.franchiseAmount > 0 ? formatCurrency(calc.franchiseAmount) : '۰ ریال'}
-                      </span>
-                    </div>
-
-                    <div className="bg-white p-3.5 rounded-2xl border border-emerald-300 shadow-2xs">
-                      <span className="text-slate-500 block mb-1 font-bold">کل خسارت و مطالبه زیان‌دیده</span>
-                      <span className="font-black text-slate-900 text-sm">
-                        {formatCurrency(calc.totalClaimAmount)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Ceiling Analysis & Debt Split Banner */}
-                  <div className={`p-4 rounded-2xl border ${
-                    calc.exceedsCeiling
-                      ? 'bg-rose-50/90 border-rose-300 text-rose-950'
-                      : 'bg-emerald-100/70 border-emerald-300 text-emerald-950'
-                  }`}>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-black/10">
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <Shield className="w-4 h-4 text-blue-900" />
-                          <span className="font-extrabold text-xs">
-                            سقف تعهد مالی بیمه‌نامه مقصر: <strong className="font-mono text-sm">{formatCurrency(calc.policyMaxFinancialLimit)}</strong>
-                          </span>
-                        </div>
-                        <span className="text-[11px] text-slate-600 block">
-                          استعلام برخط سامانه سنهاب بیمه مرکزی ایران ({claimCase.culpritInsurer ? getInsurerPersianName(claimCase.culpritInsurer) : 'بیمه‌گر مقصر'})
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {calc.exceedsCeiling ? (
-                          <span className="px-3 py-1 bg-rose-600 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1">
-                            <AlertTriangle className="w-3.5 h-3.5" />
-                            خسارت مازاد بر سقف تعهد بیمه
-                          </span>
-                        ) : (
-                          <span className="px-3 py-1 bg-emerald-600 text-white rounded-xl text-xs font-black shadow-xs flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            پوشش کامل ۱۰۰٪ توسط بیمه
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3">
-                      <div className="bg-white/80 p-3 rounded-xl border border-emerald-300 shadow-2xs">
-                        <span className="text-[11px] text-slate-600 font-bold block mb-0.5">
-                          سهم قابل پرداخت توسط شرکت بیمه (حداکثر تا سقف تعهد):
-                        </span>
-                        <strong className="text-emerald-700 text-base font-black">
-                          {formatCurrency(calc.insurerPayablePortion)}
-                        </strong>
-                      </div>
-
-                      <div className={`p-3 rounded-xl border shadow-2xs ${
-                        calc.culpritExcessDebt > 0
-                          ? 'bg-rose-100/90 border-rose-300'
-                          : 'bg-white/80 border-slate-200'
-                      }`}>
-                        <span className="text-[11px] text-slate-600 font-bold block mb-0.5">
-                          باقیمانده خسارت (بدهی مستقیم مقصر به زیان‌دیده):
-                        </span>
-                        <strong className={`text-base font-black ${
-                          calc.culpritExcessDebt > 0 ? 'text-rose-700' : 'text-slate-700'
-                        }`}>
-                          {calc.culpritExcessDebt > 0 ? formatCurrency(calc.culpritExcessDebt) : '۰ ریال (تسویه کامل)'}
-                        </strong>
-                      </div>
-                    </div>
-
-                    {calc.exceedsCeiling && (
-                      <div className="mt-3 p-3 bg-white/90 rounded-xl border border-rose-200 text-xs space-y-1.5">
-                        <div className="flex items-center gap-1.5 font-bold text-rose-900">
-                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                          <span>اطلاعیه حقوقی مازاد خسارت و بدهی مقصر:</span>
-                        </div>
-                        <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
-                          مطابق ماده ۸ و ۱۰ قانون بیمه اجباری شخص ثالث، شرکت بیمه منحصراً تا سقف تعهد مالی بیمه‌نامه ({formatCurrency(calc.policyMaxFinancialLimit)}) به حساب شبا زیان‌دیده واریز می‌نماید. مبلغ مازاد به مبلغ <strong>{formatCurrency(calc.culpritExcessDebt)}</strong> همراه با افت ارزش خودرو به عنوان بدهی قانونی مقصر حادثه تلقی شده و پیامک رسمی ابلاغ به همراه کد رهگیری برای طرفین ارسال گردیده است. زیان‌دیده می‌تواند با در دست داشتن گواهی رسمی بیمه نسبت به وصول مازاد از مقصر از طریق مراجع قضایی / شورای حل اختلاف اقدام نماید.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* SMS Dispatch and Notification Previews */}
-                  <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4 text-blue-900" />
-                        <span className="font-extrabold text-xs text-slate-900">
-                          پیامک‌های خودکار رسمی سنهاب و ابلاغ مالی
-                        </span>
-                      </div>
-                      <span className="text-[10px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full font-bold">
-                        سامانه خودکار SMS
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                      {/* Victim SMS */}
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
-                          <span>پیامک ارسالی به زیان‌دیده ({claimCase.victimName || 'زیان‌دیده'}):</span>
-                          <span className="text-emerald-700 text-[10px] font-black">تحویل داده شد</span>
-                        </div>
-                        <p className="text-[11px] text-slate-800 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed font-mono select-all">
-                          {calc.victimSmsText}
-                        </p>
-                      </div>
-
-                      {/* Culprit SMS */}
-                      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
-                          <span>پیامک ارسالی به مقصر حادثه ({claimCase.culpritName || 'مقصر'}):</span>
-                          <span className="text-emerald-700 text-[10px] font-black">تحویل داده شد</span>
-                        </div>
-                        <p className="text-[11px] text-slate-800 bg-white p-2.5 rounded-lg border border-slate-200 leading-relaxed font-mono select-all">
-                          {calc.culpritSmsText}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {claimCase.assessment.reviewerNote && (
-              <div className="bg-white p-4 rounded-2xl border border-emerald-200/80 text-xs text-slate-700 leading-relaxed space-y-1">
-                <span className="font-bold text-slate-900 block">توضیحات کارشناس ارزیاب:</span>
-                <p className="font-medium text-slate-700">{claimCase.assessment.reviewerNote}</p>
-              </div>
-            )}
-
-            {/* Non-Victim View Notice */}
-            {!isVictim && isCulprit && (
-              <div className="p-4 bg-slate-100 rounded-2xl border border-slate-200 text-xs text-slate-800 space-y-1">
-                <div className="flex items-center gap-2 font-black text-slate-900">
-                  <Eye className="w-4 h-4 text-slate-600 shrink-0" />
-                  <span>دسترسی مشاهده‌محور مقصر حادثه (View-Only)</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-                  شما به‌عنوان مقصر حادثه در این پرونده ثبت شده‌اید. کلیه اطلاعات گزارش پلیس، کروکی، تعیین درصد تقصیر و برآورد رسمی خسارت جهت آگاهی شما به صورت کامل قابل مشاهده است. (امکان تایید برآورد، ثبت شماره شبا یا تغییر در پرونده منحصراً در اختیار زیان‌دیده می‌باشد).
-                </p>
-              </div>
-            )}
-
-            {/* FINAL DECISION LOCK BANNER — NO MORE OBJECTIONS ALLOWED */}
-            {(claimCase.isFinalDecision || claimCase.status === 'تصمیم نهایی - غیرقابل اعتراض') && (
-              <div className="p-4 bg-purple-100 border-2 border-purple-300 rounded-2xl text-purple-950 font-bold text-xs space-y-1 shadow-2xs">
-                <div className="flex items-center gap-2 text-purple-900 text-sm font-black">
-                  <Lock className="w-5 h-5 text-purple-700 shrink-0" />
-                  <span>رای نهایی و قطعی کارشناس میدانی / بازبین (غیرقابل اعتراض)</span>
-                </div>
-                <p className="text-[11px] text-purple-800 font-medium leading-relaxed">
-                  این برآورد خسارت توسط کارشناس میدانی و بازبین ارشد بیمه تایید نهایی گردیده است. طبق قوانین بیمه مرکزی، این رای قطعی بوده و امکان ثبت اعتراض مجدد روی این پرونده وجود ندارد.
-                </p>
-              </div>
-            )}
-
-            {/* Action & Objection Buttons for Claimant (isVictim) */}
-            {isVictim && (
-              <div className="space-y-3 pt-2">
-                {/* Accept Option — Always visible unless paid */}
-                {claimCase.status !== 'پرداخت شده' && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <button
-                      onClick={() => setShowForm(true)}
-                      className="flex-1 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 active:scale-95"
+              <div className="grid grid-cols-1 gap-5">
+                {cards.map((card) => {
+                  const isField = card.type === 'FIELD_EXPERT';
+                  return (
+                    <div
+                      key={card.id}
+                      className={`rounded-3xl border-2 transition-all shadow-sm hover:shadow-md overflow-hidden ${
+                        isField
+                          ? 'bg-gradient-to-br from-emerald-50 via-teal-50/70 to-slate-50 border-emerald-300'
+                          : 'bg-gradient-to-br from-blue-50 via-indigo-50/70 to-slate-50 border-indigo-200'
+                      }`}
                     >
-                      <CreditCard className="w-4.5 h-4.5" />
-                      تایید برآورد خسارت و ثبت شماره شبا (جهت واریز)
-                    </button>
-                  </div>
-                )}
+                      {/* Card Header */}
+                      <div className={`p-5 sm:p-6 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        isField ? 'border-emerald-200/80 bg-emerald-100/40' : 'border-indigo-100 bg-indigo-100/40'
+                      }`}>
+                        <div className="flex items-start sm:items-center gap-3">
+                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-white shadow-xs shrink-0 ${
+                            isField ? 'bg-emerald-600' : 'bg-indigo-600'
+                          }`}>
+                            {isField ? <UserCheck className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                                {card.title}
+                              </h4>
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
+                                isField
+                                  ? 'bg-emerald-200/80 text-emerald-900 border-emerald-300'
+                                  : 'bg-indigo-200/80 text-indigo-900 border-indigo-300'
+                              }`}>
+                                {card.badge}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                              کارشناس: <strong>{card.expertName}</strong> ({card.expertRole}) • کد پروانه: <span className="font-mono">{card.stampCode}</span> • تاریخ: <span className="font-mono">{card.date}</span>
+                            </p>
+                          </div>
+                        </div>
 
-                {/* Objection Stage Buttons — ONLY shown when NOT final decision */}
-                {!claimCase.isFinalDecision && claimCase.status !== 'تصمیم نهایی - غیرقابل اعتراض' && claimCase.status !== 'پرداخت شده' && (
-                  <>
-                    {/* Objection Stage 1 Button */}
-                    {(!claimCase.objectionStage || claimCase.objectionStage === 0) && (
-                      <button
-                        onClick={() => setShowObjection1Modal(true)}
-                        className="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
-                      >
-                        <AlertTriangle className="w-4 h-4 text-rose-600" />
-                        اعتراض به ارزیابی اولیه (مرحله ۱ - درخواست ارزیاب جدید)
-                      </button>
-                    )}
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                          {isField ? (
+                            <span className="px-3 py-1 bg-emerald-600 text-white rounded-full text-xs font-black shadow-xs flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              {card.verdict}
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 bg-indigo-600 text-white rounded-full text-xs font-black shadow-xs flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              {card.verdict}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                    {/* Objection Stage 2 Button (When 2nd assessor completed assessment) */}
-                    {claimCase.objectionStage === 1 && (
-                      <button
-                        onClick={() => setShowObjection2Modal(true)}
-                        className="w-full py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
-                      >
-                        <MessageSquare className="w-4 h-4 text-amber-600" />
-                        اعتراض به ارزیابی ثانویه (مرحله ۲ - چت مستقیم و ارسال مدارک تکمیلی به ارزیاب)
-                      </button>
-                    )}
+                      {/* Card Body — Financial Metrics Summary */}
+                      <div className="p-5 sm:p-6 space-y-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                            <span className="text-slate-500 block mb-1 font-bold">خسارت مستقیم و اجرت</span>
+                            <span className="font-bold text-slate-800 text-sm">
+                              {formatCurrency(card.directDamage)}
+                            </span>
+                          </div>
 
-                    {/* Objection Stage 3 Button (Workshop details) */}
-                    {claimCase.objectionStage === 2 && (
-                      <button
-                        onClick={() => setShowWorkshopModal(true)}
-                        className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
-                      >
-                        <Building2 className="w-4 h-4 text-indigo-600" />
-                        اعتراض مرحله ۳ - ثبت اطلاعات تعمیرگاه مورد نظر
-                      </button>
-                    )}
+                          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-slate-500 font-bold">افت ارزش خودرو</span>
+                              {card.diminutionPercent > 0 && (
+                                <span className="text-[10px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                                  {card.diminutionPercent}%
+                                </span>
+                              )}
+                            </div>
+                            <span className={`font-bold text-sm ${card.diminution > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                              {card.diminution > 0 ? formatCurrency(card.diminution) : 'شامل نمی‌شود'}
+                            </span>
+                          </div>
 
-                    {/* Objection Stage 4 Button (Field Inspector request) */}
-                    {claimCase.objectionStage === 3 && (
-                      <button
-                        onClick={handleRequestFieldInspector}
-                        className="w-full py-3 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
-                      >
-                        <UserCheck className="w-4 h-4 text-purple-600" />
-                        اعتراض مرحله ۴ - درخواست ارزیابی میدانی / مراجعه حضوری به شعبه
-                      </button>
-                    )}
-                  </>
-                )}
+                          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                            <span className="text-slate-500 block mb-1 font-bold">کسورات داغی / استهلاک</span>
+                            <span className="font-bold text-rose-700 text-sm">
+                              {formatCurrency(card.salvage)}
+                            </span>
+                          </div>
+
+                          <div className="bg-white p-3.5 rounded-2xl border-2 border-emerald-400 shadow-2xs">
+                            <span className="text-slate-500 block mb-1 font-bold">مبلغ مصوب پرداختی بیمه</span>
+                            <span className="font-black text-emerald-800 text-sm">
+                              {formatCurrency(card.insurerPayable)}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Interactive Click Banner to View Complete Breakdown Modal */}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedAssessmentModal(card)}
+                          className={`w-full p-4 rounded-2xl border text-right transition-all flex items-center justify-between gap-3 group active:scale-[0.99] cursor-pointer ${
+                            isField
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-700 shadow-md shadow-emerald-600/20'
+                              : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700 shadow-md shadow-indigo-600/20'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center font-bold text-white shrink-0 group-hover:scale-110 transition-transform">
+                              <Eye className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <span className="text-xs sm:text-sm font-extrabold block">
+                                مشاهده جزئیات کامل کارشناسی، قطعات، نمودار ۲بعدی خودرو، فاکتور و پیامک ابلاغیه (کلیک کنید)
+                              </span>
+                              <span className="text-[11px] text-white/80 block mt-0.5">
+                                شامل فهرست کامل قطعات تعویضی و تعمیری، گزارش مستند، سقف تعهد مالی و پیامک‌های رسمی
+                              </span>
+                            </div>
+                          </div>
+                          <span className="px-3.5 py-1.5 rounded-xl bg-white/20 text-white text-xs font-black shrink-0 hidden sm:inline">
+                            مشاهده ریز اقلام ↵
+                          </span>
+                        </button>
+
+                        {/* Rules / Action Buttons */}
+                        {isField ? (
+                          <div className="space-y-3">
+                            <div className="p-3.5 bg-emerald-100/90 border border-emerald-300 rounded-2xl text-xs text-emerald-950 space-y-1 shadow-2xs">
+                              <div className="flex items-center gap-2 font-black text-emerald-900">
+                                <Lock className="w-4 h-4 text-emerald-700 shrink-0" />
+                                <span>ضوابط قانونی بیمه مرکزی: ارزیابی میدانی قطعی و نهایی است</span>
+                              </div>
+                              <p className="text-[11px] text-emerald-900 leading-relaxed font-medium">
+                                طبق ضوابط بیمه مرکزی، ارزیابی کارشناس میدانی بر اساس بازرسی فیزیکی حضوری در محل حادثه انجام پذیرفته و قطعی و نهایی می‌باشد؛ لذا امکان ثبت اعتراض وجود ندارد. لطفاً جهت دریافت خسارت، اطلاعات شماره شبا خود را تایید فرمایید.
+                              </p>
+                            </div>
+
+                            {isVictim && claimCase.status !== 'پرداخت شده' && (
+                              <button
+                                onClick={() => setShowForm(true)}
+                                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 active:scale-95"
+                              >
+                                <CreditCard className="w-4.5 h-4.5" />
+                                تایید برآورد کارشناسی میدانی و ثبت شماره شبا (جهت واریز خسارت)
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="space-y-3">
+                            {isVictim && claimCase.status !== 'پرداخت شده' && (
+                              <div className="space-y-2">
+                                <button
+                                  onClick={() => setShowForm(true)}
+                                  className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-xs shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 active:scale-95"
+                                >
+                                  <CreditCard className="w-4.5 h-4.5" />
+                                  تایید برآورد خسارت و ثبت شماره شبا (جهت واریز)
+                                </button>
+
+                                {/* Objection stages for damage assessor */}
+                                {!card.isFinal && (
+                                  <>
+                                    {(!card.objectionStage || card.objectionStage === 0) && (
+                                      <button
+                                        onClick={() => setShowObjection1Modal(true)}
+                                        className="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
+                                      >
+                                        <AlertTriangle className="w-4 h-4 text-rose-600" />
+                                        اعتراض به ارزیابی اولیه (مرحله ۱ - درخواست ارزیاب جدید)
+                                      </button>
+                                    )}
+
+                                    {card.objectionStage === 1 && (
+                                      <button
+                                        onClick={() => setShowObjection2Modal(true)}
+                                        className="w-full py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
+                                      >
+                                        <MessageSquare className="w-4 h-4 text-amber-600" />
+                                        اعتراض به ارزیابی ثانویه (مرحله ۲ - چت مستقیم و ارسال مدارک تکمیلی به ارزیاب)
+                                      </button>
+                                    )}
+
+                                    {card.objectionStage === 2 && (
+                                      <button
+                                        onClick={() => setShowWorkshopModal(true)}
+                                        className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
+                                      >
+                                        <Building2 className="w-4 h-4 text-indigo-600" />
+                                        اعتراض مرحله ۳ - ثبت اطلاعات تعمیرگاه مورد نظر
+                                      </button>
+                                    )}
+
+                                    {card.objectionStage === 3 && (
+                                      <button
+                                        onClick={handleRequestFieldInspector}
+                                        className="w-full py-3 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
+                                      >
+                                        <UserCheck className="w-4 h-4 text-purple-600" />
+                                        اعتراض مرحله ۴ - درخواست ارزیابی میدانی / مراجعه حضوری به شعبه
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
-          </div>
-        )}
-
-        {/* HISTORICAL ASSESSMENT VERSIONS LOG — SHOWN IF MULTIPLE VERSIONS EXIST */}
-        {claimCase.assessments && claimCase.assessments.length > 1 && (
-          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-xs">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-                <Clock className="w-4.5 h-4.5 text-indigo-600" />
-                <span>تاریخچه نسخه‌های برآورد خسارت (سوابق ارزیابی)</span>
-              </h4>
-              <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
-                {claimCase.assessments.length} ارزیابی ثبت‌شده
-              </span>
             </div>
-
-            <div className="space-y-3">
-              {claimCase.assessments.map((a, idx) => (
-                <div key={idx} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-2">
-                  <div className="flex items-center justify-between font-bold">
-                    <span className="text-indigo-900 font-extrabold">{a.round || `ارزیابی نوبت ${idx + 1}`}</span>
-                    <span className="text-slate-400 font-mono text-[10px]">{a.submittedAt}</span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
-                    <div>ارزیاب: <strong className="text-slate-800">{a.expertName}</strong></div>
-                    <div>خسارت ناخالص: <strong className="text-slate-800">{formatCurrency(a.gross)}</strong></div>
-                    <div>فرانشیز: <strong className="text-slate-800">{formatCurrency(a.deductions || 0)}</strong></div>
-                    <div>قابل پرداخت: <strong className="text-emerald-700 font-extrabold">{formatCurrency(a.payable)}</strong></div>
-                  </div>
-                  {a.reviewerNote && (
-                    <p className="text-[11px] text-slate-600 bg-white p-2 rounded-xl border border-slate-200">
-                      توضیحات: {a.reviewerNote}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Interactive Objection Chat Component (Stage 2 Chat with Assessor 2) */}
         {(claimCase.objectionChat || claimCase.objectionStage === 2) && (
@@ -2951,6 +2791,299 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* COMPREHENSIVE ASSESSMENT DETAILS MODAL (CLICK-TO-VIEW FULL CARD DETAILS) */}
+      {selectedAssessmentModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-auto">
+            {/* Modal Header */}
+            <div className={`p-5 sm:p-6 border-b flex items-center justify-between gap-3 text-white ${
+              selectedAssessmentModal.type === 'FIELD_EXPERT'
+                ? 'bg-gradient-to-r from-emerald-800 to-teal-900'
+                : 'bg-gradient-to-r from-blue-900 to-indigo-900'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center font-bold text-white shadow-inner shrink-0">
+                  {selectedAssessmentModal.type === 'FIELD_EXPERT' ? <UserCheck className="w-6 h-6" /> : <FileText className="w-6 h-6" />}
+                </div>
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-black text-base sm:text-lg">
+                      {selectedAssessmentModal.title}
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-white/20 text-white border border-white/30">
+                      {selectedAssessmentModal.badge}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/80 mt-0.5">
+                    کارشناس: {selectedAssessmentModal.expertName} • کد پروانه: <span className="font-mono">{selectedAssessmentModal.stampCode}</span> • تاریخ ثبت: <span className="font-mono">{selectedAssessmentModal.date}</span>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedAssessmentModal(null)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors shrink-0"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Scrollable Content */}
+            <div className="p-5 sm:p-6 space-y-6 overflow-y-auto max-h-[calc(92vh-140px)] text-slate-800 text-xs">
+              
+              {/* 1. Verdict & Summary Banner */}
+              <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                selectedAssessmentModal.type === 'FIELD_EXPERT'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                  : 'bg-indigo-50 border-indigo-200 text-indigo-950'
+              }`}>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 font-black text-sm">
+                    <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 shrink-0" />
+                    <span>نتیجه و تاییدیه رسمی: {selectedAssessmentModal.verdict}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                    {selectedAssessmentModal.notes}
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <span className="px-3 py-1.5 rounded-xl bg-white shadow-2xs border border-slate-200 font-extrabold text-xs text-slate-800 block text-center">
+                    مبلغ قابل پرداخت بیمه: <strong className="text-emerald-700 font-black">{formatCurrency(selectedAssessmentModal.insurerPayable)}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* 2. Interactive 2D Damage Car Diagram */}
+              <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200/80 pb-2">
+                  <div className="flex items-center gap-2">
+                    <Car3DViewer readonly={true} damageData={{}} className="hidden" />
+                    <span className="font-extrabold text-xs sm:text-sm text-slate-900">
+                      نمودار دو بعدی (2D) قطعات و موقعیت آسیب‌دیدگی خودرو
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                    اصالت‌سنجی فیزیکی
+                  </span>
+                </div>
+
+                <div className="bg-white rounded-2xl p-3 border border-slate-200 shadow-2xs">
+                  <Car3DViewer
+                    readonly={true}
+                    damageData={selectedAssessmentModal.damageSpots || {}}
+                  />
+                </div>
+              </div>
+
+              {/* 3. Detailed Parts & Labor Itemized Table */}
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs space-y-3 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-900" />
+                    <span className="font-extrabold text-xs sm:text-sm text-slate-900">
+                      فهرست ریز قطعات تعویضی، صافکاری، نقاشی و هزینه‌ها (قیمت‌گذاری نرخ روز)
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold bg-blue-50 text-blue-900 px-2 py-0.5 rounded-full border border-blue-200">
+                    {selectedAssessmentModal.parts?.length || 0} ردیف خسارت
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-right text-xs">
+                    <thead>
+                      <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-extrabold">
+                        <th className="p-3 text-center w-12">#</th>
+                        <th className="p-3">نام قطعه / شرح اقدام</th>
+                        <th className="p-3">نوع عملیات</th>
+                        <th className="p-3 text-left">بهای قطعه (ریال)</th>
+                        <th className="p-3 text-left">اجرت تعمیر/نصب (ریال)</th>
+                        <th className="p-3 text-left">داغی/استهلاک</th>
+                        <th className="p-3 text-left">مبلغ خالص (ریال)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(selectedAssessmentModal.parts || []).map((part: any, pIdx: number) => (
+                        <tr key={part.id || pIdx} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-3 text-center text-slate-400 font-mono font-bold">{pIdx + 1}</td>
+                          <td className="p-3 font-bold text-slate-900">{part.name}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              part.operation?.includes('تعویض')
+                                ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                                : 'bg-amber-50 text-amber-900 border border-amber-200'
+                            }`}>
+                              {part.operation}
+                            </span>
+                          </td>
+                          <td className="p-3 text-left font-mono font-semibold text-slate-800">
+                            {part.partPrice > 0 ? formatCurrency(part.partPrice) : '—'}
+                          </td>
+                          <td className="p-3 text-left font-mono font-semibold text-slate-800">
+                            {part.labor > 0 ? formatCurrency(part.labor) : '—'}
+                          </td>
+                          <td className="p-3 text-left font-mono text-rose-700">
+                            {part.salvage > 0 ? `-${formatCurrency(part.salvage)}` : '۰'}
+                          </td>
+                          <td className="p-3 text-left font-mono font-black text-emerald-800 bg-slate-50/50">
+                            {formatCurrency(part.total)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-slate-100 border-t-2 border-slate-300 font-black text-slate-900">
+                        <td colSpan={3} className="p-3 text-right">
+                          جمع کل خسارت مستقیم قطعات و اجرت:
+                        </td>
+                        <td colSpan={4} className="p-3 text-left font-mono text-sm text-emerald-900">
+                          {formatCurrency(selectedAssessmentModal.directDamage)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* 4. Financial Calculations & Policy Ceiling Breakdown */}
+              <div className="bg-gradient-to-br from-slate-50 to-blue-50/40 p-4 sm:p-5 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+                  <Shield className="w-4 h-4 text-blue-900" />
+                  <span className="font-extrabold text-xs sm:text-sm text-slate-900">
+                    تعهدات مالی بیمه‌نامه مقصر و تسهیم مبالغ پرداختی (استعلام برخط سنهاب)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+                    <span className="text-slate-500 font-bold block mb-1">سقف تعهد مالی بیمه‌نامه مقصر</span>
+                    <strong className="text-blue-950 font-black text-sm">
+                      {formatCurrency(selectedAssessmentModal.policyCeiling)}
+                    </strong>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-xl border border-emerald-300 shadow-2xs">
+                    <span className="text-slate-500 font-bold block mb-1">سهم پرداختی شرکت بیمه</span>
+                    <strong className="text-emerald-700 font-black text-sm">
+                      {formatCurrency(selectedAssessmentModal.insurerPayable)}
+                    </strong>
+                  </div>
+
+                  <div className={`p-3.5 rounded-xl border shadow-2xs ${
+                    selectedAssessmentModal.culpritDebt > 0
+                      ? 'bg-rose-50 border-rose-300'
+                      : 'bg-white border-slate-200'
+                  }`}>
+                    <span className="text-slate-500 font-bold block mb-1">بدهی مازاد مقصر به زیان‌دیده</span>
+                    <strong className={`font-black text-sm ${
+                      selectedAssessmentModal.culpritDebt > 0 ? 'text-rose-700' : 'text-slate-700'
+                    }`}>
+                      {selectedAssessmentModal.culpritDebt > 0 ? formatCurrency(selectedAssessmentModal.culpritDebt) : '۰ ریال (تسویه ۱۰۰٪)'}
+                    </strong>
+                  </div>
+                </div>
+
+                {selectedAssessmentModal.exceedsCeiling && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-950 text-[11px] leading-relaxed">
+                    <strong>توجه:</strong> خسارت فراتر از سقف تعهد مالی بیمه‌نامه مقصر بوده و طبق قانون بیمه شخص ثالث، مبلغ مازاد ({formatCurrency(selectedAssessmentModal.culpritDebt)}) باید توسط مقصر حادثه پرداخت گردد.
+                  </div>
+                )}
+              </div>
+
+              {/* 5. Field Photos Gallery (if any) */}
+              {selectedAssessmentModal.photos && selectedAssessmentModal.photos.length > 0 && (
+                <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2">
+                  <span className="font-extrabold text-slate-900 text-xs block">
+                    تصاویر و مدارک پیوست کارشناسی میدانی در محل حادثه:
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {selectedAssessmentModal.photos.map((doc: any, pIdx: number) => {
+                      const imgSrc = doc.dataUrl || doc.url || '';
+                      return (
+                        <div
+                          key={pIdx}
+                          onClick={() => imgSrc && setPreviewImageModal(imgSrc)}
+                          className="aspect-video rounded-xl bg-slate-100 border border-slate-200 overflow-hidden cursor-pointer hover:opacity-90 relative group"
+                        >
+                          <img src={imgSrc} alt={doc.title} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold p-1 text-center">
+                            {doc.title}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 6. SMS Messages & Official Notification Dispatches */}
+              <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="w-4 h-4 text-blue-900" />
+                    <span className="font-extrabold text-xs sm:text-sm text-slate-900">
+                      متن پیامک‌های رسمی ارسالی از سمت شرکت بیمه (ابلاغیه مالی و سقف تعهد)
+                    </span>
+                  </div>
+                  <span className="text-[10px] bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded font-bold">
+                    ابلاغ شده به طرفین
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                      <span>پیامک ارسالی به زیان‌دیده ({claimCase.victimName || 'زیان‌دیده'}):</span>
+                      <span className="text-emerald-700 text-[10px] font-black">تحویل داده شد</span>
+                    </div>
+                    <p className="text-[11px] text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-200 leading-relaxed font-mono select-all">
+                      {selectedAssessmentModal.victimSms}
+                    </p>
+                  </div>
+
+                  <div className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between text-[11px] font-bold text-slate-700">
+                      <span>پیامک ارسالی به مقصر حادثه ({claimCase.culpritName || 'مقصر'}):</span>
+                      <span className="text-emerald-700 text-[10px] font-black">تحویل داده شد</span>
+                    </div>
+                    <p className="text-[11px] text-slate-800 bg-slate-50 p-2.5 rounded-lg border border-slate-200 leading-relaxed font-mono select-all">
+                      {selectedAssessmentModal.culpritSms}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setSelectedAssessmentModal(null)}
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-extrabold text-xs transition-colors"
+              >
+                بستن پنجره جزئیات
+              </button>
+
+              {isVictim && claimCase.status !== 'پرداخت شده' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedAssessmentModal(null);
+                    setShowForm(true);
+                  }}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs shadow-md shadow-emerald-600/30 transition-all flex items-center justify-center gap-2"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  تایید برآورد و ثبت شماره شبا جهت واریز
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

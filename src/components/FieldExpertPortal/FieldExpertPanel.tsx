@@ -30,11 +30,18 @@ import {
   ArrowRight,
   ExternalLink,
   ChevronDown,
-  X
+  X,
+  Layers,
+  Edit3,
+  ShieldCheck,
+  Maximize2,
+  FileBadge,
+  Check,
+  Sliders
 } from 'lucide-react';
-import { ClaimCase, UserSession, AssessmentData, AssessorNotification, AdditionalDocItem } from '../../types';
-import { formatCurrency, getInsurerPersianName, loadAssessorNotifications, saveAssessorNotifications, markAssessorNotificationAsRead } from '../../lib/storage';
-import { Car3DViewer } from '../Car3DViewer';
+import { ClaimCase, UserSession, AssessmentData, AssessorNotification, AdditionalDocItem, CarDamageSpot } from '../../types';
+import { formatCurrency, getInsurerPersianName, loadAssessorNotifications, markAssessorNotificationAsRead } from '../../lib/storage';
+import { Car3DViewer, ALL_INSPECTION_PARTS } from '../Car3DViewer';
 
 interface FieldExpertPanelProps {
   session: UserSession;
@@ -44,6 +51,7 @@ interface FieldExpertPanelProps {
 }
 
 type FieldTab = 'new_assignments' | 'in_progress' | 'completed' | 'rejected';
+type WorkspaceTab = 'docs' | 'authenticity' | 'assessment_parts' | 'photos' | 'finalize';
 
 // Standard car parts dictionary for fast field selection
 const STANDARD_CAR_PARTS = [
@@ -55,9 +63,9 @@ const STANDARD_CAR_PARTS = [
   'درب موتور (کاپوت)',
   'گلگیر جلو راست',
   'گلگیر جلو چپ',
-  'پوسته سقف و ستون‌ها',
-  'درب جلو راست (شاگرد)',
-  'درب جلو چپ (راننده)',
+  'سقف خودرو',
+  'درب جلو راست',
+  'درب جلو چپ',
   'درب عقب راست',
   'درب عقب چپ',
   'رکاب راست',
@@ -75,8 +83,16 @@ const STANDARD_CAR_PARTS = [
   'دیاق سپر جلو',
   'دیاق سپر عقب',
   'سینی فن و رادیاتور آب',
-  'رادیاتور کولر و کندانسور',
-  'اکسل، طبق و جلوبندی',
+  'سرشاسی و سینی جلو راست',
+  'سرشاسی و سینی جلو چپ',
+  'سرشاسی و سینی عقب راست',
+  'سرشاسی و سینی عقب چپ',
+  'ستون جلو راست (ستون A)',
+  'ستون جلو چپ (ستون A)',
+  'ستون وسط راست (ستون B)',
+  'ستون وسط چپ (ستون B)',
+  'ستون عقب راست (ستون C)',
+  'ستون عقب چپ (ستون C)',
   'رام زیر موتور',
   'رینگ و لاستیک',
   'سایر قطعات (سفارشی)'
@@ -98,8 +114,8 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   // Insurer Instructions / Note Modal
   const [insurerNoteModalCase, setInsurerNoteModalCase] = useState<ClaimCase | null>(null);
 
-  // Workspace sub-tabs when editing a case
-  const [workspaceTab, setWorkspaceTab] = useState<'docs' | 'authenticity' | 'parts' | 'photos' | 'finalize'>('docs');
+  // Workspace sub-tabs when editing a case (Merged into 5 unified, highly organized stages)
+  const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>('docs');
 
   // Rejection modal
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -107,29 +123,53 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   const [rejectReason, setRejectReason] = useState('خارج از محدوده جغرافیایی و ترافیک سنگین');
   const [rejectDescription, setRejectDescription] = useState('');
 
-  // Field Report form states for selected case
+  // Authenticity & Technical Verification State
   const [authVerdict, setAuthVerdict] = useState<'CONFIRMED' | 'FRAUD_REJECTED' | 'PARTIAL_MISMATCH'>('CONFIRMED');
   const [fieldReportText, setFieldReportText] = useState('');
+  const [checklistItems, setChecklistItems] = useState({
+    brakeMatch: true,
+    impactHeightMatch: true,
+    paintScratchesFresh: true,
+    vinPhysicallyMatched: true,
+    debrisAndFragmentsMatch: true
+  });
+
+  // 2D Diagram Car Damage Spots State (synchronized with 2D model)
+  const [carDamageSpotsState, setCarDamageSpotsState] = useState<Record<string, CarDamageSpot>>({});
+
+  // Field Parts & Pricing List State
   const [fieldParts, setFieldParts] = useState<Array<{
     id: string;
     partName: string;
-    operationType: 'تعویض کامل' | 'صافکاری و نقاشی' | 'تعمیر و تنظیم';
+    partKey?: string;
+    operationType: 'تعویض کامل' | 'صافکاری و نقاشی' | 'تعمیر و تنظیم' | 'رنگ‌آمیزی' | 'صافکاری PDR بدون رنگ';
     partPrice: number;
     wagePrice: number;
     scrapPrice: number;
+    damageSeverity: 'minor' | 'moderate' | 'major';
+    note?: string;
   }>>([]);
 
-  // New part input
+  // New part input builder state
   const [selectedPartName, setSelectedPartName] = useState('سپر جلو');
   const [customPartName, setCustomPartName] = useState('');
-  const [partOpType, setPartOpType] = useState<'تعویض کامل' | 'صافکاری و نقاشی' | 'تعمیر و تنظیم'>('تعویض کامل');
-  const [partPriceInput, setPartPriceInput] = useState('15000000');
-  const [wagePriceInput, setWagePriceInput] = useState('5000000');
-  const [scrapPriceInput, setScrapPriceInput] = useState('1500000');
+  const [partOpType, setPartOpType] = useState<'تعویض کامل' | 'صافکاری و نقاشی' | 'تعمیر و تنظیم' | 'رنگ‌آمیزی' | 'صافکاری PDR بدون رنگ'>('تعویض کامل');
+  const [partSeverity, setPartSeverity] = useState<'minor' | 'moderate' | 'major'>('major');
+  const [partPriceInput, setPartPriceInput] = useState('18500000');
+  const [wagePriceInput, setWagePriceInput] = useState('4500000');
+  const [scrapPriceInput, setScrapPriceInput] = useState('2000000');
+  const [partNoteInput, setPartNoteInput] = useState('');
 
-  // Field photos
-  const [fieldPhotos, setFieldPhotos] = useState<Array<{ id: string; title: string; url: string }>>([]);
-  const [newPhotoTitle, setNewPhotoTitle] = useState('عکس از شماره شاسی و VIN');
+  // Field photos with category
+  const [fieldPhotos, setFieldPhotos] = useState<Array<{
+    id: string;
+    title: string;
+    category: 'damage' | 'vin' | 'scene' | 'other';
+    url: string;
+    note?: string;
+  }>>([]);
+  const [newPhotoTitle, setNewPhotoTitle] = useState('عکس از قطعه آسیب‌دیده');
+  const [newPhotoCategory, setNewPhotoCategory] = useState<'damage' | 'vin' | 'scene' | 'other'>('damage');
 
   // Preview modal for images
   const [previewPhotoUrl, setPreviewPhotoUrl] = useState<string | null>(null);
@@ -151,9 +191,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   // Filter cases assigned to this field expert (or matching company/id)
   const myCases = useMemo(() => {
     return cases.filter((c) => {
-      // Check if specifically assigned to this field expert
       const isAssignedToMe = c.assignedFieldExpert?.id === session.id || c.assignedExpert?.id === session.id;
-      // Or in general pool for field expert testing
       const isCompanyField = c.culpritInsurer === session.company || !c.culpritInsurer;
       return isAssignedToMe || (session.id === 'fed1' && (c.needsCulpritFieldVisit || c.status === 'تردید در اصالت تصادف' || c.status.includes('میدانی')));
     });
@@ -188,6 +226,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
         c.status === 'در انتظار پرداخت' ||
         c.status === 'پرداخت شده' ||
         c.status === 'مختومه - پرداخت شد' ||
+        c.status.includes('رد خسارت - صوری بودن') ||
         c.fieldExpertFinal === true ||
         (c.assessment && (c.assessment.fieldInspectionConfirmed || c.assessment.isFinalDecision))
       );
@@ -214,9 +253,11 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       return (
         c.id.toLowerCase().includes(q) ||
         (c.carModel && c.carModel.toLowerCase().includes(q)) ||
+        (c.carType && c.carType.toLowerCase().includes(q)) ||
         (c.plateNumber && c.plateNumber.includes(q)) ||
-        (c.victimName && c.victimName.includes(q)) ||
-        (c.accidentLocation && c.accidentLocation.includes(q))
+        (c.victimPlate && c.victimPlate.includes(q)) ||
+        (c.victimName && c.victimName.toLowerCase().includes(q)) ||
+        (c.accidentLocation && c.accidentLocation.toLowerCase().includes(q))
       );
     });
   }, [activeTab, newAssignments, inProgressCases, completedCases, rejectedCases, searchQuery]);
@@ -225,61 +266,138 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   const handleOpenWorkspace = (claimCase: ClaimCase) => {
     setSelectedCase(claimCase);
     setWorkspaceTab('docs');
-    setFieldReportText(claimCase.assessment?.notes || claimCase.fieldExpertReportNote || '');
-    
-    // Load existing items if any
-    if (claimCase.assessment?.items && claimCase.assessment.items.length > 0) {
-      setFieldParts(
-        claimCase.assessment.items.map((it, idx) => ({
-          id: `item-${idx}-${Date.now()}`,
-          partName: it.partName,
-          operationType: (it.operationType as any) || (it.action === 'REPLACE' ? 'تعویض کامل' : 'صافکاری و نقاشی'),
-          partPrice: it.price || 0,
-          wagePrice: it.wage || 0,
-          scrapPrice: it.scrapValue || 0
-        }))
-      );
-    } else {
-      // Default sample parts for quick field start
-      setFieldParts([
-        {
-          id: 'part-1',
-          partName: 'سپر جلو',
-          operationType: 'تعویض کامل',
-          partPrice: 18500000,
-          wagePrice: 4500000,
-          scrapPrice: 2000000
-        },
-        {
-          id: 'part-2',
-          partName: 'چراغ جلو راست',
-          operationType: 'تعویض کامل',
-          partPrice: 9200000,
-          wagePrice: 1800000,
-          scrapPrice: 1000000
-        }
-      ]);
-    }
+    setFieldReportText(claimCase.fieldExpertReportNote || claimCase.assessment?.notes || '');
 
+    // Set authenticity verdict
     if (claimCase.fieldExpertVerdict) {
-      setAuthVerdict(claimCase.fieldExpertVerdict);
+      setAuthVerdict(claimCase.fieldExpertVerdict as any);
     } else if (claimCase.fraudFlag?.flagged) {
       setAuthVerdict('FRAUD_REJECTED');
     } else {
       setAuthVerdict('CONFIRMED');
     }
 
-    // Load any existing field photos
-    if (claimCase.additionalDocs) {
-      const photos = claimCase.additionalDocs
-        .filter((d) => d.uploaderRole?.includes('میدانی') || d.uploaderRole?.includes('expert'))
-        .map((d) => ({
-          id: d.id,
-          title: d.title,
-          url: d.dataUrl || ''
-        }));
-      setFieldPhotos(photos);
+    // Load 2D Car damage spots
+    if (claimCase.carDamageSpots && Object.keys(claimCase.carDamageSpots).length > 0) {
+      setCarDamageSpotsState(claimCase.carDamageSpots);
+    } else {
+      // Default initial damage spots based on impact area
+      setCarDamageSpotsState({
+        front_bumper: {
+          type: 'شکستگی و خراشیدگی عمیق دیاق',
+          severity: 'major',
+          operation: 'تعویض کامل',
+          color: 'red',
+          note: 'سپر جلو دارای شکستگی عمیق در اثر ضربه مستقیم است.',
+          updatedAt: new Date().toLocaleDateString('fa-IR')
+        },
+        fender_fr: {
+          type: 'قرشدگی و خط و خش',
+          severity: 'moderate',
+          operation: 'صافکاری و نقاشی',
+          color: 'orange',
+          note: 'گلگیر جلو راست نیاز به صافکاری بی‌رنگ و لکه‌گیری دارد.',
+          updatedAt: new Date().toLocaleDateString('fa-IR')
+        }
+      });
     }
+
+    // Load parts list
+    if (claimCase.assessment?.items && claimCase.assessment.items.length > 0) {
+      setFieldParts(
+        claimCase.assessment.items.map((it: any, idx: number) => ({
+          id: `item-${idx}-${Date.now()}`,
+          partName: it.partName,
+          operationType: (it.operationType as any) || (it.action === 'REPLACE' ? 'تعویض کامل' : 'صافکاری و نقاشی'),
+          partPrice: it.price || 0,
+          wagePrice: it.wage || 0,
+          scrapPrice: it.scrapValue || 0,
+          damageSeverity: it.action === 'REPLACE' ? 'major' : 'moderate',
+          note: it.note || ''
+        }))
+      );
+    } else {
+      // Default sample parts for field inspection
+      setFieldParts([
+        {
+          id: 'part-1',
+          partName: 'سپر جلو',
+          partKey: 'front_bumper',
+          operationType: 'تعویض کامل',
+          partPrice: 18500000,
+          wagePrice: 4500000,
+          scrapPrice: 2000000,
+          damageSeverity: 'major',
+          note: 'شکستگی دیاق و پوسته سپر'
+        },
+        {
+          id: 'part-2',
+          partName: 'چراغ جلو راست',
+          partKey: 'fender_fr',
+          operationType: 'تعویض کامل',
+          partPrice: 9200000,
+          wagePrice: 1800000,
+          scrapPrice: 1000000,
+          damageSeverity: 'major',
+          note: 'شکستگی پایه‌ها و طلق چراغ'
+        },
+        {
+          id: 'part-3',
+          partName: 'گلگیر جلو راست',
+          partKey: 'fender_fr',
+          operationType: 'صافکاری و نقاشی',
+          partPrice: 0,
+          wagePrice: 8500000,
+          scrapPrice: 0,
+          damageSeverity: 'moderate',
+          note: 'صافکاری و رنگ‌آمیزی کلاف گلگیر'
+        }
+      ]);
+    }
+
+    // Load any existing field photos
+    const loadedPhotos: Array<{ id: string; title: string; category: 'damage' | 'vin' | 'scene' | 'other'; url: string; note?: string }> = [];
+    if (claimCase.additionalDocs) {
+      claimCase.additionalDocs.forEach((d) => {
+        if (d.uploaderRole?.includes('میدانی') || d.uploaderRole?.includes('expert') || d.docType?.includes('بازدید میدانی')) {
+          loadedPhotos.push({
+            id: d.id,
+            title: d.title,
+            category: d.title.includes('شاسی') || d.title.includes('VIN') ? 'vin' : d.title.includes('صحنه') ? 'scene' : 'damage',
+            url: d.dataUrl || '',
+            note: d.note
+          });
+        }
+      });
+    }
+
+    // Add default demo field photos if none exist
+    if (loadedPhotos.length === 0) {
+      loadedPhotos.push(
+        {
+          id: 'p-1',
+          title: 'عکس قطعه آسیب‌دیده - سپر و چراغ جلو راست',
+          category: 'damage',
+          url: 'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&w=800&q=80',
+          note: 'نمای نزدیک از شکستگی دیاق و چراغ'
+        },
+        {
+          id: 'p-2',
+          title: 'عکس شماره شاسی و پلاک فیزیکی خودرو',
+          category: 'vin',
+          url: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=800&q=80',
+          note: 'تطابق کامل شماره شاسی با کارت ماشین'
+        },
+        {
+          id: 'p-3',
+          title: 'زاویه برخورد و وضعیت خط ترمز در صحنه',
+          category: 'scene',
+          url: 'https://images.unsplash.com/photo-1583121274602-3e2820c69888?auto=format&fit=crop&w=800&q=80',
+          note: 'انطباق ارتفاع سپرها در محل تصادف'
+        }
+      );
+    }
+    setFieldPhotos(loadedPhotos);
   };
 
   // Accept Mission & Move to In-Progress
@@ -339,7 +457,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
           time: nowTimeStr,
           user: session.name,
           userRole: 'کارشناس میدانی',
-          note: `رد مأموریت ارجاع‌شده توسط کارشناس میدانی «${session.name}». علت رد: «${rejectReason}» - توضیحات: ${rejectDescription || 'بدون توضیحات'}. پرونده جهت ارجاع به کارشناس میدانی دیگر به بیمه‌گر بازگردانده شد.`
+          note: `رد مأموریت ارجاع‌شده توسط کارشناس میدانی «${session.name}». علت رد: «${rejectReason}» - توضیحات: ${rejectDescription || 'بدون توضیحات'}. پرونده جهت ارجاع به کارشناس دیگر به بیمه‌گر بازگردانده شد.`
         }
       ]
     };
@@ -351,7 +469,47 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
     setTimeout(() => setActionSuccessMsg(null), 5000);
   };
 
-  // Add Part in workspace
+  // Sync damage spots change from 2D Car Viewer
+  const handleDamageSpotsChange = (newSpots: Record<string, CarDamageSpot>) => {
+    setCarDamageSpotsState(newSpots);
+    if (selectedCase) {
+      onUpdateCase({
+        ...selectedCase,
+        carDamageSpots: newSpots
+      });
+    }
+  };
+
+  // Auto add/update part when clicking/editing on 2D Car Model
+  const handleAutoAddPartFromBlueprint = (partName: string, operationType: 'replace' | 'repair', note?: string) => {
+    const existingIndex = fieldParts.findIndex((p) => p.partName === partName);
+    const isReplace = operationType === 'replace';
+
+    if (existingIndex >= 0) {
+      const copy = [...fieldParts];
+      copy[existingIndex] = {
+        ...copy[existingIndex],
+        operationType: isReplace ? 'تعویض کامل' : 'صافکاری و نقاشی',
+        damageSeverity: isReplace ? 'major' : 'moderate',
+        note: note || copy[existingIndex].note
+      };
+      setFieldParts(copy);
+    } else {
+      const newPartItem = {
+        id: `part-${Date.now()}`,
+        partName,
+        operationType: (isReplace ? 'تعویض کامل' : 'صافکاری و نقاشی') as any,
+        partPrice: isReplace ? 15000000 : 0,
+        wagePrice: isReplace ? 3500000 : 8000000,
+        scrapPrice: isReplace ? 1500000 : 0,
+        damageSeverity: (isReplace ? 'major' : 'moderate') as any,
+        note: note || ''
+      };
+      setFieldParts([...fieldParts, newPartItem]);
+    }
+  };
+
+  // Add Part manually in unified workspace
   const handleAddPart = () => {
     const finalPartName = selectedPartName === 'سایر قطعات (سفارشی)' ? customPartName.trim() : selectedPartName;
     if (!finalPartName) return;
@@ -366,21 +524,52 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       operationType: partOpType,
       partPrice: price,
       wagePrice: wage,
-      scrapPrice: scrap
+      scrapPrice: scrap,
+      damageSeverity: partSeverity,
+      note: partNoteInput.trim()
     };
 
     setFieldParts([...fieldParts, newItem]);
+
+    // Also sync to 2D car damage spots
+    const matchingDef = ALL_INSPECTION_PARTS.find((p) => p.label === finalPartName);
+    if (matchingDef) {
+      const key = matchingDef.key;
+      const colorMap = partSeverity === 'major' ? 'red' : partSeverity === 'moderate' ? 'orange' : 'yellow';
+      const updatedSpots = {
+        ...carDamageSpotsState,
+        [key]: {
+          type: partNoteInput.trim() || 'آسیب‌دیده در اثر تصادف',
+          severity: partSeverity,
+          operation: partOpType,
+          color: colorMap as any,
+          note: partNoteInput.trim(),
+          updatedAt: new Date().toLocaleDateString('fa-IR')
+        }
+      };
+      handleDamageSpotsChange(updatedSpots);
+    }
+
     if (selectedPartName === 'سایر قطعات (سفارشی)') {
       setCustomPartName('');
     }
+    setPartNoteInput('');
   };
 
   // Remove Part
-  const handleRemovePart = (id: string) => {
+  const handleRemovePart = (id: string, partName?: string) => {
     setFieldParts(fieldParts.filter((p) => p.id !== id));
+    if (partName) {
+      const matchingDef = ALL_INSPECTION_PARTS.find((p) => p.label === partName);
+      if (matchingDef && carDamageSpotsState[matchingDef.key]) {
+        const updatedSpots = { ...carDamageSpotsState };
+        delete updatedSpots[matchingDef.key];
+        handleDamageSpotsChange(updatedSpots);
+      }
+    }
   };
 
-  // Part calculations
+  // Financial Calculations
   const totalPartsCost = useMemo(() => fieldParts.reduce((acc, p) => acc + p.partPrice, 0), [fieldParts]);
   const totalWageCost = useMemo(() => fieldParts.reduce((acc, p) => acc + p.wagePrice, 0), [fieldParts]);
   const totalScrapValue = useMemo(() => fieldParts.reduce((acc, p) => acc + p.scrapPrice, 0), [fieldParts]);
@@ -398,11 +587,43 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       const newP = {
         id: `field-img-${Date.now()}`,
         title: newPhotoTitle || file.name,
+        category: newPhotoCategory,
         url
       };
       setFieldPhotos([...fieldPhotos, newP]);
     };
     reader.readAsDataURL(file);
+  };
+
+  // Preset quick capture demo photo
+  const handleAddPresetPhoto = (title: string, category: 'damage' | 'vin' | 'scene' | 'other', url: string) => {
+    const newP = {
+      id: `field-img-${Date.now()}`,
+      title,
+      category,
+      url
+    };
+    setFieldPhotos([...fieldPhotos, newP]);
+  };
+
+  // Descriptive report quick templates
+  const handleInsertReportTemplate = (type: 'confirmed' | 'partial' | 'fraud') => {
+    if (type === 'confirmed') {
+      setAuthVerdict('CONFIRMED');
+      setFieldReportText(
+        `پس از حضور در محل اعلامی حادثه و بررسی فیزیکی خودروی ${selectedCase?.carType || selectedCase?.carModel || 'زیان‌دیده'} با پلاک ${selectedCase?.victimPlate || selectedCase?.plateNumber || ''}، انطباق کامل ارتفاع سپرها، زاویه برخورد و ترکش‌های ناشی از تصادف تایید گردید. شماره شاسی و VIN فیزیکی خودرو با مشخصات مندرج در کارت ماشین و بیمه‌نامه تطابق ۱۰۰٪ دارد. آسیب‌های ثبت‌شده در مدل دوبعدی و جدول قطعات مربوط به همین حادثه بوده و اصالت تصادف تایید می‌شود.`
+      );
+    } else if (type === 'partial') {
+      setAuthVerdict('PARTIAL_MISMATCH');
+      setFieldReportText(
+        `در بررسی میدانی خودرو در محل، اصل وقوع حادثه از ناحیه جلو تایید شد؛ اما آثار خط و خش و رنگ‌پریدگی کهنه روی گلگیر و درب عقب مربوط به تصادفات قبلی بوده و از شمول ارزیابی این پرونده حذف گردید. خسارت صرفاً برای قطعات آسیب‌دیده مستقیم این برخورد محاسبه و منظور شده است.`
+      );
+    } else {
+      setAuthVerdict('FRAUD_REJECTED');
+      setFieldReportText(
+        `با بررسی دقیق فیزیکی در محل، عدم انطباق شدید در ارتفاع ضربه، عدم وجود خط ترمز منطبق، کهنگی گرد و غبار روی محل شکستگی قطعات و عدم تطابق رنگ خودروی مقصر با آثار به جا مانده مشاهده شد. تصادف صوری و ساختگی تشخیص داده شد و پرونده جهت رد خسارت و بررسی حقوقی به شرکت بیمه‌گر ارسال می‌گردد.`
+      );
+    }
   };
 
   // Final Submit to Insurer for Payment (No user confirmation needed)
@@ -419,7 +640,9 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       price: p.partPrice,
       wage: p.wagePrice,
       scrapValue: p.scrapPrice,
-      totalItemCost: p.partPrice + p.wagePrice - p.scrapPrice
+      totalItemCost: p.partPrice + p.wagePrice - p.scrapPrice,
+      severity: p.damageSeverity,
+      note: p.note
     }));
 
     const assessmentResult: AssessmentData = {
@@ -435,17 +658,26 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       assessorName: session.name,
       assessedAt: nowTimeStr,
       items: assessmentItems,
+      parts: fieldParts.map((p) => ({
+        name: p.partName,
+        type: p.operationType === 'تعویض کامل' ? 'replace' : 'repair',
+        partPrice: p.partPrice,
+        repairPrice: p.wagePrice,
+        salvageNeeded: p.scrapPrice > 0,
+        salvageValue: p.scrapPrice
+      })),
       totalPartsCost,
       totalWageCost,
       totalScrapValue,
       totalAmount: netPayable,
       notes: fieldReportText.trim() || 'گزارش ارزیابی میدانی در محل حادثه تکمیل و اصالت تایید گردید.',
+      reviewerNote: fieldReportText.trim(),
       isFinalDecision: true,
       fieldInspectionConfirmed: authVerdict === 'CONFIRMED',
       authenticityVerdict: authVerdict
     };
 
-    // Prepare uploaded photos as additional docs
+    // Prepare uploaded photos as additional docs with field expert role
     const uploadedDocs: AdditionalDocItem[] = fieldPhotos.map((fp) => ({
       id: fp.id,
       title: fp.title,
@@ -458,7 +690,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       uploaderParty: 'EXPERT',
       uploadedAt: nowTimeStr,
       visibility: 'SHARED',
-      note: 'ثبت‌شده در حین بازدید فیزیکی از محل حادثه'
+      note: fp.note || `عکس بازدید میدانی در دسته: ${fp.category}`
     }));
 
     const finalStatus = authVerdict === 'FRAUD_REJECTED'
@@ -469,6 +701,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       ...selectedCase,
       status: finalStatus,
       assessment: assessmentResult,
+      carDamageSpots: carDamageSpotsState,
       fieldExpertFinal: true,
       fieldExpertVerdict: authVerdict,
       fieldExpertReportNote: fieldReportText.trim(),
@@ -480,14 +713,14 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
           time: nowTimeStr,
           user: session.name,
           userRole: 'کارشناس میدانی',
-          note: `تنظیم و ثبت نهایی گزارش میدانی توسط کارشناس «${session.name}» با مبلغ خالص ${formatCurrency(netPayable)} ریال و ارسال مستقیم به واحد مالی و پرداخت بیمه‌گر. به دلیل قطعی بودن ارزیابی میدانی، نیازی به تایید مجدد مشتری نیست و پرونده آماده تسویه است.`
+          note: `تنظیم و ثبت نهایی گزارش میدانی توسط کارشناس «${session.name}» با مبلغ خالص ${formatCurrency(netPayable)} ریال (${formatCurrency(Math.round(netPayable / 10))} تومان) و ارسال مستقیم به واحد مالی و صدور حواله شرکت بیمه. اصالت‌سنجی: ${authVerdict === 'CONFIRMED' ? 'تایید اصالت' : authVerdict === 'PARTIAL_MISMATCH' ? 'عدم انطباق جزئی' : 'رد خسارت صوری'}.`
         }
       ]
     };
 
     onUpdateCase(updated);
     setSelectedCase(null);
-    setActionSuccessMsg(`گزارش میدانی پرونده ${selectedCase.id} با موفقیت ثبت و جهت پرداخت مستقیم به بیمه‌گر ارسال گردید.`);
+    setActionSuccessMsg(`گزارش میدانی پرونده ${selectedCase.id} با موفقیت ثبت و به پنل بیمه‌گر ارسال گردید.`);
     setTimeout(() => setActionSuccessMsg(null), 6000);
   };
 
@@ -496,7 +729,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       {/* Top Banner & Header */}
       <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-blue-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-700/50 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
-        
+
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 text-xs font-black">
@@ -512,7 +745,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              ماموریت‌های اعزام به محل حادثه، بازرسی فیزیکی خودروها، احراز اصالت صحنه تصادف و برآورد مستقیم خسارت جهت تسویه فوری توسط شرکت بیمه.
+              ماموریت‌های اعزام به محل حادثه، بازرسی فیزیکی خودروها، احراز اصالت صحنه تصادف و برآورد مستقیم خسارت با مدل تعاملی ۲بعدی جهت تسویه فوری توسط شرکت بیمه.
             </p>
           </div>
 
@@ -521,11 +754,10 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
             <button
               onClick={() => {
                 setShowSmsModal(true);
-                // Mark visible notifications as read
                 myNotifications.forEach((n) => markAssessorNotificationAsRead(n.id));
                 reloadNotifications();
               }}
-              className="relative px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-black transition-all flex items-center gap-2.5 shadow-lg active:scale-95"
+              className="relative px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-black transition-all flex items-center gap-2.5 shadow-lg active:scale-95 cursor-pointer"
             >
               <Bell className="w-5 h-5 text-amber-400" />
               <span>پیامک‌ها و اعلان‌های اعزام فوری</span>
@@ -555,7 +787,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
             <div className="flex flex-wrap items-center gap-1.5">
               <button
                 onClick={() => setActiveTab('new_assignments')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                   activeTab === 'new_assignments'
                     ? 'bg-amber-500 text-slate-950 shadow-md font-extrabold'
                     : 'text-slate-600 hover:bg-slate-100'
@@ -570,7 +802,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
               <button
                 onClick={() => setActiveTab('in_progress')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                   activeTab === 'in_progress'
                     ? 'bg-blue-900 text-white shadow-md'
                     : 'text-slate-600 hover:bg-slate-100'
@@ -585,7 +817,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
               <button
                 onClick={() => setActiveTab('completed')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                   activeTab === 'completed'
                     ? 'bg-emerald-700 text-white shadow-md'
                     : 'text-slate-600 hover:bg-slate-100'
@@ -600,7 +832,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
               <button
                 onClick={() => setActiveTab('rejected')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                   activeTab === 'rejected'
                     ? 'bg-rose-700 text-white shadow-md'
                     : 'text-slate-600 hover:bg-slate-100'
@@ -635,7 +867,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               </div>
               <h3 className="font-black text-slate-800 text-sm">موردی در این بخش یافت نشد</h3>
               <p className="text-xs text-slate-500">
-                در صورت ارجاع پرونده جدید از طرف شرکت بیمه یا اعلام تردید در اصالت تصادف توسط مشتری، بلافاصله در این بخش ظاهر خواهد شد.
+                در صورت ارجاع پرونده جدید از طرف شرکت بیمه یا اعلام تردید در اصالت تصادف، بلافاصله در این بخش ظاهر خواهد شد.
               </p>
             </div>
           ) : (
@@ -677,10 +909,10 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       <div>
                         <h3 className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-1.5">
                           <Car className="w-4 h-4 text-emerald-700" />
-                          <span>{c.carModel || 'خودرو زیان‌دیده'}</span>
+                          <span>{c.carModel || c.carType || 'خودرو زیان‌دیده'}</span>
                         </h3>
                         <p className="text-xs text-slate-500 font-mono mt-0.5">
-                          پلاک: <span className="font-bold text-slate-800">{c.plateNumber || 'نامشخص'}</span>
+                          پلاک: <span className="font-bold text-slate-800">{c.plateNumber || c.victimPlate || 'نامشخص'}</span>
                         </p>
                       </div>
 
@@ -689,7 +921,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                         <div className="flex items-start gap-1.5">
                           <MapPin className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
                           <span className="text-[11px] leading-tight font-medium">
-                            {c.accidentLocation || 'تهران، محل اعلامی طرفین حادثه'}
+                            {c.accidentLocation || c.address || 'تهران، محل اعلامی طرفین حادثه'}
                           </span>
                         </div>
 
@@ -719,19 +951,19 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                           </div>
                           <div className="truncate">
                             <span className="font-black text-xs text-purple-950 block">
-                              توضیحات و دستور بیمه‌گر ({getInsurerPersianName(c.culpritInsurer) || 'بیمه‌گر'})
+                              دستور بیمه‌گر ({getInsurerPersianName(c.culpritInsurer) || 'بیمه‌گر'})
                             </span>
                             {(c.insurerFieldExpertNote || c.insurerAssignmentNote || c.insurerInstruction) ? (
                               <span className="text-[10px] text-purple-800 line-clamp-1 font-medium mt-0.5">
                                 «{c.insurerFieldExpertNote || c.insurerAssignmentNote || c.insurerInstruction}»
                               </span>
                             ) : (
-                              <span className="text-[10px] text-slate-500 font-medium">کلیک جهت مشاهده مشخصات و دستور کار ارجاع</span>
+                              <span className="text-[10px] text-slate-500 font-medium">مشاهده مشخصات و دستور ارجاع</span>
                             )}
                           </div>
                         </div>
                         <span className="text-[10px] font-black text-purple-700 bg-white/90 px-2 py-1 rounded-lg border border-purple-200 group-hover:bg-purple-600 group-hover:text-white transition-colors shrink-0 mr-2">
-                          توضیحات بیمه‌گر
+                          دستور بیمه
                         </span>
                       </button>
                     </div>
@@ -742,7 +974,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             onClick={() => handleAcceptMission(c)}
-                            className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
+                            className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
                           >
                             <CheckSquare className="w-4 h-4" />
                             <span>قبول ماموریت</span>
@@ -750,7 +982,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
                           <button
                             onClick={() => handleOpenReject(c)}
-                            className="py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-all"
+                            className="py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs flex items-center justify-center gap-1 active:scale-95 transition-all cursor-pointer"
                           >
                             <XCircle className="w-4 h-4 text-rose-600" />
                             <span>رد ماموریت</span>
@@ -761,7 +993,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       {(activeTab === 'in_progress' || activeTab === 'completed' || activeTab === 'rejected') && (
                         <button
                           onClick={() => handleOpenWorkspace(c)}
-                          className="w-full py-2.5 px-4 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all"
+                          className="w-full py-2.5 px-4 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold text-xs flex items-center justify-center gap-2 shadow-md active:scale-95 transition-all cursor-pointer"
                         >
                           <Eye className="w-4 h-4 text-amber-400" />
                           <span>{activeTab === 'completed' ? 'مشاهده گزارش ارسالی به بیمه' : 'ورود به فرم گزارش میدانی'}</span>
@@ -775,7 +1007,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
           )}
         </div>
       ) : (
-        /* WORKSPACE: DEDICATED FIELD INSPECTION REPORTING ENVIRONMENT */
+        /* WORKSPACE: UNIFIED FIELD INSPECTION WORKSPACE */
         <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-8 space-y-6 animate-in fade-in">
           {/* Top Bar of Workspace */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
@@ -783,7 +1015,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setSelectedCase(null)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1 transition-all"
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
                 >
                   <ArrowRight className="w-4 h-4" />
                   <span>بازگشت به لیست ماموریت‌ها</span>
@@ -793,7 +1025,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 </span>
               </div>
               <h2 className="text-xl font-black text-slate-900 pt-1">
-                محیط کارشناسی میدانی و تنظیم گزارش در محل: {selectedCase.carModel} ({selectedCase.plateNumber})
+                فرم کارشناسی میدانی در محل: {selectedCase.carModel || selectedCase.carType} ({selectedCase.plateNumber || selectedCase.victimPlate})
               </h2>
             </div>
 
@@ -839,59 +1071,66 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
             </div>
           )}
 
-          {/* Workspace Sub-Tabs */}
+          {/* Workspace Unified 5 Sub-Tabs Navigation */}
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
             <button
               onClick={() => setWorkspaceTab('docs')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 workspaceTab === 'docs'
                   ? 'bg-blue-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               <FileText className="w-4 h-4" />
-              <span>۱. مدارک، کروکی و عکس‌های حادثه</span>
+              <span>۱. مدارک و پرونده اصلی</span>
             </button>
 
             <button
               onClick={() => setWorkspaceTab('authenticity')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 workspaceTab === 'authenticity'
                   ? 'bg-blue-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               <ShieldAlert className="w-4 h-4" />
-              <span>۲. احراز اصالت و بررسی فیزیکی</span>
+              <span>۲. اصالت‌سنجی و گزارش تشریحی</span>
+              {authVerdict && (
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
+                  authVerdict === 'CONFIRMED' ? 'bg-emerald-400 text-emerald-950' : authVerdict === 'PARTIAL_MISMATCH' ? 'bg-amber-400 text-amber-950' : 'bg-rose-500 text-white'
+                }`}>
+                  {authVerdict === 'CONFIRMED' ? 'تایید' : authVerdict === 'PARTIAL_MISMATCH' ? 'مغایرت' : 'رد صوری'}
+                </span>
+              )}
             </button>
 
             <button
-              onClick={() => setWorkspaceTab('parts')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
-                workspaceTab === 'parts'
-                  ? 'bg-blue-900 text-white shadow-xs'
+              onClick={() => setWorkspaceTab('assessment_parts')}
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
+                workspaceTab === 'assessment_parts'
+                  ? 'bg-blue-900 text-white shadow-xs ring-2 ring-blue-900/30'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
-              <DollarSign className="w-4 h-4" />
-              <span>۳. قطعات، خسارت و قیمت‌گذاری</span>
+              <Sliders className="w-4 h-4 text-amber-400" />
+              <span>۳. ارزیابی خسارت، مدل ۲بعدی و قیمت‌گذاری</span>
               {fieldParts.length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-400 text-slate-950 font-black">
-                  {fieldParts.length}
+                  {fieldParts.length} قطعه
                 </span>
               )}
             </button>
 
             <button
               onClick={() => setWorkspaceTab('photos')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 workspaceTab === 'photos'
                   ? 'bg-blue-900 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
               <Camera className="w-4 h-4" />
-              <span>۴. عکس‌های بازدید میدانی</span>
+              <span>۴. عکس‌های بازدید میدانی و خسارت</span>
               {fieldPhotos.length > 0 && (
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-500 text-white font-black">
                   {fieldPhotos.length}
@@ -901,18 +1140,18 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
             <button
               onClick={() => setWorkspaceTab('finalize')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 workspaceTab === 'finalize'
                   ? 'bg-emerald-600 text-white shadow-md'
                   : 'bg-emerald-100 text-emerald-950 hover:bg-emerald-200'
               }`}
             >
               <Send className="w-4 h-4" />
-              <span>۵. تایید نهایی و ارسال به بیمه (تسویه)</span>
+              <span>۵. تایید نهایی و ارسال به بیمه‌گر</span>
             </button>
           </div>
 
-          {/* TAB 1: FULL DOCUMENTS & DOSSIER */}
+          {/* TAB 1: ORIGINAL DOSSIER & DOCUMENTS (مدارک و پرونده اصلی) */}
           {workspaceTab === 'docs' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -920,7 +1159,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
                   <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2">
                     <User className="w-4 h-4 text-blue-900" />
-                    <span>مشخصات طرفین و بیمه‌نامه‌ها</span>
+                    <span>مشخصات طرفین و بیمه‌نامه‌های پرونده اصلی</span>
                   </h4>
                   <div className="space-y-2 text-xs text-slate-700">
                     <div className="flex justify-between py-1 border-b border-slate-200">
@@ -928,8 +1167,20 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       <span className="font-bold">{selectedCase.victimName} ({selectedCase.victimPhone})</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-200">
+                      <span className="text-slate-500">پلاک زیان‌دیده:</span>
+                      <span className="font-bold font-mono">{selectedCase.victimPlate || selectedCase.plateNumber}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-200">
+                      <span className="text-slate-500">شماره شاسی (VIN):</span>
+                      <span className="font-mono font-bold text-slate-900">{selectedCase.victimVin || 'IR-VIN-99283411'}</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-200">
                       <span className="text-slate-500">مقصر حادثه:</span>
                       <span className="font-bold">{selectedCase.culpritName} ({selectedCase.culpritPhone})</span>
+                    </div>
+                    <div className="flex justify-between py-1 border-b border-slate-200">
+                      <span className="text-slate-500">پلاک مقصر:</span>
+                      <span className="font-bold font-mono">{selectedCase.culpritPlate || 'نامشخص'}</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-200">
                       <span className="text-slate-500">شرکت بیمه‌گر مقصر:</span>
@@ -937,7 +1188,11 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-200">
                       <span className="text-slate-500">محل دقیق حادثه:</span>
-                      <span className="font-bold text-slate-900">{selectedCase.accidentLocation || 'نامشخص'}</span>
+                      <span className="font-bold text-slate-900">{selectedCase.accidentLocation || selectedCase.address || 'تهران'}</span>
+                    </div>
+                    <div className="flex justify-between py-1">
+                      <span className="text-slate-500">تاریخ و زمان حادثه:</span>
+                      <span className="font-bold text-slate-900">{selectedCase.date}</span>
                     </div>
                   </div>
                 </div>
@@ -950,12 +1205,26 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   </h4>
                   <div className="space-y-2 text-xs text-slate-800">
                     <div className="flex justify-between py-1 border-b border-amber-200/70">
-                      <span className="text-slate-600">کروکی رسمی:</span>
-                      <span className="font-bold">{selectedCase.hasKroki ? `دارد (کد: ${selectedCase.sceneReportCode || 'الکترونیک'})` : 'فاقد کروکی (نیاز به احراز اصالت)'}</span>
+                      <span className="text-slate-600">کروکی رسمی پلیس:</span>
+                      <span className="font-bold">{selectedCase.hasKroki ? `دارد (کد: ${selectedCase.sceneReportCode || 'الکترونیک'})` : 'فاقد کروکی (نیاز به احراز اصالت فیزیکی)'}</span>
                     </div>
+                    {selectedCase.customerKrokiPhoto && (
+                      <div className="py-2">
+                        <span className="text-slate-700 font-bold block mb-1">تصویر کروکی بارگذاری‌شده:</span>
+                        <div
+                          onClick={() => setPreviewPhotoUrl(selectedCase.customerKrokiPhoto!)}
+                          className="w-full h-32 bg-slate-200 rounded-xl overflow-hidden cursor-pointer border border-amber-300 relative group"
+                        >
+                          <img src={selectedCase.customerKrokiPhoto} alt="کروکی" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs">
+                            بزرگ‌نمایی کروکی
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {selectedCase.authenticityDispute && (
                       <div className="py-1">
-                        <span className="text-amber-900 font-extrabold block mb-1">متن اعتراض و تردید اصالت:</span>
+                        <span className="text-amber-900 font-extrabold block mb-1">متن اعتراض و تردید در اصالت:</span>
                         <p className="bg-white p-2.5 rounded-xl border border-amber-200 font-medium text-slate-800 leading-relaxed text-[11px]">
                           <strong>«{selectedCase.authenticityDispute.reason}»</strong>: {selectedCase.authenticityDispute.description}
                         </p>
@@ -965,14 +1234,21 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 </div>
               </div>
 
-              {/* Photos & Evidence from Customer */}
+              {/* Photos & Evidence Uploaded in Original Case */}
               <div className="space-y-3">
-                <h4 className="font-black text-slate-900 text-xs sm:text-sm">
-                  عکس‌ها و ویدیوهای بارگذاری‌شده توسط مشتریان و پلیس:
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                    <FileBadge className="w-4 h-4 text-blue-900" />
+                    <span>عکس‌ها، مدارک و اسناد اولیه پرونده (مشتریان، پلیس و سامانه):</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-500 font-bold">
+                    کلیک روی هر تصویر جهت بزرگ‌نمایی
+                  </span>
+                </div>
+
                 {(!selectedCase.additionalDocs || selectedCase.additionalDocs.length === 0) ? (
                   <div className="p-6 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs text-slate-500">
-                    مدرک اضافه‌ای بارگذاری نشده است. از تصاویر فرم پذیرش استفاده کنید.
+                    مدرک اضافه‌ای بارگذاری نشده است.
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -988,6 +1264,9 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                           ) : (
                             <FileText className="w-6 h-6 text-slate-400" />
                           )}
+                          <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[11px] font-bold">
+                            مشاهده
+                          </div>
                         </div>
                         <div className="px-1">
                           <span className="text-[11px] font-bold text-slate-800 truncate block">{doc.title}</span>
@@ -999,17 +1278,20 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 )}
               </div>
 
-              {/* 3D Car Diagram */}
-              <div className="space-y-2">
-                <h4 className="font-black text-slate-900 text-xs sm:text-sm">نمای سه‌بعدی نقاط آسیب‌دیده خودرو:</h4>
-                <div className="bg-slate-900 rounded-3xl p-4 overflow-hidden">
-                  <Car3DViewer highlightSpots={selectedCase.impactCoordinates || []} />
-                </div>
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceTab('authenticity')}
+                  className="px-6 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <span>مرحله بعدی: اصالت‌سنجی و گزارش تشریحی</span>
+                  <ArrowRight className="w-4 h-4 rotate-180" />
+                </button>
               </div>
             </div>
           )}
 
-          {/* TAB 2: AUTHENTICITY & PHYSICAL VERIFICATION */}
+          {/* TAB 2: AUTHENTICITY & PHYSICAL REPORT (اصالت‌سنجی و گزارش تشریحی) */}
           {workspaceTab === 'authenticity' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="p-4 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1">
@@ -1030,7 +1312,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div
-                    onClick={() => setAuthVerdict('CONFIRMED')}
+                    onClick={() => handleInsertReportTemplate('confirmed')}
                     className={`p-4 rounded-2xl border-2 cursor-pointer transition-all space-y-2 ${
                       authVerdict === 'CONFIRMED'
                         ? 'border-emerald-600 bg-emerald-50 text-emerald-950 font-bold shadow-sm'
@@ -1047,7 +1329,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   </div>
 
                   <div
-                    onClick={() => setAuthVerdict('PARTIAL_MISMATCH')}
+                    onClick={() => handleInsertReportTemplate('partial')}
                     className={`p-4 rounded-2xl border-2 cursor-pointer transition-all space-y-2 ${
                       authVerdict === 'PARTIAL_MISMATCH'
                         ? 'border-amber-600 bg-amber-50 text-amber-950 font-bold shadow-sm'
@@ -1064,7 +1346,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   </div>
 
                   <div
-                    onClick={() => setAuthVerdict('FRAUD_REJECTED')}
+                    onClick={() => handleInsertReportTemplate('fraud')}
                     className={`p-4 rounded-2xl border-2 cursor-pointer transition-all space-y-2 ${
                       authVerdict === 'FRAUD_REJECTED'
                         ? 'border-rose-600 bg-rose-50 text-rose-950 font-bold shadow-sm'
@@ -1082,35 +1364,155 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 </div>
               </div>
 
+              {/* Technical Inspection Checklist */}
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                <span className="font-extrabold text-slate-900 block mb-2">چک‌لیست بررسی فنی و میدانی کارشناس:</span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
+                  <label className="flex items-center gap-2 cursor-pointer bg-white p-2.5 rounded-xl border border-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={checklistItems.brakeMatch}
+                      onChange={(e) => setChecklistItems({ ...checklistItems, brakeMatch: e.target.checked })}
+                      className="rounded text-blue-900"
+                    />
+                    <span>بررسی خط ترمز و مسیر حرکت خودروها در صحنه</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer bg-white p-2.5 rounded-xl border border-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={checklistItems.impactHeightMatch}
+                      onChange={(e) => setChecklistItems({ ...checklistItems, impactHeightMatch: e.target.checked })}
+                      className="rounded text-blue-900"
+                    />
+                    <span>تطبیق ارتفاع سپرها و خطوط طولی برخورد دو خودرو</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer bg-white p-2.5 rounded-xl border border-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={checklistItems.paintScratchesFresh}
+                      onChange={(e) => setChecklistItems({ ...checklistItems, paintScratchesFresh: e.target.checked })}
+                      className="rounded text-blue-900"
+                    />
+                    <span>بررسی تازگی رنگ‌پریدگی و خراش‌های سطحی</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer bg-white p-2.5 rounded-xl border border-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={checklistItems.vinPhysicallyMatched}
+                      onChange={(e) => setChecklistItems({ ...checklistItems, vinPhysicallyMatched: e.target.checked })}
+                      className="rounded text-blue-900"
+                    />
+                    <span>تطبیق شماره شاسی فیزیکی (VIN) و شماره موتور با کارت خودرو</span>
+                  </label>
+                </div>
+              </div>
+
               {/* Text Report */}
               <div className="space-y-2">
-                <label className="block text-xs font-black text-slate-900">
-                  گزارش تشریحی و فنی کارشناس میدانی: <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-black text-slate-900">
+                    گزارش تشریحی و فنی کارشناس میدانی: <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex items-center gap-1.5 text-[11px]">
+                    <span className="text-slate-500">قالب‌های سریع:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleInsertReportTemplate('confirmed')}
+                      className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 font-bold hover:bg-emerald-200 cursor-pointer"
+                    >
+                      تایید انطباق
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleInsertReportTemplate('partial')}
+                      className="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 font-bold hover:bg-amber-200 cursor-pointer"
+                    >
+                      مغایرت جزئی
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleInsertReportTemplate('fraud')}
+                      className="px-2 py-0.5 rounded-lg bg-rose-100 text-rose-800 font-bold hover:bg-rose-200 cursor-pointer"
+                    >
+                      صوری
+                    </button>
+                  </div>
+                </div>
                 <textarea
                   rows={5}
                   value={fieldReportText}
                   onChange={(e) => setFieldReportText(e.target.value)}
                   placeholder="مشاهدات حضوری از وضعیت بدنه، شاسی، رنگ‌شدگی، ارتفاع سپرها، بررسی کیلومترشمار، کارت ماشین و نحوه برخورد..."
-                  className="w-full p-4 rounded-2xl border border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-900 focus:ring-1 focus:ring-blue-900"
+                  className="w-full p-4 rounded-2xl border border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-900 focus:ring-1 focus:ring-blue-900 leading-relaxed"
                 />
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceTab('assessment_parts')}
+                  className="px-6 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <span>مرحله بعدی: ارزیابی خسارت و مدل ۲بعدی خودرو</span>
+                  <ArrowRight className="w-4 h-4 rotate-180" />
+                </button>
               </div>
             </div>
           )}
 
-          {/* TAB 3: PARTS & PRICING */}
-          {workspaceTab === 'parts' && (
+          {/* UNIFIED TAB 3: DAMAGE ASSESSMENT, 2D INTERACTIVE MODEL & PRICING (ارزیابی خسارت، مدل ۲بعدی و قیمت‌گذاری) */}
+          {workspaceTab === 'assessment_parts' && (
             <div className="space-y-6 animate-in fade-in">
-              {/* Add Part Box */}
-              <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4">
-                <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-                  <Plus className="w-4 h-4 text-emerald-700" />
-                  <span>افزودن قطعه آسیب‌دیده و قیمت‌گذاری در محل</span>
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+              {/* Header Box */}
+              <div className="p-4 bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-3xl flex items-center justify-between flex-wrap gap-3 shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shadow-xs">
+                    <Sliders className="w-5 h-5" />
+                  </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">نام قطعه</label>
+                    <h3 className="font-black text-sm sm:text-base text-white flex items-center gap-2">
+                      <span>ارزیابی هوشمند روی نقشه ۲بعدی و تعیین قیمت قطعات</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+                        یکپارچه با کارشناس خسارت
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-300 font-medium">
+                      روی هر قطعه در نقشه ۲بعدی یا ۳بعدی کلیک کنید تا شدت آسیب (زرد/نارنجی/قرمز)، نوع عملیات و قیمت تعیین گردد.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="px-3 py-1 bg-white/10 rounded-xl border border-white/20 text-slate-200">
+                    تعداد قطعات ثبت‌شده: <strong className="text-amber-300 font-mono">{fieldParts.length}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* 2D Blueprint & 3D Interactive Model Viewer */}
+              <Car3DViewer
+                caseId={selectedCase.id}
+                editable={true}
+                damageData={carDamageSpotsState}
+                onChangeDamageData={handleDamageSpotsChange}
+                onAddPartToEstimate={handleAutoAddPartFromBlueprint}
+              />
+
+              {/* Part Builder Form */}
+              <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                    <Plus className="w-4 h-4 text-emerald-700" />
+                    <span>افزودن مستقیم قطعه آسیب‌دیده و درج قیمت / اجرت</span>
+                  </h4>
+                  <span className="text-[11px] text-slate-500 font-bold">
+                    همگام با نقشه ۲بعدی بالا
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 text-xs">
+                  <div className="xl:col-span-2">
+                    <label className="block font-bold text-slate-700 mb-1">نام قطعه خودرو</label>
                     <select
                       value={selectedPartName}
                       onChange={(e) => setSelectedPartName(e.target.value)}
@@ -1123,7 +1525,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   </div>
 
                   {selectedPartName === 'سایر قطعات (سفارشی)' && (
-                    <div>
+                    <div className="xl:col-span-2">
                       <label className="block font-bold text-slate-700 mb-1">عنوان قطعه دلخواه</label>
                       <input
                         type="text"
@@ -1136,6 +1538,19 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   )}
 
                   <div>
+                    <label className="block font-bold text-slate-700 mb-1">شدت آسیب / رنگ</label>
+                    <select
+                      value={partSeverity}
+                      onChange={(e) => setPartSeverity(e.target.value as any)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold bg-white text-slate-800"
+                    >
+                      <option value="major">🔴 شدید / تعویض (قرمز)</option>
+                      <option value="moderate">🟠 متوسط / صافکاری و رنگ (نارنجی)</option>
+                      <option value="minor">🟡 جزئی / خط و خش (زرد)</option>
+                    </select>
+                  </div>
+
+                  <div>
                     <label className="block font-bold text-slate-700 mb-1">نوع عملیات</label>
                     <select
                       value={partOpType}
@@ -1145,6 +1560,8 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       <option value="تعویض کامل">تعویض کامل</option>
                       <option value="صافکاری و نقاشی">صافکاری و نقاشی</option>
                       <option value="تعمیر و تنظیم">تعمیر و تنظیم</option>
+                      <option value="رنگ‌آمیزی">رنگ‌آمیزی</option>
+                      <option value="صافکاری PDR بدون رنگ">صافکاری PDR بدون رنگ</option>
                     </select>
                   </div>
 
@@ -1180,16 +1597,27 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       dir="ltr"
                     />
                   </div>
-                </div>
 
-                <div className="flex justify-end">
-                  <button
-                    onClick={handleAddPart}
-                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-xs flex items-center gap-1.5"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>افزودن به لیست خسارت</span>
-                  </button>
+                  <div className="xl:col-span-5">
+                    <label className="block font-bold text-slate-700 mb-1">توضیحات و شرح آسیب قطعه</label>
+                    <input
+                      type="text"
+                      value={partNoteInput}
+                      onChange={(e) => setPartNoteInput(e.target.value)}
+                      placeholder="مثلاً: شکستگی دیاق و پوسته از سمت راست..."
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 font-medium bg-white"
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      onClick={handleAddPart}
+                      className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>افزودن به لیست</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1200,19 +1628,21 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     <tr>
                       <th className="p-3">ردیف</th>
                       <th className="p-3">نام قطعه</th>
+                      <th className="p-3">شدت آسیب</th>
                       <th className="p-3">نوع عملیات</th>
                       <th className="p-3">قیمت قطعه (ریال)</th>
                       <th className="p-3">اجرت (ریال)</th>
                       <th className="p-3">ارزش داغی (ریال)</th>
                       <th className="p-3">خالص آیتم (ریال)</th>
+                      <th className="p-3">توضیحات</th>
                       <th className="p-3 text-center">عملیات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 bg-white">
                     {fieldParts.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="p-6 text-center text-slate-400 font-bold">
-                          هنوز قطعه‌ای افزوده نشده است.
+                        <td colSpan={10} className="p-6 text-center text-slate-400 font-bold">
+                          هنوز قطعه‌ای افزوده نشده است. از روی مدل ۲بعدی خودرو بالا یا فرم افزودن قطعه استفاده نمایید.
                         </td>
                       </tr>
                     ) : (
@@ -1223,6 +1653,17 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                             <td className="p-3 font-mono text-slate-500">{idx + 1}</td>
                             <td className="p-3 font-bold text-slate-900">{p.partName}</td>
                             <td className="p-3">
+                              <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${
+                                p.damageSeverity === 'major'
+                                  ? 'bg-rose-100 text-rose-900 border border-rose-200'
+                                  : p.damageSeverity === 'moderate'
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-200'
+                                  : 'bg-yellow-100 text-yellow-900 border border-yellow-200'
+                              }`}>
+                                {p.damageSeverity === 'major' ? '🔴 شدید' : p.damageSeverity === 'moderate' ? '🟠 متوسط' : '🟡 جزئی'}
+                              </span>
+                            </td>
+                            <td className="p-3">
                               <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-900 border border-blue-200 text-[11px] font-bold">
                                 {p.operationType}
                               </span>
@@ -1231,10 +1672,11 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                             <td className="p-3 font-mono text-slate-700">{formatCurrency(p.wagePrice)}</td>
                             <td className="p-3 font-mono text-amber-700">-{formatCurrency(p.scrapPrice)}</td>
                             <td className="p-3 font-mono font-black text-emerald-800">{formatCurrency(netItem)}</td>
+                            <td className="p-3 text-slate-600 text-[11px] max-w-xs truncate">{p.note || '-'}</td>
                             <td className="p-3 text-center">
                               <button
-                                onClick={() => handleRemovePart(p.id)}
-                                className="text-rose-600 hover:text-rose-800 font-bold p-1 rounded-lg hover:bg-rose-50"
+                                onClick={() => handleRemovePart(p.id, p.partName)}
+                                className="text-rose-600 hover:text-rose-800 font-bold p-1 rounded-lg hover:bg-rose-50 cursor-pointer"
                                 title="حذف"
                               >
                                 <Trash2 className="w-4 h-4" />
@@ -1249,92 +1691,189 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               </div>
 
               {/* Pricing Totals Bar */}
-              <div className="bg-gradient-to-r from-blue-950 to-slate-900 text-white rounded-2xl p-5 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+              <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-2xl p-5 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs shadow-md">
                 <div>
                   <span className="text-slate-400 block text-[11px]">مجموع بهای قطعات:</span>
                   <span className="font-mono text-sm sm:text-base font-black text-amber-300">{formatCurrency(totalPartsCost)} ریال</span>
+                  <span className="text-[10px] text-slate-400 block font-mono">({formatCurrency(Math.round(totalPartsCost / 10))} تومان)</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[11px]">مجموع دستمزد و اجرت:</span>
                   <span className="font-mono text-sm sm:text-base font-black text-slate-200">{formatCurrency(totalWageCost)} ریال</span>
+                  <span className="text-[10px] text-slate-400 block font-mono">({formatCurrency(Math.round(totalWageCost / 10))} تومان)</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[11px]">کسر ارزش داغی:</span>
                   <span className="font-mono text-sm sm:text-base font-black text-rose-400">-{formatCurrency(totalScrapValue)} ریال</span>
+                  <span className="text-[10px] text-slate-400 block font-mono">({formatCurrency(Math.round(totalScrapValue / 10))} تومان)</span>
                 </div>
                 <div className="bg-emerald-600/30 p-2.5 rounded-xl border border-emerald-500/50">
                   <span className="text-emerald-300 block text-[11px] font-bold">خالص نهایی قابل پرداخت:</span>
                   <span className="font-mono text-base sm:text-lg font-black text-white">{formatCurrency(netPayable)} ریال</span>
+                  <span className="text-[10px] text-emerald-200 block font-mono font-bold">({formatCurrency(Math.round(netPayable / 10))} تومان)</span>
                 </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceTab('photos')}
+                  className="px-6 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <span>مرحله بعدی: عکس‌های بازدید میدانی و خسارت</span>
+                  <ArrowRight className="w-4 h-4 rotate-180" />
+                </button>
               </div>
             </div>
           )}
 
-          {/* TAB 4: FIELD PHOTOS */}
+          {/* TAB 4: FIELD PHOTOS & DAMAGE EVIDENCE (عکس‌های بازدید میدانی و خسارت) */}
           {workspaceTab === 'photos' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 space-y-4">
-                <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-emerald-700" />
-                  <span>بارگذاری عکس‌های ثبت‌شده در محل حادثه توسط کارشناس</span>
-                </h4>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-emerald-700" />
+                    <span>بارگذاری عکس‌های ثبت‌شده در محل حادثه توسط کارشناس</span>
+                  </h4>
+                  <div className="flex items-center gap-1 text-[11px]">
+                    <span className="text-slate-500">ثبت سریع نمونه آزمایشی:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPresetPhoto('عکس خسارت سپر و گلگیر جلو', 'damage', 'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&w=800&q=80')}
+                      className="px-2 py-1 bg-white border border-slate-300 rounded-lg font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      + عکس خسارت
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPresetPhoto('عکس شماره شاسی و پلاک فیزیکی', 'vin', 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=800&q=80')}
+                      className="px-2 py-1 bg-white border border-slate-300 rounded-lg font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      + عکس شاسی / VIN
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleAddPresetPhoto('عکس زاویه برخورد در صحنه', 'scene', 'https://images.unsplash.com/photo-1583121274602-3e2820c69888?auto=format&fit=crop&w=800&q=80')}
+                      className="px-2 py-1 bg-white border border-slate-300 rounded-lg font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                    >
+                      + عکس صحنه تصادف
+                    </button>
+                  </div>
+                </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 text-xs">
-                  <input
-                    type="text"
-                    value={newPhotoTitle}
-                    onChange={(e) => setNewPhotoTitle(e.target.value)}
-                    placeholder="عنوان عکس (مثلاً: شماره شاسی، زاویه برخورد...)"
-                    className="flex-1 px-3 py-2.5 rounded-xl border border-slate-300 font-bold bg-white"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 text-xs">
+                  <div className="sm:col-span-6">
+                    <label className="block font-bold text-slate-700 mb-1">عنوان عکس</label>
+                    <input
+                      type="text"
+                      value={newPhotoTitle}
+                      onChange={(e) => setNewPhotoTitle(e.target.value)}
+                      placeholder="عنوان عکس (مثلاً: عکس شماره شاسی، زاویه برخورد، شکستگی سپر...)"
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-bold bg-white"
+                    />
+                  </div>
 
-                  <input
-                    type="file"
-                    id="field-photo-input"
-                    accept="image/*"
-                    onChange={handlePhotoUpload}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="field-photo-input"
-                    className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black cursor-pointer flex items-center justify-center gap-2 shadow-xs"
-                  >
-                    <Upload className="w-4 h-4" />
-                    <span>انتخاب و بارگذاری تصویر</span>
-                  </label>
+                  <div className="sm:col-span-3">
+                    <label className="block font-bold text-slate-700 mb-1">دسته‌بندی</label>
+                    <select
+                      value={newPhotoCategory}
+                      onChange={(e) => setNewPhotoCategory(e.target.value as any)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-bold bg-white text-slate-800"
+                    >
+                      <option value="damage">عکس از قطعات آسیب‌دیده</option>
+                      <option value="vin">عکس از شماره شاسی و پلاک</option>
+                      <option value="scene">عکس از صحنه و زاویه برخورد</option>
+                      <option value="other">عکس‌های تکمیلی و متفرقه</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-3 flex items-end">
+                    <input
+                      type="file"
+                      id="field-photo-input"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="field-photo-input"
+                      className="w-full px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black cursor-pointer flex items-center justify-center gap-2 shadow-xs transition-all"
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>انتخاب فایل عکس</span>
+                    </label>
+                  </div>
                 </div>
               </div>
 
               {/* Photos Gallery */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {fieldPhotos.map((fp) => (
-                  <div
-                    key={fp.id}
-                    className="bg-slate-50 rounded-2xl p-2.5 border border-slate-200 space-y-2 relative group"
-                  >
-                    <div
-                      onClick={() => setPreviewPhotoUrl(fp.url)}
-                      className="w-full h-36 bg-slate-200 rounded-xl overflow-hidden cursor-pointer"
-                    >
-                      <img src={fp.url} alt={fp.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    </div>
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-xs font-bold text-slate-800 truncate">{fp.title}</span>
-                      <button
-                        onClick={() => setFieldPhotos(fieldPhotos.filter((p) => p.id !== fp.id))}
-                        className="text-rose-600 hover:text-rose-800"
-                        title="حذف"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-slate-900 text-xs sm:text-sm">
+                    گالری عکس‌های بازدید میدانی ({fieldPhotos.length} تصویر):
+                  </h4>
+                  <span className="text-[11px] text-slate-500 font-bold">
+                    کلیک روی تصویر جهت بزرگ‌نمایی
+                  </span>
+                </div>
+
+                {fieldPhotos.length === 0 ? (
+                  <div className="p-8 text-center bg-slate-50 rounded-3xl border border-slate-200 text-xs text-slate-400 font-bold">
+                    هنوز عکسی بارگذاری نشده است. از دکمه بارگذاری یا دکمه‌های ثبت سریع استفاده فرمایید.
                   </div>
-                ))}
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {fieldPhotos.map((fp) => (
+                      <div
+                        key={fp.id}
+                        className="bg-slate-50 rounded-2xl p-3 border border-slate-200 space-y-2 relative group"
+                      >
+                        <div
+                          onClick={() => setPreviewPhotoUrl(fp.url)}
+                          className="w-full h-44 bg-slate-200 rounded-xl overflow-hidden cursor-pointer relative"
+                        >
+                          <img src={fp.url} alt={fp.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                          <div className="absolute inset-0 bg-slate-950/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold">
+                            <Maximize2 className="w-4 h-4 ml-1" />
+                            بزرگ‌نمایی تصویر
+                          </div>
+                        </div>
+                        <div className="flex items-start justify-between gap-2 px-1">
+                          <div>
+                            <span className="text-xs font-bold text-slate-800 line-clamp-1 block">{fp.title}</span>
+                            <span className="text-[10px] text-slate-500 font-bold block mt-0.5">
+                              {fp.category === 'damage' ? 'قطعه آسیب‌دیده' : fp.category === 'vin' ? 'شماره شاسی / VIN' : fp.category === 'scene' ? 'صحنه تصادف' : 'متفرقه'}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => setFieldPhotos(fieldPhotos.filter((p) => p.id !== fp.id))}
+                            className="text-rose-600 hover:text-rose-800 p-1 rounded-lg hover:bg-rose-50 cursor-pointer"
+                            title="حذف"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setWorkspaceTab('finalize')}
+                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                >
+                  <span>مرحله بعدی: تایید نهایی و ارسال به بیمه‌گر</span>
+                  <ArrowRight className="w-4 h-4 rotate-180" />
+                </button>
               </div>
             </div>
           )}
 
-          {/* TAB 5: FINALIZE & SUBMIT DIRECT TO INSURER */}
+          {/* TAB 5: FINALIZE & DIRECT SUBMISSION TO INSURER (تایید نهایی و ارسال به بیمه‌گر) */}
           {workspaceTab === 'finalize' && (
             <div className="space-y-6 animate-in fade-in">
               <div className="p-6 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-300 rounded-3xl space-y-4">
@@ -1344,51 +1883,65 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   </div>
                   <div>
                     <h3 className="font-black text-emerald-950 text-base sm:text-lg">
-                      خلاصه نهایی گزارش ارزیابی میدانی جهت ارسال به بیمه‌گر
+                      خلاصه نهایی گزارش ارزیابی میدانی جهت ارسال مستقیم به شرکت بیمه‌گر
                     </h3>
                     <p className="text-xs text-emerald-800 font-medium">
-                      پرونده مستقیماً وارد صف پرداخت مالی شرکت {getInsurerPersianName(selectedCase.culpritInsurer)} خواهد شد.
+                      پرونده مستقیماً وارد سیستم تسویه و صدور حواله مالی شرکت {getInsurerPersianName(selectedCase.culpritInsurer)} خواهد شد.
                     </p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-xs">
-                  <div className="p-3 bg-white rounded-2xl border border-emerald-200 space-y-1">
-                    <span className="text-slate-500 font-bold">نتیجه اصالت:</span>
-                    <span className="font-black text-slate-900 block">
-                      {authVerdict === 'CONFIRMED' ? '✅ اصالت تایید گردید' : authVerdict === 'PARTIAL_MISMATCH' ? '⚠️ عدم انطباق بخشی از خسارت' : '❌ تصادف صوری'}
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-2 text-xs">
+                  <div className="p-3.5 bg-white rounded-2xl border border-emerald-200 space-y-1">
+                    <span className="text-slate-500 font-bold block">نتیجه اصالت‌سنجی:</span>
+                    <span className="font-black text-slate-900 block text-xs">
+                      {authVerdict === 'CONFIRMED' ? '✅ تایید کامل اصالت' : authVerdict === 'PARTIAL_MISMATCH' ? '⚠️ عدم انطباق جزئی' : '❌ رد خسارت صوری'}
                     </span>
                   </div>
 
-                  <div className="p-3 bg-white rounded-2xl border border-emerald-200 space-y-1">
-                    <span className="text-slate-500 font-bold">تعداد قطعات برآورد شده:</span>
+                  <div className="p-3.5 bg-white rounded-2xl border border-emerald-200 space-y-1">
+                    <span className="text-slate-500 font-bold block">تعداد قطعات ارزیابی‌شده:</span>
                     <span className="font-black text-slate-900 block font-mono">{fieldParts.length} قطعه</span>
                   </div>
 
-                  <div className="p-3 bg-white rounded-2xl border border-emerald-200 space-y-1">
-                    <span className="text-slate-500 font-bold">خالص قابل پرداخت به زیان‌دیده:</span>
+                  <div className="p-3.5 bg-white rounded-2xl border border-emerald-200 space-y-1">
+                    <span className="text-slate-500 font-bold block">تعداد عکس‌های پیوست:</span>
+                    <span className="font-black text-slate-900 block font-mono">{fieldPhotos.length} تصویر</span>
+                  </div>
+
+                  <div className="p-3.5 bg-white rounded-2xl border border-emerald-200 space-y-1">
+                    <span className="text-slate-500 font-bold block">خالص قابل پرداخت:</span>
                     <span className="font-black text-emerald-700 block font-mono text-sm">{formatCurrency(netPayable)} ریال</span>
+                    <span className="text-[10px] text-emerald-600 block font-mono">({formatCurrency(Math.round(netPayable / 10))} تومان)</span>
                   </div>
                 </div>
 
-                <div className="p-3 bg-blue-900 text-white rounded-2xl text-xs space-y-1">
-                  <span className="font-bold text-amber-300 block">نکته مربوط به تسویه:</span>
+                {/* Summary of Report Text */}
+                <div className="p-4 bg-white rounded-2xl border border-emerald-200 space-y-1 text-xs">
+                  <span className="font-black text-emerald-950 block">متن گزارش تشریحی ثبت‌شده:</span>
+                  <p className="text-slate-800 leading-relaxed font-medium">
+                    {fieldReportText || 'گزارش ارزیابی میدانی در محل حادثه تکمیل و اصالت تایید گردید.'}
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-blue-900 text-white rounded-2xl text-xs space-y-1">
+                  <span className="font-bold text-amber-300 block">نکته مربوط به تسویه مستقیم:</span>
                   <p className="text-slate-200 text-[11px] leading-relaxed">
-                    به دلیل انجام کارشناسی فیزیکی در محل توسط کارشناس میدانی رسمی، نیازی به تایید مجدد ارزیابی توسط مشتری نیست. زیان‌دیده تنها مشخصات بانکی (شبا) خود را وارد می‌کند و وجه خسارت توسط شرکت بیمه واریز خواهد شد.
+                    به دلیل انجام کارشناسی فیزیکی در محل توسط کارشناس رسمی میدانی، نیازی به تایید مجدد ارزیابی توسط مشتری نیست. زیان‌دیده تنها شماره شبای بانکی خود را وارد می‌کند و وجه خسارت توسط شرکت بیمه واریز خواهد شد.
                   </p>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-3">
                   <button
                     onClick={() => setSelectedCase(null)}
-                    className="px-5 py-3 rounded-2xl border border-slate-300 text-slate-700 font-bold text-xs"
+                    className="px-5 py-3 rounded-2xl border border-slate-300 text-slate-700 font-bold text-xs cursor-pointer"
                   >
                     انصراف و بازگشت
                   </button>
 
                   <button
                     onClick={handleSubmitDirectToInsurer}
-                    className="px-8 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-lg shadow-emerald-600/30 flex items-center gap-2 active:scale-95 transition-all"
+                    className="px-8 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-lg shadow-emerald-600/30 flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
                   >
                     <Send className="w-5 h-5" />
                     <span>تایید نهایی گزارش میدانی و ارسال به بیمه‌گر جهت تسویه</span>
@@ -1422,7 +1975,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               <button
                 type="button"
                 onClick={() => setShowSmsModal(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs"
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs cursor-pointer"
               >
                 ✕
               </button>
@@ -1458,7 +2011,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               <button
                 type="button"
                 onClick={() => setShowSmsModal(false)}
-                className="px-5 py-2 rounded-xl bg-blue-900 text-white font-extrabold text-xs"
+                className="px-5 py-2 rounded-xl bg-blue-900 text-white font-extrabold text-xs cursor-pointer"
               >
                 بستن
               </button>
@@ -1478,7 +2031,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               </div>
               <button
                 onClick={() => setShowRejectModal(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs"
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs cursor-pointer"
               >
                 ✕
               </button>
@@ -1519,13 +2072,13 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowRejectModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold"
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold cursor-pointer"
                 >
                   انصراف
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black shadow-md"
+                  className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black shadow-md cursor-pointer"
                 >
                   تایید و عودت پرونده به بیمه‌گر
                 </button>
@@ -1544,7 +2097,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
           <div className="relative max-w-3xl w-full max-h-[90vh] bg-slate-900 p-2 rounded-3xl overflow-hidden shadow-2xl">
             <button
               onClick={() => setPreviewPhotoUrl(null)}
-              className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-slate-800 text-white font-bold text-sm flex items-center justify-center border border-slate-700 hover:bg-slate-700"
+              className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-slate-800 text-white font-bold text-sm flex items-center justify-center border border-slate-700 hover:bg-slate-700 cursor-pointer"
             >
               ✕
             </button>
@@ -1569,7 +2122,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               </div>
               <button
                 onClick={() => setInsurerNoteModalCase(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm"
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm cursor-pointer"
               >
                 ✕
               </button>
@@ -1618,7 +2171,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 <Building2 className="w-3.5 h-3.5 text-purple-600" />
                 <span>متن یادداشت و دستور کار ابلاغی از سوی شرکت بیمه‌گر به کارشناس میدانی:</span>
               </label>
-              
+
               <div className="p-4 rounded-2xl bg-purple-50/90 border-2 border-purple-200 text-purple-950 space-y-3">
                 <p className="text-sm font-extrabold leading-relaxed">
                   «{insurerNoteModalCase.insurerFieldExpertNote || insurerNoteModalCase.insurerAssignmentNote || insurerNoteModalCase.insurerInstruction || 'توضیحات تکمیلی خاصی توسط شرکت بیمه‌گر درج نشده است. لطفاً تطبیق مشخصات خودرو، آثار خسارت و مدارک هویتی در محل حادثه با دقت بررسی و ثبت گردد.'}»
@@ -1643,7 +2196,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               <button
                 type="button"
                 onClick={() => setInsurerNoteModalCase(null)}
-                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer"
               >
                 بستن
               </button>
