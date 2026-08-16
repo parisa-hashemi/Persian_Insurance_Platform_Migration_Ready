@@ -95,6 +95,9 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   const [showSmsModal, setShowSmsModal] = useState(false);
   const [notifications, setNotifications] = useState<AssessorNotification[]>(() => loadAssessorNotifications());
 
+  // Insurer Instructions / Note Modal
+  const [insurerNoteModalCase, setInsurerNoteModalCase] = useState<ClaimCase | null>(null);
+
   // Workspace sub-tabs when editing a case
   const [workspaceTab, setWorkspaceTab] = useState<'docs' | 'authenticity' | 'parts' | 'photos' | 'finalize'>('docs');
 
@@ -703,6 +706,34 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                           <p className="line-clamp-2 font-medium">«{c.authenticityDispute.reason}» - {c.authenticityDispute.description}</p>
                         </div>
                       )}
+
+                      {/* Insurer Note / Instructions Button & Preview */}
+                      <button
+                        type="button"
+                        onClick={() => setInsurerNoteModalCase(c)}
+                        className="w-full p-2.5 bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 border border-purple-200 hover:border-purple-300 rounded-xl text-right transition-all group flex items-center justify-between shadow-2xs cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-6 h-6 rounded-lg bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                            <FileText className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="truncate">
+                            <span className="font-black text-xs text-purple-950 block">
+                              توضیحات و دستور بیمه‌گر ({getInsurerPersianName(c.culpritInsurer) || 'بیمه‌گر'})
+                            </span>
+                            {(c.insurerFieldExpertNote || c.insurerAssignmentNote || c.insurerInstruction) ? (
+                              <span className="text-[10px] text-purple-800 line-clamp-1 font-medium mt-0.5">
+                                «{c.insurerFieldExpertNote || c.insurerAssignmentNote || c.insurerInstruction}»
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-500 font-medium">کلیک جهت مشاهده مشخصات و دستور کار ارجاع</span>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-black text-purple-700 bg-white/90 px-2 py-1 rounded-lg border border-purple-200 group-hover:bg-purple-600 group-hover:text-white transition-colors shrink-0 mr-2">
+                          توضیحات بیمه‌گر
+                        </span>
+                      </button>
                     </div>
 
                     {/* Action Buttons */}
@@ -775,6 +806,38 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Insurer Instructions Alert in Workspace */}
+          {(selectedCase.insurerFieldExpertNote || selectedCase.insurerAssignmentNote || selectedCase.insurerInstruction) && (
+            <div className="p-4 bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50 border-2 border-purple-200 rounded-2xl flex items-start gap-3 shadow-xs">
+              <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                <FileText className="w-4 h-4" />
+              </div>
+              <div className="space-y-1.5 flex-1">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="font-black text-xs text-purple-950 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-purple-600" />
+                    دستورالعمل و توضیحات شرکت بیمه ({getInsurerPersianName(selectedCase.culpritInsurer) || 'بیمه‌گر'}):
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setInsurerNoteModalCase(selectedCase)}
+                    className="text-[10px] font-black text-purple-800 bg-white px-2.5 py-1 rounded-lg border border-purple-300 hover:bg-purple-100 flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
+                  >
+                    <span>مشاهده صفحه توضیحات</span>
+                    <ExternalLink className="w-3 h-3 text-purple-700" />
+                  </button>
+                </div>
+                <p className="text-xs text-purple-950 font-bold leading-relaxed bg-white/80 p-2.5 rounded-xl border border-purple-100">
+                  «{selectedCase.insurerFieldExpertNote || selectedCase.insurerAssignmentNote || selectedCase.insurerInstruction}»
+                </p>
+                <div className="flex items-center justify-between text-[10px] text-purple-700 font-medium">
+                  <span>ثبت توسط: {selectedCase.insurerNoteAuthor || 'کارشناس پذیرش پورتال بیمه‌گر'}</span>
+                  {selectedCase.insurerNoteDate && <span className="font-mono">{selectedCase.insurerNoteDate}</span>}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Workspace Sub-Tabs */}
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
@@ -1486,6 +1549,119 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               ✕
             </button>
             <img src={previewPhotoUrl} alt="Document Preview" className="w-full h-auto max-h-[80vh] object-contain mx-auto rounded-2xl" />
+          </div>
+        </div>
+      )}
+
+      {/* INSURER NOTE MODAL: دستورالعمل و توضیحات شرکت بیمه‌گر به کارشناس میدانی */}
+      {insurerNoteModalCase && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 border border-slate-200 animate-in zoom-in-95 text-slate-900 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center shadow-xs">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900">دستورالعمل و توضیحات شرکت بیمه‌گر</h3>
+                  <p className="text-xs text-slate-500 font-mono">ماموریت بازدید میدانی پرونده {insurerNoteModalCase.id}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setInsurerNoteModalCase(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Case Info Summary Banner */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
+              <div>
+                <span className="text-slate-500 block text-[10px]">شرکت بیمه‌گر:</span>
+                <strong className="text-purple-900 font-black">{getInsurerPersianName(insurerNoteModalCase.culpritInsurer) || 'نامشخص'}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px]">خودرو زیان‌دیده:</span>
+                <strong className="text-slate-800">{insurerNoteModalCase.carType || insurerNoteModalCase.carModel}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px]">شماره پلاک:</span>
+                <strong className="text-slate-800 font-mono text-[11px]">{insurerNoteModalCase.victimPlate || insurerNoteModalCase.plateNumber}</strong>
+              </div>
+              <div className="sm:col-span-2">
+                <span className="text-slate-500 block text-[10px]">محل وقوع حادثه / بازدید:</span>
+                <strong className="text-slate-800 text-[11px] leading-tight block">{insurerNoteModalCase.address || insurerNoteModalCase.accidentLocation || 'تهران'}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px]">زیان‌دیده:</span>
+                <strong className="text-slate-800">{insurerNoteModalCase.victimName}</strong>
+              </div>
+            </div>
+
+            {/* Authenticity dispute warning if present */}
+            {insurerNoteModalCase.authenticityDispute && (
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl text-xs space-y-1 text-amber-950">
+                <span className="font-extrabold flex items-center gap-1 text-amber-900">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-700" />
+                  علت ارجاع میدانی (اعلام تردید در اصالت تصادف):
+                </span>
+                <p className="font-medium">
+                  {insurerNoteModalCase.authenticityDispute.reason} — {insurerNoteModalCase.authenticityDispute.description}
+                </p>
+              </div>
+            )}
+
+            {/* The Note Body */}
+            <div className="space-y-2 text-right">
+              <label className="block text-xs font-black text-slate-800 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-purple-600" />
+                <span>متن یادداشت و دستور کار ابلاغی از سوی شرکت بیمه‌گر به کارشناس میدانی:</span>
+              </label>
+              
+              <div className="p-4 rounded-2xl bg-purple-50/90 border-2 border-purple-200 text-purple-950 space-y-3">
+                <p className="text-sm font-extrabold leading-relaxed">
+                  «{insurerNoteModalCase.insurerFieldExpertNote || insurerNoteModalCase.insurerAssignmentNote || insurerNoteModalCase.insurerInstruction || 'توضیحات تکمیلی خاصی توسط شرکت بیمه‌گر درج نشده است. لطفاً تطبیق مشخصات خودرو، آثار خسارت و مدارک هویتی در محل حادثه با دقت بررسی و ثبت گردد.'}»
+                </p>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-purple-200/80 text-[11px] text-purple-800 font-medium">
+                  <span className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-purple-600" />
+                    <span>ثبت توسط: <strong>{insurerNoteModalCase.insurerNoteAuthor || 'کارشناس پذیرش پورتال بیمه‌گر'}</strong></span>
+                  </span>
+                  {insurerNoteModalCase.insurerNoteDate && (
+                    <span className="font-mono text-[10px]">
+                      تاریخ ارجاع: {insurerNoteModalCase.insurerNoteDate}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setInsurerNoteModalCase(null)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+              >
+                بستن
+              </button>
+              {activeTab === 'new_assignments' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = insurerNoteModalCase;
+                    setInsurerNoteModalCase(null);
+                    handleAcceptMission(current);
+                  }}
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CheckSquare className="w-4 h-4" />
+                  <span>قبول ماموریت و شروع بازدید</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

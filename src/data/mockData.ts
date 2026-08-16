@@ -199,6 +199,10 @@ export const INITIAL_CASES: ClaimCase[] = [
       phone: '09124004001',
       nationalId: '0066666666'
     },
+    insurerInstruction: 'لطفاً وضعیت شکستگی دیاق سپر جلو بررسی شود و در صورت امکان ترمیم، از ثبت تعویض خودداری گردد. همچنین تصاویر زوایای جانبی خودرو جهت راستی‌آزمایی با پورتال مقایسه شود.',
+    insurerAssignmentNote: 'لطفاً وضعیت شکستگی دیاق سپر جلو بررسی شود و در صورت امکان ترمیم، از ثبت تعویض خودداری گردد. همچنین تصاویر زوایای جانبی خودرو جهت راستی‌آزمایی با پورتال مقایسه شود.',
+    insurerNoteAuthor: 'شیوا محمدی (مسئول خسارت خودرو بیمه ایران)',
+    insurerNoteDate: '۱۴۰۵/۰۵/۱۴ ۱۲:۰۰',
     history: [
       { status: 'محول شده', time: '۱۴۰۵/۰۵/۱۴ ۱۲:۰۰', user: 'اپراتور بیمه ایران', note: 'ارجاع به کارشناس مریم نجفی' }
     ],
@@ -452,14 +456,25 @@ export const INITIAL_CASES: ClaimCase[] = [
     culpritPolicyVerified: true,
     victimPolicyVerified: true,
     culpritFaultPercent: 100,
-    status: 'در انتظار ارجاع',
+    status: 'محول شده',
     priority: 'high',
     approved: true,
     hasKroki: true,
     sceneReportCode: 'KR-887501',
+    assignedExpert: {
+      id: 'ir2',
+      name: 'رضا تهرانی',
+      role: 'ارزیاب ارشد بدنه',
+      phone: '09124004002',
+      nationalId: '0077777777'
+    },
+    insurerInstruction: 'تطابق زاویه برخورد جلو دنا با عقب پژو ۲۰۶ و صحت خسارت چراغ و جلوپنجره با دقت ارزیابی شود. قطعات مشمول تعویض مستندسازی گردند.',
+    insurerAssignmentNote: 'تطابق زاویه برخورد جلو دنا با عقب پژو ۲۰۶ و صحت خسارت چراغ و جلوپنجره با دقت ارزیابی شود. قطعات مشمول تعویض مستندسازی گردند.',
+    insurerNoteAuthor: 'شیوا محمدی (مسئول خسارت خودرو بیمه ایران)',
+    insurerNoteDate: '۱۴۰۵/۰۵/۰۶ ۱۰:۱۵',
     history: [
       { status: 'ثبت اولیه پرونده', time: '۱۴۰۵/۰۵/۰۶ ۱۰:۰۲', user: 'پریسا حسینی', note: 'ثبت حادثه و مدارک تصادف' },
-      { status: 'در انتظار ارجاع', time: '۱۴۰۵/۰۵/۰۶ ۱۰:۱۵', user: 'سیستم AI', note: 'آماده تخصیص به ارزیاب بیمه ایران' }
+      { status: 'محول شده', time: '۱۴۰۵/۰۵/۰۶ ۱۰:۱۵', user: 'شیوا محمدی', note: 'تخصیص پرونده به ارزیاب رضا تهرانی همراه با دستورالعمل' }
     ],
     createdAt: '2026-08-06T10:02:00.000Z'
   },
@@ -481,6 +496,9 @@ export const INITIAL_CASES: ClaimCase[] = [
     culpritInsurer: 'dana',
     carType: 'پژو ۲۰۶',
     culpritCarType: 'پژو پارس',
+    carModel: 'پژو ۲۰۶',
+    plateNumber: '۱۲-ب-۳۴۵۶۷-ایران-۸۹',
+    accidentLocation: 'دانشگاه جنگ، حر، منطقه ۱۱ شهرداری تهران',
     plate: '۱۲-ب-۳۴۵۶۷-ایران-۸۹',
     culpritPolicyNo: 'DN-1403-1174',
     culpritPolicyExpiry: '۱۴۰۶/۰۸/۱۰',
@@ -490,13 +508,26 @@ export const INITIAL_CASES: ClaimCase[] = [
     culpritPolicyVerified: true,
     victimPolicyVerified: true,
     culpritFaultPercent: 100,
-    status: 'انتظار تایید مقصر',
+    status: 'در انتظار بازدید کارشناس میدانی',
     priority: 'normal',
     approved: true,
-    hasKroki: true,
-    sceneReportCode: 'KR-117402',
+    hasKroki: false,
+    needsCulpritFieldVisit: true,
+    assignedFieldExpert: {
+      id: 'fed1',
+      name: 'کیوان عزیزی',
+      role: 'کارشناس میدانی',
+      phone: '09129001001',
+      nationalId: '0099111111'
+    },
+    insurerFieldExpertNote: 'حادثه فاقد کروکی رسمی است. لطفاً تطابق ارتفاع خطوط برخورد دو خودرو و اصالت پلاک‌ها در محل معاینه و تصویربرداری شود.',
+    insurerInstruction: 'حادثه فاقد کروکی رسمی است. لطفاً تطابق ارتفاع خطوط برخورد دو خودرو و اصالت پلاک‌ها در محل معاینه و تصویربرداری شود.',
+    insurerAssignmentNote: 'حادثه فاقد کروکی رسمی است. لطفاً تطابق ارتفاع خطوط برخورد دو خودرو و اصالت پلاک‌ها در محل معاینه و تصویربرداری شود.',
+    insurerNoteAuthor: 'حسین یوسفی (اپراتور ارشد دانا)',
+    insurerNoteDate: '۱۴۰۵/۰۵/۱۳ ۰۹:۴۰',
     history: [
-      { status: 'ثبت اولیه پرونده', time: '۱۴۰۵/۰۵/۱۳ ۰۹:۲۳', user: 'پریسا حسینی', note: 'ثبت حادثه در انتظار تایید مقصر' }
+      { status: 'ثبت اولیه پرونده', time: '۱۴۰۵/۰۵/۱۳ ۰۹:۲۳', user: 'پریسا حسینی', note: 'ثبت حادثه بدون کروکی' },
+      { status: 'در انتظار بازدید کارشناس میدانی', time: '۱۴۰۵/۰۵/۱۳ ۰۹:۴۰', user: 'حسین یوسفی', note: 'ارجاع ماموریت میدانی به کیوان عزیزی' }
     ],
     createdAt: '2026-08-05T09:23:00.000Z'
   },

@@ -29,7 +29,8 @@ import {
   ChevronDown,
   ChevronUp,
   Lock,
-  DollarSign
+  DollarSign,
+  ImageOff
 } from 'lucide-react';
 import { ClaimCase, UserSession, StaffMember, AssessorNotification } from '../../types';
 import { INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS } from '../../data/mockData';
@@ -328,6 +329,11 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
       ...claimCase,
       assignedExpert: fieldExpert,
       assignedFieldExpert: fieldExpert,
+      insurerInstruction: noteText || claimCase.insurerInstruction || '',
+      insurerAssignmentNote: noteText || claimCase.insurerAssignmentNote || '',
+      insurerFieldExpertNote: noteText || claimCase.insurerFieldExpertNote || '',
+      insurerNoteAuthor: session.name || 'پورتال شرکت بیمه‌گر',
+      insurerNoteDate: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
       status: 'در انتظار بازدید کارشناس میدانی',
       needsCulpritFieldVisit: true,
       history: [
@@ -367,6 +373,10 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
     const updated: ClaimCase = {
       ...claimCase,
       assignedExpert: expert,
+      insurerInstruction: noteText || claimCase.insurerInstruction || '',
+      insurerAssignmentNote: noteText || claimCase.insurerAssignmentNote || '',
+      insurerNoteAuthor: session.name || 'پورتال شرکت بیمه‌گر',
+      insurerNoteDate: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
       status: 'محول شده به کارشناس',
       autoReturnedDueToTimeout: false,
       assignedTimestamp: Date.now(),
@@ -434,26 +444,99 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
         }] : [])
       ];
 
-  // Sample photos if claimCase doesn't have images
-  const sampleImages = claimCase.images && claimCase.images.length > 0
-    ? claimCase.images
-    : [
-        { url: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80', title: 'پلاک خودرو و زاویه جلوی حادثه' },
-        { url: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&q=80', title: 'تصویر آسیب‌دیدگی بدنه و سپر' }
-      ];
+  // Genuine incident photos & media uploaded by parties
+  const incidentPhotos: Array<{ url: string; title: string; uploader?: string; date?: string }> = useMemo(() => {
+    const list: Array<{ url: string; title: string; uploader?: string; date?: string }> = [];
 
-  // Documents uploaded for Victim
-  const victimDocs = [
-    { url: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80', title: 'تصویر کارت خودرو زیان‌دیده' },
-    { url: 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?w=800&q=80', title: 'تصویر گواهینامه رانندگی زیان‌دیده' },
-    { url: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=800&q=80', title: 'بیمه‌نامه ثالث زیان‌دیده' }
-  ];
+    // From initial claim registration files (Wizard)
+    if (claimCase.files && claimCase.files.length > 0) {
+      claimCase.files.forEach((f: any, idx: number) => {
+        const title = typeof f === 'string' ? f : (f?.name || f?.fileName || `تصویر صحنه تصادف ${idx + 1}`);
+        const url = typeof f === 'object' ? f?.dataUrl : undefined;
+        if (url && (f?.type === 'image' || !f?.type || f?.type === 'video')) {
+          list.push({
+            url,
+            title,
+            uploader: 'ثبت‌کننده اولیه (طرف اول)'
+          });
+        }
+      });
+    }
 
-  // Documents uploaded for Culprit
-  const culpritDocs = [
-    { url: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=800&q=80', title: 'بیمه‌نامه شخص ثالث مقصر' },
-    { url: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?w=800&q=80', title: 'تصویر کارت ماشین مقصر' }
-  ];
+    // From additional documents uploaded by parties
+    if (claimCase.additionalDocs && claimCase.additionalDocs.length > 0) {
+      claimCase.additionalDocs.forEach((doc) => {
+        if (doc.dataUrl && (doc.fileType === 'image' || doc.fileType === 'video')) {
+          list.push({
+            url: doc.dataUrl,
+            title: doc.title || doc.docType,
+            uploader: `${doc.uploadedBy || 'کاربر'} (${doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول' : 'طرف دوم')})`,
+            date: doc.uploadedAt
+          });
+        }
+      });
+    }
+
+    // From Kroki official upload
+    if (claimCase.customerKrokiPhoto) {
+      list.push({
+        url: claimCase.customerKrokiPhoto,
+        title: 'تصویر برگه رسمی کروکی راهور',
+        uploader: 'پلیس راهور / مشتری'
+      });
+    } else if (claimCase.croquiData?.fileUrl) {
+      list.push({
+        url: claimCase.croquiData.fileUrl,
+        title: 'برگه کروکی رسمی راهور',
+        uploader: 'پلیس راهور'
+      });
+    }
+
+    // From explicit case images array if present (e.g. seeded mock data)
+    if (claimCase.images && claimCase.images.length > 0) {
+      claimCase.images.forEach((img) => {
+        if (img.url && !list.some(p => p.url === img.url)) {
+          list.push({
+            url: img.url,
+            title: img.title || 'تصویر تصادف'
+          });
+        }
+      });
+    }
+
+    return list;
+  }, [claimCase]);
+
+  // Genuine documents uploaded by or for Victim
+  const isP1Victim = claimCase.partyOneRole !== 'مقصر';
+  const victimPartyTag = isP1Victim ? 'PARTY_ONE' : 'PARTY_TWO';
+
+  const victimDocuments = useMemo(() => {
+    return (claimCase.additionalDocs || []).filter(doc => {
+      return (
+        doc.uploaderParty === victimPartyTag ||
+        doc.uploaderRole?.includes('زیان‌دیده') ||
+        (doc.uploaderRole?.includes('اول') && isP1Victim) ||
+        (doc.uploaderRole?.includes('دوم') && !isP1Victim) ||
+        (doc.uploadedBy && doc.uploadedBy === claimCase.victimName)
+      );
+    });
+  }, [claimCase, victimPartyTag, isP1Victim]);
+
+  // Genuine documents uploaded by or for Culprit
+  const culpritPartyTag = isP1Victim ? 'PARTY_TWO' : 'PARTY_ONE';
+
+  const culpritDocuments = useMemo(() => {
+    return (claimCase.additionalDocs || []).filter(doc => {
+      return (
+        doc.uploaderParty === culpritPartyTag ||
+        doc.uploaderRole?.includes('مقصر') ||
+        (doc.uploaderRole?.includes('دوم') && isP1Victim) ||
+        (doc.uploaderRole?.includes('اول') && !isP1Victim) ||
+        (doc.uploadedBy && doc.uploadedBy === claimCase.culpritName)
+      );
+    });
+  }, [claimCase, culpritPartyTag, isP1Victim]);
 
   return (
     <div className="max-w-6xl mx-auto space-y-5 animate-in fade-in pb-16">
@@ -613,6 +696,23 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                   <p className="text-[11px] text-slate-700 leading-relaxed bg-white/90 p-2.5 rounded-xl border border-amber-100">
                     پرونده جهت بررسی میدانی و بازدید صحنه/خودرو به این کارشناس میدانی ارجاع داده شده است.
                   </p>
+
+                  {(claimCase.insurerFieldExpertNote || claimCase.insurerAssignmentNote || claimCase.insurerInstruction) && (
+                    <div className="p-2.5 bg-amber-100/90 border border-amber-300 rounded-xl space-y-1 text-right">
+                      <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-[10px]">
+                        <FileText className="w-3 h-3 text-amber-700" />
+                        <span>دستور و توضیحات ابلاغی به کارشناس میدانی:</span>
+                      </div>
+                      <p className="text-[11px] text-amber-950 font-bold leading-relaxed">
+                        «{claimCase.insurerFieldExpertNote || claimCase.insurerAssignmentNote || claimCase.insurerInstruction}»
+                      </p>
+                      {claimCase.insurerNoteDate && (
+                        <span className="text-[9px] text-amber-700 block text-left font-mono">
+                          ثبت: {claimCase.insurerNoteDate}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <button
                     onClick={() => {
@@ -807,6 +907,23 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                   <p className="text-[11px] text-slate-600 leading-relaxed bg-white/90 p-2.5 rounded-xl border border-purple-100/80">
                     پرونده به این ارزیاب محول گردیده و در صف بررسی کارشناسی قرار دارد.
                   </p>
+
+                  {(claimCase.insurerAssignmentNote || claimCase.insurerInstruction) && (
+                    <div className="p-2.5 bg-purple-100/90 border border-purple-300 rounded-xl space-y-1 text-right">
+                      <div className="flex items-center gap-1.5 text-purple-900 font-extrabold text-[10px]">
+                        <FileText className="w-3 h-3 text-purple-700" />
+                        <span>دستور و توضیحات ابلاغی بیمه‌گر:</span>
+                      </div>
+                      <p className="text-[11px] text-purple-950 font-bold leading-relaxed">
+                        «{claimCase.insurerAssignmentNote || claimCase.insurerInstruction}»
+                      </p>
+                      {claimCase.insurerNoteDate && (
+                        <span className="text-[9px] text-purple-700 block text-left font-mono">
+                          ثبت: {claimCase.insurerNoteDate}
+                        </span>
+                      )}
+                    </div>
+                  )}
 
                   <button
                     onClick={() => {
@@ -1070,7 +1187,7 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                   </span>
                 )}
                 <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
-                  {sampleImages.length} مستند
+                  {incidentPhotos.length + (claimCase.additionalDocs?.length || 0)} مستند
                 </span>
               </div>
             </div>
@@ -1213,7 +1330,14 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-slate-500 font-bold">کد/شماره گزارش کروکی:</span>
+                          <span className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
+                            (claimCase.croquiType === 'paper' || claimCase.croquiData?.croquiType === 'paper')
+                              ? 'bg-amber-50 text-amber-950 border-amber-300'
+                              : 'bg-blue-50 text-blue-900 border-blue-300'
+                          }`}>
+                            {(claimCase.croquiType === 'paper' || claimCase.croquiData?.croquiType === 'paper') ? 'کروکی کاغذی (ثبت مشتری)' : 'کروکی الکترونیکی فراجا'}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-bold">کد/شماره گزارش:</span>
                           <span className="px-3 py-1 bg-amber-100 text-amber-950 font-mono font-black rounded-lg text-xs">
                             {claimCase.croquiData?.reportNumber || claimCase.sceneReportCode || 'CRQ-1403-88492'}
                           </span>
@@ -1221,59 +1345,59 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                       </div>
 
                       {/* 2. Key Grid Information */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                         {/* Incident Date & Time */}
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-                          <span className="text-slate-500 font-bold block text-[11px]">تاریخ و زمان وقوع حادثه:</span>
-                          <span className="font-extrabold text-slate-900">{claimCase.croquiData?.incidentDate || claimCase.date || '۱۴۰۳/۰۵/۱۲ - ۱۰:۰۲'}</span>
+                          <span className="text-slate-500 font-bold block text-[11px]">تاریخ و ساعت دقیق تصادف:</span>
+                          <span className="font-extrabold text-slate-900 font-mono">{claimCase.croquiData?.incidentDate || claimCase.date || '۱۴۰۵/۰۵/۱۴ - ۱۰:۴۵'}</span>
                         </div>
 
                         {/* Location & GPS */}
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-                          <span className="text-slate-500 font-bold block text-[11px]">موقعیت مکانی و جغرافیایی (GPS):</span>
-                          <span className="font-bold text-slate-900 block truncate">{claimCase.croquiData?.location || claimCase.incidentAddress || claimCase.address || 'تهران - بزرگراه همت غرب'}</span>
-                          <span className="font-mono text-[10px] text-slate-500 block">GPS: {claimCase.lat && claimCase.lng ? `${claimCase.lng}, ${claimCase.lat}` : '35.7512, 51.3821'}</span>
+                          <span className="text-slate-500 font-bold block text-[11px]">محل دقیق وقوع حادثه:</span>
+                          <span className="font-bold text-slate-900 block truncate" title={claimCase.croquiData?.location || claimCase.incidentAddress || claimCase.address}>{claimCase.croquiData?.location || claimCase.incidentAddress || claimCase.address || 'تهران - بزرگراه همت غرب'}</span>
+                        </div>
+
+                        {/* Accident Type */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                          <span className="text-slate-500 font-bold block text-[11px]">نوع تصادف:</span>
+                          <span className="font-bold text-slate-900 block truncate">{claimCase.croquiData?.accidentType || 'تصادف خسارتی دو خودرو (عدم رعایت فاصله طولی)'}</span>
+                        </div>
+
+                        {/* Road Condition */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                          <span className="text-slate-500 font-bold block text-[11px]">وضعیت جاده و جوی:</span>
+                          <span className="font-bold text-slate-900 block truncate">{claimCase.croquiData?.roadCondition || 'آسفالت خشک، هوا صاف، دید کافی'}</span>
                         </div>
 
                         {/* Fault Determination & Percentage */}
-                        <div className="bg-rose-50 p-3 rounded-xl border border-rose-200 space-y-1">
-                          <span className="text-rose-800 font-bold block text-[11px]">تعیین مقصریت و درصد تقصیر:</span>
+                        <div className="bg-rose-50 p-3 rounded-xl border border-rose-200 space-y-1 sm:col-span-2">
+                          <span className="text-rose-800 font-bold block text-[11px]">تعیین مقصر قانونی و علت تامه:</span>
                           <span className="font-black text-rose-950 text-xs">
-                            ۱۰۰٪ مقصر: {claimCase.croquiData?.faultDriver?.fullName || claimCase.culpritName || 'رضا'} ({claimCase.croquiData?.faultDriver?.plateNumber || claimCase.culpritPlate || '۱۲ ب ۳۴۵ - ایران ۱۱'})
+                            {claimCase.croquiData?.faultDetermination || `۱۰۰٪ مقصر: راننده خودرو ${claimCase.culpritCarType || 'مقصر'} (${claimCase.culpritName}) به علت عدم توجه به جلو`}
                           </span>
                         </div>
 
                         {/* Claimant Info */}
                         <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 space-y-1">
-                          <span className="text-emerald-800 font-bold block text-[11px]">مشخصات زیان‌دیده (طرف شاکی):</span>
-                          <span className="font-black text-emerald-950">
+                          <span className="text-emerald-800 font-bold block text-[11px]">زیان‌دیده (طرف اول):</span>
+                          <span className="font-black text-emerald-950 block">
                             {claimCase.croquiData?.victimDriver?.fullName || claimCase.victimName || 'پریسا'}
                           </span>
-                          <span className="text-[10px] text-emerald-800 block">
-                            کد ملی: {claimCase.victimNationalId || '0022451151'} — پلاک: {claimCase.victimPlate || '۵۶ الف ۴۵۶ ایران ۵۶'}
-                          </span>
-                        </div>
-
-                        {/* At-fault Party Info */}
-                        <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 space-y-1">
-                          <span className="text-amber-900 font-bold block text-[11px]">مشخصات راننده مقصر:</span>
-                          <span className="font-black text-amber-950">
-                            {claimCase.croquiData?.faultDriver?.fullName || claimCase.culpritName || 'رضا'}
-                          </span>
-                          <span className="text-[10px] text-amber-900 block">
-                            کد ملی: {claimCase.culpritNationalId || '0018374652'} — بیمه‌نامه: {claimCase.culpritPolicyNo || 'POL-99482716'}
+                          <span className="text-[10px] text-emerald-800 font-mono block">
+                            {claimCase.victimPlate || '۴۴ ج ۷۸۹ ایران ۲۲'}
                           </span>
                         </div>
 
                         {/* Police Badge & Official Stamp */}
                         <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 space-y-1">
-                          <span className="text-blue-900 font-bold block text-[11px]">افسر انتظامی و اصالت مهر:</span>
-                          <span className="font-bold text-blue-950 text-xs">
-                            کد افسر: {claimCase.croquiData?.policeBadgeId || 'POLICE-9821'}
+                          <span className="text-blue-900 font-bold block text-[11px]">افسر کاردان فنی و یگان:</span>
+                          <span className="font-bold text-blue-950 text-xs block">
+                            {claimCase.croquiData?.officerName || 'سروان صادقی (پلیس راهور فراجا)'}
                           </span>
                           <span className="text-[10px] text-blue-800 font-extrabold flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3 text-blue-700" />
-                            مهر رسمی پلیس راهور تایید گردید
+                            مهر رسمی پلیس تایید گردید
                           </span>
                         </div>
                       </div>
@@ -1312,35 +1436,43 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
 
                       {/* Sketch Image Preview & Evidence Documents */}
                       <div className="pt-2 border-t border-slate-100 space-y-2">
-                        <span className="font-black text-slate-800 text-[11px] block">تصویر برگه رسمی کروکی و مدارک منضم:</span>
-                        <div className="flex items-center gap-3 overflow-x-auto pb-1">
-                          <div
-                            onClick={() => setPreviewImage(claimCase.croquiData?.fileUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=1000')}
-                            className="relative w-36 h-24 rounded-xl border-2 border-amber-300 overflow-hidden shrink-0 cursor-pointer group"
-                          >
-                            <img
-                              src={claimCase.croquiData?.fileUrl || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&q=80&w=1000'}
-                              alt="Croqui"
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                            />
-                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold">
-                              بزرگ‌نمایی کروکی
-                            </div>
-                          </div>
-
-                          {sampleImages.slice(0, 2).map((img, idx) => (
-                            <div
-                              key={idx}
-                              onClick={() => setPreviewImage(img.url)}
-                              className="relative w-36 h-24 rounded-xl border border-slate-200 overflow-hidden shrink-0 cursor-pointer group"
-                            >
-                              <img src={img.url} alt={img.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                              <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold">
-                                تصویر مستند {idx + 1}
+                        <span className="font-black text-slate-800 text-[11px] block">تصویر برگه رسمی کروکی و مستندات منضم:</span>
+                        {(claimCase.customerKrokiPhoto || claimCase.croquiData?.fileUrl || incidentPhotos.length > 0) ? (
+                          <div className="flex items-center gap-3 overflow-x-auto pb-1">
+                            {(claimCase.customerKrokiPhoto || claimCase.croquiData?.fileUrl) && (
+                              <div
+                                onClick={() => setPreviewImage(claimCase.customerKrokiPhoto || claimCase.croquiData?.fileUrl || '')}
+                                className="relative w-36 h-24 rounded-xl border-2 border-amber-400 bg-amber-50 overflow-hidden shrink-0 cursor-pointer group shadow-2xs"
+                              >
+                                <img
+                                  src={claimCase.customerKrokiPhoto || claimCase.croquiData?.fileUrl || ''}
+                                  alt="Croqui"
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold">
+                                  بزرگ‌نمایی کروکی
+                                </div>
                               </div>
-                            </div>
-                          ))}
-                        </div>
+                            )}
+
+                            {incidentPhotos.map((img, idx) => (
+                              <div
+                                key={idx}
+                                onClick={() => setPreviewImage(img.url)}
+                                className="relative w-36 h-24 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden shrink-0 cursor-pointer group shadow-2xs"
+                              >
+                                <img src={img.url} alt={img.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold p-1 text-center truncate">
+                                  {img.title}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 font-medium">
+                            تصویر یا فایلی برای کروکی بارگذاری نشده است (کروکی به‌صورت ثبتی/کد رهگیری موجود است).
+                          </div>
+                        )}
                       </div>
 
                       {/* Action Button: Proceed to Adjuster Assignment */}
@@ -1545,6 +1677,37 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                   {/* Financial & Debt Limit Analysis Card */}
                   {(() => {
                     const calc = calculateClaimDamageWithPolicyLimits(claimCase);
+                    const hasAssessment = calc.directDamageAmount > 0;
+
+                    if (!hasAssessment) {
+                      return (
+                        <div className="bg-slate-50 p-4 rounded-2xl border border-dashed border-indigo-200 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                            <div className="flex items-center gap-2">
+                              <Shield className="w-5 h-5 text-indigo-600" />
+                              <h5 className="font-extrabold text-slate-800 text-xs sm:text-sm">
+                                محاسبه هوشمند سقف تعهد، افت ارزش، فرانشیز و بدهی مقصر
+                              </h5>
+                            </div>
+                            <span className="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-lg font-black text-[11px] flex items-center gap-1 self-start sm:self-auto">
+                              <Clock className="w-3.5 h-3.5 text-amber-600" />
+                              در انتظار ثبت و تایید ارزیابی خسارت
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs bg-white p-3 rounded-xl border border-slate-200">
+                            <p className="text-slate-600 leading-relaxed">
+                              این پرونده هم‌اکنون در وضعیت <strong className="text-indigo-950">«{claimCase.status}»</strong> قرار دارد. پس از ثبت ارزیابی خسارت توسط کارشناس ارزیاب و تایید بازبین، کلیه محاسبات تفکیکی قطعات، دستمزد، افت ارزش، فرانشیز قانونی و سقف تعهدات بیمه‌نامه در این بخش محاسبه و ابلاغ خواهد شد.
+                            </p>
+                            <div className="shrink-0 bg-indigo-50 border border-indigo-200 p-2 rounded-lg text-center">
+                              <span className="text-[10px] text-indigo-700 font-bold block">سقف تعهد مالی بیمه‌نامه مقصر</span>
+                              <span className="font-black text-indigo-950 text-xs font-mono">{formatCurrency(calc.policyMaxFinancialLimit)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div className="bg-white p-4 rounded-2xl border-2 border-indigo-200 space-y-3.5 shadow-sm">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
@@ -2292,29 +2455,42 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                   <div className="space-y-3 pt-2 border-t border-slate-100">
                     <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
                       <FileText className="w-4 h-4 text-blue-600" />
-                      <span>عکس‌ها و مستندات ارسالی موقعیت تصادف</span>
+                      <span>عکس‌ها و مستندات ارسالی موقعیت تصادف ({incidentPhotos.length})</span>
                     </h4>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {sampleImages.map((img, idx) => (
-                        <div key={idx} className="bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2">
-                          <div className="relative h-44 rounded-xl overflow-hidden group">
-                            <img src={img.url} alt={img.title} className="w-full h-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => setPreviewImage(img.url)}
-                              className="absolute bottom-2 left-2 px-3 py-1 bg-slate-900/80 text-white rounded-lg text-[10px] font-bold backdrop-blur-xs flex items-center gap-1"
-                            >
-                              <Maximize2 className="w-3 h-3" />
-                              <span>قابل بزرگ‌نمایی</span>
-                            </button>
+                    {incidentPhotos.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {incidentPhotos.map((img, idx) => (
+                          <div key={idx} className="bg-slate-50 rounded-2xl border border-slate-200 p-3 space-y-2">
+                            <div className="relative h-44 rounded-xl overflow-hidden group bg-slate-200">
+                              <img src={img.url} alt={img.title} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => setPreviewImage(img.url)}
+                                className="absolute bottom-2 left-2 px-3 py-1 bg-slate-900/80 text-white rounded-lg text-[10px] font-bold backdrop-blur-xs flex items-center gap-1 hover:bg-slate-900 transition-colors"
+                              >
+                                <Maximize2 className="w-3 h-3" />
+                                <span>بزرگ‌نمایی تصویر</span>
+                              </button>
+                            </div>
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span className="font-bold text-slate-800 truncate">{img.title || `تصویر شماره ${idx + 1}`}</span>
+                              {img.uploader && (
+                                <span className="text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 shrink-0">
+                                  {img.uploader}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-center font-bold text-slate-800 text-xs">
-                            {img.title || `تصویر موقعیت ${idx + 1}`}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                        <ImageOff className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                        <p className="text-xs text-slate-600 font-bold">هیچ تصویر یا مستندی از صحنه تصادف توسط ثبت‌کننده بارگذاری نشده است.</p>
+                        <p className="text-[11px] text-slate-400 mt-1">فقط فایل‌های واقعی ارسالی طرفین پرونده در این بخش نمایش داده می‌شوند.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2373,28 +2549,58 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                   <div className="space-y-3 pt-3 border-t border-slate-100">
                     <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
                       <FileBadge className="w-4 h-4 text-emerald-600" />
-                      <span>مدارک و اسناد بارگذاری‌شده توسط زیان‌دیده</span>
+                      <span>مدارک و اسناد بارگذاری‌شده توسط زیان‌دیده ({victimDocuments.length})</span>
                     </h4>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {victimDocs.map((doc, idx) => (
-                        <div key={idx} className="bg-slate-50 rounded-2xl border border-slate-200 p-2.5 space-y-2">
-                          <div className="relative h-36 rounded-xl overflow-hidden group">
-                            <img src={doc.url} alt={doc.title} className="w-full h-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => setPreviewImage(doc.url)}
-                              className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs"
-                            >
-                              مشاهده تصویر
-                            </button>
+                    {victimDocuments.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {victimDocuments.map((doc) => (
+                          <div key={doc.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-2.5 space-y-2">
+                            {doc.dataUrl ? (
+                              <div className="relative h-36 rounded-xl overflow-hidden group bg-slate-200">
+                                {doc.fileType === 'video' ? (
+                                  <video src={doc.dataUrl} controls className="w-full h-full object-cover" />
+                                ) : (
+                                  <img src={doc.dataUrl} alt={doc.title} className="w-full h-full object-cover" />
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewImage(doc.dataUrl!)}
+                                  className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs"
+                                >
+                                  مشاهده تصویر
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="h-36 rounded-xl bg-white border border-slate-200 flex flex-col items-center justify-center p-3 text-center">
+                                <FileText className="w-8 h-8 text-emerald-600 mb-1" />
+                                <span className="text-[11px] font-bold text-slate-700">{doc.title}</span>
+                              </div>
+                            )}
+                            <div className="space-y-1">
+                              <p className="font-bold text-slate-800 text-[11px] truncate">
+                                {doc.title}
+                              </p>
+                              {doc.note && (
+                                <p className="text-[10px] text-slate-500 line-clamp-1">
+                                  {doc.note}
+                                </p>
+                              )}
+                              <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1">
+                                <span>{doc.uploadedAt}</span>
+                                <span>{doc.docType}</span>
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-center font-bold text-slate-800 text-[11px] truncate">
-                            {doc.title}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center border-2 border-dashed border-emerald-200 rounded-2xl bg-emerald-50/30">
+                        <FileText className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                        <p className="text-xs text-emerald-900 font-bold">تاکنون مدرک یا سندی توسط زیان‌دیده بارگذاری نشده است.</p>
+                        <p className="text-[11px] text-emerald-700 mt-1">اطلاعات هویتی و خودرویی زیان‌دیده در جدول بالا قابل مشاهده است.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -2465,28 +2671,58 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                   <div className="space-y-3 pt-3 border-t border-slate-100">
                     <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
                       <FileBadge className="w-4 h-4 text-amber-600" />
-                      <span>مدارک و اسناد مقصر</span>
+                      <span>مدارک و اسناد مقصر ({culpritDocuments.length})</span>
                     </h4>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {culpritDocs.map((doc, idx) => (
-                        <div key={idx} className="bg-slate-50 rounded-2xl border border-slate-200 p-2.5 space-y-2">
-                          <div className="relative h-36 rounded-xl overflow-hidden group">
-                            <img src={doc.url} alt={doc.title} className="w-full h-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => setPreviewImage(doc.url)}
-                              className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs"
-                            >
-                              مشاهده تصویر
-                            </button>
+                    {culpritDocuments.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                        {culpritDocuments.map((doc) => (
+                          <div key={doc.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-2.5 space-y-2">
+                            {doc.dataUrl ? (
+                              <div className="relative h-36 rounded-xl overflow-hidden group bg-slate-200">
+                                {doc.fileType === 'video' ? (
+                                  <video src={doc.dataUrl} controls className="w-full h-full object-cover" />
+                                ) : (
+                                  <img src={doc.dataUrl} alt={doc.title} className="w-full h-full object-cover" />
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => setPreviewImage(doc.dataUrl!)}
+                                  className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs"
+                                >
+                                  مشاهده تصویر
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="h-36 rounded-xl bg-white border border-slate-200 flex flex-col items-center justify-center p-3 text-center">
+                                <FileText className="w-8 h-8 text-amber-600 mb-1" />
+                                <span className="text-[11px] font-bold text-slate-700">{doc.title}</span>
+                              </div>
+                            )}
+                            <div className="space-y-1">
+                              <p className="font-bold text-slate-800 text-[11px] truncate">
+                                {doc.title}
+                              </p>
+                              {doc.note && (
+                                <p className="text-[10px] text-slate-500 line-clamp-1">
+                                  {doc.note}
+                                </p>
+                              )}
+                              <div className="flex items-center justify-between text-[9px] text-slate-400 pt-1">
+                                <span>{doc.uploadedAt}</span>
+                                <span>{doc.docType}</span>
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-center font-bold text-slate-800 text-[11px] truncate">
-                            {doc.title}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-6 text-center border-2 border-dashed border-amber-200 rounded-2xl bg-amber-50/30">
+                        <FileText className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+                        <p className="text-xs text-amber-900 font-bold">تاکنون مدرک یا سندی توسط راننده مقصر بارگذاری نشده است.</p>
+                        <p className="text-[11px] text-amber-700 mt-1">اطلاعات بیمه‌نامه و تعهدات مقصر در جدول بالا ثبت گردیده است.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

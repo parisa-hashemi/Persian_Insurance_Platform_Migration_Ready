@@ -69,7 +69,7 @@ export function calculateVehicleDiminution(
       ageYears,
       percent: 0,
       amount: 0,
-      reason: 'خسارتی ثبت نشده است.'
+      reason: 'خسارتی هنوز ارزیابی و ثبت نشده است.'
     };
   }
 
@@ -85,10 +85,10 @@ export function calculateVehicleDiminution(
   const roundedDiminution = Math.round(rawDiminution / 100000) * 100000;
 
   return {
-    eligible: true,
+    eligible: roundedDiminution > 0,
     ageYears,
     percent: Math.round(diminutionRate * 100),
-    amount: roundedDiminution > 0 ? roundedDiminution : 12000000,
+    amount: roundedDiminution,
     reason: `خودروی ${carType || 'سواری'} با عمر ${ageYears} سال، مشمول افت ارزش بدنه و رنگ‌شدگی طبق آئین‌نامه کانون کارشناسان رسمی دادگستری می‌باشد.`
   };
 }
@@ -105,13 +105,39 @@ export function calculateClaimDamageWithPolicyLimits(claimCase: ClaimCase): Dama
       partsCost += Number(p.partPrice || 0);
       wagesCost += Number(p.repairPrice || 0);
     });
-  } else {
-    const gross = claimCase.assessment?.gross || 45000000;
+  } else if (claimCase.assessment?.gross) {
+    const gross = Number(claimCase.assessment?.gross || 0);
     partsCost = Math.round(gross * 0.7);
     wagesCost = Math.round(gross * 0.3);
   }
 
-  const directDamageGross = partsCost + wagesCost > 0 ? partsCost + wagesCost : (claimCase.assessment?.gross || 45000000);
+  const directDamageGross = partsCost + wagesCost > 0 ? partsCost + wagesCost : Number(claimCase.assessment?.gross || 0);
+  const policyMaxFinancialLimit = claimCase.culpritCoverageFinancial || 50000000;
+
+  if (directDamageGross <= 0) {
+    return {
+      partsCost: 0,
+      wagesCost: 0,
+      directDamageGross: 0,
+      directDamageAmount: 0,
+      salvageDeduction: 0,
+      eligibleForDiminution: false,
+      isEligibleForDiminution: false,
+      vehicleAgeYears: 0,
+      diminutionPercent: 0,
+      diminutionAmount: 0,
+      diminutionReason: 'پرونده هنوز توسط کارشناس ارزیابی و برآورد قیمت نشده است.',
+      franchisePercent: 0,
+      franchiseAmount: 0,
+      totalClaimAmount: 0,
+      policyMaxFinancialLimit,
+      exceedsCeiling: false,
+      insurerPayablePortion: 0,
+      culpritExcessDebt: 0,
+      victimSmsText: `پرونده خسارت ${claimCase.id} در مرحله کارشناسی و بررسی شواهد می‌باشد و هنوز برآورد نهایی خسارت ثبت نگردیده است.`,
+      culpritSmsText: `پرونده خسارت ${claimCase.id} در مرحله کارشناسی قرار دارد و برآورد مبلغ نهایی پس از تکمیل گزارش کارشناس ارزیاب محاسبه خواهد شد.`
+    };
+  }
 
   // محاسبه افت ارزش خودرو
   const diminutionCalc = calculateVehicleDiminution(
@@ -126,10 +152,6 @@ export function calculateClaimDamageWithPolicyLimits(claimCase: ClaimCase): Dama
 
   // مجموع مطالبه کل زیان‌دیده = (خسارت مستقیم + افت ارزش) - (اسقاط + فرانشیز)
   const totalClaimAmount = Math.max(0, (directDamageGross + diminutionCalc.amount) - (salvageDeduction + franchiseAmount));
-
-  // سقف تعهد مالی بیمه‌نامه مقصر
-  // در صورتی که در پرونده تعیین نشده باشد، سقف پایه ۴۰ میلیون یا ۵۰ میلیون تومان در نظر گرفته می‌شود
-  const policyMaxFinancialLimit = claimCase.culpritCoverageFinancial || 50000000;
 
   const exceedsCeiling = totalClaimAmount > policyMaxFinancialLimit;
   const insurerPayablePortion = Math.min(totalClaimAmount, policyMaxFinancialLimit);

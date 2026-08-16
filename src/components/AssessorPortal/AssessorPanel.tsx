@@ -38,8 +38,9 @@ import {
   Users,
   ImageOff,
   Info,
-  RefreshCw,
+  ShieldCheck,
   Smartphone,
+  RefreshCw,
   Bell,
   Timer,
   Inbox
@@ -138,6 +139,9 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const [preliminaryCheckCase, setPreliminaryCheckCase] = useState<ClaimCase | null>(null);
   const [cardDetailModal, setCardDetailModal] = useState<'accident' | 'victim' | 'culprit' | null>(null);
 
+  // Insurer Instructions / Notes Modal
+  const [insurerNoteModalCase, setInsurerNoteModalCase] = useState<ClaimCase | null>(null);
+
   // Reject case modal (Bug 3)
   const [rejectModalCase, setRejectModalCase] = useState<ClaimCase | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState<string>('');
@@ -177,6 +181,12 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
   // SMS Notifications & 72h Inaction Warnings State
   const [showSmsInboxModal, setShowSmsInboxModal] = useState(false);
+  const [assignmentSuccessModal, setAssignmentSuccessModal] = useState<{
+    reviewerName: string;
+    reviewerPhone?: string;
+    caseId: string;
+    payable: number;
+  } | null>(null);
   const [smsNotifications, setSmsNotifications] = useState<AssessorNotification[]>(() => loadAssessorNotifications());
 
   const assessorSmsList = useMemo(() => {
@@ -760,7 +770,12 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
     onUpdateCase(updated);
     setSelectedCaseId(null);
-    alert('برآورد خسارت با موفقیت ثبت شد و جهت بازبینی به بازبین ارجاع گردید. پس از تایید بازبین، برآورد جهت مشاهده و اقدام به مشتری نمایش داده خواهد شد.');
+    setAssignmentSuccessModal({
+      reviewerName: autoReviewer.name,
+      reviewerPhone: autoReviewer.phone || '۰۹۱۲۲۱۴۵۶۷۸',
+      caseId: activeCase.id,
+      payable
+    });
   };
 
   const handleRequestCorrection = () => {
@@ -1403,11 +1418,24 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                             />
                           </td>
                           <td className="p-3 font-bold font-mono text-purple-700 whitespace-nowrap">
-                            {c.id}
-                            {c.fraudFlag?.flagged && (
-                              <span className="mr-1 inline-flex items-center" title="مشکوک به تقلب">
-                                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                              </span>
+                            <div className="flex items-center gap-1">
+                              <span>{c.id}</span>
+                              {c.fraudFlag?.flagged && (
+                                <span className="mr-1 inline-flex items-center" title="مشکوک به تقلب">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                </span>
+                              )}
+                            </div>
+                            {(c.insurerInstruction || c.insurerAssignmentNote) && (
+                              <button
+                                type="button"
+                                onClick={() => setInsurerNoteModalCase(c)}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 mt-1 rounded-md bg-purple-100 hover:bg-purple-200 text-purple-900 border border-purple-300 font-bold text-[10px] shadow-2xs transition-all cursor-pointer"
+                                title="مشاهده توضیحات و دستور کار بیمه‌گر"
+                              >
+                                <FileText className="w-3 h-3 text-purple-700 shrink-0" />
+                                <span>توضیحات بیمه‌گر</span>
+                              </button>
                             )}
                           </td>
                           <td className="p-3 font-extrabold text-slate-900 whitespace-nowrap">
@@ -2122,59 +2150,118 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       </span>
                     </div>
 
-                    {activeCase.additionalDocs && activeCase.additionalDocs.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {activeCase.additionalDocs.map((doc) => (
-                          <div key={doc.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="font-extrabold text-slate-900 truncate">{doc.title}</span>
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
-                                doc.uploaderParty === 'PARTY_ONE' || doc.uploaderRole?.includes('اول') || doc.uploaderRole?.includes('زیان‌دیده')
-                                  ? 'bg-blue-100 text-blue-900 border-blue-300'
-                                  : 'bg-amber-100 text-amber-900 border-amber-300'
-                              }`}>
-                                {doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول' : 'طرف دوم')}
-                              </span>
+                    {((activeCase.additionalDocs && activeCase.additionalDocs.length > 0) || (activeCase.files && activeCase.files.length > 0) || activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl) ? (
+                      <div className="space-y-4">
+                        {/* Additional Documents Uploaded by Parties */}
+                        {activeCase.additionalDocs && activeCase.additionalDocs.length > 0 && (
+                          <div className="space-y-2">
+                            <h5 className="text-xs font-bold text-slate-700">مدارک و شواهد ثبت‌شده توسط طرفین حادثه:</h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {activeCase.additionalDocs.map((doc) => (
+                                <div key={doc.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-extrabold text-slate-900 truncate">{doc.title}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                                      doc.uploaderParty === 'PARTY_ONE' || doc.uploaderRole?.includes('اول') || doc.uploaderRole?.includes('زیان‌دیده')
+                                        ? 'bg-blue-100 text-blue-900 border-blue-300'
+                                        : 'bg-amber-100 text-amber-900 border-amber-300'
+                                    }`}>
+                                      {doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول' : 'طرف دوم')}
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-white p-2 rounded-lg border border-slate-200/80">
+                                    <div><span className="font-bold text-slate-500">ارسال‌کننده:</span> {doc.uploadedBy || 'کاربر'}</div>
+                                    <div><span className="font-bold text-slate-500">نقش:</span> {doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول / زیان‌دیده' : 'طرف دوم / مقصر')}</div>
+                                    <div><span className="font-bold text-slate-500">نوع مدرک:</span> {doc.docType || 'مستند تکمیلی'}</div>
+                                    <div><span className="font-bold text-slate-500">وضعیت:</span> <span className="text-emerald-700 font-bold">ثبت در پرونده</span></div>
+                                  </div>
+
+                                  {doc.note && (
+                                    <p className="text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-100 leading-relaxed font-medium">
+                                      {doc.note}
+                                    </p>
+                                  )}
+
+                                  {doc.dataUrl && (
+                                    <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                                      {doc.fileType === 'video' ? (
+                                        <video src={doc.dataUrl} controls className="w-full max-h-36 rounded-lg" />
+                                      ) : (
+                                        <img src={doc.dataUrl} alt={doc.title} className="w-full h-36 object-cover rounded-lg" />
+                                      )}
+                                    </div>
+                                  )}
+
+                                  <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1">
+                                    <span>تاریخ: {doc.uploadedAt}</span>
+                                    <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{doc.fileSize || '1.5 MB'}</span>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
+                          </div>
+                        )}
 
-                            <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-white p-2 rounded-lg border border-slate-200/80">
-                              <div><span className="font-bold text-slate-500">ارسال‌کننده:</span> {doc.uploadedBy || 'کاربر'}</div>
-                              <div><span className="font-bold text-slate-500">نقش:</span> {doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول / زیان‌دیده' : 'طرف دوم / مقصر')}</div>
-                              <div><span className="font-bold text-slate-500">منبع:</span> {doc.docType || 'درخواست مدرک'}</div>
-                              <div><span className="font-bold text-slate-500">وضعیت:</span> <span className="text-emerald-700 font-bold">در حال بررسی</span></div>
+                        {/* Initial Wizard Files & Damage Photos */}
+                        {activeCase.files && activeCase.files.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t border-slate-100">
+                            <h5 className="text-xs font-bold text-slate-700">عکس‌ها و مستندات ثبت اولیه پرونده:</h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                              {activeCase.files.map((f: any, i: number) => {
+                                const fileName = typeof f === 'string' ? f : (f?.name || f?.fileName || `تصویر ${i + 1}`);
+                                const dataUrl = typeof f === 'object' ? f?.dataUrl : undefined;
+                                const isAudio = fileName?.includes('صوت') || fileName?.includes('voice') || f?.type === 'audio';
+
+                                return (
+                                  <div key={i} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
+                                    <div className="flex items-center justify-between gap-1">
+                                      <span className="font-bold text-slate-800 truncate">{fileName}</span>
+                                      <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-800 rounded font-mono">ثبت اولیه</span>
+                                    </div>
+
+                                    {dataUrl && !isAudio && (
+                                      <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-white">
+                                        <img src={dataUrl} alt={fileName} className="w-full h-28 object-cover rounded-lg" />
+                                      </div>
+                                    )}
+
+                                    {dataUrl && isAudio && (
+                                      <div className="p-2 bg-white rounded-lg border border-slate-200">
+                                        <audio src={dataUrl} controls className="w-full h-8" />
+                                      </div>
+                                    )}
+
+                                    {!dataUrl && (
+                                      <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 text-slate-600">
+                                        <FileText className="w-4 h-4 text-purple-600 shrink-0" />
+                                        <span className="text-[11px] truncate">فایل پیوست</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
+                          </div>
+                        )}
 
-                            {doc.note && (
-                              <p className="text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-100 leading-relaxed font-medium">
-                                {doc.note}
-                              </p>
-                            )}
-
-                            {doc.dataUrl && (
-                              <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
-                                {doc.fileType === 'video' ? (
-                                  <video src={doc.dataUrl} controls className="w-full max-h-36 rounded-lg" />
-                                ) : (
-                                  <img src={doc.dataUrl} alt={doc.title} className="w-full h-32 object-cover rounded-lg" />
-                                )}
+                        {/* Official Croqui Preview */}
+                        {(activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl) && (
+                          <div className="space-y-2 pt-2 border-t border-slate-100">
+                            <h5 className="text-xs font-bold text-slate-700">تصویر کروکی رسمی راهور:</h5>
+                            <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+                              <div className="flex items-center justify-between text-xs text-amber-900 font-bold">
+                                <span>برگه کروکی رسمی پلیس</span>
+                                {activeCase.sceneReportCode && <span className="font-mono">کد: {activeCase.sceneReportCode}</span>}
                               </div>
-                            )}
-
-                            <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1">
-                              <span>تاریخ: {doc.uploadedAt}</span>
-                              <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{doc.fileSize || '1.5 MB'}</span>
+                              <img
+                                src={activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl || ''}
+                                alt="Official Croqui"
+                                className="w-full max-h-56 object-contain rounded-lg bg-white border border-amber-300"
+                              />
                             </div>
                           </div>
-                        ))}
-                      </div>
-                    ) : activeCase.files && activeCase.files.length > 0 ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        {activeCase.files.map((f: any, i: number) => (
-                          <div key={i} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-purple-600 shrink-0" />
-                            <span className="truncate">{typeof f === 'string' ? f : (f?.name || f?.fileName || `فایل ${i + 1}`)}</span>
-                          </div>
-                        ))}
+                        )}
                       </div>
                     ) : (
                       <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
@@ -3115,7 +3202,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
             <div className="flex items-center justify-between pb-2">
               <div className="space-y-0.5">
                 <h3 className="font-black text-base text-slate-900">قبول ارزیابی پرونده</h3>
-                <p className="text-xs text-slate-500 font-mono">پرونده {acceptModalCase.id}</p>
+                <p className="text-xs text-slate-500 font-mono">پرونده {acceptModalCase.id} — {acceptModalCase.carType} ({acceptModalCase.victimPlate})</p>
               </div>
               <button
                 onClick={() => setAcceptModalCase(null)}
@@ -3123,6 +3210,47 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
               >
                 ✕
               </button>
+            </div>
+
+            {/* Insurer Instructions / Note Section before Accepting */}
+            <div className="p-4 bg-purple-50/80 border-2 border-purple-200 rounded-2xl space-y-2.5 text-right">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-purple-900 font-black text-xs">
+                  <FileText className="w-4 h-4 text-purple-700 shrink-0" />
+                  <span>توضیحات شرکت بیمه ({getInsurerPersianName(acceptModalCase.culpritInsurer) || 'بیمه‌گر'})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setInsurerNoteModalCase(acceptModalCase)}
+                  className="px-2.5 py-1 bg-white hover:bg-purple-100 border border-purple-300 text-purple-900 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition-all shadow-2xs cursor-pointer"
+                >
+                  <span>مشاهده صفحه توضیحات</span>
+                  <ArrowLeft className="w-3 h-3 text-purple-700" />
+                </button>
+              </div>
+
+              {acceptModalCase.insurerInstruction || acceptModalCase.insurerAssignmentNote ? (
+                <div className="bg-white p-3 rounded-xl border border-purple-200 shadow-2xs space-y-1.5">
+                  <p className="text-xs text-purple-950 font-bold leading-relaxed">
+                    «{acceptModalCase.insurerInstruction || acceptModalCase.insurerAssignmentNote}»
+                  </p>
+                  <div className="flex items-center justify-between text-[10px] text-purple-700 pt-1 border-t border-purple-100 font-medium">
+                    <span>ثبت‌کننده: {acceptModalCase.insurerNoteAuthor || 'پورتال شرکت بیمه'}</span>
+                    {acceptModalCase.insurerNoteDate && <span className="font-mono">{acceptModalCase.insurerNoteDate}</span>}
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white/80 p-2.5 rounded-xl border border-dashed border-purple-200 text-xs text-slate-500 font-medium flex items-center justify-between">
+                  <span>توضیحات خاصی توسط بیمه‌گر ثبت نشده است. ارزیابی طبق تعرفه مصوب انجام شود.</span>
+                  <button
+                    type="button"
+                    onClick={() => setInsurerNoteModalCase(acceptModalCase)}
+                    className="text-[10px] font-bold text-purple-700 underline shrink-0 mr-2"
+                  >
+                    اطلاعات پرونده
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -3235,23 +3363,28 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
             </div>
 
             {/* Insurer Instructions Alert Banner in Preliminary Check */}
-            {preliminaryCheckCase.insurerInstruction && (
+            {(preliminaryCheckCase.insurerInstruction || preliminaryCheckCase.insurerAssignmentNote) && (
               <div className="p-4 bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 border-2 border-indigo-200 rounded-2xl flex items-start gap-3 shadow-xs">
-                <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-                  <Info className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+                  <FileText className="w-4 h-4" />
                 </div>
-                <div className="space-y-1 flex-1">
+                <div className="space-y-1.5 flex-1">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <span className="font-black text-xs text-indigo-950 flex items-center gap-1">
-                      <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-                      توضیحات و دستور کار ارجاع از شرکت بیمه ({getInsurerPersianName(preliminaryCheckCase.culpritInsurer) || 'بیمه‌گر'}):
+                    <span className="font-black text-xs text-purple-950 flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5 text-purple-600" />
+                      توضیحات و دستور کار شرکت بیمه ({getInsurerPersianName(preliminaryCheckCase.culpritInsurer) || 'بیمه‌گر'}):
                     </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                      پیام ارجاع
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setInsurerNoteModalCase(preliminaryCheckCase)}
+                      className="text-[10px] font-black text-purple-700 bg-white/90 px-2 py-0.5 rounded-md border border-purple-200 hover:bg-purple-100 flex items-center gap-1 transition-all cursor-pointer"
+                    >
+                      <span>مشاهده کامل</span>
+                      <ArrowLeft className="w-3 h-3 text-purple-700" />
+                    </button>
                   </div>
-                  <p className="text-xs text-indigo-900 font-bold leading-relaxed bg-white/70 p-2.5 rounded-xl border border-indigo-100">
-                    «{preliminaryCheckCase.insurerInstruction}»
+                  <p className="text-xs text-purple-950 font-bold leading-relaxed bg-white/80 p-2.5 rounded-xl border border-purple-100">
+                    «{preliminaryCheckCase.insurerInstruction || preliminaryCheckCase.insurerAssignmentNote}»
                   </p>
                 </div>
               </div>
@@ -3323,7 +3456,14 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-slate-500 font-bold">کد/شماره گزارش کروکی:</span>
+                          <span className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
+                            (preliminaryCheckCase.croquiType === 'paper' || preliminaryCheckCase.croquiData?.croquiType === 'paper')
+                              ? 'bg-amber-50 text-amber-950 border-amber-300'
+                              : 'bg-blue-50 text-blue-900 border-blue-300'
+                          }`}>
+                            {(preliminaryCheckCase.croquiType === 'paper' || preliminaryCheckCase.croquiData?.croquiType === 'paper') ? 'کروکی کاغذی (ثبت مشتری)' : 'کروکی الکترونیکی فراجا'}
+                          </span>
+                          <span className="text-[11px] text-slate-500 font-bold">کد گزارش:</span>
                           <span className="px-3 py-1 bg-amber-100 text-amber-950 font-mono font-black rounded-lg text-xs">
                             {activeInquiry.krokiCode || preliminaryCheckCase.croquiData?.reportNumber || preliminaryCheckCase.sceneReportCode || 'CRQ-1403-88492'}
                           </span>
@@ -3331,59 +3471,59 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       </div>
 
                       {/* Key Grid Information */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                         {/* Incident Date & Time */}
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-                          <span className="text-slate-500 font-bold block text-[11px]">تاریخ و زمان وقوع حادثه:</span>
-                          <span className="font-extrabold text-slate-900">{preliminaryCheckCase.croquiData?.incidentDate || preliminaryCheckCase.date || '۱۴۰۳/۰۵/۱۲ - ۱۰:۰۲'}</span>
+                          <span className="text-slate-500 font-bold block text-[11px]">تاریخ و ساعت دقیق تصادف:</span>
+                          <span className="font-extrabold text-slate-900 font-mono">{preliminaryCheckCase.croquiData?.incidentDate || preliminaryCheckCase.date || '۱۴۰۵/۰۵/۱۴ - ۱۰:۴۵'}</span>
                         </div>
 
-                        {/* Location & GPS */}
+                        {/* Exact Location */}
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
-                          <span className="text-slate-500 font-bold block text-[11px]">موقعیت مکانی و جغرافیایی (GPS):</span>
-                          <span className="font-bold text-slate-900 block truncate">{preliminaryCheckCase.croquiData?.location || preliminaryCheckCase.address || 'تهران - بزرگراه همت غرب'}</span>
-                          <span className="font-mono text-[10px] text-slate-500 block">GPS: {preliminaryCheckCase.lat && preliminaryCheckCase.lng ? `${preliminaryCheckCase.lng}, ${preliminaryCheckCase.lat}` : '35.7512, 51.3821'}</span>
+                          <span className="text-slate-500 font-bold block text-[11px]">محل دقیق وقوع حادثه:</span>
+                          <span className="font-bold text-slate-900 block truncate" title={preliminaryCheckCase.croquiData?.location || preliminaryCheckCase.address}>{preliminaryCheckCase.croquiData?.location || preliminaryCheckCase.address || 'تهران - بزرگراه همت'}</span>
+                        </div>
+
+                        {/* Accident Type */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                          <span className="text-slate-500 font-bold block text-[11px]">نوع تصادف:</span>
+                          <span className="font-bold text-slate-900 block truncate">{preliminaryCheckCase.croquiData?.accidentType || 'تصادف خسارتی دو خودرو (برخورد جلو به عقب)'}</span>
+                        </div>
+
+                        {/* Road Condition */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                          <span className="text-slate-500 font-bold block text-[11px]">وضعیت جاده و جوی:</span>
+                          <span className="font-bold text-slate-900 block truncate">{preliminaryCheckCase.croquiData?.roadCondition || 'آسفالت خشک، هوا صاف و دید کافی'}</span>
                         </div>
 
                         {/* Fault Determination & Percentage */}
-                        <div className="bg-rose-50 p-3 rounded-xl border border-rose-200 space-y-1">
-                          <span className="text-rose-800 font-bold block text-[11px]">تعیین مقصریت و درصد تقصیر:</span>
+                        <div className="bg-rose-50 p-3 rounded-xl border border-rose-200 space-y-1 sm:col-span-2">
+                          <span className="text-rose-800 font-bold block text-[11px]">تعیین مقصر قانونی و علت تامه:</span>
                           <span className="font-black text-rose-950 text-xs">
-                            {activeInquiry.faultPercent}% مقصر: {preliminaryCheckCase.croquiData?.faultDriver?.fullName || preliminaryCheckCase.culpritName || 'رضا'} ({preliminaryCheckCase.croquiData?.faultDriver?.plateNumber || preliminaryCheckCase.culpritPlate || '۱۲ ب ۳۴۵ - ایران ۱۱'})
+                            {preliminaryCheckCase.croquiData?.faultDetermination || `${activeInquiry.faultPercent}% مقصر: راننده ${preliminaryCheckCase.culpritCarType || 'خودرو مقصر'} (${preliminaryCheckCase.culpritName}) به علت عدم رعایت فاصله طولی`}
                           </span>
                         </div>
 
                         {/* Claimant Info */}
                         <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 space-y-1">
-                          <span className="text-emerald-800 font-bold block text-[11px]">مشخصات زیان‌دیده (طرف شاکی):</span>
-                          <span className="font-black text-emerald-950">
+                          <span className="text-emerald-800 font-bold block text-[11px]">زیان‌دیده (طرف اول):</span>
+                          <span className="font-black text-emerald-950 block">
                             {preliminaryCheckCase.croquiData?.victimDriver?.fullName || preliminaryCheckCase.victimName || 'پریسا'}
                           </span>
-                          <span className="text-[10px] text-emerald-800 block">
-                            کد ملی: {preliminaryCheckCase.victimNationalId || '0022451151'} — پلاک: {preliminaryCheckCase.victimPlate || '۵۶ الف ۴۵۶ ایران ۵۶'}
-                          </span>
-                        </div>
-
-                        {/* At-fault Party Info */}
-                        <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 space-y-1">
-                          <span className="text-amber-900 font-bold block text-[11px]">مشخصات راننده مقصر:</span>
-                          <span className="font-black text-amber-950">
-                            {preliminaryCheckCase.croquiData?.faultDriver?.fullName || preliminaryCheckCase.culpritName || 'رضا'}
-                          </span>
-                          <span className="text-[10px] text-amber-900 block">
-                            کد ملی: {preliminaryCheckCase.culpritNationalId || '0018374652'} — بیمه‌نامه: {preliminaryCheckCase.culpritPolicyNo || 'POL-99482716'}
+                          <span className="text-[10px] text-emerald-800 font-mono block">
+                            {preliminaryCheckCase.victimPlate || '۴۴ ج ۷۸۹ ایران ۲۲'}
                           </span>
                         </div>
 
                         {/* Police Badge & Official Stamp */}
                         <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 space-y-1">
-                          <span className="text-blue-900 font-bold block text-[11px]">افسر انتظامی و اصالت مهر:</span>
-                          <span className="font-bold text-blue-950 text-xs">
-                            {activeInquiry.officer} (مرکز: {activeInquiry.policeStation})
+                          <span className="text-blue-900 font-bold block text-[11px]">افسر کاردان فنی و یگان:</span>
+                          <span className="font-bold text-blue-950 text-xs block">
+                            {preliminaryCheckCase.croquiData?.officerName || activeInquiry.officer || 'سروان صادقی'}
                           </span>
                           <span className="text-[10px] text-blue-800 font-extrabold flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3 text-blue-700" />
-                            مهر رسمی پلیس راهور تایید گردید
+                            مهر رسمی پلیس تایید شد
                           </span>
                         </div>
                       </div>
@@ -4155,6 +4295,185 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 className="px-4 py-2 rounded-xl bg-slate-900 text-white font-extrabold text-xs hover:bg-slate-800 transition-all"
               >
                 بستن
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: دستورالعمل و توضیحات شرکت بیمه‌گر */}
+      {insurerNoteModalCase && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 border border-slate-200 animate-in zoom-in-95 text-slate-900 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center shadow-xs">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900">دستورالعمل و توضیحات شرکت بیمه‌گر</h3>
+                  <p className="text-xs text-slate-500 font-mono">پرونده {insurerNoteModalCase.id}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setInsurerNoteModalCase(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Case Info Summary Banner */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
+              <div>
+                <span className="text-slate-500 block text-[10px]">شرکت بیمه‌گر:</span>
+                <strong className="text-purple-900 font-black">{getInsurerPersianName(insurerNoteModalCase.culpritInsurer) || 'نامشخص'}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px]">خودرو زیان‌دیده:</span>
+                <strong className="text-slate-800">{insurerNoteModalCase.carType}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px]">شماره پلاک:</span>
+                <strong className="text-slate-800 font-mono text-[11px]">{insurerNoteModalCase.victimPlate}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px]">زیان‌دیده:</span>
+                <strong className="text-slate-800">{insurerNoteModalCase.victimName}</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px]">مقصر حادثه:</span>
+                <strong className="text-slate-800">{insurerNoteModalCase.culpritName} ({insurerNoteModalCase.culpritCarType})</strong>
+              </div>
+              <div>
+                <span className="text-slate-500 block text-[10px]">سقف تعهد مالی:</span>
+                <strong className="text-emerald-700 font-black">{((insurerNoteModalCase.culpritCoverageFinancial || 50000000) / 10).toLocaleString('fa-IR')} تومان</strong>
+              </div>
+            </div>
+
+            {/* The Note Body */}
+            <div className="space-y-2 text-right">
+              <label className="block text-xs font-black text-slate-800 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-purple-600" />
+                <span>متن یادداشت و دستور کار ابلاغی از سوی شرکت بیمه‌گر:</span>
+              </label>
+              
+              <div className="p-4 rounded-2xl bg-purple-50/90 border-2 border-purple-200 text-purple-950 space-y-3">
+                <p className="text-sm font-extrabold leading-relaxed">
+                  «{insurerNoteModalCase.insurerInstruction || insurerNoteModalCase.insurerAssignmentNote || 'توضیحات تکمیلی خاصی توسط شرکت بیمه‌گر ثبت نشده است. ارزیابی بر اساس ضوابط استاندارد و قطعات آسیب‌دیده انجام گیرد.'}»
+                </p>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-purple-200/80 text-[11px] text-purple-800 font-medium">
+                  <span className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-purple-600" />
+                    <span>ثبت توسط: <strong>{insurerNoteModalCase.insurerNoteAuthor || 'کارشناس پذیرش پورتال بیمه‌گر'}</strong></span>
+                  </span>
+                  {insurerNoteModalCase.insurerNoteDate && (
+                    <span className="font-mono text-[10px]">
+                      تاریخ ارجاع: {insurerNoteModalCase.insurerNoteDate}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setInsurerNoteModalCase(null)}
+                className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+              >
+                بستن
+              </button>
+              {(insurerNoteModalCase.status.includes('محول') || insurerNoteModalCase.status === 'ارزیابی‌نشده') ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const current = insurerNoteModalCase;
+                    setInsurerNoteModalCase(null);
+                    setAcceptModalCase(current);
+                  }}
+                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded-xl text-xs shadow-md shadow-purple-600/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-4 h-4 stroke-[3]" />
+                  <span>ورود به قبول ارزیابی</span>
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ASSIGNMENT TO REVIEWER SUCCESS & SMS NOTIFICATION */}
+      {assignmentSuccessModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 border border-slate-200 text-slate-900 animate-in zoom-in-95" dir="rtl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">
+                    برآورد خسارت ثبت و ارجاع داده شد
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    شماره پرونده: {assignmentSuccessModal.caseId}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAssignmentSuccessModal(null)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
+                <div className="flex items-center gap-2 font-black text-emerald-950">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                  <span>پرونده شما به بازبین کیفی زیر ارجاع شد:</span>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-emerald-100 space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">نام بازبین اختصاصی:</span>
+                    <strong className="text-slate-900">{assignmentSuccessModal.reviewerName}</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">مبلغ خالص قابل پرداخت:</span>
+                    <strong className="font-mono text-emerald-800">{formatCurrency(assignmentSuccessModal.payable)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Simulated SMS Notification */}
+              <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200 space-y-2">
+                <div className="flex items-center gap-2 font-black text-blue-950">
+                  <Smartphone className="w-4 h-4 text-blue-700 shrink-0" />
+                  <span>پیامک ارسال‌شده به تلفن همراه بازبین:</span>
+                </div>
+                <div className="bg-white p-3 rounded-xl border border-blue-100 text-[11px] font-medium text-slate-800 leading-relaxed font-sans space-y-1">
+                  <p>
+                    «بازبین محترم ({assignmentSuccessModal.reviewerName})، پرونده خسارت شماره <strong>{assignmentSuccessModal.caseId}</strong> ارزیابی گردید و جهت بازبینی کیفی به شما واگذار شد. پورتال خسارت بیمه»
+                  </p>
+                  <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400 font-mono border-t border-slate-100">
+                    <span>گیرنده: {assignmentSuccessModal.reviewerPhone || '۰۹۱۲۲۱۴۵۶۷۸'}</span>
+                    <span className="text-emerald-700 font-bold">وضعیت: تحویل شد (SMS Sent)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setAssignmentSuccessModal(null)}
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all"
+              >
+                متوجه شدم و بازگشت به لیست پرونده‌ها
               </button>
             </div>
           </div>

@@ -85,10 +85,22 @@ export interface CarDamageSpot {
 
 export interface PoliceReport {
   code: string;
+  reportNumber?: string;
+  croquiType?: 'paper' | 'electronic';
   officerName: string;
   officerCode: string;
   unit: string;
   submittedAt: string;
+  incidentDateTime?: string;
+  location?: string;
+  accidentType?: string;
+  roadCondition?: string;
+  briefDescription?: string;
+  faultDetermination?: string;
+  faultDriverName?: string;
+  faultPlate?: string;
+  victimDriverName?: string;
+  victimPlate?: string;
   noFaultDetermined: boolean;
   description?: string;
   photos?: string[];
@@ -96,6 +108,8 @@ export interface PoliceReport {
   audios?: MediaFile[];
   submittedVia?: string;
   isChainAccident?: boolean;
+  inquiryStatus?: string;
+  inquiryDate?: string;
 }
 
 export interface HistoryEntry {
@@ -210,6 +224,7 @@ export interface ClaimCase {
   pendingApprovalRole?: string | null;
   approved?: boolean;
   hasKroki?: boolean;
+  croquiType?: 'paper' | 'electronic';
   futurePoliceExpected?: boolean | null;
   needsCulpritFieldVisit?: boolean;
   inPersonVisitAddress?: string;
@@ -231,12 +246,15 @@ export interface ClaimCase {
     name: string;
     role: string;
     phone?: string;
+    nationalId?: string;
     company?: string;
   } | null;
   assignedReviewer?: {
     id: string;
     name: string;
     role: string;
+    phone?: string;
+    nationalId?: string;
     company?: string;
   } | null;
   expertAcceptance?: 'now' | 'later' | null;
@@ -264,6 +282,9 @@ export interface ClaimCase {
   } | null;
   insurerInstruction?: string;
   insurerAssignmentNote?: string;
+  insurerFieldExpertNote?: string;
+  insurerNoteAuthor?: string;
+  insurerNoteDate?: string;
   assessment?: AssessmentData;
   carDamageSpots?: Record<string, CarDamageSpot>;
   aiDecisions?: AIDecisionLine[];
@@ -580,21 +601,29 @@ export interface DriverInfo {
 
 export interface CroquiData {
   croquiType: 'paper' | 'electronic';
-  fileUrl: string;
+  fileUrl?: string;
   isValidDocument: boolean;
   confidenceScore: number;
   rejectionReason?: string;
   reportNumber: string;
   incidentDate: string;
   location: string;
+  accidentType?: string;
+  roadCondition?: string;
+  briefDescription?: string;
+  faultDetermination?: string;
   faultDriver: DriverInfo;
   victimDriver: DriverInfo;
   policeBadgeId: string;
+  officerName?: string;
+  policeUnit?: string;
   hasOfficialStamp: boolean;
   declaredRoleMatches: boolean;
   discrepancyNotes?: string | null;
   recommendedNextStep: 'PROCEED_TO_DAMAGE_PHOTOS' | 'REQUIRE_MANUAL_REVIEW' | 'REUPLOAD_CROQUI';
   rawEvaluationJSON?: any;
+  inquiryStatus?: string;
+  inquiryDate?: string;
 }
 
 export interface AssessorNotification {

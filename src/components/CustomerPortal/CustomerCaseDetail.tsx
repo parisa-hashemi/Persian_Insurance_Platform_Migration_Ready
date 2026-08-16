@@ -404,8 +404,9 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       }
     ];
 
-    // Auto update status back to 'در حال ارزیابی' upon customer reply with file/message
-    const newStatus = 'در حال ارزیابی';
+    // Only update status back to 'در حال ارزیابی' if status was explicitly waiting for customer reply and an assessor is actively assigned
+    const shouldReturnToEvaluating = claimCase.status === 'در انتظار پاسخ به ارزیاب' && !!claimCase.assignedExpert;
+    const newStatus = shouldReturnToEvaluating ? 'در حال ارزیابی' : claimCase.status;
 
     const updated: ClaimCase = {
       ...claimCase,
@@ -417,7 +418,9 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           status: newStatus,
           time: new Date().toLocaleString('fa-IR'),
           user: session.name || 'زیان‌دیده',
-          note: `ارسال تصویر/مدرک درخواستی توسط مشتری در چت. وضعیت پرونده به «در حال ارزیابی» تغییر یافت.`
+          note: shouldReturnToEvaluating
+            ? `ارسال تصویر/مدرک درخواستی توسط مشتری در چت. وضعیت پرونده به «در حال ارزیابی» تغییر یافت.`
+            : `ارسال پیام/مدرک توسط مشتری در بخش گفتگو.`
         }
       ]
     };
@@ -425,7 +428,11 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     onUpdateCase(updated);
     setChatMessageInput('');
     setChatSelectedFile(null);
-    alert('پاسخ و تصویر شما در چت ارسال شد و وضعیت پرونده مجدداً به «در حال ارزیابی» تغییر یافت.');
+    if (shouldReturnToEvaluating) {
+      alert('پاسخ و تصویر شما در چت ارسال شد و وضعیت پرونده مجدداً به «در حال ارزیابی» تغییر یافت.');
+    } else {
+      alert('پیام و مدرک شما در بخش گفتگو با موفقیت ارسال شد.');
+    }
   };
 
   // Handle Stage 3 Objection (Workshop Information Submission)
@@ -619,28 +626,20 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
         return req;
       });
 
-      const remainingPending = updatedDocRequests.filter(req => req.status === 'pending' || req.status === 'در انتظار پاسخ' || req.status === 'درخواست ارسال شد');
-      const newStatus = remainingPending.length === 0 ? 'در حال ارزیابی' : claimCase.status;
-
-      const newDocChatMsg = {
-        id: `MSG-${Date.now()}`,
-        from: 'customer' as const,
-        senderParty: uploaderParty,
-        targetParty: 'EXPERT' as const,
-        by: uploaderName,
-        senderName: uploaderName,
-        docType: reqDocType,
-        text: docNote.trim() || `بارگذاری مدرک «${reqDocType}» توسط ${uploaderRoleStr}`,
-        files: docFileData ? [docFileData] : [],
-        at: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
-      };
+      // Maintain current case status unless it was explicitly waiting for a customer doc response under an active assigned expert
+      let newStatus = claimCase.status;
+      if (claimCase.status === 'در انتظار پاسخ به ارزیاب' && claimCase.assignedExpert) {
+        const remainingPending = updatedDocRequests.filter(req => req.status === 'pending' || req.status === 'در انتظار پاسخ' || req.status === 'درخواست ارسال شد');
+        if (remainingPending.length === 0) {
+          newStatus = 'در حال ارزیابی';
+        }
+      }
 
       const updatedCase: ClaimCase = {
         ...claimCase,
         status: newStatus,
         additionalDocs: updatedDocs,
         docRequests: updatedDocRequests,
-        docChat: [...(claimCase.docChat || []), newDocChatMsg],
         history: [
           ...(claimCase.history || []),
           {
@@ -1213,14 +1212,20 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-extrabold text-sm text-blue-900">
                 <CheckCircle2 className="w-5 h-5 text-blue-600" />
-                <span>پرونده اعلام خسارت شما با موفقیت ثبت شد و در حال بررسی توسط کارشناس است</span>
+                <span>
+                  {claimCase.assignedExpert
+                    ? `پرونده اعلام خسارت شما به کارشناس ارزیاب (${claimCase.assignedExpert.name}) محول شده است`
+                    : 'پرونده اعلام خسارت شما با موفقیت ثبت شد و در انتظار ارجاع به کارشناس ارزیاب است'}
+                </span>
               </div>
               <span className="px-3 py-1 rounded-full bg-blue-600 text-white font-extrabold text-[10px]">
-                در انتظار ارزیابی اولیه
+                {claimCase.status}
               </span>
             </div>
             <p className="text-slate-600 leading-relaxed font-medium">
-              اطلاعات اولیه و مدارک ثبت‌شده در زمان تشکیل پرونده با موفقیت دریافت گردید. در صورتی که کارشناس ارزیاب خسارت نیاز به مدارک تکمیلی داشته باشد، درخواست آن در همین بخش به شما اطلاع داده خواهد شد.
+              {claimCase.assignedExpert
+                ? 'کارشناس تخصیص‌یافته در حال بررسی شواهد، کروکی و مدارک است. در صورت نیاز به مدارک تکمیلی از طریق همین صفحه به شما اطلاع‌رسانی خواهد شد.'
+                : 'اطلاعات اولیه و مدارک ثبت‌شده با موفقیت در سامانه ذخیره شدند. پس از ارجاع پرونده به کارشناس ارزیاب توسط شرکت بیمه، مراحل بعدی پیگیری خواهد شد.'}
             </p>
           </div>
         )}
