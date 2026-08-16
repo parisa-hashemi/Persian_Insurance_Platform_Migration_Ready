@@ -1,0 +1,6 @@
+{
+  "name": "ClaimFlow AI - Claim Management System",
+  "description": "سامانه هوشمند ارزیابی، مدیریت و تسویه خسارت بیمه خودرو مبتنی بر هوش مصنوعی",
+  "requestFramePermissions": ["camera", "microphone", "geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
