@@ -2726,20 +2726,51 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                             </div>
 
                             {isVictim && claimCase.status !== 'پرداخت شده' && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShowForm(true);
-                                  setTimeout(() => {
-                                    document.getElementById('iban-section')?.scrollIntoView({ behavior: 'smooth' });
-                                  }, 50);
-                                }}
-                                className="w-full py-3.5 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl font-black text-xs sm:text-sm shadow-md shadow-sky-600/20 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer border border-sky-700"
-                              >
-                                <CreditCard className="w-4.5 h-4.5 text-white" />
-                                تایید برآورد کارشناسی و ثبت شماره شبا (جهت واریز وجه خسارت)
-                              </button>
+                              <div className="bg-gradient-to-br from-slate-900 to-sky-950 text-white rounded-3xl p-5 sm:p-6 border-2 border-sky-500/30 space-y-4 shadow-xl">
+                                <div className="flex items-center justify-between border-b border-sky-800/60 pb-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-400/30 flex items-center justify-center font-black">
+                                      <Sparkles className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <h4 className="font-black text-xs sm:text-sm text-white">اقدام نهایی زیان‌دیده بر روی ارزیابی</h4>
+                                      <span className="text-[10px] text-sky-300">ارزیابی میدانی قطعی بوده و آماده صدور حواله واریز است</span>
+                                    </div>
+                                  </div>
+                                  <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold">
+                                    مبلغ مصوب: {formatCurrency(card.insurerPayable || insurerPayable || totalClaim || 0)}
+                                  </span>
+                                </div>
+
+                                <div className="bg-white/10 border border-emerald-400/50 rounded-2xl p-4 space-y-3">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
+                                      ✓
+                                    </span>
+                                    <h5 className="font-black text-xs sm:text-sm text-emerald-300">
+                                      تایید برآورد و ارسال مستقیم به کارتابل مدیر مالی
+                                    </h5>
+                                  </div>
+                                  <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                                    با ثبت شماره شبا، پرونده شما مستقیماً با مبلغ <strong className="text-emerald-200 font-bold">{formatCurrency(card.insurerPayable || insurerPayable || totalClaim || 0)}</strong> در صف پرداخت و کارتابل مدیر مالی شرکت بیمه قرار می‌گیرد تا حواله واریز پایا/ساتنا صادر شود.
+                                  </p>
+
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setShowForm(true);
+                                      setTimeout(() => {
+                                        document.getElementById('iban-section')?.scrollIntoView({ behavior: 'smooth' });
+                                      }, 50);
+                                    }}
+                                    className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-xl font-black text-xs sm:text-sm shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                                  >
+                                    <CreditCard className="w-4.5 h-4.5" />
+                                    تایید برآورد کارشناسی و ثبت شماره شبا (جهت واریز وجه به حساب)
+                                  </button>
+                                </div>
+                              </div>
                             )}
 
                             {isCulprit && (
@@ -2802,89 +2833,143 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                             )}
 
                             {isVictim && claimCase.status !== 'پرداخت شده' && !isWaitingForNewAssessment && (
-                              <div className="space-y-2">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowForm(true);
-                                    setTimeout(() => {
-                                      document.getElementById('iban-section')?.scrollIntoView({ behavior: 'smooth' });
-                                    }, 50);
-                                  }}
-                                  className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-                                >
-                                  <CreditCard className="w-4.5 h-4.5" />
-                                  <span>
-                                    {card.roundVersion > 1
-                                      ? `تایید برآورد کارشناسی ارزیاب دوم (نوبت ${card.roundVersion}) و ثبت شماره شبا (جهت واریز وجه)`
-                                      : 'تایید برآورد خسارت و ثبت شماره شبا (جهت واریز وجه)'}
+                              <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 border-2 border-indigo-500/30 space-y-4 shadow-xl">
+                                <div className="flex items-center justify-between border-b border-indigo-800/60 pb-3">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 flex items-center justify-center font-black">
+                                      <Sparkles className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <h4 className="font-black text-xs sm:text-sm text-white">تصمیم‌گیری زیان‌دیده بر روی برآورد</h4>
+                                      <span className="text-[10px] text-indigo-300">لطفاً یکی از دو اقدام زیر را انتخاب فرمایید:</span>
+                                    </div>
+                                  </div>
+                                  <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold">
+                                    مبلغ مصوب: {formatCurrency(card.insurerPayable || insurerPayable || totalClaim || 0)}
                                   </span>
-                                </button>
+                                </div>
 
-                                {/* Sequential Non-Retroactive Objections */}
-                                {!card.isFinal && (
-                                  <>
-                                    {/* Round 1 assessment: Stage 1 Objection */}
-                                    {card.roundVersion <= 1 && (!claimCase.objectionStage || claimCase.objectionStage === 0) && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setShowObjection1Modal(true);
-                                        }}
-                                        className="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-                                      >
-                                        <AlertTriangle className="w-4 h-4 text-rose-600" />
-                                        اعتراض به ارزیابی اولیه (مرحله ۱ - ارجاع به کارشناس دوم)
-                                      </button>
-                                    )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                  {/* Option 1: Approve & Route to Finance */}
+                                  <div className="bg-white/10 hover:bg-white/15 border border-emerald-400/50 hover:border-emerald-400 rounded-2xl p-4 transition-all flex flex-col justify-between space-y-3">
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
+                                          ۱
+                                        </span>
+                                        <h5 className="font-black text-xs sm:text-sm text-emerald-300">
+                                          تایید برآورد و دریافت خسارت
+                                        </h5>
+                                      </div>
+                                      <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                                        با تایید این مبلغ و ثبت شماره شبا، پرونده مستقیماً با مبلغ <strong className="text-emerald-200 font-bold">{formatCurrency(card.insurerPayable || insurerPayable || totalClaim || 0)}</strong> به کارتابل مدیر مالی جهت صدور حواله پایا/ساتنا ارسال می‌شود.
+                                      </p>
+                                    </div>
 
-                                    {/* Round 2 assessment: Stage 2 Objection & Workshop Registration */}
-                                    {(card.roundVersion === 2 || claimCase.objectionStage === 1) && (
-                                      <div className="space-y-2">
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowWorkshopModal(true);
-                                          }}
-                                          className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-                                        >
-                                          <Building2 className="w-4 h-4 text-indigo-600" />
-                                          اعتراض به ارزیابی دوم (مرحله ۲ - ثبت اطلاعات تعمیرگاه مورد نظر / فاکتور)
-                                        </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowForm(true);
+                                        setTimeout(() => {
+                                          document.getElementById('iban-section')?.scrollIntoView({ behavior: 'smooth' });
+                                        }, 50);
+                                      }}
+                                      className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 rounded-xl font-black text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                                    >
+                                      <CreditCard className="w-4 h-4" />
+                                      <span>
+                                        {card.roundVersion > 1
+                                          ? `تایید ارزیابی دوم و ثبت شماره شبا`
+                                          : 'تایید برآورد و ثبت شماره شبا (ارسال به مدیر مالی)'}
+                                      </span>
+                                    </button>
+                                  </div>
 
-                                        <button
-                                          type="button"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowObjection2Modal(true);
-                                          }}
-                                          className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-                                        >
-                                          <MessageSquare className="w-4 h-4 text-amber-600" />
-                                          گفتگو و ارسال مدارک تکمیلی به کارشناس ارزیاب دوم
-                                        </button>
+                                  {/* Option 2: Sequential Non-Retroactive Objections */}
+                                  <div className="bg-white/10 hover:bg-white/15 border border-rose-400/40 hover:border-rose-400 rounded-2xl p-4 transition-all flex flex-col justify-between space-y-3">
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className="w-6 h-6 rounded-full bg-rose-500 text-white font-black text-xs flex items-center justify-center shrink-0">
+                                          ۲
+                                        </span>
+                                        <h5 className="font-black text-xs sm:text-sm text-rose-300">
+                                          اعتراض به ارزیابی کارشناس
+                                        </h5>
+                                      </div>
+                                      <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                                        در صورت عدم تایید مبالغ یا قطعات، می‌توانید به این ارزیابی اعتراض نموده و پرونده را به مرحله بعدی کارشناسی ارجاع دهید.
+                                      </p>
+                                    </div>
+
+                                    {!card.isFinal ? (
+                                      <div className="space-y-2 pt-1">
+                                        {/* Round 1 assessment: Stage 1 Objection */}
+                                        {card.roundVersion <= 1 && (!claimCase.objectionStage || claimCase.objectionStage === 0) && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setShowObjection1Modal(true);
+                                            }}
+                                            className="w-full py-2.5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-400/40 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                                          >
+                                            <AlertTriangle className="w-4 h-4 text-rose-400" />
+                                            اعتراض به ارزیابی اولیه (ارجاع به کارشناس دوم)
+                                          </button>
+                                        )}
+
+                                        {/* Round 2 assessment: Stage 2 Objection & Workshop Registration */}
+                                        {(card.roundVersion === 2 || claimCase.objectionStage === 1) && (
+                                          <div className="space-y-2">
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowWorkshopModal(true);
+                                              }}
+                                              className="w-full py-2.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-200 border border-indigo-400/40 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                                            >
+                                              <Building2 className="w-4 h-4 text-indigo-400" />
+                                              اعتراض به ارزیابی دوم (ثبت تعمیرگاه و فاکتور)
+                                            </button>
+
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowObjection2Modal(true);
+                                              }}
+                                              className="w-full py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/40 rounded-xl font-bold text-[11px] transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                                            >
+                                              <MessageSquare className="w-3.5 h-3.5 text-amber-400" />
+                                              ارسال مدارک تکمیلی به کارشناس دوم
+                                            </button>
+                                          </div>
+                                        )}
+
+                                        {/* Round 3 assessment / Field Visit Request */}
+                                        {(card.roundVersion >= 3 || (claimCase.objectionStage && claimCase.objectionStage >= 2) || Boolean(claimCase.workshopInfo)) && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              handleRequestFieldInspector();
+                                            }}
+                                            className="w-full py-2.5 bg-purple-500/20 hover:bg-purple-500/30 text-purple-200 border border-purple-400/40 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                                          >
+                                            <UserCheck className="w-4 h-4 text-purple-400" />
+                                            درخواست ارزیابی میدانی / بازدید حضوری
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <div className="p-2.5 bg-slate-800/60 rounded-xl border border-slate-700 text-center text-[11px] text-slate-400 font-bold">
+                                        این ارزیابی نهایی بوده و طبق ضوابط قابلیت اعتراض ندارد.
                                       </div>
                                     )}
-
-                                    {/* Round 3 assessment / Field Visit Request */}
-                                    {(card.roundVersion >= 3 || (claimCase.objectionStage && claimCase.objectionStage >= 2) || Boolean(claimCase.workshopInfo)) && (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleRequestFieldInspector();
-                                        }}
-                                        className="w-full py-3 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-                                      >
-                                        <UserCheck className="w-4 h-4 text-purple-600" />
-                                        درخواست ارزیابی میدانی / مراجعه حضوری به شعبه شرکت بیمه
-                                      </button>
-                                    )}
-                                  </>
-                                )}
+                                  </div>
+                                </div>
                               </div>
                             )}
 
@@ -3034,28 +3119,50 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Bank Account IBAN Input Form Modal/Section */}
         {hasAnyCompletedAssessment && !isCulprit && (showBankForm || claimCase.payoutInfo?.iban || claimCase.status === 'در انتظار پرداخت') && (
-          <div id="iban-section" className="bg-gradient-to-br from-sky-50/80 via-blue-50/40 to-white border-2 border-sky-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm scroll-mt-6">
+          <div id="iban-section" className="bg-gradient-to-br from-sky-50/90 via-blue-50/50 to-white border-2 border-sky-300 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg scroll-mt-6">
             <div className="flex items-center justify-between border-b border-sky-100 pb-3">
-              <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-                <CreditCard className="w-5 h-5 text-sky-600" />
-                اطلاعات حساب بانکی برای واریز وجه خسارت
-              </h4>
-              <span className="text-[10px] bg-sky-100 text-sky-900 border border-sky-200 font-extrabold px-3 py-1 rounded-full flex items-center gap-1">
-                <Banknote className="w-3.5 h-3.5 text-sky-700" />
-                واریز مستقیم پایا / ساتنا
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-sky-600 text-white flex items-center justify-center font-black shadow-md shadow-sky-600/20">
+                  <CreditCard className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h4 className="font-black text-slate-900 text-xs sm:text-sm">
+                    اطلاعات حساب بانکی جهت واریز مستقیم خسارت
+                  </h4>
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    ارجاع فوری به کارتابل مدیر مالی جهت صدور حواله پایا / ساتنا
+                  </span>
+                </div>
+              </div>
+              <span className="text-[10px] bg-emerald-100 text-emerald-900 border border-emerald-300 font-black px-3 py-1.5 rounded-full flex items-center gap-1 shadow-2xs">
+                <Banknote className="w-3.5 h-3.5 text-emerald-700" />
+                تسویه ۱۰۰٪ خسارت مصوب
               </span>
+            </div>
+
+            {/* Approved Payout Highlight Card */}
+            <div className="p-4 bg-gradient-to-r from-sky-900 to-indigo-950 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+              <div className="space-y-1 text-center sm:text-right">
+                <span className="text-[10px] text-sky-200 font-bold">مبلغ خالص مصوب جهت واریز به حساب شما:</span>
+                <div className="text-xl sm:text-2xl font-black text-emerald-300">
+                  {formatCurrency(claimCase.assessment?.payable || claimCase.insurerPayableAmount || 245000000)}
+                </div>
+              </div>
+              <div className="text-[11px] text-sky-200/90 bg-white/10 px-3.5 py-2 rounded-xl border border-white/10 text-center">
+                <span>شرکت متعهد پرداخت: <strong>{getInsurerPersianName(claimCase.culpritInsurer || claimCase.victimInsurer)}</strong></span>
+              </div>
             </div>
 
             {/* If case is in Payment Queue */}
             {claimCase.status === 'در انتظار پرداخت' && (
-              <div className="p-4 bg-sky-50/90 border border-sky-200 rounded-2xl space-y-2 text-slate-800">
+              <div className="p-4 bg-sky-100/90 border border-sky-300 rounded-2xl space-y-2 text-slate-800">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-black text-xs sm:text-sm text-sky-950">
                     <CheckCircle2 className="w-4.5 h-4.5 text-sky-600 shrink-0" />
-                    <span>اطلاعات بانکی با موفقیت ثبت شد و پرونده در صف پرداخت مدیر مالی قرار دارد</span>
+                    <span>اطلاعات بانکی با موفقیت ثبت شد و پرونده در کارتابل مدیر مالی قرار دارد</span>
                   </div>
                   <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-sky-600 text-white font-bold">
-                    در صف حواله مالی
+                    در صف حواله خزانه‌داری
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
@@ -3100,14 +3207,20 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                   <label className="block text-slate-700 font-bold">شماره شبا (IBAN - با پیشوند IR)</label>
                   {iban && iban.length >= 6 && (
                     <span className="text-[11px] font-bold text-sky-800 bg-sky-100 px-2 py-0.5 rounded-lg border border-sky-200">
-                      تشخیص بانک: {getBankNameFromIban(iban)}
+                      بانک مقصد شناسایی‌شده: {getBankNameFromIban(iban)}
                     </span>
                   )}
                 </div>
                 <input
                   type="text"
                   value={iban}
-                  onChange={(e) => setIban(e.target.value)}
+                  onChange={(e) => {
+                    let val = e.target.value.trim().toUpperCase();
+                    if (val.length > 0 && !val.startsWith('IR') && /^[0-9]/.test(val)) {
+                      val = 'IR' + val;
+                    }
+                    setIban(val);
+                  }}
                   placeholder="IR820540102680020817909002"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-sky-200 text-xs font-mono bg-white text-slate-900 uppercase focus:border-sky-600 focus:ring-1 focus:ring-sky-600 focus:outline-none"
                   dir="ltr"
@@ -3119,13 +3232,13 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               <button
                 type="button"
                 onClick={handleAcceptAssessment}
-                className="w-full py-3.5 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl font-black text-xs sm:text-sm shadow-md shadow-sky-600/20 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95 border border-sky-700"
+                className="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-xs sm:text-sm shadow-lg shadow-emerald-600/25 transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-95 border border-emerald-700"
               >
-                <CheckCircle2 className="w-4.5 h-4.5 text-sky-100" />
+                <CheckCircle2 className="w-5 h-5 text-white" />
                 <span>
                   {claimCase.status === 'در انتظار پرداخت'
-                    ? 'به‌روزرسانی اطلاعات بانکی و ارسال مجدد به صف پرداخت بیمه'
-                    : 'ثبت اطلاعات بانکی و تایید نهایی جهت ارسال به صف پرداخت بیمه'}
+                    ? 'به‌روزرسانی اطلاعات بانکی و ارسال به کارتابل مدیر مالی'
+                    : 'تایید نهایی اطلاعات بانکی و ارسال مستقیم پرونده به کارتابل مدیر مالی جهت واریز وجه'}
                 </span>
               </button>
             )}
@@ -4576,6 +4689,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
         onClose={() => setShowCrmTicketModal(false)}
         claimCase={claimCase}
         session={session}
+        onUpdateCase={onUpdateCase}
         onSuccess={(msg) => {
           setTicketToastMsg(msg);
           setTimeout(() => setTicketToastMsg(null), 5000);

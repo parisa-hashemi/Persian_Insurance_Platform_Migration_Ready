@@ -469,7 +469,7 @@ export function getRankedFieldExpertsForAccidentLocation(params: {
     rating?: number;
     expertise?: string;
     avatarUrl?: string;
-    status?: 'AVAILABLE' | 'ON_MISSION' | 'BUSY';
+    status?: 'AVAILABLE' | 'ON_MISSION' | 'BUSY' | 'INACTIVE';
   }>;
 }): {
   rankedExperts: RankedFieldExpertItem[];

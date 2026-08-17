@@ -38,7 +38,10 @@ export interface UserSession {
   nationalId?: string;
   avatarUrl?: string;
   company?: string;
+  companyName?: string;
   roleTitle?: string;
+  branchId?: string;
+  licenseCode?: string;
 }
 
 export interface MediaFile {
@@ -615,6 +618,14 @@ export interface ClaimCase {
     gross: number;
     franchise: number;
     depreciation: number;
+    netPayable: number;
+    submittedAt: string;
+    submittedBy: string;
+  };
+  crmFollowUpRequested?: boolean;
+  crmFollowUpReason?: string;
+  crmFollowUpRequestedBy?: string;
+  crmFollowUpRequestedAt?: string;
     salvage: number;
     payable: number;
     technicalNotes?: string;
@@ -747,11 +758,12 @@ export interface CroquiData {
 
 export interface AssessorNotification {
   id: string;
-  type: 'SMS' | 'SYSTEM' | 'WARNING' | 'TIMEOUT_ALERT' | 'REASSIGNMENT';
+  type: 'SMS' | 'SYSTEM' | 'WARNING' | 'TIMEOUT_ALERT' | 'REASSIGNMENT' | 'CRM_MESSAGE';
   caseId: string;
   expertId: string;
   recipientPhone?: string;
   senderPhone?: string;
+  sender?: string;
   title: string;
   message: string;
   sentAt: string;

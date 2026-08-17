@@ -118,7 +118,7 @@ export function loadCasesFromStorage(): ClaimCase[] {
     const raw = localStorage.getItem(STORAGE_KEYS.CASES);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
@@ -442,15 +442,15 @@ export function loadComplaintsFromStorage(): ExpertComplaint[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed;
+        return parsed.filter(c => !c.id.startsWith('CMP-10') && !c.id.startsWith('CMP-demo'));
       }
     }
   } catch (e) {
     console.error('Error loading expert complaints from storage:', e);
   }
 
-  saveComplaintsToStorage(INITIAL_EXPERT_COMPLAINTS);
-  return INITIAL_EXPERT_COMPLAINTS;
+  saveComplaintsToStorage([]);
+  return [];
 }
 
 export function saveComplaintsToStorage(complaints: ExpertComplaint[]): void {
@@ -860,398 +860,42 @@ export function saveFinanceStaffToStorage(staff: Record<string, StaffMember[]>):
   }
 }
 
-export const INITIAL_PAYMENT_ORDERS: PaymentOrder[] = [
-  // --- READY_FOR_PAYMENT QUEUE (Diverse SLA Priorities) ---
-  {
-    id: 'PAY-ORD-1403-0105',
-    caseId: 'CLM-1403-9910',
-    victimName: 'حامد سرلک (خسارت فوتی/ویژه)',
-    victimNationalId: '0054321098',
-    victimPhone: '09121998877',
-    victimIban: 'IR900190000000001122334455',
-    victimBankName: 'بانک صادرات ایران',
-    culpritName: 'بهنام توکلی',
-    culpritInsurer: 'dana',
-    grossAmount: 350000000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 350000000,
-    status: 'READY_FOR_PAYMENT',
-    slaPriority: 'CRITICAL',
-    slaDeadline: 'امروز ساعت ۱۴:۰۰',
-    slaRemainingHours: 1,
-    slaStatus: 'NEAR_BREACH',
-    paymentMethod: 'SATNA',
-    issueDate: '1403/05/22',
-    readyDate: '1403/05/22 ۱۰:۱۵',
-    approvedBy: 'دکتر صابری (معاونت خسارت)',
-    financeNotes: 'پرونده خسارت بدنی فوری با حکم قضایی - الزام تسویه در موعد مقرر ساتنا.',
-    accountVoucherNumber: 'VCH-1403-9086',
-    preCheck: {
-      ibanValid: true,
-      ibanBankName: 'بانک صادرات ایران',
-      nameMatchConfidence: 100,
-      nameMatchPassed: true,
-      amountUnderCeiling: true,
-      payoutReadyVerified: true,
-      noDuplicatePassed: true,
-      checkedAt: '1403/05/22 ۱۰:۳۰',
-      checkedBy: 'سیستم خزانه‌داری مرکزی'
-    }
-  },
-  {
-    id: 'PAY-ORD-1403-0106',
-    caseId: 'CLM-1403-9844',
-    victimName: 'مریم صبوری (مشتری شاکی VIP)',
-    victimNationalId: '0067891234',
-    victimPhone: '09361112233',
-    victimIban: 'IR440150000000009988776655',
-    victimBankName: 'بانک سپه',
-    culpritName: 'داوود رحیمی',
-    culpritInsurer: 'alborz',
-    grossAmount: 85000000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 85000000,
-    status: 'READY_FOR_PAYMENT',
-    slaPriority: 'URGENT',
-    slaDeadline: 'امروز ساعت ۱۶:۳۰',
-    slaRemainingHours: 3,
-    slaStatus: 'ON_TRACK',
-    paymentMethod: 'PAYA',
-    issueDate: '1403/05/22',
-    readyDate: '1403/05/22 ۰۹:۴۰',
-    approvedBy: 'مهرداد پاکزاد (مدیر مالی)',
-    financeNotes: 'ارجاعی از امور مشتریان و CRM به دلیل درخواست تسریع در پرداخت حواله.',
-    accountVoucherNumber: 'VCH-1403-9087',
-    preCheck: {
-      ibanValid: true,
-      ibanBankName: 'بانک سپه',
-      nameMatchConfidence: 100,
-      nameMatchPassed: true,
-      amountUnderCeiling: true,
-      payoutReadyVerified: true,
-      noDuplicatePassed: true,
-      checkedAt: '1403/05/22 ۰۹:۵۵',
-      checkedBy: 'سیستم خزانه‌داری مرکزی'
-    }
-  },
-  {
-    id: 'PAY-ORD-1403-0101',
-    caseId: 'CLM-1403-8821',
-    victimName: 'مهدی کشاورز',
-    victimNationalId: '0012345678',
-    victimPhone: '09123456789',
-    victimIban: 'IR520120000000001234567890',
-    victimBankName: 'بانک ملت',
-    culpritName: 'رضا کمالی',
-    culpritInsurer: 'dana',
-    grossAmount: 48500000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 48500000,
-    status: 'READY_FOR_PAYMENT',
-    slaPriority: 'HIGH',
-    slaDeadline: 'فردا ساعت ۱۰:۰۰',
-    slaRemainingHours: 12,
-    slaStatus: 'ON_TRACK',
-    paymentMethod: 'PAYA',
-    issueDate: '1403/05/20',
-    readyDate: '1403/05/20 ۱۱:۳۰',
-    approvedBy: 'مهرداد پاکزاد (مدیر مالی)',
-    financeNotes: 'تایید اصالت شبا و مدارک احراز شد. در صف ارسال دستور پرداخت به درگاه پایا.',
-    accountVoucherNumber: 'VCH-1403-9082',
-    preCheck: {
-      ibanValid: true,
-      ibanBankName: 'بانک ملت',
-      nameMatchConfidence: 100,
-      nameMatchPassed: true,
-      amountUnderCeiling: true,
-      payoutReadyVerified: true,
-      noDuplicatePassed: true,
-      checkedAt: '1403/05/20 ۱۱:۴۵',
-      checkedBy: 'سیستم خزانه‌داری مرکزی'
-    }
-  },
-  {
-    id: 'PAY-ORD-1403-0107',
-    caseId: 'CLM-1403-8740',
-    victimName: 'پیمان یعقوبی',
-    victimNationalId: '0098765432',
-    victimPhone: '09123334455',
-    victimIban: 'IR190160000000002233445566',
-    victimBankName: 'بانک کشاورزی',
-    culpritName: 'سعید احمدی',
-    culpritInsurer: 'dana',
-    grossAmount: 26000000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 26000000,
-    status: 'READY_FOR_PAYMENT',
-    slaPriority: 'NORMAL',
-    slaDeadline: 'فردا ساعت ۱۷:۰۰',
-    slaRemainingHours: 24,
-    slaStatus: 'ON_TRACK',
-    paymentMethod: 'PAYA',
-    issueDate: '1403/05/21',
-    readyDate: '1403/05/21 ۱۶:۲۰',
-    approvedBy: 'مهرداد پاکزاد (مدیر مالی)',
-    financeNotes: 'تاییدیه کارشناسی خسارت بدنه ثبت گردید. آماده ورود به بسته پایا.',
-    accountVoucherNumber: 'VCH-1403-9088',
-    preCheck: {
-      ibanValid: true,
-      ibanBankName: 'بانک کشاورزی',
-      nameMatchConfidence: 100,
-      nameMatchPassed: true,
-      amountUnderCeiling: true,
-      payoutReadyVerified: true,
-      noDuplicatePassed: true,
-      checkedAt: '1403/05/21 ۱۶:۴۵',
-      checkedBy: 'سیستم خزانه‌داری مرکزی'
-    }
-  },
-  {
-    id: 'PAY-ORD-1403-0108',
-    caseId: 'CLM-1403-8612',
-    victimName: 'نیلوفر امینی',
-    victimNationalId: '0041239876',
-    victimPhone: '09124445566',
-    victimIban: 'IR880180000000003344556677',
-    victimBankName: 'بانک تجارت',
-    culpritName: 'کاظم میرزایی',
-    culpritInsurer: 'asia',
-    grossAmount: 39000000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 39000000,
-    status: 'READY_FOR_PAYMENT',
-    slaPriority: 'NORMAL',
-    slaDeadline: '۲ روز آینده',
-    slaRemainingHours: 40,
-    slaStatus: 'ON_TRACK',
-    paymentMethod: 'PAYA',
-    issueDate: '1403/05/22',
-    readyDate: '1403/05/22 ۰۸:۰۰',
-    approvedBy: 'مهرداد پاکزاد',
-    financeNotes: 'مدارک بازدید آنلاین تکمیل است. در صف خزانه‌داری.',
-    accountVoucherNumber: 'VCH-1403-9089',
-    preCheck: {
-      ibanValid: true,
-      ibanBankName: 'بانک تجارت',
-      nameMatchConfidence: 100,
-      nameMatchPassed: true,
-      amountUnderCeiling: true,
-      payoutReadyVerified: true,
-      noDuplicatePassed: true,
-      checkedAt: '1403/05/22 ۰۸:۱۵',
-      checkedBy: 'سیستم خزانه‌داری مرکزی'
-    }
-  },
-
-  // --- PROCESSING QUEUE ---
-  {
-    id: 'PAY-ORD-1403-0102',
-    caseId: 'CLM-1403-9014',
-    victimName: 'سارا رضوی',
-    victimNationalId: '0045678901',
-    victimPhone: '09128889900',
-    victimIban: 'IR890180000000009876543210',
-    victimBankName: 'بانک تجارت',
-    culpritName: 'محسن افشار',
-    culpritInsurer: 'dana',
-    grossAmount: 30000000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 30000000,
-    status: 'PROCESSING',
-    slaPriority: 'NORMAL',
-    slaDeadline: 'سیکل پایا ساعت ۱۳:۴۵',
-    slaRemainingHours: 2,
-    slaStatus: 'ON_TRACK',
-    paymentMethod: 'PAYA',
-    issueDate: '1403/05/21',
-    readyDate: '1403/05/21 ۰۹:۱۵',
-    bankReferenceNumber: 'TRX-PAYA-PROC-901402',
-    financeNotes: 'حواله به چرخه تسویه پایا بانک مرکزی ساعت ۱۳:۴۵ ارسال گردید. در انتظار اعلام نتیجه قطعی بانک.',
-    accountVoucherNumber: 'VCH-1403-9083'
-  },
-  {
-    id: 'PAY-ORD-1403-0109',
-    caseId: 'CLM-1403-9421',
-    victimName: 'پویا معتمدی (ساتنا فوری)',
-    victimNationalId: '0071234567',
-    victimPhone: '09126667788',
-    victimIban: 'IR330560000000007788990011',
-    victimBankName: 'بانک سامان',
-    culpritName: 'حسین جلیلی',
-    culpritInsurer: 'dana',
-    grossAmount: 210000000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 210000000,
-    status: 'PROCESSING',
-    slaPriority: 'CRITICAL',
-    slaDeadline: 'امروز ساعت ۱۳:۰۰',
-    slaRemainingHours: 1,
-    slaStatus: 'NEAR_BREACH',
-    paymentMethod: 'SATNA',
-    issueDate: '1403/05/22',
-    readyDate: '1403/05/22 ۱۱:۰۰',
-    bankReferenceNumber: 'TRX-SATNA-PROC-94210',
-    financeNotes: 'دستور پرداخت ساتنا به هسته صرافی و سوئیچ بانک مرکزی ارسال شد.',
-    accountVoucherNumber: 'VCH-1403-9090'
-  },
-
-  // --- PAID / SETTLED ---
-  {
-    id: 'PAY-ORD-1403-0098',
-    caseId: 'CLM-1403-7741',
-    victimName: 'علی حسینی',
-    victimNationalId: '0023456789',
-    victimPhone: '09121111111',
-    victimIban: 'IR120170000000005544332211',
-    victimBankName: 'بانک ملی ایران',
-    culpritName: 'کامران نوری',
-    culpritInsurer: 'dana',
-    grossAmount: 67000000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 67000000,
-    status: 'PAID',
-    slaPriority: 'NORMAL',
-    paymentMethod: 'PAYA',
-    bankReferenceNumber: 'TRX-PAYA-78904512',
-    issueDate: '1403/05/18',
-    readyDate: '1403/05/18 ۱۰:۰۰',
-    paidDate: '1403/05/19 ۱۲:۳۰',
-    approvedBy: 'مهرداد پاکزاد',
-    paidBy: 'فرزانه شفیعی (اپراتور خزانه)',
-    batchId: 'BATCH-PAYA-14030519-01',
-    accountVoucherNumber: 'VCH-1403-8990'
-  },
-  {
-    id: 'PAY-ORD-1403-0099',
-    caseId: 'CLM-1403-7802',
-    victimName: 'الهام مقدسی',
-    victimNationalId: '0089123456',
-    victimPhone: '09123332211',
-    victimIban: 'IR770120000000001144778899',
-    victimBankName: 'بانک ملت',
-    culpritName: 'فرشاد کیانی',
-    culpritInsurer: 'dana',
-    grossAmount: 145000000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 145000000,
-    status: 'PAID',
-    slaPriority: 'HIGH',
-    paymentMethod: 'SATNA',
-    bankReferenceNumber: 'TRX-SATNA-88129034',
-    issueDate: '1403/05/19',
-    readyDate: '1403/05/19 ۰۹:۰۰',
-    paidDate: '1403/05/19 ۱۱:۱۵',
-    approvedBy: 'مهرداد پاکزاد',
-    paidBy: 'مهرداد پاکزاد (مدیر مالی)',
-    accountVoucherNumber: 'VCH-1403-8995'
-  },
-
-  // --- FAILED / RETRY ---
-  {
-    id: 'PAY-ORD-1403-0103',
-    caseId: 'CLM-1403-9120',
-    victimName: 'رضا امینی',
-    victimNationalId: '0078901234',
-    victimPhone: '09351234567',
-    victimIban: 'IR640560000000006677889900',
-    victimBankName: 'بانک سامان',
-    culpritName: 'وحید شریفی',
-    culpritInsurer: 'alborz',
-    grossAmount: 120000000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 120000000,
-    status: 'FAILED',
-    slaPriority: 'CRITICAL',
-    slaDeadline: 'مهلت منقضی‌شده (نیاز به اقدام آنی)',
-    slaRemainingHours: 0,
-    slaStatus: 'BREACHED',
-    paymentMethod: 'SATNA',
-    issueDate: '1403/05/22',
-    readyDate: '1403/05/22 ۰۸:۳۰',
-    failureReason: 'خطای کد ۵۴ شاپرک: شماره حساب مقصد مسدود / غیرفعال است (عدم تطابق با کدملی)',
-    retryCount: 1,
-    retryHistory: [
-      {
-        attempt: 1,
-        time: '1403/05/22 ۰۹:۰۰',
-        previousFailureReason: 'عدم تطابق کدملی زیان‌دیده با صاحب شبا در استعلام بانک مرکزی',
-        status: 'FAILED',
-        operator: 'سیستم پایا بانکی'
-      }
-    ],
-    financeNotes: 'ارسال با خطا مواجه شد. نیاز به بررسی اصلاح شبا توسط اپراتور خزانه و تلاش مجدد.',
-    accountVoucherNumber: 'VCH-1403-9084'
-  },
-
-  // --- DISCREPANCY ---
-  {
-    id: 'PAY-ORD-1403-0104',
-    caseId: 'CLM-1403-9250',
-    victimName: 'علیرضا اسماعیلی',
-    victimNationalId: '0034567890',
-    victimPhone: '09127776655',
-    victimIban: 'IR720540000000008899112233',
-    victimBankName: 'بانک پارسیان',
-    culpritName: 'احمد کمالی',
-    culpritInsurer: 'dana',
-    grossAmount: 125000000,
-    salvageDeduction: 0,
-    taxDeduction: 0,
-    franchiseDeduction: 0,
-    netPayableAmount: 125000000,
-    status: 'DISCREPANCY',
-    slaPriority: 'URGENT',
-    slaDeadline: 'امروز ساعت ۱۵:۰۰',
-    slaRemainingHours: 2,
-    slaStatus: 'NEAR_BREACH',
-    paymentMethod: 'PAYA',
-    issueDate: '1403/05/22',
-    readyDate: '1403/05/22 ۱۰:۱۵',
-    bankReferenceNumber: 'TRX-PAYA-DISC-92501',
-    discrepancy: {
-      systemAmount: 125000000,
-      bankAmount: 120000000,
-      difference: 5000000,
-      type: 'AMOUNT_MISMATCH',
-      detectedAt: '1403/05/22 ۱۱:۲۰',
-      details: 'مبلغ تایید شده در سیستم ۱۲۵,۰۰۰,۰۰۰ ریال است اما فیش اعلامی بانک ۱۲۰,۰۰۰,۰۰۰ ریال ثبت شده است (مغایرت ۵,۰۰۰,۰۰۰ ریال).',
-      resolved: false
-    },
-    financeNotes: 'در صف مغایرت‌گیری بانکی خزانه‌داری - در انتظار تسویه و تطبیق سند اصلاحی.',
-    accountVoucherNumber: 'VCH-1403-9085'
-  }
-];
+export const INITIAL_PAYMENT_ORDERS: PaymentOrder[] = [];
 
 export function loadPaymentOrdersFromStorage(): PaymentOrder[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.PAYMENT_ORDERS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.PAYMENT_ORDERS, JSON.stringify(INITIAL_PAYMENT_ORDERS));
-      return INITIAL_PAYMENT_ORDERS;
+      return [];
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Filter out any mock/demo cases that are not real registered cases
+    const cleaned = parsed.filter((o: PaymentOrder) => {
+      if (!o || !o.id) return false;
+      if (
+        o.id === 'PAY-ORD-1403-0105' ||
+        o.id === 'PAY-ORD-1403-0106' ||
+        o.id === 'PAY-ORD-1403-0101' ||
+        o.id === 'PAY-ORD-1403-0107' ||
+        o.id === 'PAY-ORD-1403-0108' ||
+        o.id === 'PAY-ORD-1403-0102' ||
+        o.id === 'PAY-ORD-1403-0109' ||
+        o.id === 'PAY-ORD-1403-0098' ||
+        o.id === 'PAY-ORD-1403-0099' ||
+        o.id === 'PAY-ORD-1403-0103' ||
+        o.id === 'PAY-ORD-1403-0104'
+      ) {
+        return false;
+      }
+      return true;
+    });
+    if (cleaned.length !== parsed.length) {
+      localStorage.setItem(STORAGE_KEYS.PAYMENT_ORDERS, JSON.stringify(cleaned));
+    }
+    return cleaned;
   } catch {
-    return INITIAL_PAYMENT_ORDERS;
+    return [];
   }
 }
 
@@ -1305,75 +949,21 @@ export function saveCrmStaffToStorage(staff: Record<string, StaffMember[]>): voi
   }
 }
 
-export const INITIAL_CALL_LOGS: CustomerCallLog[] = [
-  {
-    id: 'CALL-1403-501',
-    caseId: 'CLM-1403-8821',
-    contactName: 'مهدی کشاورز',
-    contactPhone: '09123456789',
-    contactRole: 'زیان‌دیده',
-    callDirection: 'ورودی (تماس مشتری)',
-    topic: 'پیگیری واریز خسارت',
-    sentiment: 'آرام و راضی',
-    durationMinutes: 4,
-    notes: 'مشتری جویای زمان دقیق واریز وجه شد. به ایشان اعلام شد حواله تایید مالی شده و تا پایان وقت اداری امروز از طریق پایا تسویه خواهد شد.',
-    agentName: 'سپیده معتمدی',
-    agentId: 'crm-d1',
-    callDate: '1403/05/21',
-    callTime: '10:35',
-    followUpRequired: false,
-    resolvedInCall: true
-  },
-  {
-    id: 'CALL-1403-502',
-    caseId: 'CLM-1403-9014',
-    contactName: 'سارا رضوی',
-    contactPhone: '09128889900',
-    contactRole: 'زیان‌دیده',
-    callDirection: 'خروجی (تماس کارشناس)',
-    topic: 'هماهنگی کارشناس میدانی',
-    sentiment: 'نگران و عجول',
-    durationMinutes: 6,
-    notes: 'تماس جهت هماهنگی آدرس و ساعت حضور کارشناس میدانی در محل حادثه. مشتری ابراز نگرانی از عدم کروکی داشت که توضیحات احراز هویت و عکس‌های بدنه ارائه و آرامش خاطر داده شد.',
-    agentName: 'حامد شایان',
-    agentId: 'crm-d2',
-    callDate: '1403/05/21',
-    callTime: '11:15',
-    followUpRequired: true,
-    followUpDate: '1403/05/22',
-    resolvedInCall: true
-  },
-  {
-    id: 'CALL-1403-503',
-    caseId: 'CLM-1403-9120',
-    contactName: 'فرشاد کریمی',
-    contactPhone: '09351234567',
-    contactRole: 'زیان‌دیده',
-    callDirection: 'ورودی (تماس مشتری)',
-    topic: 'اعتراض به ارزیابی خسارت',
-    sentiment: 'ناراضی و شاکی',
-    durationMinutes: 9,
-    notes: 'مشتری مدعی بود چراغ جلو و سینی رادیاتور در فاکتور صافکاری خورده ولی نیاز به تعویض کامل دارد. به ایشان راهنمایی شد که می‌تواند درخواست بازبینی ثانویه توسط ارزیاب ارشد ثبت کند یا تیکت شکایت الصاق نماید.',
-    agentName: 'سپیده معتمدی',
-    agentId: 'crm-d1',
-    callDate: '1403/05/20',
-    callTime: '14:20',
-    followUpRequired: true,
-    followUpDate: '1403/05/22',
-    resolvedInCall: false
-  }
-];
+export const INITIAL_CALL_LOGS: CustomerCallLog[] = [];
 
 export function loadCrmCallLogsFromStorage(): CustomerCallLog[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CRM_CALL_LOGS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.CRM_CALL_LOGS, JSON.stringify(INITIAL_CALL_LOGS));
-      return INITIAL_CALL_LOGS;
+      return [];
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(l => !l.id.startsWith('CALL-1403-50') && !l.id.startsWith('CALL-demo'));
+    }
+    return [];
   } catch {
-    return INITIAL_CALL_LOGS;
+    return [];
   }
 }
 
@@ -1385,110 +975,21 @@ export function saveCrmCallLogsToStorage(logs: CustomerCallLog[]): void {
   }
 }
 
-export const INITIAL_TICKETS: CustomerTicket[] = [
-  {
-    id: 'TCK-1403-101',
-    caseId: 'CLM-1403-9120',
-    ticketNumber: 'TK-9120-01',
-    customerName: 'فرشاد کریمی',
-    customerPhone: '09351234567',
-    customerRole: 'زیان‌دیده',
-    category: 'شکایت از مبلغ ارزیابی',
-    priority: 'مهم',
-    status: 'در حال پیگیری',
-    subject: 'عدم احتساب تعویض چراغ زنون فابریک و سینی فن',
-    createdAt: '1403/05/20 14:45',
-    lastUpdate: '1403/05/21 09:30',
-    assignedAgent: 'سپیده معتمدی',
-    messages: [
-      {
-        id: 'msg-1',
-        sender: 'CUSTOMER',
-        senderName: 'فرشاد کریمی',
-        senderRole: 'زیان‌دیده',
-        text: 'با سلام، ارزیاب محترم قیمت چراغ اصلی را با نمونه طرح متفرقه محاسبه کرده است. لطفا بررسی مجدد فرمایید.',
-        time: '1403/05/20 14:45'
-      },
-      {
-        id: 'msg-2',
-        sender: 'AGENT',
-        senderName: 'سپیده معتمدی (کارشناس CRM دانا)',
-        senderRole: 'کارشناس امور مشتریان',
-        text: 'سلام جناب آقای کریمی. پرونده شما جهت بازبینی قیمت قطعه یدکی به ارزیاب ارشد ارجاع داده شد و نتیجه تا ۲۴ ساعت آینده در پنل شما منعکس می‌گردد.',
-        time: '1403/05/21 09:30'
-      }
-    ]
-  },
-  {
-    id: 'TCK-1403-102',
-    caseId: 'CLM-1403-8821',
-    ticketNumber: 'TK-8821-02',
-    customerName: 'مهدی کشاورز',
-    customerPhone: '09123456789',
-    customerRole: 'زیان‌دیده',
-    category: 'تغییر شماره شبا',
-    priority: 'عادی',
-    status: 'بسته شده و حل گردید',
-    subject: 'اصلاح شماره شبای بانکی جهت واریز وجه خسارت',
-    createdAt: '1403/05/19 16:10',
-    lastUpdate: '1403/05/20 11:00',
-    assignedAgent: 'حامد شایان',
-    messages: [
-      {
-        id: 'msg-10',
-        sender: 'CUSTOMER',
-        senderName: 'مهدی کشاورز',
-        senderRole: 'زیان‌دیده',
-        text: 'شبای قبلی من بانک مسکن مسدود بود، شماره شبای بانک ملت به نام خودم را ثبت کردم.',
-        time: '1403/05/19 16:10'
-      },
-      {
-        id: 'msg-11',
-        sender: 'AGENT',
-        senderName: 'حامد شایان',
-        senderRole: 'کارشناس امور مشتریان',
-        text: 'شبای جدید با سامانه پایا بانک مرکزی استعلام و تایید گردید. حواله پرداخت با شماره جدید صادر شد.',
-        time: '1403/05/20 11:00'
-      }
-    ]
-  },
-  {
-    id: 'TCK-1403-103',
-    caseId: 'CLM-1403-9014',
-    ticketNumber: 'TK-9014-03',
-    customerName: 'سارا رضوی',
-    customerPhone: '09128889900',
-    customerRole: 'زیان‌دیده',
-    category: 'اعتراض به کروکی و مقصر',
-    priority: 'بحرانی (شکایت رسمی بیمه مرکزی)',
-    status: 'در انتظار پاسخ',
-    subject: 'اعلام تصادف صوری توسط مقصر و درخواست بازرسی کارشناس میدانی در محل',
-    createdAt: '1403/05/21 12:00',
-    lastUpdate: '1403/05/21 12:00',
-    assignedAgent: 'سپیده معتمدی',
-    messages: [
-      {
-        id: 'msg-20',
-        sender: 'CUSTOMER',
-        senderName: 'سارا رضوی',
-        senderRole: 'زیان‌دیده',
-        text: 'مقصر حادثه منکر برخورد شده در حالی که آثار رنگ خودروی ایشان روی سپر من وجود دارد. لطفا کارشناس رسمی میدانی اعزام کنید.',
-        time: '1403/05/21 12:00'
-      }
-    ]
-  }
-];
+export const INITIAL_TICKETS: CustomerTicket[] = [];
 
 export function loadCrmTicketsFromStorage(): CustomerTicket[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CRM_TICKETS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.CRM_TICKETS, JSON.stringify(INITIAL_TICKETS));
-      return INITIAL_TICKETS;
+      return [];
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(t => !t.id.startsWith('TCK-1403-10') && !t.id.startsWith('TCK-demo'));
+    }
+    return [];
   } catch {
-    return INITIAL_TICKETS;
+    return [];
   }
 }
 
@@ -1500,43 +1001,21 @@ export function saveCrmTicketsToStorage(tickets: CustomerTicket[]): void {
   }
 }
 
-export const INITIAL_SURVEYS: CrmSatisfactionSurvey[] = [
-  {
-    id: 'SRV-101',
-    caseId: 'CLM-1403-7741',
-    customerName: 'علی حسینی',
-    customerPhone: '09121111111',
-    ratingSpeed: 5,
-    ratingFairness: 4,
-    ratingSupport: 5,
-    overallRating: 5,
-    comment: 'سرعت پرداخت خسارت و عدم نیاز به مراجعه حضوری عالی بود.',
-    submittedAt: '1403/05/19'
-  },
-  {
-    id: 'SRV-102',
-    caseId: 'CLM-1403-8821',
-    customerName: 'مهدی کشاورز',
-    customerPhone: '09123456789',
-    ratingSpeed: 4,
-    ratingFairness: 5,
-    ratingSupport: 5,
-    overallRating: 5,
-    comment: 'پشتیبانی تلفنی و راهنمایی خانم معتمدی بسیار محترمانه و دقیق بود.',
-    submittedAt: '1403/05/21'
-  }
-];
+export const INITIAL_SURVEYS: CrmSatisfactionSurvey[] = [];
 
 export function loadCrmSurveysFromStorage(): CrmSatisfactionSurvey[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CRM_SURVEYS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.CRM_SURVEYS, JSON.stringify(INITIAL_SURVEYS));
-      return INITIAL_SURVEYS;
+      return [];
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(s => !s.id.startsWith('SRV-10') && !s.id.startsWith('SRV-demo'));
+    }
+    return [];
   } catch {
-    return INITIAL_SURVEYS;
+    return [];
   }
 }
 
@@ -1548,68 +1027,21 @@ export function saveCrmSurveysToStorage(surveys: CrmSatisfactionSurvey[]): void 
   }
 }
 
-export const INITIAL_CRM_FOLLOW_UPS: CrmFollowUpTask[] = [
-  {
-    id: 'TSK-101',
-    caseId: 'CLM-1403-8821',
-    customerName: 'مهدی کشاورز',
-    customerPhone: '09123456789',
-    customerRole: 'زیان‌دیده',
-    ticketId: 'TCK-1403-102',
-    reason: 'بررسی مجدد تایید شماره شبا پس از اصلاح توسط کاربر و تسریع صدور حواله پایا',
-    targetDepartment: 'مالی و خزانه‌داری',
-    assignedAgent: 'حامد شایان',
-    priority: 'مهم',
-    dueDate: '1403/05/22',
-    status: 'در حال پیگیری',
-    notes: 'کاربر شماره شبای جدید ثبت نموده و منتظر تسویه است.',
-    createdAt: '1403/05/20 11:30'
-  },
-  {
-    id: 'TSK-102',
-    caseId: 'CLM-1403-9014',
-    customerName: 'سارا رضوی',
-    customerPhone: '09128889900',
-    customerRole: 'زیان‌دیده',
-    ticketId: 'TCK-1403-103',
-    reason: 'هماهنگی اعزام کارشناس رسمی میدانی جهت بررسی آثار برخورد و رفع ادعای تصادف صوری',
-    targetDepartment: 'کارشناسی میدانی',
-    assignedAgent: 'سپیده معتمدی',
-    priority: 'فوری و بحرانی',
-    dueDate: '1403/05/21',
-    status: 'در انتظار انجام',
-    notes: 'مقصر منکر برخورد شده و شکایت در سنهاب ثبت شده است.',
-    createdAt: '1403/05/21 12:15'
-  },
-  {
-    id: 'TSK-103',
-    caseId: 'CLM-1403-7741',
-    customerName: 'علی حسینی',
-    customerPhone: '09121111111',
-    customerRole: 'زیان‌دیده',
-    reason: 'اطلاع‌رسانی وضعیت واریز خسارت به شماره شبای بانک سامان',
-    targetDepartment: 'شعبه و خسارت',
-    assignedAgent: 'سپیده معتمدی',
-    priority: 'عادی',
-    dueDate: '1403/05/20',
-    status: 'تکمیل و رفع مانع',
-    notes: 'واریز تایید و به کاربر پیامک ارسال شد.',
-    resolution: 'تماس با مشتری برقرار شد و رضایت کامل ثبت گردید.',
-    createdAt: '1403/05/19 14:00',
-    completedAt: '1403/05/19 17:30'
-  }
-];
+export const INITIAL_CRM_FOLLOW_UPS: CrmFollowUpTask[] = [];
 
 export function loadCrmFollowUpsFromStorage(): CrmFollowUpTask[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CRM_FOLLOW_UPS);
     if (!raw) {
-      localStorage.setItem(STORAGE_KEYS.CRM_FOLLOW_UPS, JSON.stringify(INITIAL_CRM_FOLLOW_UPS));
-      return INITIAL_CRM_FOLLOW_UPS;
+      return [];
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(f => !f.id.startsWith('TSK-10') && !f.id.startsWith('TSK-demo'));
+    }
+    return [];
   } catch {
-    return INITIAL_CRM_FOLLOW_UPS;
+    return [];
   }
 }
 

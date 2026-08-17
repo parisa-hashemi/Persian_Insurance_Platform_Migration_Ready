@@ -13,8 +13,8 @@ import {
   Clock,
   Sparkles
 } from 'lucide-react';
-import { ClaimCase, UserSession, CustomerTicket, ExpertComplaint } from '../../types';
-import { loadCrmTicketsFromStorage, saveCrmTicketsToStorage, loadComplaintsFromStorage, saveComplaintsToStorage } from '../../lib/storage';
+import { ClaimCase, UserSession, CustomerTicket } from '../../types';
+import { loadCrmTicketsFromStorage, saveCrmTicketsToStorage } from '../../lib/storage';
 import { compressImageFile } from '../../lib/imageCompressor';
 
 interface CustomerTicketModalProps {
@@ -22,8 +22,9 @@ interface CustomerTicketModalProps {
   session: UserSession;
   isOpen: boolean;
   onClose: () => void;
-  onTicketCreated: (ticket: CustomerTicket) => void;
-  onUpdateCase: (updatedCase: ClaimCase) => void;
+  onTicketCreated?: (ticket: CustomerTicket) => void;
+  onSuccess?: (msg: string) => void;
+  onUpdateCase?: (updatedCase: ClaimCase) => void;
 }
 
 export const CustomerTicketModal: React.FC<CustomerTicketModalProps> = ({
@@ -32,6 +33,7 @@ export const CustomerTicketModal: React.FC<CustomerTicketModalProps> = ({
   isOpen,
   onClose,
   onTicketCreated,
+  onSuccess,
   onUpdateCase
 }) => {
   const isPartyOne = session.phone ? (claimCase.partyOnePhone === session.phone || claimCase.victimPhone === session.phone) : true;
@@ -100,34 +102,10 @@ export const CustomerTicketModal: React.FC<CustomerTicketModalProps> = ({
       ]
     };
 
-    // Save to CRM Tickets Storage
+    // Save to CRM Tickets Storage (Directly received and managed by Customer Service / CRM)
     const allTickets = loadCrmTicketsFromStorage();
     const updatedTickets = [newTicket, ...allTickets];
     saveCrmTicketsToStorage(updatedTickets);
-
-    // Save to Expert Complaints if it's a dispute or high-priority complaint
-    if (category === 'شکایت از مبلغ ارزیابی' || category === 'اعتراض به کروکی و مقصر' || priority.includes('بحرانی')) {
-      const targetExpert = claimCase.assignedExpert || {
-        id: claimCase.culpritInsurer === 'dana' ? 'd2' : 'ir2',
-        name: claimCase.assignedExpert?.name || claimCase.assessment?.submittedBy || 'فاطمه احمدی',
-        role: 'کارشناس ارزیاب خسارت'
-      };
-      const newComplaint: ExpertComplaint = {
-        id: `CMP-${Date.now()}`,
-        expertId: targetExpert.id,
-        expertName: targetExpert.name,
-        caseId: claimCase.id,
-        complainantName: `${myName} (${myRoleLabel})`,
-        complainantRole: myRoleLabel === 'مقصر' ? 'مقصر' : 'زیان‌دیده',
-        reasonCategory: category === 'شکایت از مبلغ ارزیابی' ? 'مبلغ برآورد ناچیز' : 'سایر',
-        description: `[تیکت پشتیبانی ${ticketNumber}] موضوع: ${subject.trim()} - شرح: ${message.trim()}`,
-        filedAt: nowStr,
-        status: 'در حال بررسی',
-        impactPoints: 15
-      };
-      const existingComplaints = loadComplaintsFromStorage();
-      saveComplaintsToStorage([newComplaint, ...existingComplaints]);
-    }
 
     // Update case history
     const updatedCase: ClaimCase = {
@@ -143,8 +121,15 @@ export const CustomerTicketModal: React.FC<CustomerTicketModalProps> = ({
       ]
     };
 
-    onUpdateCase(updatedCase);
-    onTicketCreated(newTicket);
+    if (onUpdateCase) {
+      onUpdateCase(updatedCase);
+    }
+    if (onTicketCreated) {
+      onTicketCreated(newTicket);
+    }
+    if (onSuccess) {
+      onSuccess(`تیکت پشتیبانی با کد ${ticketNumber} با موفقیت ثبت شد.`);
+    }
     setIsSubmitting(false);
     onClose();
   };

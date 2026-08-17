@@ -594,7 +594,9 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
       ]
     };
 
-    onUpdateCase(updated);
+    if (onUpdateCase) {
+      onUpdateCase(updated);
+    }
     if (selectedBodyCaseForReview && selectedBodyCaseForReview.id === updated.id) {
       setSelectedBodyCaseForReview(updated);
     }

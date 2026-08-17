@@ -53,7 +53,7 @@ import {
   savePaymentOrdersToStorage,
   loadPaymentBatchesFromStorage,
   savePaymentBatchesToStorage,
-  INITIAL_PAYMENT_ORDERS
+  loadInsurersFromStorage
 } from '../../lib/storage';
 
 interface FinanceManagerPanelProps {
@@ -74,100 +74,17 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
     'queue' | 'processing' | 'failed' | 'discrepancy' | 'settled' | 'batch'
   >('queue');
 
-  // Load orders from storage and sync payout-ready cases from customer/insurer portal
+  // Load orders from storage (only real payment orders registered by customer/claim workflows)
   const [orders, setOrders] = useState<PaymentOrder[]>(() => {
     const existing = loadPaymentOrdersFromStorage();
-    let updatedOrders = [...existing];
-
-    // Merge any INITIAL_PAYMENT_ORDERS that don't exist yet or ensure SLA data is up to date
-    INITIAL_PAYMENT_ORDERS.forEach(initOrd => {
-      const idx = updatedOrders.findIndex(o => o.id === initOrd.id);
-      if (idx === -1) {
-        updatedOrders.push(initOrd);
-      } else {
-        updatedOrders[idx] = {
-          ...initOrd,
-          ...updatedOrders[idx],
-          slaPriority: updatedOrders[idx].slaPriority || initOrd.slaPriority,
-          slaDeadline: updatedOrders[idx].slaDeadline || initOrd.slaDeadline,
-          slaRemainingHours: updatedOrders[idx].slaRemainingHours ?? initOrd.slaRemainingHours,
-          slaStatus: updatedOrders[idx].slaStatus || initOrd.slaStatus
-        };
-      }
-    });
-
-    // Auto-generate payment orders for cases in 'در انتظار پرداخت' or 'در انتظار تایید پرداخت' that don't have one yet
-    const pendingCases = cases.filter(
-      c =>
-        c.status === 'در انتظار پرداخت' ||
-        c.status === 'در انتظار تایید پرداخت' ||
-        c.status === 'ارزیابی میدانی تکمیل شد - در انتظار صدور حواله پرداخت بیمه‌گر' ||
-        c.payoutState === 'PAYOUT_READY' ||
-        ((c.isBodyClaim || c.isBodily) && c.assessment && c.assessment.payable && c.assessment.payable > 0 && !c.status.includes('پرداخت شده'))
-    );
-    let createdCount = 0;
-
-    pendingCases.forEach(c => {
-      const exists = updatedOrders.some(o => o.caseId === c.id);
-      if (!exists) {
-        const netAmt = c.assessment?.payable || 25000000;
-        const gross = c.assessment?.gross || netAmt;
-        const isCriticalOrUrgent = c.damageType === 'خسارت جرحی/فوتی' || netAmt > 200000000;
-        const slaPrio = isCriticalOrUrgent ? 'CRITICAL' : netAmt > 80000000 ? 'HIGH' : 'NORMAL';
-
-        const newOrder: PaymentOrder = {
-          id: `PAY-ORD-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 899 + 100)}`,
-          caseId: c.id,
-          victimName: c.customerName || c.victimName || 'زیان‌دیده محترم',
-          victimNationalId: c.customerNationalId || '0019876543',
-          victimPhone: c.customerPhone || '09120000000',
-          victimIban: c.bankInfo?.iban || c.payoutInfo?.iban || 'IR120120000000001234567890',
-          victimBankName: c.bankInfo?.bankName || c.payoutInfo?.bankName || 'بانک ملت',
-          culpritName: c.culpritName || 'مقصر حادثه',
-          culpritInsurer: c.insurer || 'dana',
-          grossAmount: gross,
-          salvageDeduction: 0,
-          taxDeduction: 0,
-          franchiseDeduction: 0,
-          netPayableAmount: netAmt,
-          status: 'READY_FOR_PAYMENT',
-          slaPriority: slaPrio,
-          slaDeadline: slaPrio === 'CRITICAL' ? 'امروز ساعت ۱۴:۰۰' : slaPrio === 'HIGH' ? 'فردا ساعت ۱۱:۰۰' : '۴۸ ساعت آینده',
-          slaRemainingHours: slaPrio === 'CRITICAL' ? 2 : slaPrio === 'HIGH' ? 12 : 36,
-          slaStatus: 'ON_TRACK',
-          paymentMethod: netAmt > 100000000 ? 'SATNA' : 'PAYA',
-          issueDate: new Date().toLocaleDateString('fa-IR'),
-          readyDate: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
-          financeNotes: 'پرونده با تایید مدارک و ارزیابی خسارت به صف خزانه‌داری منتقل شد.',
-          accountVoucherNumber: `VCH-${new Date().getFullYear()}-${Math.floor(Math.random() * 8999 + 1000)}`,
-          preCheck: {
-            ibanValid: true,
-            ibanBankName: c.bankInfo?.bankName || 'بانک ملت',
-            nameMatchConfidence: 100,
-            nameMatchPassed: true,
-            amountUnderCeiling: true,
-            payoutReadyVerified: true,
-            noDuplicatePassed: true,
-            checkedAt: new Date().toLocaleDateString('fa-IR'),
-            checkedBy: 'سیستم اعتبارسنجی خزانه‌داری'
-          }
-        };
-        updatedOrders.unshift(newOrder);
-        createdCount++;
-      }
-    });
-
-    savePaymentOrdersToStorage(updatedOrders);
-    return updatedOrders;
+    return existing;
   });
 
-  // Real-time synchronization for new payment orders arriving from customer portal
+  // Real-time synchronization for new payment orders arriving from customer portal / case updates
   React.useEffect(() => {
     const handleSync = () => {
       const stored = loadPaymentOrdersFromStorage();
-      if (stored && stored.length > 0) {
-        setOrders(stored);
-      }
+      setOrders(stored);
     };
 
     window.addEventListener('claimflow_payment_orders_updated', handleSync);
@@ -185,6 +102,8 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [priorityFilter, setPriorityFilter] = useState<'ALL' | 'NORMAL' | 'HIGH' | 'URGENT' | 'CRITICAL'>('ALL');
   const [insurerFilter, setInsurerFilter] = useState<string>('ALL');
+
+  const availableInsurers = useMemo(() => loadInsurersFromStorage(), []);
 
   // Modals state
   const [selectedOrderForPreCheck, setSelectedOrderForPreCheck] = useState<PaymentOrder | null>(null);
@@ -283,7 +202,24 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
       if (priorityFilter !== 'ALL' && o.slaPriority !== priorityFilter) return false;
 
       // Insurer filter
-      if (insurerFilter !== 'ALL' && o.culpritInsurer !== insurerFilter) return false;
+      if (insurerFilter !== 'ALL') {
+        const oIns = (o.culpritInsurer || '').toLowerCase().trim();
+        const filterVal = insurerFilter.toLowerCase().trim();
+        const matchedInsurer = availableInsurers.find(
+          i => (i.code || (i as any).id || '').toLowerCase() === filterVal || (i.name || '').toLowerCase() === filterVal
+        );
+        const nameFa = matchedInsurer?.nameFa?.toLowerCase() || '';
+        const nameEn = (matchedInsurer?.name || matchedInsurer?.code || '').toLowerCase();
+
+        const matches =
+          oIns === filterVal ||
+          oIns.includes(filterVal) ||
+          filterVal.includes(oIns) ||
+          (nameFa && (oIns.includes(nameFa) || nameFa.includes(oIns))) ||
+          (nameEn && (oIns.includes(nameEn) || nameEn.includes(oIns)));
+
+        if (!matches) return false;
+      }
 
       // Search term
       if (searchTerm.trim()) {
@@ -1060,11 +996,14 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
               className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none hover:bg-slate-100 cursor-pointer"
             >
               <option value="ALL">تمام شرکت‌های بیمه</option>
-              <option value="dana">بیمه دانا</option>
-              <option value="alborz">بیمه البرز</option>
-              <option value="asia">بیمه آسیا</option>
-              <option value="iran">بیمه ایران</option>
-              <option value="mellat">بیمه ملت</option>
+              {availableInsurers.map((ins, idx) => {
+                const optVal = ins.code || (ins as any).id || ins.name;
+                return (
+                  <option key={`insurer-opt-${optVal}-${idx}`} value={optVal}>
+                    {ins.nameFa || ins.name}
+                  </option>
+                );
+              })}
             </select>
 
             {/* Batch Payment Wizard Launcher */}

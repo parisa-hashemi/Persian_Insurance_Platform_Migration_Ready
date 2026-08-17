@@ -638,7 +638,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                   <div className="bg-white/80 p-3 rounded-xl border border-emerald-200">
                     <span className="text-[10px] text-slate-500 font-bold block">سقف پوشش بدنه:</span>
                     <span className="font-black text-emerald-900 font-mono mt-0.5 block">
-                      {(inquiredPolicy.coverageCeiling / 1000000).toLocaleString('fa-IR')} میلیون تومان
+                      {((inquiredPolicy.coverageCeiling || 0) / 1000000).toLocaleString('fa-IR')} میلیون تومان
                     </span>
                   </div>
                 </div>

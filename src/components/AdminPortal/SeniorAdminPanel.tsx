@@ -217,7 +217,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
     const list: Array<StaffMember & { companyCode: string; category: StaffRoleCategory }> = [];
 
     // Assessors
-    Object.entries(experts).forEach(([cCode, staffArr]) => {
+    (Object.entries(experts) as [string, StaffMember[]][]).forEach(([cCode, staffArr]) => {
       const comp = insurers.find((i) => i.code === cCode);
       (staffArr || []).forEach((s) => {
         list.push({
@@ -230,7 +230,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
     });
 
     // Reviewers
-    Object.entries(reviewers).forEach(([cCode, staffArr]) => {
+    (Object.entries(reviewers) as [string, StaffMember[]][]).forEach(([cCode, staffArr]) => {
       const comp = insurers.find((i) => i.code === cCode);
       (staffArr || []).forEach((s) => {
         list.push({
@@ -243,7 +243,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
     });
 
     // Field Experts
-    Object.entries(fieldExperts).forEach(([cCode, staffArr]) => {
+    (Object.entries(fieldExperts) as [string, StaffMember[]][]).forEach(([cCode, staffArr]) => {
       const comp = insurers.find((i) => i.code === cCode);
       (staffArr || []).forEach((s) => {
         list.push({
@@ -256,7 +256,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
     });
 
     // Finance Staff
-    Object.entries(financeStaff).forEach(([cCode, staffArr]) => {
+    (Object.entries(financeStaff) as [string, StaffMember[]][]).forEach(([cCode, staffArr]) => {
       const comp = insurers.find((i) => i.code === cCode);
       (staffArr || []).forEach((s) => {
         list.push({
@@ -269,7 +269,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
     });
 
     // CRM Staff
-    Object.entries(crmStaff).forEach(([cCode, staffArr]) => {
+    (Object.entries(crmStaff) as [string, StaffMember[]][]).forEach(([cCode, staffArr]) => {
       const comp = insurers.find((i) => i.code === cCode);
       (staffArr || []).forEach((s) => {
         list.push({
@@ -321,11 +321,11 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
   // Statistics
   const totalCompanies = insurers.length;
   const activeCompanies = insurers.filter((c) => c.status !== 'SUSPENDED').length;
-  const totalAssessors = Object.values(experts).reduce((acc, curr) => acc + (curr?.length || 0), 0);
-  const totalReviewers = Object.values(reviewers).reduce((acc, curr) => acc + (curr?.length || 0), 0);
-  const totalField = Object.values(fieldExperts).reduce((acc, curr) => acc + (curr?.length || 0), 0);
-  const totalFinance = Object.values(financeStaff).reduce((acc, curr) => acc + (curr?.length || 0), 0);
-  const totalCrm = Object.values(crmStaff).reduce((acc, curr) => acc + (curr?.length || 0), 0);
+  const totalAssessors = (Object.values(experts) as StaffMember[][]).reduce((acc, curr) => acc + (curr?.length || 0), 0);
+  const totalReviewers = (Object.values(reviewers) as StaffMember[][]).reduce((acc, curr) => acc + (curr?.length || 0), 0);
+  const totalField = (Object.values(fieldExperts) as StaffMember[][]).reduce((acc, curr) => acc + (curr?.length || 0), 0);
+  const totalFinance = (Object.values(financeStaff) as StaffMember[][]).reduce((acc, curr) => acc + (curr?.length || 0), 0);
+  const totalCrm = (Object.values(crmStaff) as StaffMember[][]).reduce((acc, curr) => acc + (curr?.length || 0), 0);
   const totalAllStaff = totalAssessors + totalReviewers + totalField + totalFinance + totalCrm;
 
   // Handler: Save/Add Company
@@ -578,6 +578,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
 
     const comp = insurers.find((i) => i.code === companyCode);
     const mockSession: UserSession = {
+      id: targetStaff ? targetStaff.id : `admin-${companyCode}-${roleType}`,
       role: roleType as any,
       name: targetStaff ? targetStaff.name : `مدیر ارشد ${comp?.name || companyCode}`,
       company: companyCode,

@@ -2087,7 +2087,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     <label className="block text-[10px] text-slate-500 font-bold mb-1">مالی</label>
                     <input
                       type="text"
-                      value={vicCoverageFinancial.toLocaleString('fa-IR')}
+                      value={(vicCoverageFinancial || 0).toLocaleString('fa-IR')}
                       readOnly
                       className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-950"
                     />
@@ -2096,7 +2096,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     <label className="block text-[10px] text-slate-500 font-bold mb-1">جانی</label>
                     <input
                       type="text"
-                      value={vicCoverageBodily.toLocaleString('fa-IR')}
+                      value={(vicCoverageBodily || 0).toLocaleString('fa-IR')}
                       readOnly
                       className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-950"
                     />
@@ -2105,7 +2105,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     <label className="block text-[10px] text-slate-500 font-bold mb-1">راننده</label>
                     <input
                       type="text"
-                      value={vicCoverageDriver.toLocaleString('fa-IR')}
+                      value={(vicCoverageDriver || 0).toLocaleString('fa-IR')}
                       readOnly
                       className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-950"
                     />

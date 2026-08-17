@@ -26,6 +26,14 @@ import {
 } from 'lucide-react';
 import { RoleType, UserSession, InsurerInfo, StaffMember } from '../types';
 import {
+  INSURER_COMPANIES,
+  INITIAL_EXPERTS,
+  INITIAL_FIELD_EXPERTS,
+  INITIAL_REVIEWERS,
+  INITIAL_FINANCE_STAFF,
+  INITIAL_CRM_STAFF
+} from '../data/mockData';
+import {
   loadInsurersFromStorage,
   loadExpertsFromStorage,
   loadFieldExpertsFromStorage,
@@ -215,51 +223,83 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
   const handleInsurerLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const compInfo = INSURER_COMPANIES.find((c) => c.code === insurerCompany);
+    const compInfo = insurersList.find((c) => c.code === insurerCompany) || insurersList[0];
+    const cCode = compInfo?.code || insurerCompany;
     onSelectPortal('insurer', {
-      id: insurerCompany,
+      id: cCode,
       role: 'insurer',
       name: compInfo?.name || 'پورتال بیمه‌گر',
-      company: insurerCompany
+      company: cCode,
+      companyName: compInfo?.name
     });
   };
 
   const handleAssessorLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const companyExperts = INITIAL_EXPERTS[assessorCompany] || [];
-    const expert = companyExperts.find((e) => e.id === assessorId) || companyExperts[0];
+    const compInfo = insurersList.find((c) => c.code === assessorCompany);
+    const companyExperts = expertsMap[assessorCompany] || [];
+    const expert = companyExperts.find((e) => e.id === assessorId) || companyExperts[0] || {
+      id: `exp-${assessorCompany}-1`,
+      name: `کارشناس ${compInfo?.name || assessorCompany}`,
+      role: 'کارشناس ارزیاب خسارت'
+    };
     onSelectPortal('assessor', {
       id: expert.id,
       role: 'assessor',
       name: expert.name,
       roleTitle: expert.role,
-      company: assessorCompany
+      company: assessorCompany,
+      companyName: compInfo?.name,
+      phone: expert.phone,
+      nationalId: expert.nationalId,
+      branchId: expert.branchId,
+      licenseCode: expert.licenseCode
     });
   };
 
   const handleFieldExpertLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const companyFields = INITIAL_FIELD_EXPERTS[fieldCompany] || [];
-    const fe = companyFields.find((e) => e.id === fieldId) || companyFields[0];
+    const compInfo = insurersList.find((c) => c.code === fieldCompany);
+    const companyFields = fieldExpertsMap[fieldCompany] || [];
+    const fe = companyFields.find((e) => e.id === fieldId) || companyFields[0] || {
+      id: `fe-${fieldCompany}-1`,
+      name: `کارشناس میدانی ${compInfo?.name || fieldCompany}`,
+      role: 'کارشناس بازدید میدانی'
+    };
     onSelectPortal('fieldexpert', {
       id: fe.id,
       role: 'fieldexpert',
       name: fe.name,
       roleTitle: fe.role,
-      company: fieldCompany
+      company: fieldCompany,
+      companyName: compInfo?.name,
+      phone: fe.phone,
+      nationalId: fe.nationalId,
+      branchId: fe.branchId,
+      licenseCode: fe.licenseCode
     });
   };
 
   const handleReviewerLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const companyReviewers = INITIAL_REVIEWERS[reviewerCompany] || [];
-    const rv = companyReviewers.find((e) => e.id === reviewerId) || companyReviewers[0];
+    const compInfo = insurersList.find((c) => c.code === reviewerCompany);
+    const companyReviewers = reviewersMap[reviewerCompany] || [];
+    const rv = companyReviewers.find((e) => e.id === reviewerId) || companyReviewers[0] || {
+      id: `rv-${reviewerCompany}-1`,
+      name: `بازبین ${compInfo?.name || reviewerCompany}`,
+      role: 'بازبین ارشد کیفیت'
+    };
     onSelectPortal('reviewer', {
       id: rv.id,
       role: 'reviewer',
       name: rv.name,
       roleTitle: rv.role,
-      company: reviewerCompany
+      company: reviewerCompany,
+      companyName: compInfo?.name,
+      phone: rv.phone,
+      nationalId: rv.nationalId,
+      branchId: rv.branchId,
+      licenseCode: rv.licenseCode
     });
   };
 
@@ -268,16 +308,17 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
     onSelectPortal('admin', {
       id: 'admin',
       role: 'admin',
-      name: 'مدیر سامانه'
+      name: 'مدیر ارشد کلان سامانه'
     });
   };
 
   const handleFinanceLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const companyStaff = INITIAL_FINANCE_STAFF[financeCompany] || [];
+    const compInfo = insurersList.find((c) => c.code === financeCompany);
+    const companyStaff = financeStaffMap[financeCompany] || [];
     const fin = companyStaff.find((s) => s.id === financeId) || companyStaff[0] || {
-      id: 'fin-d1',
-      name: 'مهرداد پاکزاد',
+      id: `fin-${financeCompany}-1`,
+      name: `مدیر مالی ${compInfo?.name || financeCompany}`,
       role: 'مدیر مالی و خزانه‌داری'
     };
     onSelectPortal('finance', {
@@ -285,16 +326,22 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
       role: 'finance',
       name: fin.name,
       roleTitle: fin.role,
-      company: financeCompany
+      company: financeCompany,
+      companyName: compInfo?.name,
+      phone: fin.phone,
+      nationalId: fin.nationalId,
+      branchId: fin.branchId,
+      licenseCode: fin.licenseCode
     });
   };
 
   const handleCrmLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const companyStaff = INITIAL_CRM_STAFF[crmCompany] || [];
+    const compInfo = insurersList.find((c) => c.code === crmCompany);
+    const companyStaff = crmStaffMap[crmCompany] || [];
     const crm = companyStaff.find((s) => s.id === crmId) || companyStaff[0] || {
-      id: 'crm-d1',
-      name: 'سپیده معتمدی',
+      id: `crm-${crmCompany}-1`,
+      name: `سرپرست CRM ${compInfo?.name || crmCompany}`,
       role: 'سرپرست امور مشتریان و شکایات'
     };
     onSelectPortal('crm', {
@@ -302,7 +349,12 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
       role: 'crm',
       name: crm.name,
       roleTitle: crm.role,
-      company: crmCompany
+      company: crmCompany,
+      companyName: compInfo?.name,
+      phone: crm.phone,
+      nationalId: crm.nationalId,
+      branchId: crm.branchId,
+      licenseCode: crm.licenseCode
     });
   };
 
@@ -693,7 +745,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           onChange={(e) => setInsCompany(e.target.value)}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
                         >
-                          {INSURER_COMPANIES.map((c) => (
+                          {insurersList.map((c) => (
                             <option key={c.code} value={c.code}>
                               {c.name}
                             </option>
@@ -768,12 +820,12 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           value={assessorCompany}
                           onChange={(e) => {
                             setAssessorCompany(e.target.value);
-                            const exps = INITIAL_EXPERTS[e.target.value] || [];
+                            const exps = expertsMap[e.target.value] || [];
                             if (exps.length) setAssessorId(exps[0].id);
                           }}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
                         >
-                          {INSURER_COMPANIES.map((c) => (
+                          {insurersList.map((c) => (
                             <option key={c.code} value={c.code}>
                               {c.name}
                             </option>
@@ -790,7 +842,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           onChange={(e) => setAssessorId(e.target.value)}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
                         >
-                          {(INITIAL_EXPERTS[assessorCompany] || []).map((e) => (
+                          {(expertsMap[assessorCompany] || []).map((e) => (
                             <option key={e.id} value={e.id}>
                               {e.name} — {e.role}
                             </option>
@@ -865,12 +917,12 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           value={fieldCompany}
                           onChange={(e) => {
                             setFieldCompany(e.target.value);
-                            const list = INITIAL_FIELD_EXPERTS[e.target.value] || [];
+                            const list = fieldExpertsMap[e.target.value] || [];
                             if (list.length) setFieldId(list[0].id);
                           }}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
                         >
-                          {INSURER_COMPANIES.map((c) => (
+                          {insurersList.map((c) => (
                             <option key={c.code} value={c.code}>
                               {c.name}
                             </option>
@@ -887,7 +939,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           onChange={(e) => setFieldId(e.target.value)}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
                         >
-                          {(INITIAL_FIELD_EXPERTS[fieldCompany] || []).map((fe) => (
+                          {(fieldExpertsMap[fieldCompany] || []).map((fe) => (
                             <option key={fe.id} value={fe.id}>
                               {fe.name} — {fe.role}
                             </option>
@@ -962,12 +1014,12 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           value={reviewerCompany}
                           onChange={(e) => {
                             setReviewerCompany(e.target.value);
-                            const list = INITIAL_REVIEWERS[e.target.value] || [];
+                            const list = reviewersMap[e.target.value] || [];
                             if (list.length) setReviewerId(list[0].id);
                           }}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
                         >
-                          {INSURER_COMPANIES.map((c) => (
+                          {insurersList.map((c) => (
                             <option key={c.code} value={c.code}>
                               {c.name}
                             </option>
@@ -984,7 +1036,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           onChange={(e) => setReviewerId(e.target.value)}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
                         >
-                          {(INITIAL_REVIEWERS[reviewerCompany] || []).map((rv) => (
+                          {(reviewersMap[reviewerCompany] || []).map((rv) => (
                             <option key={rv.id} value={rv.id}>
                               {rv.name} — {rv.role}
                             </option>
@@ -1133,12 +1185,12 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           value={financeCompany}
                           onChange={(e) => {
                             setFinanceCompany(e.target.value);
-                            const list = INITIAL_FINANCE_STAFF[e.target.value] || [];
+                            const list = financeStaffMap[e.target.value] || [];
                             if (list.length > 0) setFinanceId(list[0].id);
                           }}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-emerald-600"
                         >
-                          {INSURER_COMPANIES.map((c) => (
+                          {insurersList.map((c) => (
                             <option key={c.code} value={c.code}>
                               {c.name}
                             </option>
@@ -1155,7 +1207,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           onChange={(e) => setFinanceId(e.target.value)}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-emerald-600"
                         >
-                          {(INITIAL_FINANCE_STAFF[financeCompany] || []).map((s) => (
+                          {(financeStaffMap[financeCompany] || []).map((s) => (
                             <option key={s.id} value={s.id}>
                               {s.name} ({s.role})
                             </option>
@@ -1231,12 +1283,12 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           value={crmCompany}
                           onChange={(e) => {
                             setCrmCompany(e.target.value);
-                            const list = INITIAL_CRM_STAFF[e.target.value] || [];
+                            const list = crmStaffMap[e.target.value] || [];
                             if (list.length > 0) setCrmId(list[0].id);
                           }}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-purple-600"
                         >
-                          {INSURER_COMPANIES.map((c) => (
+                          {insurersList.map((c) => (
                             <option key={c.code} value={c.code}>
                               {c.name}
                             </option>
@@ -1253,7 +1305,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                           onChange={(e) => setCrmId(e.target.value)}
                           className="w-full px-3.5 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-purple-600"
                         >
-                          {(INITIAL_CRM_STAFF[crmCompany] || []).map((s) => (
+                          {(crmStaffMap[crmCompany] || []).map((s) => (
                             <option key={s.id} value={s.id}>
                               {s.name} ({s.role})
                             </option>

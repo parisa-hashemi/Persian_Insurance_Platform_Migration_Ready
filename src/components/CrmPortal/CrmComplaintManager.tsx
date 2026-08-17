@@ -11,15 +11,12 @@ import {
   ShieldAlert,
   ArrowRight,
   Plus,
-  Share2,
-  Layers,
   ChevronDown,
   Building,
   DollarSign,
   PhoneCall,
   FileText,
   Image as ImageIcon,
-  ExternalLink,
   Eye,
   X,
   Phone,
@@ -27,10 +24,15 @@ import {
   AlertTriangle,
   Sparkles,
   Car,
-  FileSpreadsheet
+  FileSpreadsheet,
+  MapPin,
+  Calendar,
+  Smartphone,
+  Info
 } from 'lucide-react';
-import { CustomerTicket, UserSession, ClaimCase, AdditionalDocItem } from '../../types';
+import { CustomerTicket, UserSession, ClaimCase, AdditionalDocItem, CustomerCallLog } from '../../types';
 import { maskPhoneNumber, maskNationalId, formatCurrency } from './crmHelpers';
+import { loadCrmCallLogsFromStorage, saveCrmCallLogsToStorage } from '../../lib/storage';
 
 interface CrmComplaintManagerProps {
   session: UserSession;
@@ -42,6 +44,39 @@ interface CrmComplaintManagerProps {
   onSelectCase: (caseId: string) => void;
   onOpenNewTicketModal: () => void;
 }
+
+const DEFAULT_BRANCHES = [
+  {
+    name: 'شعبه مرکزی خسارت (مرکز تخصصی ارزیابی)',
+    address: 'تهران، خیابان استاد نجات‌اللهی، کوچه بیمه، پلاک ۱۲',
+    phone: '۰۲۱-۸۸۹۹۰۰۱۱',
+    hours: 'شنبه تا چهارشنبه ۸:۰۰ الی ۱۵:۳۰'
+  },
+  {
+    name: 'شعبه خسارت غرب (آزادی)',
+    address: 'تهران، بزرگراه شهید لشگری (مخصوص کرج)، بعد از پل جناح، نبش کوچه بیمه سوم',
+    phone: '۰۲۱-۴۴۵۵۶۶۷۷',
+    hours: 'شنبه تا چهارشنبه ۸:۰۰ الی ۱۵:۳۰'
+  },
+  {
+    name: 'شعبه خسارت شرق (تهرانپارس)',
+    address: 'تهران، بزرگراه رسالت، نرسیده به چهارراه تیرانداز، پلاک ۱۸۰',
+    phone: '۰۲۱-۷۷۸۸۹۹۰۰',
+    hours: 'شنبه تا چهارشنبه ۸:۰۰ الی ۱۵:۳۰'
+  },
+  {
+    name: 'شعبه خسارت جنوب (فداییان اسلام)',
+    address: 'تهران، خیابان فداییان اسلام، نرسیده به بلوار دستواره، مجتمع بیمه',
+    phone: '۰۲۱-۵۵۶۶۷۷۸۸',
+    hours: 'شنبه تا چهارشنبه ۸:۰۰ الی ۱۵:۳۰'
+  },
+  {
+    name: 'شعبه تخصصی استان البرز (کرج)',
+    address: 'کرج، میدان سپاه، بلوار جمهوری شمالی، پلاک ۴۵',
+    phone: '۰۲۶-۳۲۱۱۴۴۵۵',
+    hours: 'شنبه تا چهارشنبه ۸:۰۰ الی ۱۵:۰۰'
+  }
+];
 
 export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
   session,
@@ -57,22 +92,38 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [replyText, setReplyText] = useState('');
-  const [escalateDepartment, setEscalateDepartment] = useState<'ارزیاب ارشد' | 'ناظر بازبینی' | 'مدیر مالی و خزانه‌داری' | 'شعبه خسارت'>('ارزیاب ارشد');
 
   // 360-Degree Document & Evidence Viewer Modal State
   const [showDocViewer, setShowDocViewer] = useState(false);
   const [selectedDocCategory, setSelectedDocCategory] = useState<'ALL' | 'DAMAGE' | 'CROQUI' | 'ASSESSMENT' | 'IDENTITY'>('ALL');
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
-  // Call / Message Expert Modal State
-  const [showExpertContactModal, setShowExpertContactModal] = useState(false);
-  const [expertInquiryText, setExpertInquiryText] = useState('');
-  const [expertContactSuccess, setExpertContactSuccess] = useState<string | null>(null);
-
   // Quick SMS to Customer Modal State
   const [showCustomerSmsModal, setShowCustomerSmsModal] = useState(false);
   const [customerSmsText, setCustomerSmsText] = useState('');
-  const [customerSmsSuccess, setCustomerSmsSuccess] = useState(false);
+  const [customerSmsSuccess, setCustomerSmsSuccess] = useState<string | null>(null);
+
+  // Call Customer & Log Modal State
+  const [showCallLogModal, setShowCallLogModal] = useState(false);
+  const [callNotes, setCallNotes] = useState('');
+  const [callSentiment, setCallSentiment] = useState<CustomerCallLog['sentiment']>('آرام و راضی');
+  const [callResolved, setCallResolved] = useState(true);
+  const [callSuccessFeedback, setCallSuccessFeedback] = useState<string | null>(null);
+
+  // Direct to Branch (مراجعه حضوری) Modal State
+  const [showBranchReferralModal, setShowBranchReferralModal] = useState(false);
+  const [selectedBranchIndex, setSelectedBranchIndex] = useState(0);
+  const [customBranchName, setCustomBranchName] = useState('');
+  const [customBranchAddress, setCustomBranchAddress] = useState('');
+  const [customBranchPhone, setCustomBranchPhone] = useState('');
+  const [referralDate, setReferralDate] = useState('فردا از ساعت ۸:۳۰ الی ۱۴:۰۰');
+  const [referralRequiredDocs, setReferralRequiredDocs] = useState<string[]>([
+    'اصل کارت ملی و گواهینامه راننده',
+    'اصل کارت خودرو یا برگ سبز',
+    'رؤیت خودرو و قطعات آسیب‌دیده جهت بازدید مجدد'
+  ]);
+  const [referralNote, setReferralNote] = useState('');
+  const [branchReferralSuccess, setBranchReferralSuccess] = useState<string | null>(null);
 
   // Selected Ticket Object
   const activeTicket = useMemo(() => {
@@ -104,14 +155,14 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
     });
   }, [tickets, searchTerm, statusFilter, categoryFilter]);
 
-  // Send Reply to Ticket
+  // Send Reply to Ticket (Message to Customer)
   const handleSendReply = () => {
     if (!activeTicket || !replyText.trim()) return;
 
     const newMessage = {
       id: `msg-${Date.now()}`,
       sender: 'AGENT' as const,
-      senderName: `${session.name} (امور مشتریان دانا)`,
+      senderName: `${session.name} (امور مشتریان)`,
       senderRole: 'کارشناس امور مشتریان و رسیدگی به شکایات',
       text: replyText.trim(),
       time: `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`
@@ -133,34 +184,16 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
     window.dispatchEvent(new CustomEvent('claimflow_crm_tickets_updated'));
   };
 
-  // Status Change (Resolve/Close/Escalate)
+  // Status Change (Resolve/Close)
   const handleStatusChange = (newStatus: CustomerTicket['status']) => {
     if (!activeTicket) return;
 
-    const updated = tickets.map(t => {
-      if (t.id !== activeTicket.id) return t;
-      return {
-        ...t,
-        status: newStatus,
-        lastUpdate: `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`,
-        assignedAgent: session.name
-      };
-    });
-
-    onUpdateTickets(updated);
-    window.dispatchEvent(new CustomEvent('claimflow_crm_tickets_updated'));
-  };
-
-  // Escalate to Department
-  const handleEscalate = () => {
-    if (!activeTicket) return;
-
-    const escalateMsg = {
-      id: `msg-esc-${Date.now()}`,
+    const statusNoteMsg = {
+      id: `msg-st-${Date.now()}`,
       sender: 'SYSTEM' as const,
-      senderName: 'سیستم گردش کار CRM',
-      senderRole: 'سیستم',
-      text: `پرونده شکایت توسط کارشناس ${session.name} جهت بررسی تخصصی به «${escalateDepartment}» ارجاع گردید.`,
+      senderName: 'امور مشتریان',
+      senderRole: 'سیستم امور مشتریان',
+      text: `وضعیت تیکت توسط کارشناس ${session.name} به «${newStatus}» تغییر یافت.`,
       time: `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`
     };
 
@@ -168,10 +201,10 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
       if (t.id !== activeTicket.id) return t;
       return {
         ...t,
-        status: 'ارجاع به ارزیاب ارشد' as const,
+        status: newStatus,
         lastUpdate: `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`,
         assignedAgent: session.name,
-        messages: [...t.messages, escalateMsg]
+        messages: [...t.messages, statusNoteMsg]
       };
     });
 
@@ -179,16 +212,173 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
     window.dispatchEvent(new CustomEvent('claimflow_crm_tickets_updated'));
   };
 
-  // Handle Contacting Expert
-  const handleSendExpertInquiry = () => {
-    if (!expertInquiryText.trim()) return;
+  // 1. Action: Direct Call & Save Log to Ticket + CRM Call Center
+  const handleSaveCallLog = () => {
+    if (!activeTicket || !callNotes.trim()) return;
 
-    setExpertContactSuccess('پیام و استعلام فوری با موفقیت به کارشناس ارزیاب ارسال شد و در سوابق پرونده ثبت گردید.');
+    const nowStr = `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`;
+
+    // Create call log entry
+    const newLog: CustomerCallLog = {
+      id: `CALL-${Date.now()}`,
+      caseId: activeTicket.caseId,
+      contactName: activeTicket.customerName,
+      contactPhone: activeTicket.customerPhone,
+      contactRole: activeTicket.customerRole || 'زیان‌دیده',
+      callDirection: 'خروجی (تماس کارشناس)',
+      topic: activeTicket.category || 'رسیدگی به تیکت و شکایت',
+      sentiment: callSentiment,
+      durationMinutes: 4,
+      notes: `[تماس تیکت ${activeTicket.ticketNumber}] ${callNotes.trim()}`,
+      agentName: session.name,
+      agentId: session.id,
+      callDate: new Date().toLocaleDateString('fa-IR'),
+      callTime: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+      followUpRequired: !callResolved,
+      resolvedInCall: callResolved
+    };
+
+    const existingCalls = loadCrmCallLogsFromStorage();
+    saveCrmCallLogsToStorage([newLog, ...existingCalls]);
+
+    // Add note to ticket message thread
+    const callMsg = {
+      id: `msg-call-${Date.now()}`,
+      sender: 'AGENT' as const,
+      senderName: `${session.name} (تماس تلفنی امور مشتریان)`,
+      senderRole: 'کارشناس امور مشتریان',
+      text: `📞 تماس تلفنی با مشتری (${activeTicket.customerPhone}) برقرار شد.\nخلاصه مکالمه: ${callNotes.trim()}${callResolved ? '\n(وضعیت: در مکالمه رفع ابهام شد)' : ''}`,
+      time: nowStr
+    };
+
+    const updated = tickets.map(t => {
+      if (t.id !== activeTicket.id) return t;
+      return {
+        ...t,
+        status: callResolved ? ('پاسخ داده شده' as const) : t.status,
+        lastUpdate: nowStr,
+        assignedAgent: session.name,
+        messages: [...t.messages, callMsg]
+      };
+    });
+
+    onUpdateTickets(updated);
+    window.dispatchEvent(new CustomEvent('claimflow_crm_tickets_updated'));
+    window.dispatchEvent(new CustomEvent('claimflow_crm_calls_updated'));
+
+    setCallSuccessFeedback('تماس تلفنی با موفقیت در سوابق تیکت و کارتابل تماس‌ها ثبت شد.');
     setTimeout(() => {
-      setExpertContactSuccess(null);
-      setShowExpertContactModal(false);
-      setExpertInquiryText('');
-    }, 2000);
+      setCallSuccessFeedback(null);
+      setShowCallLogModal(false);
+      setCallNotes('');
+    }, 1500);
+  };
+
+  // 2. Action: Send Direct SMS to Customer
+  const handleSendCustomerSms = () => {
+    if (!activeTicket || !customerSmsText.trim()) return;
+
+    const nowStr = `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`;
+
+    const smsMsg = {
+      id: `msg-sms-${Date.now()}`,
+      sender: 'AGENT' as const,
+      senderName: `${session.name} (پیامک به مشتری)`,
+      senderRole: 'سامانه پیامک امور مشتریان',
+      text: `📱 پیامک ارسال‌شده به شماره ${activeTicket.customerPhone}:\n«${customerSmsText.trim()}»`,
+      time: nowStr
+    };
+
+    const updated = tickets.map(t => {
+      if (t.id !== activeTicket.id) return t;
+      return {
+        ...t,
+        status: 'پاسخ داده شده' as const,
+        lastUpdate: nowStr,
+        assignedAgent: session.name,
+        messages: [...t.messages, smsMsg]
+      };
+    });
+
+    onUpdateTickets(updated);
+    window.dispatchEvent(new CustomEvent('claimflow_crm_tickets_updated'));
+
+    setCustomerSmsSuccess(`پیامک با موفقیت به شماره ${activeTicket.customerPhone} ارسال شد.`);
+    setTimeout(() => {
+      setCustomerSmsSuccess(null);
+      setShowCustomerSmsModal(false);
+      setCustomerSmsText('');
+    }, 1800);
+  };
+
+  // 3. Action: Direct / Refer Customer to Visit Branch in Person (مراجعه حضوری به شعبه)
+  const handleSendBranchReferral = () => {
+    if (!activeTicket) return;
+
+    const branch = selectedBranchIndex === -1
+      ? {
+          name: customBranchName || 'شعبه خسارت بیمه',
+          address: customBranchAddress || 'آدرس شعبه اعلامی',
+          phone: customBranchPhone || 'تلفن شعبه',
+          hours: '۸:۰۰ الی ۱۵:۰۰'
+        }
+      : DEFAULT_BRANCHES[selectedBranchIndex];
+
+    const nowStr = `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`;
+
+    const branchReferralText = `🏢 دستور و راهنمای مراجعه حضوری به شعبه:
+مشتری گرامی (${activeTicket.customerName})،
+جهت رسیدگی نهایی به پرونده (${activeTicket.caseId || 'خسارت'})، لطفاً با همراه داشتن مدارک زیر به شعبه خسارت مراجعه فرمایید:
+
+📍 نام شعبه: ${branch.name}
+📍 آدرس: ${branch.address}
+☎️ تلفن شعبه: ${branch.phone}
+⏰ زمان مراجعه: ${referralDate}
+
+📋 مدارک الزامی همراه داشتن:
+${referralRequiredDocs.map(d => `• ${d}`).join('\n')}
+${referralNote.trim() ? `\n📝 نکات مهم: ${referralNote.trim()}` : ''}
+
+کارشناس امور مشتریان: ${session.name}`;
+
+    const referralMsg = {
+      id: `msg-branch-${Date.now()}`,
+      sender: 'AGENT' as const,
+      senderName: `${session.name} (امور مشتریان - ارجاع به شعبه)`,
+      senderRole: 'کارشناس امور مشتریان',
+      text: branchReferralText,
+      time: nowStr
+    };
+
+    const updated = tickets.map(t => {
+      if (t.id !== activeTicket.id) return t;
+      return {
+        ...t,
+        status: 'در حال پیگیری' as const,
+        lastUpdate: nowStr,
+        assignedAgent: session.name,
+        messages: [...t.messages, referralMsg]
+      };
+    });
+
+    onUpdateTickets(updated);
+    window.dispatchEvent(new CustomEvent('claimflow_crm_tickets_updated'));
+
+    setBranchReferralSuccess('راهنمای مراجعه حضوری به شعبه با موفقیت ثبت و به اطلاع مشتری رسید.');
+    setTimeout(() => {
+      setBranchReferralSuccess(null);
+      setShowBranchReferralModal(false);
+      setReferralNote('');
+    }, 1800);
+  };
+
+  // Toggle required docs for branch referral
+  const toggleRequiredDoc = (doc: string) => {
+    if (referralRequiredDocs.includes(doc)) {
+      setReferralRequiredDocs(referralRequiredDocs.filter(d => d !== doc));
+    } else {
+      setReferralRequiredDocs([...referralRequiredDocs, doc]);
+    }
   };
 
   // Extract all media & docs for 360 viewer
@@ -280,10 +470,10 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
           </div>
           <div>
             <h2 className="text-base sm:text-lg font-black text-slate-900">
-              سامانه رسیدگی به شکایات و تیکت‌های مشتریان (Complaint Lifecycle)
+              سامانه رسیدگی به تیکت‌ها و شکایات مشتریان (Customer Support & Tickets)
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              پایش اعتراضات به ارزیابی، تاخیر در تسویه، بررسی ۳۶۰ درجه مدارک، تماس با ارزیاب و پاسخگویی آنلاین
+              پاسخگویی مستقیم به مشتری، تماس تلفنی، ارسال پیامک و هدایت به شعب خسارت جهت مراجعه حضوری
             </p>
           </div>
         </div>
@@ -293,139 +483,154 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
           className="px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all self-start sm:self-auto cursor-pointer"
         >
           <Plus className="w-4 h-4" />
-          <span>ثبت شکایت / تیکت جدید</span>
+          <span>ثبت تیکت جدید</span>
         </button>
       </div>
 
-      {/* Two Column Layout: List (5 cols) & Detail/Chat/360 Actions (7 cols) */}
+      {/* Two Column Layout: List (5 cols) & Detail/Chat/Customer Actions (7 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Tickets Master List (5 cols) */}
-        <div className="lg:col-span-5 space-y-4">
-          {/* Filters */}
-          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 space-y-2.5 shadow-xs">
+        {/* Left Column: Tickets List (5 cols) */}
+        <div className="lg:col-span-5 space-y-3">
+          {/* Filter & Search Bar */}
+          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-xs space-y-2.5">
             <div className="relative">
-              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                placeholder="جستجو در موضوع، شاکی، پرونده..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-rose-500"
+                placeholder="جستجو با نام مشتری، شماره تماس یا کد پرونده..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-rose-500 font-medium"
               />
             </div>
 
-            <div className="flex items-center gap-1 overflow-x-auto pb-1">
-              <button
-                onClick={() => setStatusFilter('ALL')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 cursor-pointer transition-all ${
-                  statusFilter === 'ALL' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <select
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 text-xs font-medium focus:outline-none focus:border-rose-500"
               >
-                همه ({tickets.length})
-              </button>
-              <button
-                onClick={() => setStatusFilter('در انتظار پاسخ')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 cursor-pointer transition-all ${
-                  statusFilter === 'در انتظار پاسخ' ? 'bg-amber-600 text-white' : 'bg-amber-50 text-amber-800 border border-amber-200'
-                }`}
+                <option value="ALL">همه وضعیت‌ها</option>
+                <option value="در انتظار پاسخ">در انتظار پاسخ</option>
+                <option value="پاسخ داده شده">پاسخ داده شده</option>
+                <option value="در حال پیگیری">در حال پیگیری</option>
+                <option value="بسته شده و حل گردید">حل شده و بسته</option>
+              </select>
+
+              <select
+                value={categoryFilter}
+                onChange={e => setCategoryFilter(e.target.value)}
+                className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 text-xs font-medium focus:outline-none focus:border-rose-500"
               >
-                منتظر پاسخ
-              </button>
-              <button
-                onClick={() => setStatusFilter('ارجاع به ارزیاب ارشد')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 cursor-pointer transition-all ${
-                  statusFilter === 'ارجاع به ارزیاب ارشد' ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                }`}
-              >
-                ارجاعی
-              </button>
-              <button
-                onClick={() => setStatusFilter('بسته شده و حل گردید')}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 cursor-pointer transition-all ${
-                  statusFilter === 'بسته شده و حل گردید' ? 'bg-emerald-600 text-white' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                }`}
-              >
-                حل شده
-              </button>
+                <option value="ALL">همه دسته‌بندی‌ها</option>
+                <option value="شکایت از مبلغ ارزیابی">شکایت از مبلغ ارزیابی</option>
+                <option value="تأخیر در پرداخت خسارت">تأخیر در پرداخت خسارت</option>
+                <option value="اعتراض به کروکی و مقصر">اعتراض به کروکی و مقصر</option>
+                <option value="تغییر شماره شبا">تغییر شماره شبا</option>
+                <option value="نیاز به راهنمایی و مدارک">نیاز به راهنمایی</option>
+              </select>
             </div>
           </div>
 
-          {/* List Items */}
-          <div className="space-y-3 max-h-[650px] overflow-y-auto pr-1">
+          {/* Tickets Cards List */}
+          <div className="space-y-2.5 max-h-[620px] overflow-y-auto pr-1">
             {filteredTickets.map(t => {
-              const isSelected = activeTicket?.id === t.id;
-              const isUrgent = t.priority === 'فوری' || t.priority.includes('بحرانی');
+              const isSelected = selectedTicketId === t.id;
+              const isClosed = t.status === 'بسته شده و حل گردید';
 
               return (
                 <div
                   key={t.id}
                   onClick={() => onSelectTicketId(t.id)}
-                  className={`p-4 rounded-2xl border transition-all cursor-pointer space-y-2 shadow-xs ${
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer space-y-2 ${
                     isSelected
-                      ? 'bg-rose-50/70 border-rose-400 shadow-sm ring-2 ring-rose-200'
-                      : isUrgent
-                      ? 'bg-white border-rose-300 hover:border-rose-400'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-rose-50/70 border-rose-400 shadow-sm ring-1 ring-rose-400/40'
+                      : isClosed
+                      ? 'bg-slate-50/60 border-slate-200 hover:border-slate-300 opacity-80'
+                      : 'bg-white border-slate-200/80 hover:border-slate-300 shadow-2xs'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="font-bold text-xs text-slate-900 line-clamp-1">
-                      {t.subject}
-                    </span>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${
-                      t.status === 'بسته شده و حل گردید'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : isUrgent
-                        ? 'bg-rose-50 text-rose-700 border-rose-200 font-black'
-                        : 'bg-slate-100 text-slate-700 border-slate-200'
-                    }`}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">
+                        {t.ticketNumber}
+                      </span>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          t.priority.includes('بحرانی') || t.priority === 'فوری'
+                            ? 'bg-rose-100 text-rose-700'
+                            : t.priority === 'مهم'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {t.priority}
+                      </span>
+                    </div>
+
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        t.status === 'بسته شده و حل گردید'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : t.status === 'پاسخ داده شده'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
                       {t.status}
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between text-[11px] text-slate-500">
-                    <span>مشتری: <strong className="text-slate-800">{t.customerName}</strong></span>
+                  <h3 className="font-bold text-xs text-slate-900 line-clamp-1">{t.subject}</h3>
+
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-100">
+                    <div className="flex items-center gap-1.5">
+                      <User className="w-3 h-3 text-slate-400" />
+                      <span className="font-medium text-slate-700">{t.customerName}</span>
+                    </div>
                     {t.caseId && (
-                      <span className="font-mono text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                      <span className="font-mono text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.2 rounded">
                         {t.caseId}
                       </span>
                     )}
-                  </div>
-
-                  <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100">
-                    <span className="text-rose-600 font-bold">{t.category}</span>
-                    <span className="font-mono text-slate-500">{t.lastUpdate}</span>
                   </div>
                 </div>
               );
             })}
 
             {filteredTickets.length === 0 && (
-              <div className="bg-white border border-slate-200/80 p-8 rounded-2xl text-center text-slate-500 text-xs shadow-xs">
-                شکایتی با این فیلتر یافت نشد.
+              <div className="bg-white border border-slate-200/80 p-8 rounded-2xl text-center space-y-2">
+                <MessageSquare className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-xs font-bold text-slate-700">تیکتی در این دسته‌بندی یافت نشد.</p>
+                <p className="text-[11px] text-slate-400">تیکت‌های جدید به محض ثبت توسط کاربران در این لیست قرار می‌گیرند.</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Right Column: Ticket Conversation & 360 Actions (7 cols) */}
+        {/* Right Column: Ticket Actions & Thread (7 cols) */}
         <div className="lg:col-span-7">
           {activeTicket ? (
-            <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 space-y-5 shadow-xs">
-              {/* Ticket Top Meta */}
+            <div className="bg-white border border-slate-200/80 p-5 rounded-3xl space-y-5 shadow-xs">
+              {/* Ticket Top Info */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-200">
+                    <span className="font-mono text-sm font-extrabold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg">
                       {activeTicket.ticketNumber}
                     </span>
-                    <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
-                      {activeTicket.subject}
-                    </h3>
+                    <span className="text-xs text-slate-500 font-medium">{activeTicket.category}</span>
                   </div>
-                  <p className="text-xs text-slate-500">
-                    شاکی: <strong className="text-slate-800">{activeTicket.customerName}</strong> ({activeTicket.customerRole}) • شماره تماس: <span className="font-mono text-slate-700 font-bold">{maskPhoneNumber(activeTicket.customerPhone)}</span>
-                  </p>
+                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900">{activeTicket.subject}</h3>
+                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 pt-0.5">
+                    <span className="font-bold text-slate-700">{activeTicket.customerName}</span>
+                    <span>•</span>
+                    <span className="font-mono text-indigo-700 font-bold" dir="ltr">
+                      {activeTicket.customerPhone}
+                    </span>
+                    <span>•</span>
+                    <span>ثبت: {activeTicket.createdAt}</span>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
@@ -441,100 +646,88 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
                 </div>
               </div>
 
-              {/* 360-Degree Document & Expert Contact Hub */}
-              {linkedCase && (
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                        <Sparkles className="w-4 h-4 text-indigo-600" />
-                        امکانات تخصصی بررسی شکایت:
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {/* Button 1: 360 Document Viewer */}
-                      <button
-                        onClick={() => setShowDocViewer(true)}
-                        className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-indigo-600" />
-                        <span>نگاه ۳۶۰ به مدارک و کروکی</span>
-                      </button>
-
-                      {/* Button 2: Call/Message Expert */}
-                      <button
-                        onClick={() => setShowExpertContactModal(true)}
-                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
-                      >
-                        <PhoneCall className="w-3.5 h-3.5" />
-                        <span>تماس با کارشناس مربوطه</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Summary of assigned expert & assessment */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-200/60">
-                    <div className="flex items-center justify-between text-slate-600">
-                      <span>کارشناس ارزیاب پرونده:</span>
-                      <strong className="text-slate-800">
-                        {linkedCase.assignedExpert?.name || linkedCase.assignedFieldExpert?.name || 'واحد ارزیابی خسارت'}
-                      </strong>
-                    </div>
-                    <div className="flex items-center justify-between text-slate-600">
-                      <span>مبلغ ارزیابی مصوب:</span>
-                      <strong className="font-mono text-emerald-700 font-bold">
-                        {linkedCase.assessment?.payable ? formatCurrency(linkedCase.assessment.payable) : 'در حال ارزیابی'}
-                      </strong>
-                    </div>
-                  </div>
+              {/* CRM Direct Actions with Customer (3 Core Permitted Actions) */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-rose-600" />
+                    اقدامات امور مشتریان (صرفاً ارتباط با مشتری و ارجاع به شعبه):
+                  </span>
                 </div>
-              )}
 
-              {/* Escalation & Status Controls */}
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-700">ارجاع به واحد:</span>
-                  <select
-                    value={escalateDepartment}
-                    onChange={e => setEscalateDepartment(e.target.value as any)}
-                    className="bg-white border border-slate-300 rounded-xl px-2.5 py-1 text-xs text-slate-800 focus:outline-none focus:border-indigo-500 font-medium"
-                  >
-                    <option value="ارزیاب ارشد">ارزیاب ارشد (تجدید قیمت)</option>
-                    <option value="ناظر بازبینی">ناظر بازبینی و خسارت</option>
-                    <option value="مدیر مالی و خزانه‌داری">مدیر مالی و خزانه‌داری (واریز)</option>
-                    <option value="شعبه خسارت">شعبه تخصصی خسارت</option>
-                  </select>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {/* Action 1: Direct Call to Customer */}
                   <button
-                    onClick={handleEscalate}
-                    className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    onClick={() => setShowCallLogModal(true)}
+                    className="p-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
                   >
-                    ارجاع
+                    <PhoneCall className="w-4 h-4" />
+                    <span>تماس تلفنی با مشتری</span>
+                    <span className="text-[10px] font-mono text-emerald-100 font-normal">
+                      {activeTicket.customerPhone}
+                    </span>
+                  </button>
+
+                  {/* Action 2: Send Direct SMS to Customer */}
+                  <button
+                    onClick={() => setShowCustomerSmsModal(true)}
+                    className="p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                    <span>ارسال پیامک فوری</span>
+                    <span className="text-[10px] text-blue-100 font-normal">
+                      اطلاع‌رسانی پیامکی
+                    </span>
+                  </button>
+
+                  {/* Action 3: Direct to Branch for In-Person Visit */}
+                  <button
+                    onClick={() => setShowBranchReferralModal(true)}
+                    className="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex flex-col items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                  >
+                    <Building className="w-4 h-4" />
+                    <span>مراجعه حضوری به شعبه</span>
+                    <span className="text-[10px] text-indigo-100 font-normal">
+                      نوبت‌دهی و راهنمای شعبه
+                    </span>
                   </button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  {activeTicket.status !== 'بسته شده و حل گردید' ? (
+                {/* Additional View Options: 360 Document Viewer */}
+                {linkedCase && (
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs">
                     <button
-                      onClick={() => handleStatusChange('بسته شده و حل گردید')}
-                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                      onClick={() => setShowDocViewer(true)}
+                      className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl font-bold flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
                     >
-                      <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>حل شد و بستن تیکت</span>
+                      <Eye className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>مشاهده مدارک و کروکی پرونده ({caseMediaItems.length} سند)</span>
                     </button>
-                  ) : (
-                    <button
-                      onClick={() => handleStatusChange('در حال پیگیری')}
-                      className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                    >
-                      بازگشایی مجدد تیکت
-                    </button>
-                  )}
-                </div>
+
+                    <div className="flex items-center gap-2">
+                      {activeTicket.status !== 'بسته شده و حل گردید' ? (
+                        <button
+                          onClick={() => handleStatusChange('بسته شده و حل گردید')}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>حل شد و بستن تیکت</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleStatusChange('در حال پیگیری')}
+                          className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl font-bold transition-all cursor-pointer"
+                        >
+                          بازگشایی مجدد تیکت
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Message Thread */}
-              <div className="space-y-3 max-h-[350px] overflow-y-auto p-3 bg-slate-50/80 rounded-2xl border border-slate-200/80">
+              {/* Message Thread (Chat with Customer) */}
+              <div className="space-y-3 max-h-[350px] overflow-y-auto p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200/80">
                 {activeTicket.messages.map(m => {
                   const isAgent = m.sender === 'AGENT';
                   const isSystem = m.sender === 'SYSTEM';
@@ -553,9 +746,9 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
                       className={`flex flex-col ${isAgent ? 'items-start' : 'items-end'}`}
                     >
                       <div
-                        className={`max-w-[85%] rounded-2xl p-3.5 space-y-1.5 shadow-2xs ${
+                        className={`max-w-[88%] rounded-2xl p-3.5 space-y-1.5 shadow-2xs ${
                           isAgent
-                            ? 'bg-indigo-50 border border-indigo-200 text-slate-900'
+                            ? 'bg-rose-50/90 border border-rose-200 text-slate-900'
                             : 'bg-white border border-slate-200 text-slate-900'
                         }`}
                       >
@@ -563,23 +756,23 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
                           <span className="font-bold text-slate-800">{m.senderName}</span>
                           <span className="font-mono text-slate-500 text-[10px]">{m.time}</span>
                         </div>
-                        <p className="text-xs leading-relaxed whitespace-pre-line text-slate-700">{m.text}</p>
+                        <p className="text-xs leading-relaxed whitespace-pre-line text-slate-800">{m.text}</p>
                       </div>
                     </div>
                   );
                 })}
               </div>
 
-              {/* Reply Box */}
+              {/* Direct Reply Box to Customer */}
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-700">
-                  ارسال پاسخ رسمی به مشتری (منعکس در پرونده و پنل کاربری شاکی):
+                  ارسال پیام و پاسخ رسمی به مشتری (منعکس در پنل کاربری و سوابق پرونده):
                 </label>
                 <div className="flex gap-2">
                   <textarea
                     value={replyText}
                     onChange={e => setReplyText(e.target.value)}
-                    placeholder="متن پاسخ رسمی، نتیجه هماهنگی با کارشناس ارزیاب یا دستور تجدید بررسی..."
+                    placeholder="متن پیام خود را برای مشتری بنویسید (راهنمایی، پیگیری وضعیت، پاسخ به سوالات یا ابهامات)..."
                     rows={3}
                     className="flex-1 bg-slate-50 border border-slate-300 rounded-2xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-rose-500"
                   />
@@ -589,7 +782,7 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
                     className="px-5 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-2xl font-bold text-xs flex flex-col items-center justify-center gap-1 transition-all cursor-pointer shadow-xs"
                   >
                     <Send className="w-4 h-4" />
-                    <span>ارسال پاسخ</span>
+                    <span>ارسال پیام</span>
                   </button>
                 </div>
               </div>
@@ -597,12 +790,383 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
           ) : (
             <div className="bg-white border border-slate-200/80 p-12 rounded-3xl text-center space-y-2 shadow-xs">
               <MessageSquare className="w-12 h-12 text-slate-300 mx-auto" />
-              <p className="text-sm font-bold text-slate-800">شکایتی انتخاب نشده است.</p>
-              <p className="text-xs text-slate-500">لطفاً یک شکایت از فهرست سمت راست را جهت بررسی ۳۶۰ درجه و پاسخگویی انتخاب فرمایید.</p>
+              <p className="text-sm font-bold text-slate-800">تیکتی انتخاب نشده است.</p>
+              <p className="text-xs text-slate-500">لطفاً یک تیکت از فهرست سمت راست را جهت برقراری ارتباط، تماس یا ارسال پیام انتخاب فرمایید.</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Modal 1: Call Customer & Log Outcome */}
+      {showCallLogModal && activeTicket && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
+                  <PhoneCall className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">
+                    تماس تلفنی با مشتری ({activeTicket.customerName})
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    شماره تماس: <span className="font-mono font-bold text-emerald-700">{activeTicket.customerPhone}</span>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowCallLogModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Direct Call Button */}
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2 text-emerald-900 font-bold">
+                <Phone className="w-4 h-4 text-emerald-600" />
+                <span>شماره‌گیری مستقیم:</span>
+              </div>
+              <a
+                href={`tel:${activeTicket.customerPhone}`}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-xs"
+              >
+                برقراری تماس تلفنی
+              </a>
+            </div>
+
+            {/* Call Log Form */}
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  خلاصه مکالمه و توضیحات ارائه‌شده به مشتری:
+                </label>
+                <textarea
+                  value={callNotes}
+                  onChange={e => setCallNotes(e.target.value)}
+                  placeholder="توضیحات مکالمه: به مشتری توضیح داده شد که... / توافق شد که..."
+                  rows={3}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">حس و لحن مشتری در تماس:</label>
+                  <select
+                    value={callSentiment}
+                    onChange={e => setCallSentiment(e.target.value as any)}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white"
+                  >
+                    <option value="آرام و راضی">آرام و راضی</option>
+                    <option value="نگران و عجول">نگران و عجول</option>
+                    <option value="ناراضی و شاکی">ناراضی و شاکی</option>
+                    <option value="عصبانی و معترض">عصبانی و معترض</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 pt-5">
+                  <label className="flex items-center gap-2 text-slate-700 font-bold cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={callResolved}
+                      onChange={e => setCallResolved(e.target.checked)}
+                      className="w-4 h-4 accent-emerald-600 rounded"
+                    />
+                    <span>موضوع در تماس تلفنی رفع ابهام شد</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {callSuccessFeedback && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>{callSuccessFeedback}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setShowCallLogModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                انصراف
+              </button>
+              <button
+                onClick={handleSaveCallLog}
+                disabled={!callNotes.trim()}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Check className="w-4 h-4" />
+                <span>ثبت تماس در سوابق تیکت</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 2: Quick SMS to Customer */}
+      {showCustomerSmsModal && activeTicket && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">
+                    ارسال پیامک مستقیم به مشتری ({activeTicket.customerName})
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    گیرنده: <span className="font-mono font-bold text-blue-700">{activeTicket.customerPhone}</span>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowCustomerSmsModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Predefined Quick Templates */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-500">قالب‌های آماده پیامک:</span>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCustomerSmsText(`مشتری گرامی ${activeTicket.customerName}، تیکت شما به شماره ${activeTicket.ticketNumber} بررسی شد و پاسخ در پنل کاربری ثبت گردید.`)}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition-all"
+                >
+                  ثبت پاسخ در پنل
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerSmsText(`مشتری گرامی، جهت تکمیل فرآیند خسارت پرونده ${activeTicket.caseId || ''}، لطفاً تصویر واضح از مدارک تکمیلی را در پنل بارگذاری نمایید.`)}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition-all"
+                >
+                  درخواست مدرک
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCustomerSmsText(`مشتری گرامی، حواله خسارت پرونده شما صادر و به امور مالی ارسال گردید و به زودی واریز خواهد شد.`)}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-medium transition-all"
+                >
+                  اطلاع‌رسانی واریز
+                </button>
+              </div>
+            </div>
+
+            {/* Custom SMS text */}
+            <div className="space-y-2 text-xs">
+              <label className="block font-bold text-slate-700">متن پیامک ارسالی:</label>
+              <textarea
+                value={customerSmsText}
+                onChange={e => setCustomerSmsText(e.target.value)}
+                placeholder="متن پیامک خود را تایپ فرمایید..."
+                rows={4}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-blue-500 leading-relaxed"
+              />
+            </div>
+
+            {customerSmsSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>{customerSmsSuccess}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setShowCustomerSmsModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                انصراف
+              </button>
+              <button
+                onClick={handleSendCustomerSms}
+                disabled={!customerSmsText.trim()}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Send className="w-3.5 h-3.5" />
+                <span>ارسال پیامک به مشتری</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal 3: Direct to Branch for In-Person Visit (مراجعه حضوری به شعبه) */}
+      {showBranchReferralModal && activeTicket && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-xl w-full space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
+                  <Building className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">
+                    دستور و نوبت‌دهی مراجعه حضوری به شعبه خسارت
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    مشتری: <span className="font-bold text-slate-700">{activeTicket.customerName}</span> ({activeTicket.customerPhone})
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowBranchReferralModal(false)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              {/* Branch Selector */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">انتخاب شعبه خسارت:</label>
+                <select
+                  value={selectedBranchIndex}
+                  onChange={e => setSelectedBranchIndex(Number(e.target.value))}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:bg-white focus:border-indigo-500"
+                >
+                  {DEFAULT_BRANCHES.map((b, idx) => (
+                    <option key={idx} value={idx}>
+                      {b.name} - ({b.address.split('،')[0]})
+                    </option>
+                  ))}
+                  <option value={-1}>سایر شعب (وارد کردن دستی آدرس و نام شعبه)</option>
+                </select>
+              </div>
+
+              {/* Custom branch input if selected */}
+              {selectedBranchIndex === -1 && (
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                  <input
+                    type="text"
+                    value={customBranchName}
+                    onChange={e => setCustomBranchName(e.target.value)}
+                    placeholder="نام شعبه (مثلاً: شعبه خسارت شهرستان قم)"
+                    className="w-full bg-white border border-slate-300 rounded-xl p-2 text-xs text-slate-800 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={customBranchAddress}
+                    onChange={e => setCustomBranchAddress(e.target.value)}
+                    placeholder="آدرس دقیق شعبه..."
+                    className="w-full bg-white border border-slate-300 rounded-xl p-2 text-xs text-slate-800 focus:outline-none"
+                  />
+                  <input
+                    type="text"
+                    value={customBranchPhone}
+                    onChange={e => setCustomBranchPhone(e.target.value)}
+                    placeholder="تلفن تماس شعبه..."
+                    className="w-full bg-white border border-slate-300 rounded-xl p-2 text-xs text-slate-800 focus:outline-none"
+                  />
+                </div>
+              )}
+
+              {/* Branch Details Display */}
+              {selectedBranchIndex !== -1 && (
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-2xl space-y-1.5 text-xs text-indigo-950">
+                  <div className="flex items-start gap-1.5">
+                    <MapPin className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                    <span><strong>آدرس:</strong> {DEFAULT_BRANCHES[selectedBranchIndex].address}</span>
+                  </div>
+                  <div className="flex items-center gap-4 text-slate-600 pt-1">
+                    <span><strong>تلفن:</strong> <span className="font-mono">{DEFAULT_BRANCHES[selectedBranchIndex].phone}</span></span>
+                    <span><strong>ساعات کاری:</strong> {DEFAULT_BRANCHES[selectedBranchIndex].hours}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Date / Timing */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">زمان یا بازه مراجعه حضوری پیشنهادی:</label>
+                <input
+                  type="text"
+                  value={referralDate}
+                  onChange={e => setReferralDate(e.target.value)}
+                  placeholder="مثلاً: فردا سه‌شنبه ساعت ۹:۰۰ الی ۱۳:۰۰"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500"
+                />
+              </div>
+
+              {/* Required Documents Checkboxes */}
+              <div className="space-y-2">
+                <label className="block font-bold text-slate-700">مدارک الزامی که مشتری باید به همراه داشته باشد:</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    'اصل کارت ملی و گواهینامه راننده',
+                    'اصل کارت خودرو یا برگ سبز',
+                    'اصل بیمه‌نامه شخص ثالث معتبر',
+                    'رؤیت خودرو و قطعات آسیب‌دیده جهت بازدید مجدد',
+                    'اصل کروکی سازشی / غیرسازشی پلیس راهور',
+                    'فاکتور رسمی و داغی قطعات تعویض‌شده'
+                  ].map((doc, idx) => (
+                    <label
+                      key={idx}
+                      className="flex items-center gap-2 p-2 bg-slate-50 hover:bg-slate-100 rounded-xl border border-slate-200 cursor-pointer text-[11px] font-medium text-slate-800"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={referralRequiredDocs.includes(doc)}
+                        onChange={() => toggleRequiredDoc(doc)}
+                        className="w-3.5 h-3.5 accent-indigo-600 rounded"
+                      />
+                      <span>{doc}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Additional notes for customer */}
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">نکات تکمیلی و راهنمایی برای مشتری:</label>
+                <textarea
+                  value={referralNote}
+                  onChange={e => setReferralNote(e.target.value)}
+                  placeholder="توضیحات تکمیلی: لطفاً قبل از مراجعه خودرو شستشو شده باشد و هماهنگی با مسئول پذیرش انجام گیرد..."
+                  rows={2}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-indigo-500"
+                />
+              </div>
+            </div>
+
+            {branchReferralSuccess && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>{branchReferralSuccess}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+              <button
+                onClick={() => setShowBranchReferralModal(false)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
+              >
+                انصراف
+              </button>
+              <button
+                onClick={handleSendBranchReferral}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+              >
+                <Building className="w-3.5 h-3.5" />
+                <span>ابلاغ دستور مراجعه حضوری به مشتری</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 360-Degree Document Viewer Modal */}
       {showDocViewer && linkedCase && (
@@ -739,108 +1303,6 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
               alt="Preview"
               className="max-h-[80vh] w-auto mx-auto rounded-2xl object-contain"
             />
-          </div>
-        </div>
-      )}
-
-      {/* Call / Message Expert Modal */}
-      {showExpertContactModal && linkedCase && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
-                  <PhoneCall className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">
-                    ارتباط فوری با کارشناس ارزیاب پرونده
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    هماهنگی جهت بازبینی قیمت قطعات، تجدید نظر یا توضیح فنی به مشتری
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowExpertContactModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Expert Info Card */}
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500 font-bold">کارشناس مسئول:</span>
-                <span className="font-extrabold text-slate-900">
-                  {linkedCase.assignedExpert?.name || linkedCase.assignedFieldExpert?.name || 'کارشناس رسمی خسارت دانا'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500 font-bold">شماره تماس مستقیم:</span>
-                <span className="font-mono font-bold text-indigo-700" dir="ltr">
-                  {linkedCase.assignedExpert?.phone || linkedCase.assignedFieldExpert?.phone || '09121112233'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500 font-bold">موضوع شکایت مشتری:</span>
-                <span className="text-rose-600 font-bold">{activeTicket.subject}</span>
-              </div>
-            </div>
-
-            {/* Direct Call Trigger */}
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2 text-emerald-800 font-bold">
-                <Phone className="w-4 h-4 text-emerald-600" />
-                <span>تماس مستقیم تلفنی با کارشناس:</span>
-              </div>
-              <a
-                href={`tel:${linkedCase.assignedExpert?.phone || '09121112233'}`}
-                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold transition-all shadow-2xs"
-              >
-                برقراری تماس
-              </a>
-            </div>
-
-            {/* Internal Inquiry Note */}
-            <div className="space-y-2 text-xs">
-              <label className="block font-bold text-slate-700">
-                ارسال پیامک و نوتیفیکیشن سیستمی به کارشناس:
-              </label>
-              <textarea
-                value={expertInquiryText}
-                onChange={e => setExpertInquiryText(e.target.value)}
-                placeholder="متن استعلام: همکار گرامی، پیرو شکایت مشتری در پرونده فوق، لطفاً برآورد قیمت قطعه مورد نظر را مجدداً تطبیق دهید..."
-                rows={3}
-                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500"
-              />
-            </div>
-
-            {expertContactSuccess && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>{expertContactSuccess}</span>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                onClick={() => setShowExpertContactModal(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold cursor-pointer"
-              >
-                انصراف
-              </button>
-              <button
-                onClick={handleSendExpertInquiry}
-                disabled={!expertInquiryText.trim()}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
-              >
-                <Send className="w-3.5 h-3.5" />
-                <span>ارسال استعلام به کارشناس</span>
-              </button>
-            </div>
           </div>
         </div>
       )}
