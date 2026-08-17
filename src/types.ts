@@ -910,3 +910,23 @@ export interface CrmSatisfactionSurvey {
   submittedAt: string;
 }
 
+export interface CrmFollowUpTask {
+  id: string;
+  caseId?: string;
+  customerName: string;
+  customerPhone: string;
+  customerRole?: 'زیان‌دیده' | 'مقصر حادثه' | 'بیمه‌گذار' | 'شخص ثالث';
+  ticketId?: string;
+  callLogId?: string;
+  reason: string;
+  targetDepartment: 'ارزیابی خسارت' | 'بازبینی و نظارت' | 'مالی و خزانه‌داری' | 'کارشناسی میدانی' | 'امور حقوقی و سنهاب' | 'شعبه و خسارت';
+  assignedAgent: string;
+  priority: 'عادی' | 'مهم' | 'فوری و بحرانی';
+  dueDate: string;
+  status: 'در انتظار انجام' | 'در حال پیگیری' | 'تکمیل و رفع مانع' | 'لغو شده';
+  notes?: string;
+  resolution?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+

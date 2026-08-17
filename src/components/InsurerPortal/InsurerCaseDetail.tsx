@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ArrowLeft,
   UserPlus,
@@ -95,6 +95,18 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
     claimCase.isOnlineCroqui
   );
   const isNoCroquiCase = !hasCroqui;
+  const isFieldExpertRequired = Boolean(
+    isNoCroquiCase ||
+    claimCase.objectionStage === 4 ||
+    claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' ||
+    claimCase.status === 'در انتظار بازدید کارشناس میدانی' ||
+    claimCase.status === 'در حال بازدید کارشناس میدانی' ||
+    claimCase.status?.includes('کارشناس میدانی') ||
+    claimCase.assignedFieldExpert ||
+    claimCase.authenticityDispute ||
+    claimCase.status === 'تردید در اصالت تصادف' ||
+    claimCase.needsCulpritFieldVisit
+  );
   const isPaidCase =
     claimCase.status === 'پرداخت شده' ||
     claimCase.payoutState === 'PAID' ||
@@ -104,7 +116,7 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
 
   // Address and Nearest Branch calculation
   const caseInsurerCode = claimCase.bodyInsuranceInfo?.insurerCode || claimCase.victimInsurer || claimCase.culpritInsurer || companyCode || 'dana';
-  const accidentLocationAddress = claimCase.address || claimCase.accidentLocation || claimCase.accidentAddress || claimCase.location || 'تهران، بزرگراه شهید همت، تقاطع مدرس';
+  const accidentLocationAddress = claimCase.accidentLocation || claimCase.accidentAddress || claimCase.address || claimCase.location || 'تهران، بزرگراه شهید همت، تقاطع مدرس';
 
   const branchMatch = useMemo(() => {
     return findBestMatchingBranch(
@@ -185,9 +197,22 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
 
   // State to toggle re-assignment dropdown if already assigned
   const [isChangingExpert, setIsChangingExpert] = useState(!claimCase.assignedExpert);
-  const [isChangingFieldExpert, setIsChangingFieldExpert] = useState(!claimCase.assignedFieldExpert && (!claimCase.assignedExpert || !claimCase.assignedExpert.role?.includes('میدانی')));
+  const [isChangingFieldExpert, setIsChangingFieldExpert] = useState(
+    !claimCase.assignedFieldExpert ||
+    claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' ||
+    (!claimCase.assignedExpert || !claimCase.assignedExpert.role?.includes('میدانی'))
+  );
   const [assignmentFeedback, setAssignmentFeedback] = useState<string | null>(null);
   const [fieldAssignmentFeedback, setFieldAssignmentFeedback] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (
+      (claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' || claimCase.objectionStage === 4) &&
+      !claimCase.assignedFieldExpert
+    ) {
+      setIsChangingFieldExpert(true);
+    }
+  }, [claimCase.status, claimCase.objectionStage, claimCase.assignedFieldExpert]);
 
   // Unified Expert Assessment evaluation (supports Field Expert, Multi-round Damage Assessor, or clean empty state)
   const allAssessments = useMemo(() => {
@@ -1010,10 +1035,10 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
             <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                  {isNoCroquiCase ? (
+                  {isFieldExpertRequired ? (
                     <>
                       <AlertTriangle className="w-4.5 h-4.5 text-amber-600" />
-                      <span>تخصیص کارشناس میدانی</span>
+                      <span>تخصیص کارشناس رسمی میدانی</span>
                     </>
                   ) : (
                     <>
@@ -1022,15 +1047,38 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                     </>
                   )}
                 </h3>
-                {isNoCroquiCase && (
+                {isNoCroquiCase ? (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
                     بدون کروکی
                   </span>
-                )}
+                ) : (claimCase.objectionStage === 4 || claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' || claimCase.status === 'در انتظار بازدید کارشناس میدانی') ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-900 border border-purple-300">
+                    اعتراض نهایی (مرحله ۴ - میدانی)
+                  </span>
+                ) : null}
               </div>
 
+            {/* Mandatory Notice for Stage 4 Objection / Field Inspector Request */}
+            {(claimCase.objectionStage === 4 || claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' || claimCase.status === 'در انتظار بازدید کارشناس میدانی') && !claimCase.assignedFieldExpert && (
+              <div className="p-3.5 bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-100 border-2 border-purple-300 rounded-2xl text-xs space-y-2 animate-in fade-in">
+                <div className="flex items-center gap-1.5 font-extrabold text-purple-950">
+                  <UserCheck className="w-4 h-4 text-purple-600 shrink-0" />
+                  <span>درخواست اعتراض نهایی و ارزیابی میدانی توسط زیان‌دیده:</span>
+                </div>
+                <p className="text-[11px] text-purple-900 leading-relaxed font-bold">
+                  زیان‌دیده در مرحله چهارم اعتراض، درخواست اعزام کارشناس رسمی میدانی / ارجاع به شعبه را ثبت نموده است. لطفاً نزدیک‌ترین کارشناس رسمی میدانی را بر اساس موقعیت ثبت‌شده خودرو و شعبه مربوطه تعیین و مأموریت را ابلاغ نمایید.
+                </p>
+                {accidentLocationAddress && (
+                  <div className="p-2 bg-white/90 rounded-xl border border-purple-200 text-[11px] text-purple-950 font-bold flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                    <span>موقعیت استقرار خودرو جهت بازدید: {accidentLocationAddress}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Mandatory Regulatory Warning for No-Croqui Cases */}
-            {isNoCroquiCase && (
+            {isNoCroquiCase && !claimCase.objectionStage && (
               <div className="p-3 bg-amber-50/90 border-2 border-amber-300 rounded-2xl text-xs space-y-1.5 animate-in fade-in">
                 <div className="flex items-center gap-1.5 font-extrabold text-amber-950">
                   <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -1110,7 +1158,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
               </div>
             )}
 
-            {(isNoCroquiCase || claimCase.authenticityDispute || claimCase.status === 'تردید در اصالت تصادف' || claimCase.status === 'در انتظار بازدید کارشناس میدانی' || claimCase.status === 'در حال بازدید کارشناس میدانی' || claimCase.needsCulpritFieldVisit) ? (
+            {isFieldExpertRequired ? (
               /* NO CROQUI OR AUTHENTICITY DISPUTE: FIELD EXPERT ASSIGNMENT FLOW */
               (claimCase.assignedFieldExpert || (claimCase.assignedExpert && claimCase.assignedExpert.role?.includes('میدانی'))) && !isChangingFieldExpert ? (
                 <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl space-y-3.5">
@@ -2505,7 +2553,100 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
               </div>
 
               {hasCompletedAssessment ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                <div className="space-y-4">
+                  {/* Comprehensive Financial Apportionment Card */}
+                  {(() => {
+                    const calc = calculateClaimDamageWithPolicyLimits(claimCase);
+                    return (
+                      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-4 sm:p-5 border border-indigo-500/30 space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold">
+                              <DollarSign className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <h4 className="font-extrabold text-xs sm:text-sm text-white">
+                                تفکیک خسارت، سقف تعهد مالی بیمه‌نامه و وضعیت بدهی مقصر
+                              </h4>
+                              <p className="text-[11px] text-slate-300">
+                                استعلام سنهاب بیمه مرکزی • بیمه‌گر مقصر: {getInsurerPersianName(claimCase.culpritInsurer)}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {calc.culpritExcessDebt > 0 ? (
+                              <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-500/20 text-rose-300 border border-rose-400/40 flex items-center gap-1">
+                                <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+                                <span>مازاد بر سقف ({formatCurrency(calc.culpritExcessDebt)} بدهی مقصر)</span>
+                              </span>
+                            ) : (
+                              <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>پوشش ۱۰۰٪ در سقف بیمه‌نامه</span>
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+                          <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                            <span className="text-slate-400 text-[10px] block mb-1">خسارت فیزیکی و اجرت</span>
+                            <span className="font-mono font-bold text-white text-xs">
+                              {formatCurrency(calc.directDamageAmount)}
+                            </span>
+                          </div>
+
+                          <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-slate-400 text-[10px]">افت ارزش خودرو</span>
+                              {calc.diminutionPercent > 0 && (
+                                <span className="text-[9px] font-black text-amber-300 bg-amber-500/20 px-1 py-0.2 rounded">
+                                  {calc.diminutionPercent}%
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-mono font-bold text-amber-300 text-xs">
+                              {calc.diminutionAmount > 0 ? formatCurrency(calc.diminutionAmount) : 'شامل نمی‌شود'}
+                            </span>
+                          </div>
+
+                          <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                            <span className="text-slate-400 text-[10px] block mb-1">مجموع کل خسارت</span>
+                            <span className="font-mono font-extrabold text-blue-200 text-xs">
+                              {formatCurrency(calc.totalClaimAmount)}
+                            </span>
+                          </div>
+
+                          <div className="bg-emerald-500/15 border border-emerald-400/30 p-3 rounded-xl">
+                            <span className="text-emerald-300 text-[10px] block mb-1 font-bold">سهم پرداختی بیمه (سقف)</span>
+                            <span className="font-mono font-black text-emerald-300 text-xs">
+                              {formatCurrency(calc.insurerPayablePortion)}
+                            </span>
+                          </div>
+
+                          <div className={`p-3 rounded-xl border ${
+                            calc.culpritExcessDebt > 0 
+                              ? 'bg-rose-500/20 border-rose-400/40' 
+                              : 'bg-white/5 border-white/10'
+                          }`}>
+                            <span className={`text-[10px] block mb-1 font-bold ${
+                              calc.culpritExcessDebt > 0 ? 'text-rose-300' : 'text-slate-400'
+                            }`}>
+                              بدهی مازاد مقصر حادثه
+                            </span>
+                            <span className={`font-mono font-black text-xs ${
+                              calc.culpritExcessDebt > 0 ? 'text-rose-200' : 'text-slate-400'
+                            }`}>
+                              {calc.culpritExcessDebt > 0 ? formatCurrency(calc.culpritExcessDebt) : 'بدون بدهی'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                   {allAssessments.map((item, idx) => {
                     const verdictInfo = getVerdictDetails(item.verdict);
                     const isField = item.type === 'FIELD_EXPERT';
@@ -2618,6 +2759,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               ) : (
                 /* Clean Pending/Waiting State when no assessment has been conducted yet */

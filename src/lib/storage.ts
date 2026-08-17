@@ -1,4 +1,4 @@
-import { ClaimCase, UserSession, ThresholdProfile, DepreciationConfig, StaffMember, ExpertComplaint, AssessorNotification, CustomerNotification, PaymentOrder, PaymentBatch, CustomerCallLog, CustomerTicket, CrmSatisfactionSurvey } from '../types';
+import { ClaimCase, UserSession, ThresholdProfile, DepreciationConfig, StaffMember, ExpertComplaint, AssessorNotification, CustomerNotification, PaymentOrder, PaymentBatch, CustomerCallLog, CustomerTicket, CrmSatisfactionSurvey, CrmFollowUpTask } from '../types';
 import { INITIAL_CASES, DEFAULT_THRESHOLDS, DEFAULT_DEPRECIATION_TABLES, INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS, INITIAL_EXPERT_COMPLAINTS, INITIAL_FINANCE_STAFF, INITIAL_CRM_STAFF } from '../data/mockData';
 import { sanitizeMediaForStorage } from './imageCompressor';
 
@@ -20,6 +20,7 @@ const STORAGE_KEYS = {
   CRM_CALL_LOGS: 'claimflow_crm_call_logs',
   CRM_TICKETS: 'claimflow_crm_tickets',
   CRM_SURVEYS: 'claimflow_crm_surveys',
+  CRM_FOLLOW_UPS: 'claimflow_crm_follow_ups',
 };
 
 export interface RegisteredCustomer {
@@ -1444,6 +1445,80 @@ export function saveCrmSurveysToStorage(surveys: CrmSatisfactionSurvey[]): void 
     console.error('Error saving CRM surveys', e);
   }
 }
+
+export const INITIAL_CRM_FOLLOW_UPS: CrmFollowUpTask[] = [
+  {
+    id: 'TSK-101',
+    caseId: 'CLM-1403-8821',
+    customerName: 'مهدی کشاورز',
+    customerPhone: '09123456789',
+    customerRole: 'زیان‌دیده',
+    ticketId: 'TCK-1403-102',
+    reason: 'بررسی مجدد تایید شماره شبا پس از اصلاح توسط کاربر و تسریع صدور حواله پایا',
+    targetDepartment: 'مالی و خزانه‌داری',
+    assignedAgent: 'حامد شایان',
+    priority: 'مهم',
+    dueDate: '1403/05/22',
+    status: 'در حال پیگیری',
+    notes: 'کاربر شماره شبای جدید ثبت نموده و منتظر تسویه است.',
+    createdAt: '1403/05/20 11:30'
+  },
+  {
+    id: 'TSK-102',
+    caseId: 'CLM-1403-9014',
+    customerName: 'سارا رضوی',
+    customerPhone: '09128889900',
+    customerRole: 'زیان‌دیده',
+    ticketId: 'TCK-1403-103',
+    reason: 'هماهنگی اعزام کارشناس رسمی میدانی جهت بررسی آثار برخورد و رفع ادعای تصادف صوری',
+    targetDepartment: 'کارشناسی میدانی',
+    assignedAgent: 'سپیده معتمدی',
+    priority: 'فوری و بحرانی',
+    dueDate: '1403/05/21',
+    status: 'در انتظار انجام',
+    notes: 'مقصر منکر برخورد شده و شکایت در سنهاب ثبت شده است.',
+    createdAt: '1403/05/21 12:15'
+  },
+  {
+    id: 'TSK-103',
+    caseId: 'CLM-1403-7741',
+    customerName: 'علی حسینی',
+    customerPhone: '09121111111',
+    customerRole: 'زیان‌دیده',
+    reason: 'اطلاع‌رسانی وضعیت واریز خسارت به شماره شبای بانک سامان',
+    targetDepartment: 'شعبه و خسارت',
+    assignedAgent: 'سپیده معتمدی',
+    priority: 'عادی',
+    dueDate: '1403/05/20',
+    status: 'تکمیل و رفع مانع',
+    notes: 'واریز تایید و به کاربر پیامک ارسال شد.',
+    resolution: 'تماس با مشتری برقرار شد و رضایت کامل ثبت گردید.',
+    createdAt: '1403/05/19 14:00',
+    completedAt: '1403/05/19 17:30'
+  }
+];
+
+export function loadCrmFollowUpsFromStorage(): CrmFollowUpTask[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CRM_FOLLOW_UPS);
+    if (!raw) {
+      localStorage.setItem(STORAGE_KEYS.CRM_FOLLOW_UPS, JSON.stringify(INITIAL_CRM_FOLLOW_UPS));
+      return INITIAL_CRM_FOLLOW_UPS;
+    }
+    return JSON.parse(raw);
+  } catch {
+    return INITIAL_CRM_FOLLOW_UPS;
+  }
+}
+
+export function saveCrmFollowUpsToStorage(tasks: CrmFollowUpTask[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.CRM_FOLLOW_UPS, JSON.stringify(tasks));
+  } catch (e) {
+    console.error('Error saving CRM follow-ups', e);
+  }
+}
+
 
 
 

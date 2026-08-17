@@ -38,7 +38,9 @@ import {
   Phone,
   Calendar,
   Car,
-  FileSpreadsheet
+  FileSpreadsheet,
+  DollarSign,
+  Info
 } from 'lucide-react';
 import { ClaimCase, UserSession, CaseStatus, AdditionalDocItem, ExpertComplaint } from '../../types';
 import { formatCurrency, parseMoneyNumber, getInsurerPersianName, loadComplaintsFromStorage, saveComplaintsToStorage } from '../../lib/storage';
@@ -219,6 +221,35 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   const isVictim = isBodyClaim ? true : (userRole === 'زیان‌دیده');
   const isCulprit = isBodyClaim ? false : (userRole === 'مقصر');
 
+  // Assessment completion state flags
+  const isFieldAssessmentCompleted = Boolean(
+    claimCase.fieldExpertVerdict ||
+    claimCase.fieldExpertFinal ||
+    claimCase.fieldExpertReportNote ||
+    claimCase.fieldExpertCompletedAt ||
+    (claimCase.assessment && (claimCase.assessment.fieldInspectionConfirmed || claimCase.assessment.assessorId?.startsWith('fed')))
+  );
+
+  const isDeskAssessmentCompleted = Boolean(
+    (claimCase.assessments && claimCase.assessments.length > 0 && claimCase.assessments.some(a => a.status === 'PUBLISHED' || a.status === 'REVIEWED' || a.status === 'ACCEPTED' || a.approvedByReviewer || a.status?.includes('مورد اعتراض') || a.status === 'در انتظار تایید کاربر' || a.status === 'در انتظار تایید زیان‌دیده' || claimCase.status === 'در انتظار تایید کاربر' || claimCase.status === 'در انتظار تایید زیان‌دیده' || claimCase.status === 'در انتظار پرداخت' || claimCase.status === 'پرداخت شده')) ||
+    (claimCase.assessment && claimCase.assessment.status !== 'DRAFT' && claimCase.assessment.status !== 'REJECTED' && (claimCase.assessment.status === 'PUBLISHED' || claimCase.assessment.status === 'REVIEWED' || claimCase.assessment.status === 'ACCEPTED' || claimCase.approvedByReviewer || claimCase.status === 'در انتظار تایید کاربر' || claimCase.status === 'در انتظار تایید زیان‌دیده' || claimCase.status === 'در انتظار پرداخت' || claimCase.status === 'پرداخت شده'))
+  );
+
+  const hasAnyCompletedAssessment = isFieldAssessmentCompleted || isDeskAssessmentCompleted;
+
+  const isWaitingForNewAssessment = Boolean(
+    claimCase.status === 'در انتظار ارجاع به ارزیاب مجدد' ||
+    claimCase.status === 'در حال ارزیابی' ||
+    claimCase.status === 'در انتظار ارزیابی' ||
+    claimCase.status === 'در انتظار بررسی بازبین' ||
+    claimCase.status === 'در حال بررسی اطلاعات تعمیرگاه توسط ارزیاب' ||
+    claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' ||
+    claimCase.status === 'در انتظار بازدید کارشناس میدانی' ||
+    claimCase.status === 'در حال بازدید کارشناس میدانی' ||
+    claimCase.status === 'تردید در اصالت تصادف' ||
+    claimCase.status === 'محول شده به کارشناس'
+  );
+
   const isP1Culprit = partyOneRole === 'مقصر';
   const p1DisplayName = claimCase.partyOneName || (isP1Culprit ? claimCase.culpritName : claimCase.victimName) || 'ایجادکننده پرونده';
   const p1DisplayPhone = claimCase.partyOnePhone || (isP1Culprit ? claimCase.culpritPhone : claimCase.victimPhone) || '';
@@ -373,6 +404,13 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   const [workshopName, setWorkshopName] = useState('');
   const [workshopPhone, setWorkshopPhone] = useState('');
   const [workshopAddress, setWorkshopAddress] = useState('');
+
+  const [showFieldVisitModal, setShowFieldVisitModal] = useState(false);
+  const [fieldVisitType, setFieldVisitType] = useState<'FIELD_VISIT' | 'BRANCH_VISIT'>('FIELD_VISIT');
+  const [fieldVisitAddress, setFieldVisitAddress] = useState(claimCase.accidentLocation || 'تهران');
+  const [fieldVisitContactPhone, setFieldVisitContactPhone] = useState(claimCase.victimPhone || session.phone || '');
+  const [fieldVisitReason, setFieldVisitReason] = useState('');
+  const [fieldVisitSuccessToast, setFieldVisitSuccessToast] = useState(false);
 
   const [chatMessageInput, setChatMessageInput] = useState('');
 
@@ -563,25 +601,47 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
   // Handle Stage 4 Objection (Request Field Inspector / On-site Branch Visit)
   const handleRequestFieldInspector = () => {
-    if (!confirm('آیا از ارجاع پرونده جهت بازدید میدانی / مراجعه حضوری به شعبه شرکت بیمه اطمینان دارید؟')) return;
+    if (isCulprit) {
+      alert('شما به عنوان مقصر حادثه، صرفاً دسترسی مشاهده پرونده را دارید و درخواست ارزیابی میدانی منحصراً توسط زیان‌دیده انجام می‌پذیرد.');
+      return;
+    }
+    setShowFieldVisitModal(true);
+  };
+
+  const handleFieldVisitSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isCulprit) return;
+
+    const requestTypeLabel = fieldVisitType === 'FIELD_VISIT'
+      ? 'اعزام کارشناس رسمی میدانی به محل استقرار خودرو'
+      : 'هماهنگی جهت مراجعه حضوری خودرو به شعبه تخصصی خسارت بیمه';
+
+    const locationText = fieldVisitAddress.trim() || claimCase.accidentLocation || 'تهران';
+    const phoneText = fieldVisitContactPhone.trim() || claimCase.victimPhone || session.phone || '';
+    const noteText = fieldVisitReason.trim();
 
     const updated: ClaimCase = {
       ...claimCase,
       objectionStage: 4,
       status: 'در انتظار ارجاع به کارشناس میدانی',
+      accidentLocation: locationText,
       history: [
         ...(claimCase.history || []),
         {
           status: 'در انتظار ارجاع به کارشناس میدانی',
           time: new Date().toLocaleString('fa-IR'),
           user: session.name || 'زیان‌دیده',
-          note: 'درخواست ارجاع پرونده به کارشناس میدانی / شعبه بیمه‌گر (مرحله نهایی) توسط زیان‌دیده ثبت شد.'
+          note: `درخواست اعتراض نهایی و ارزیابی میدانی ثبت شد. نوع درخواست: «${requestTypeLabel}» • آدرس استقرار خودرو: «${locationText}» • تلفن هماهنگی: ${phoneText}${noteText ? ` • توضیحات: «${noteText}»` : ''}`
         }
       ]
     };
 
     onUpdateCase(updated);
-    alert('درخواست ارجاع به کارشناس میدانی با موفقیت ثبت شد. شرکت بیمه پرونده را به کارشناس میدانی یا نزدیک‌ترین شعبه محول خواهد کرد.');
+    setShowFieldVisitModal(false);
+    setFieldVisitSuccessToast(true);
+    setTimeout(() => {
+      setFieldVisitSuccessToast(false);
+    }, 6000);
   };
 
   const handleCustomerComplaintSubmit = (e: React.FormEvent) => {
@@ -824,6 +884,16 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   };
 
   const handleAcceptAssessment = () => {
+    if (isCulprit) {
+      alert('به عنوان مقصر حادثه، شما صرفاً دسترسی مشاهده پرونده را دارید و ثبت اطلاعات بانکی و دریافت خسارت منحصراً توسط زیان‌دیده انجام می‌پذیرد.');
+      return;
+    }
+
+    if (!hasAnyCompletedAssessment) {
+      alert('ارزیابی پرونده هنوز توسط کارشناس بیمه انجام نشده است. ثبت اطلاعات بانکی پس از ابلاغ رسمی برآورد خسارت امکان‌پذیر خواهد بود.');
+      return;
+    }
+
     if (!iban || !nationalId) {
       setShowForm(true);
       return;
@@ -1236,6 +1306,58 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 <span>پیامک مشخصات کارشناس و آدرس نزدیک‌ترین شعبه جهت حضور و تحویل مدارک، هم‌زمان برای شما و کارشناس میدانی ارسال گردیده است.</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Stage 4 Objection Active Banner (Waiting for Field Inspector Allocation / Inspection) */}
+        {(claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' || claimCase.status === 'در انتظار بازدید کارشناس میدانی' || (claimCase.objectionStage === 4 && !claimCase.fieldExpertVerdict)) && !claimCase.authenticityDispute && (
+          <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-100 border-2 border-purple-300 rounded-3xl p-5 sm:p-6 space-y-3 shadow-sm animate-in fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-200/80 pb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold shadow-xs">
+                  <UserCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-purple-950 text-sm sm:text-base">
+                    پرونده در وضعیت «اعتراض نهایی - در انتظار ارزیابی کارشناس رسمی میدانی»
+                  </h3>
+                  <p className="text-[11px] text-purple-800 font-bold">
+                    درخواست اعزام کارشناس رسمی حضوری به شرکت بیمه ({getInsurerPersianName(claimCase.culpritInsurer)}) ارسال گردیده است.
+                  </p>
+                </div>
+              </div>
+
+              <span className="px-3 py-1 rounded-full text-xs font-black bg-purple-200 text-purple-950 border border-purple-300 self-start sm:self-auto">
+                {claimCase.status}
+              </span>
+            </div>
+
+            <p className="text-xs text-purple-900 leading-relaxed font-medium">
+              {claimCase.assignedFieldExpert
+                ? `کارشناس رسمی میدانی «${claimCase.assignedFieldExpert.name}» (${claimCase.assignedFieldExpert.role}) جهت بررسی حضوری قطعات خودرو و اصالت‌سنجی فیزیکی به پرونده شما تخصیص یافته است.`
+                : 'پرونده شما در کارتابل شرکت بیمه قرار گرفته و کارشناس مسئول بیمه‌گر در حال تخصیص نزدیک‌ترین کارشناس رسمی میدانی جهت هماهنگی و بازدید حضوری خودرو می‌باشد.'}
+            </p>
+
+            {claimCase.assignedFieldExpert && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+                <div className="bg-white/80 p-3 rounded-xl border border-purple-200 space-y-1">
+                  <span className="text-purple-700 font-bold block text-[11px]">کارشناس رسمی میدانی تخصیص‌یافته:</span>
+                  <div className="font-extrabold text-slate-900">{claimCase.assignedFieldExpert.name} ({claimCase.assignedFieldExpert.role})</div>
+                  {claimCase.assignedFieldExpert.phone && (
+                    <div className="text-[11px] text-slate-600 flex items-center gap-1 font-mono" dir="ltr">
+                      <Phone className="w-3 h-3 text-purple-600" />
+                      {claimCase.assignedFieldExpert.phone}
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white/80 p-3 rounded-xl border border-purple-200 space-y-1">
+                  <span className="text-purple-700 font-bold block text-[11px]">شعبه پرداخت خسارت و هماهنگی:</span>
+                  <div className="font-extrabold text-slate-900">{claimCase.assignedBranch || 'شعبه تخصصی خسارت مرکزی'}</div>
+                  <div className="text-[11px] text-slate-600">هماهنگی بازدید و تحویل داغی قطعات</div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1677,13 +1799,16 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
         {(() => {
           const calc = calculateClaimDamageWithPolicyLimits(claimCase);
 
-          // Field assessment is only displayed if the field expert has actually completed and submitted the assessment
+          // Field assessment is only displayed if the field expert has actually completed and submitted an authentic field assessment
           const isFieldAssessmentCompleted = Boolean(
             claimCase.fieldExpertVerdict ||
             claimCase.fieldExpertFinal ||
             claimCase.fieldExpertReportNote ||
             claimCase.fieldExpertCompletedAt ||
-            (claimCase.assessment && (claimCase.assessment.fieldInspectionConfirmed || claimCase.assessment.status === 'SUBMITTED' || claimCase.assessment.status === 'PUBLISHED' || claimCase.assessment.status === 'REVIEWED' || claimCase.assessment.assessorId?.startsWith('fed')))
+            (claimCase.assignedFieldExpert && claimCase.assessment?.fieldInspectionConfirmed) ||
+            claimCase.assessment?.assessorType === 'FIELD_EXPERT' ||
+            claimCase.assessment?.isFieldExpert === true ||
+            (claimCase.assessment?.assessorId && claimCase.assessment.assessorId.startsWith('fed'))
           );
 
           const hasFieldAssessment = isFieldAssessmentCompleted;
@@ -1910,18 +2035,32 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             claimCase.assessments.forEach((a, idx) => {
               const payableAmt = a.payable || calc.insurerPayablePortion;
               const isLatestInList = idx === claimCase.assessments!.length - 1;
-              const isHistorical = hasFieldAssessment ? true : !isLatestInList;
+              const isObjectedStatus = Boolean(a.status?.includes('مورد اعتراض') || a.status === 'REJECTED');
+              // A card is historical if:
+              // - Field assessment exists (all desk assessments become historical)
+              // - Not the latest in the list
+              // - Explicitly marked as objected to
+              // - Latest card but customer already protested and is waiting for a new assessment
+              const isHistorical = Boolean(
+                hasFieldAssessment ||
+                !isLatestInList ||
+                isObjectedStatus ||
+                (isLatestInList && isWaitingForNewAssessment)
+              );
+
+              const roundNum = a.roundIdx || idx + 1;
+              const roundTitle = a.round || `ارزیابی نوبت ${roundNum}`;
 
               cards.push({
                 id: `card_desk_assessor_${idx}`,
                 type: 'DAMAGE_ASSESSOR',
                 title: isHistorical
-                  ? `کارشناسی ارزیاب خسارت (${a.round || `ارزیابی نوبت ${idx + 1}`} - سوابق قبلی)`
-                  : `کارشناسی ارزیاب خسارت (${a.round || `ارزیابی نوبت ${idx + 1}`} - برآورد جاری)`,
+                  ? `کارشناسی ارزیاب خسارت (${roundTitle} - سوابق قبلی)`
+                  : `کارشناسی ارزیاب خسارت (${roundTitle} - برآورد جاری)`,
                 badge: isHistorical
-                  ? `ارزیابی نوبت ${idx + 1} (مورد اعتراض / باطله)`
-                  : `ارزیابی نوبت ${idx + 1} (جاری و فعال)`,
-                version: idx + 1,
+                  ? `ارزیابی نوبت ${roundNum} (مورد اعتراض / باطله - فقط‌خواندنی)`
+                  : `ارزیابی نوبت ${roundNum} (جاری و فعال)`,
+                version: roundNum,
                 expertName: a.expertName || claimCase.assignedExpert?.name || 'فاطمه احمدی',
                 expertRole: 'کارشناس ارزیاب خسارت خودرو',
                 stampCode: `EXP-ONL-${8300 + idx}`,
@@ -1945,29 +2084,36 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 isFinal: isHistorical ? false : Boolean(claimCase.isFinalDecision || claimCase.status === 'تصمیم نهایی - غیرقابل اعتراض'),
                 isHistorical: isHistorical,
                 objectionStage: claimCase.objectionStage || 0,
-                roundVersion: idx + 1,
-                parts: dynamicParts,
+                roundVersion: roundNum,
+                parts: (a.parts && a.parts.length > 0) ? a.parts : dynamicParts,
                 damageSpots: carDamageSpotsData
               });
             });
           } else if (claimCase.assessment && isDeskAssessmentCompleted && !hasFieldAssessment) {
-            const payableAmt = calc.insurerPayablePortion;
+            const isHistorical = Boolean(isWaitingForNewAssessment && (claimCase.objectionStage || 0) >= 1);
+            const payableAmt = claimCase.assessment.payable || calc.insurerPayablePortion;
+            const currentRound = claimCase.assessment.version ? Number(claimCase.assessment.version) : 1;
+
             cards.push({
               id: 'card_desk_assessor_main',
               type: 'DAMAGE_ASSESSOR',
-              title: 'کارشناسی ارزیاب خسارت (ارزیابی آنلاین و میزی - برآورد جاری)',
-              badge: `ارزیابی تخصصی میزی - نسخه ${claimCase.assessment.version || 1} (جاری)`,
-              version: claimCase.assessment.version || 1,
+              title: isHistorical
+                ? `کارشناسی ارزیاب خسارت (ارزیابی نوبت ${currentRound} - سوابق قبلی)`
+                : `کارشناسی ارزیاب خسارت (ارزیابی نوبت ${currentRound} - برآورد جاری)`,
+              badge: isHistorical
+                ? `ارزیابی تخصصی میزی - نوبت ${currentRound} (مورد اعتراض - فقط‌خواندنی)`
+                : `ارزیابی تخصصی میزی - نوبت ${currentRound} (جاری و فعال)`,
+              version: currentRound,
               expertName: claimCase.assignedExpert?.name || claimCase.assessment.submittedBy || 'فاطمه احمدی',
               expertRole: 'کارشناس ارزیاب خسارت خودرو',
               stampCode: 'EXP-ONL-8340',
               date: claimCase.assessment.submittedAt || '۱۴۰۳/۱۱/۱۸',
-              verdict: 'تایید شده توسط بازبین ارشد شرکت بیمه',
-              verdictType: 'info',
-              directDamage: calc.directDamageAmount,
+              verdict: isHistorical ? 'مورد اعتراض زیان‌دیده و ارجاع به کارشناسی نوبت بعد' : 'تایید شده توسط بازبین ارشد شرکت بیمه',
+              verdictType: isHistorical ? 'warning' : 'info',
+              directDamage: claimCase.assessment.gross || calc.directDamageAmount,
               diminution: calc.diminutionAmount,
               diminutionPercent: calc.diminutionPercent,
-              salvage: calc.franchiseAmount,
+              salvage: claimCase.assessment.salvage || calc.franchiseAmount,
               totalClaim: calc.totalClaimAmount,
               policyCeiling: calc.policyMaxFinancialLimit,
               insurerPayable: payableAmt,
@@ -1979,27 +2125,15 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               culpritSms: calc.culpritSmsText,
               photos: [],
               isFinal: Boolean(claimCase.isFinalDecision || claimCase.status === 'تصمیم نهایی - غیرقابل اعتراض'),
-              isHistorical: false,
+              isHistorical: isHistorical,
               objectionStage: claimCase.objectionStage || 0,
-              roundVersion: 1,
-              parts: dynamicParts,
+              roundVersion: currentRound,
+              parts: (claimCase.assessment.parts && claimCase.assessment.parts.length > 0) ? claimCase.assessment.parts : dynamicParts,
               damageSpots: carDamageSpotsData
             });
           }
 
           if (cards.length === 0) return null;
-
-          const isWaitingForNewAssessment = Boolean(
-            claimCase.status === 'در انتظار ارجاع به ارزیاب مجدد' ||
-            claimCase.status === 'در حال ارزیابی' ||
-            claimCase.status === 'در انتظار ارزیابی' ||
-            claimCase.status === 'در انتظار بررسی بازبین' ||
-            claimCase.status === 'در حال بررسی اطلاعات تعمیرگاه توسط ارزیاب' ||
-            claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' ||
-            claimCase.status === 'در انتظار بازدید کارشناس میدانی' ||
-            claimCase.status === 'در حال بازدید کارشناس میدانی' ||
-            claimCase.status === 'تردید در اصالت تصادف'
-          );
 
           return (
             <div className="space-y-5">
@@ -2013,7 +2147,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                       کارت‌های کارشناسی و ابلاغیه ارزیابی خسارت پرونده
                     </h3>
                     <p className="text-[11px] text-slate-500">
-                      برآورد کارشناسی و ابلاغیه رسمی بیمه به شرح زیر است. می‌توانید مستقیماً برآورد را تایید و شماره شبا را ثبت فرمایید.
+                      برآورد کارشناسی، تفکیک افت ارزش و داغی، سقف تعهد بیمه‌نامه و وضعیت بدهی مقصر به شرح زیر است.
                     </p>
                   </div>
                 </div>
@@ -2025,10 +2159,36 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               <div className="grid grid-cols-1 gap-5">
                 {cards.map((card) => {
                   const isField = card.type === 'FIELD_EXPERT';
+                  const directDamage = Number(card.directDamage || 0);
+                  const diminution = Number(card.diminution || 0);
+                  const diminutionPercent = Number(card.diminutionPercent || 0);
+                  const salvage = Number(card.salvage || 0);
+                  
+                  // فرمول دقیق: کل خسارت = (خسارت مستقیم + افت ارزش خودرو) - کسر داغی
+                  const totalClaim = Math.max(0, (directDamage + diminution) - salvage);
+                  // سقف تعهد مالی بیمه‌نامه مقصر از استعلام برخط سنهاب
+                  const policyCeiling = Number(card.policyCeiling || calc.policyMaxFinancialLimit || 50000000);
+                  // بیمه حداکثر تا سقف تعهد مالی پرداخت می‌کند
+                  const insurerPayable = Math.min(totalClaim, policyCeiling);
+                  // اگر خسارت بیش از سقف باشد، مابقی بدهی مقصر به زیان‌دیده است
+                  const culpritDebt = Math.max(0, totalClaim - policyCeiling);
+                  const exceedsCeiling = totalClaim > policyCeiling;
+
                   return (
                     <div
                       key={card.id}
-                      onClick={() => setSelectedAssessmentModal(card)}
+                      onClick={() => setSelectedAssessmentModal({
+                        ...card,
+                        directDamage,
+                        diminution,
+                        diminutionPercent,
+                        salvage,
+                        totalClaim,
+                        policyCeiling,
+                        insurerPayable,
+                        culpritDebt,
+                        exceedsCeiling
+                      })}
                       className={`rounded-3xl border-2 transition-all shadow-xs hover:shadow-md overflow-hidden cursor-pointer ${
                         isField
                           ? 'bg-gradient-to-br from-sky-50/70 via-blue-50/30 to-white border-sky-200/90 hover:border-sky-400 hover:ring-2 hover:ring-sky-200/50'
@@ -2064,7 +2224,19 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+                          {exceedsCeiling ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-500/15 text-rose-800 border border-rose-300 flex items-center gap-1">
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                              <span>مازاد بر سقف ({formatCurrency(culpritDebt)} بدهی مقصر)</span>
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/15 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>پوشش ۱۰۰٪ در سقف بیمه‌نامه</span>
+                            </span>
+                          )}
+
                           {isField ? (
                             <span className="px-3 py-1 bg-sky-600 text-white rounded-full text-xs font-black shadow-xs flex items-center gap-1 border border-sky-700">
                               <CheckCircle2 className="w-3.5 h-3.5 text-sky-100" />
@@ -2082,66 +2254,141 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                       {/* Card Body */}
                       <div className="p-5 sm:p-6 space-y-4">
                         
-                        {/* Official Insurance Announcement Banner (Directly on Card) */}
+                        {/* Financial Metrics Summary for THIS Assessment */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <span className="font-bold flex items-center gap-1.5 text-slate-700">
+                              <DollarSign className="w-4 h-4 text-indigo-600" />
+                              <span>محاسبه و تفکیک خسارت، سقف تعهد بیمه‌نامه و وضعیت بدهی:</span>
+                            </span>
+                            <span className="text-[11px] font-medium text-slate-500">
+                              استعلام سنهاب • بیمه‌گر مقصر: {getInsurerPersianName(claimCase.culpritInsurer)}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                              <span className="text-slate-500 block mb-1 font-bold text-[11px]">خسارت فیزیکی و اجرت</span>
+                              <span className="font-bold text-slate-800 text-xs sm:text-sm font-mono">
+                                {formatCurrency(directDamage)}
+                              </span>
+                            </div>
+
+                            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-slate-500 font-bold text-[11px]">افت ارزش خودرو</span>
+                                {diminutionPercent > 0 && (
+                                  <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1 py-0.2 rounded border border-amber-300">
+                                    {diminutionPercent}%
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`font-bold text-xs sm:text-sm font-mono ${diminution > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                                {diminution > 0 ? formatCurrency(diminution) : 'شامل نمی‌شود'}
+                              </span>
+                            </div>
+
+                            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                              <span className="text-slate-500 block mb-1 font-bold text-[11px]">کسر داغی / استهلاک</span>
+                              <span className="font-bold text-rose-700 text-xs sm:text-sm font-mono">
+                                {salvage > 0 ? `-${formatCurrency(salvage)}` : '۰ ریال'}
+                              </span>
+                            </div>
+
+                            <div className="bg-indigo-50/60 p-3 rounded-2xl border border-indigo-200 shadow-2xs">
+                              <span className="text-indigo-900 block mb-1 font-extrabold text-[11px]">مجموع کل خسارت</span>
+                              <span className="font-black text-indigo-950 text-xs sm:text-sm font-mono">
+                                {formatCurrency(totalClaim)}
+                              </span>
+                            </div>
+
+                            <div className="bg-emerald-50 p-3 rounded-2xl border-2 border-emerald-400 shadow-2xs">
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-emerald-900 font-extrabold text-[11px]">سهم بیمه (تا سقف)</span>
+                              </div>
+                              <span className="font-black text-emerald-800 text-xs sm:text-sm font-mono">
+                                {formatCurrency(insurerPayable)}
+                              </span>
+                              <span className="text-[9px] text-emerald-700 block mt-0.5">
+                                سقف: {formatCurrency(policyCeiling)}
+                              </span>
+                            </div>
+
+                            <div className={`p-3 rounded-2xl border-2 shadow-2xs ${
+                              culpritDebt > 0 
+                                ? 'border-rose-400 bg-rose-50 text-rose-950' 
+                                : 'border-slate-200 bg-slate-50 text-slate-700'
+                            }`}>
+                              <span className={`block mb-1 font-bold text-[11px] ${
+                                culpritDebt > 0 ? 'text-rose-800' : 'text-slate-500'
+                              }`}>
+                                بدهی مازاد مقصر
+                              </span>
+                              <span className={`font-black text-xs sm:text-sm font-mono ${
+                                culpritDebt > 0 ? 'text-rose-700' : 'text-slate-500'
+                              }`}>
+                                {culpritDebt > 0 ? formatCurrency(culpritDebt) : 'فاقد بدهی مازاد'}
+                              </span>
+                              {culpritDebt > 0 && (
+                                <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
+                                  پرداخت مستقیم توسط مقصر
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Official Insurance Announcement Banner (Directly inside Card) */}
                         <div className={`p-4 rounded-2xl border text-xs space-y-2 ${
                           isField
-                            ? 'bg-sky-50/60 border-sky-200 text-slate-800'
+                            ? 'bg-sky-50/80 border-sky-200 text-slate-800'
                             : 'bg-slate-50 border-slate-200 text-slate-900'
                         }`}>
                           <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
-                            <div className="flex items-center gap-2 font-black text-xs sm:text-sm text-sky-950">
+                            <div className="flex items-center gap-2 font-black text-xs sm:text-sm text-slate-900">
                               <MessageSquare className={`w-4 h-4 ${isField ? 'text-sky-700' : 'text-indigo-600'} shrink-0`} />
-                              <span>پیام و ابلاغیه رسمی از سمت شرکت بیمه</span>
+                              <span>ابلاغیه رسمی شرکت بیمه برای این ارزیابی</span>
                             </div>
                             <span className={`text-[10px] px-2 py-0.5 rounded font-black border ${
                               isField ? 'bg-sky-100 text-sky-900 border-sky-200' : 'bg-slate-200 text-slate-800 border-slate-300'
                             }`}>
-                              ابلاغ شده به شما
-                            </span>
-                          </div>
-                          <p className="text-xs leading-relaxed font-medium text-slate-700">
-                            {card.officialInsuranceMessage}
-                          </p>
-                        </div>
-
-                        {/* Financial Metrics Summary */}
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
-                            <span className="text-slate-500 block mb-1 font-bold">خسارت مستقیم و اجرت</span>
-                            <span className="font-bold text-slate-800 text-sm">
-                              {formatCurrency(card.directDamage)}
+                              {isVictim ? 'مخاطب: زیان‌دیده' : 'مخاطب: راننده مقصر'}
                             </span>
                           </div>
 
-                          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-slate-500 font-bold">افت ارزش خودرو</span>
-                              {card.diminutionPercent > 0 && (
-                                <span className="text-[10px] font-black text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                                  {card.diminutionPercent}%
-                                </span>
+                          {isVictim ? (
+                            <div className="space-y-1.5 text-slate-700 leading-relaxed">
+                              <p>
+                                زیان‌دیده گرامی ({claimCase.victimName || 'محترم'})؛ مجموع خسارت فیزیکی و افت ارزش خودروی شما پس از کسر داغی در این ارزیابی به مبلغ <strong className="text-slate-950 font-mono">{formatCurrency(totalClaim)}</strong> برآورد گردید.
+                              </p>
+                              <p className="text-emerald-800 font-medium bg-emerald-50/80 p-2 rounded-xl border border-emerald-200">
+                                <strong>سهم پرداختی بیمه:</strong> مبلغ <strong className="font-mono">{formatCurrency(insurerPayable)}</strong> (حداکثر تا سقف تعهد مالی بیمه‌نامه شخص ثالث مقصر) پس از تایید شماره شبا، مستقیماً به حساب شما واریز خواهد شد.
+                              </p>
+                              {culpritDebt > 0 && (
+                                <p className="text-rose-900 font-medium bg-rose-50/80 p-2 rounded-xl border border-rose-200">
+                                  <strong>بدهی مازاد مقصر:</strong> مبلغ <strong className="font-mono">{formatCurrency(culpritDebt)}</strong> مازاد بر سقف بیمه‌نامه بوده و بر اساس قانون بیمه شخص ثالث، بدهی قطعی راننده مقصر ({claimCase.culpritName || 'راننده مقصر'}) به شما می‌باشد و مستقیماً توسط مقصر قابل پرداخت است.
+                                </p>
                               )}
                             </div>
-                            <span className={`font-bold text-sm ${card.diminution > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
-                              {card.diminution > 0 ? formatCurrency(card.diminution) : 'شامل نمی‌شود'}
-                            </span>
-                          </div>
-
-                          <div className="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-2xs">
-                            <span className="text-slate-500 block mb-1 font-bold">کسورات داغی / استهلاک</span>
-                            <span className="font-bold text-rose-700 text-sm">
-                              {formatCurrency(card.salvage)}
-                            </span>
-                          </div>
-
-                          <div className={`bg-white p-3.5 rounded-2xl border-2 shadow-2xs ${
-                            isField ? 'border-sky-300 bg-sky-50/30' : 'border-indigo-300'
-                          }`}>
-                            <span className="text-slate-500 block mb-1 font-bold">مبلغ مصوب پرداختی بیمه</span>
-                            <span className={`font-black text-sm ${isField ? 'text-sky-950' : 'text-indigo-900'}`}>
-                              {formatCurrency(card.insurerPayable)}
-                            </span>
-                          </div>
+                          ) : (
+                            <div className="space-y-1.5 text-slate-700 leading-relaxed">
+                              <p>
+                                راننده مقصر گرامی ({claimCase.culpritName || 'محترم'})؛ مجموع خسارت وارده به زیان‌دیده ({claimCase.victimName || 'زیان‌دیده'}) در این ارزیابی مبلغ <strong className="text-slate-950 font-mono">{formatCurrency(totalClaim)}</strong> محاسبه شده است.
+                              </p>
+                              <p className="text-emerald-800 font-medium bg-emerald-50/80 p-2 rounded-xl border border-emerald-200">
+                                شرکت بیمه {getInsurerPersianName(claimCase.culpritInsurer)} تا سقف تعهد مالی بیمه‌نامه شما (مبلغ <strong className="font-mono">{formatCurrency(insurerPayable)}</strong>) را به زیان‌دیده پرداخت می‌نماید.
+                              </p>
+                              {culpritDebt > 0 ? (
+                                <p className="text-rose-900 font-medium bg-rose-50/80 p-2 rounded-xl border border-rose-200">
+                                  <strong>بدهی مازاد شما:</strong> مبلغ <strong className="font-mono">{formatCurrency(culpritDebt)}</strong> مازاد بر سقف تعهد بیمه‌نامه بوده و بدهی شخصی شما به زیان‌دیده است که باید مستقیماً با ایشان تسویه نمایید.
+                                </p>
+                              ) : (
+                                <p className="text-emerald-800 font-medium">
+                                  کل خسارت در سقف تعهدات بیمه‌نامه شما پوشش یافته و فاقد هرگونه بدهی مازاد می‌باشید.
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Field Expert Recorded Details (Interactive Multi-Tab Viewer: 2D Model, Photos, Descriptions, Parts, Branch) */}
@@ -2566,13 +2813,13 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                         ) : (
                           <div className="space-y-3 pt-1">
                             {isCulprit && (
-                              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-700 space-y-1">
-                                <div className="flex items-center gap-1.5 font-black text-slate-800">
-                                  <Info className="w-4 h-4 text-slate-500" />
+                              <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl text-xs text-amber-900 space-y-1">
+                                <div className="flex items-center gap-1.5 font-black text-amber-950">
+                                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
                                   <span>وضعیت برای مقصر حادثه (صرفاً مشاهده‌کننده)</span>
                                 </div>
-                                <p className="text-[11px] text-slate-600 font-medium">
-                                  تایید خسارت و ثبت شماره شبا صرفاً توسط زیان‌دیده انجام می‌پذیرد. شما به عنوان طرف مقصر صرفاً مبالغ تعهد بیمه را مشاهده می‌فرمایید.
+                                <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
+                                  شما به عنوان مقصر حادثه، صرفاً دسترسی مشاهده مبالغ تعهد بیمه و سوابق را دارید. ثبت شماره شبا، تایید برآورد و اعتراض به ارزیابی منحصراً در اختیار زیان‌دیده حادثه می‌باشد.
                                 </p>
                               </div>
                             )}
@@ -2585,13 +2832,13 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                             )}
 
                             {isVictim && claimCase.status !== 'پرداخت شده' && isWaitingForNewAssessment && (
-                              <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-xs text-amber-950 space-y-1 shadow-2xs">
-                                <div className="flex items-center gap-2 font-black text-amber-900">
-                                  <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                                  <span>پرونده در دست ارزیابی مجدد / بررسی توسط کارشناس و بازبین</span>
+                              <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl text-xs text-amber-950 space-y-1.5 shadow-2xs">
+                                <div className="flex items-center gap-2 font-black text-amber-950">
+                                  <Clock className="w-4.5 h-4.5 text-amber-600 shrink-0 animate-pulse" />
+                                  <span>پرونده در دست اقدام و ارزیابی مجدد توسط کارشناس بیمه</span>
                                 </div>
-                                <p className="text-[11px] text-amber-800 leading-relaxed font-medium">
-                                  اعتراض شما با موفقیت ثبت شده و پرونده در دست اقدام ارزیاب جدید یا بازبین شرکت بیمه می‌باشد. تا زمان ثبت و ابلاغ برآورد جدید، امکان ثبت اعتراض ثانویه یا اقدام تعمیرگاهی وجود ندارد.
+                                <p className="text-[11px] text-amber-900 leading-relaxed font-medium">
+                                  اعتراض شما با موفقیت ثبت شده و پرونده در دست بررسی و ارزیابی مجدد توسط کارشناس ارزیاب بعدی قرار دارد. تا زمان ثبت و ابلاغ برآورد جدید، امکان اعتراض مجدد، معرفی تعمیرگاه یا ثبت شماره شبا وجود ندارد.
                                 </p>
                               </div>
                             )}
@@ -2610,61 +2857,72 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                                   className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-xs sm:text-sm shadow-md shadow-indigo-600/20 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                                 >
                                   <CreditCard className="w-4.5 h-4.5" />
-                                  تایید برآورد خسارت و ثبت شماره شبا (جهت واریز وجه)
+                                  <span>
+                                    {card.roundVersion > 1
+                                      ? `تایید برآورد کارشناسی ارزیاب دوم (نوبت ${card.roundVersion}) و ثبت شماره شبا (جهت واریز وجه)`
+                                      : 'تایید برآورد خسارت و ثبت شماره شبا (جهت واریز وجه)'}
+                                  </span>
                                 </button>
 
-                                {/* Objection stages for damage assessor */}
+                                {/* Sequential Non-Retroactive Objections */}
                                 {!card.isFinal && (
                                   <>
-                                    {(!card.objectionStage || card.objectionStage === 0) && (
+                                    {/* Round 1 assessment: Stage 1 Objection */}
+                                    {card.roundVersion <= 1 && (!claimCase.objectionStage || claimCase.objectionStage === 0) && (
                                       <button
+                                        type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setShowObjection1Modal(true);
                                         }}
-                                        className="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
+                                        className="w-full py-3 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                                       >
                                         <AlertTriangle className="w-4 h-4 text-rose-600" />
-                                        اعتراض به ارزیابی اولیه (مرحله ۱ - درخواست ارزیاب جدید)
+                                        اعتراض به ارزیابی اولیه (مرحله ۱ - ارجاع به کارشناس دوم)
                                       </button>
                                     )}
 
-                                    {card.objectionStage === 1 && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setShowObjection2Modal(true);
-                                        }}
-                                        className="w-full py-3 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
-                                      >
-                                        <MessageSquare className="w-4 h-4 text-amber-600" />
-                                        اعتراض به ارزیابی ثانویه (مرحله ۲ - چت مستقیم و ارسال مدارک تکمیلی به ارزیاب)
-                                      </button>
+                                    {/* Round 2 assessment: Stage 2 Objection & Workshop Registration */}
+                                    {(card.roundVersion === 2 || claimCase.objectionStage === 1) && (
+                                      <div className="space-y-2">
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowWorkshopModal(true);
+                                          }}
+                                          className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                                        >
+                                          <Building2 className="w-4 h-4 text-indigo-600" />
+                                          اعتراض به ارزیابی دوم (مرحله ۲ - ثبت اطلاعات تعمیرگاه مورد نظر / فاکتور)
+                                        </button>
+
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowObjection2Modal(true);
+                                          }}
+                                          className="w-full py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                                        >
+                                          <MessageSquare className="w-4 h-4 text-amber-600" />
+                                          گفتگو و ارسال مدارک تکمیلی به کارشناس ارزیاب دوم
+                                        </button>
+                                      </div>
                                     )}
 
-                                    {card.objectionStage === 2 && (
+                                    {/* Round 3 assessment / Field Visit Request */}
+                                    {(card.roundVersion >= 3 || (claimCase.objectionStage && claimCase.objectionStage >= 2) || Boolean(claimCase.workshopInfo)) && (
                                       <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setShowWorkshopModal(true);
-                                        }}
-                                        className="w-full py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 border border-indigo-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
-                                      >
-                                        <Building2 className="w-4 h-4 text-indigo-600" />
-                                        اعتراض مرحله ۳ - ثبت اطلاعات تعمیرگاه مورد نظر
-                                      </button>
-                                    )}
-
-                                    {card.objectionStage === 3 && (
-                                      <button
+                                        type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           handleRequestFieldInspector();
                                         }}
-                                        className="w-full py-3 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
+                                        className="w-full py-3 bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                                       >
                                         <UserCheck className="w-4 h-4 text-purple-600" />
-                                        اعتراض مرحله ۴ - درخواست ارزیابی میدانی / مراجعه حضوری به شعبه
+                                        درخواست ارزیابی میدانی / مراجعه حضوری به شعبه شرکت بیمه
                                       </button>
                                     )}
                                   </>
@@ -2817,7 +3075,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
         )}
 
         {/* Bank Account IBAN Input Form Modal/Section */}
-        {(showBankForm || claimCase.payoutInfo?.iban || claimCase.status === 'در انتظار پرداخت') && (
+        {hasAnyCompletedAssessment && !isCulprit && (showBankForm || claimCase.payoutInfo?.iban || claimCase.status === 'در انتظار پرداخت') && (
           <div id="iban-section" className="bg-gradient-to-br from-sky-50/80 via-blue-50/40 to-white border-2 border-sky-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm scroll-mt-6">
             <div className="flex items-center justify-between border-b border-sky-100 pb-3">
               <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2">
@@ -2913,6 +3171,19 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 </span>
               </button>
             )}
+          </div>
+        )}
+
+        {/* If Culprit views case during payment stage */}
+        {hasAnyCompletedAssessment && isCulprit && (claimCase.status === 'در انتظار پرداخت' || claimCase.status === 'پرداخت شده') && (
+          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 space-y-2 text-slate-800">
+            <div className="flex items-center gap-2 font-black text-xs text-slate-900">
+              <Info className="w-4.5 h-4.5 text-slate-500 shrink-0" />
+              <span>وضعیت پرداخت خسارت به زیان‌دیده</span>
+            </div>
+            <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+              اطلاعات بانکی توسط زیان‌دیده حادثه ثبت گردیده و فرآیند حواله وجه از محل بیمه‌نامه شخص ثالث شما در حال انجام می‌باشد.
+            </p>
           </div>
         )}
 
@@ -3336,6 +3607,138 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                   className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold shadow-md shadow-indigo-600/30"
                 >
                   ثبت اطلاعات تعمیرگاه
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Objection Stage 4 / Final Field Visit & Branch Request Modal */}
+      {showFieldVisitModal && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-purple-600" />
+                <span>درخواست ارزیابی میدانی / مراجعه به شعبه (مرحله نهایی)</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowFieldVisitModal(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-2xl border border-purple-200 text-xs text-purple-950 space-y-1">
+              <span className="font-extrabold block">فرآیند ارزیابی حضوری کارشناس رسمی:</span>
+              <p className="leading-relaxed text-[11px]">
+                در این مرحله، پرونده مستقیماً به نزدیک‌ترین کارشناس رسمی میدانی شرکت بیمه ارجاع خواهد شد تا با بازدید فیزیکی خودرو، اصالت‌سنجی قطعات و تعیین برآورد نهایی اقدام نماید.
+              </p>
+            </div>
+
+            <form onSubmit={handleFieldVisitSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1.5">
+                  نوع ارزیابی درخواستی <span className="text-rose-500">*</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label
+                    onClick={() => setFieldVisitType('FIELD_VISIT')}
+                    className={`p-3 rounded-xl border-2 flex items-center gap-2 cursor-pointer transition-all ${
+                      fieldVisitType === 'FIELD_VISIT'
+                        ? 'border-purple-600 bg-purple-50/70 text-purple-950 font-bold'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="fieldVisitType"
+                      checked={fieldVisitType === 'FIELD_VISIT'}
+                      onChange={() => setFieldVisitType('FIELD_VISIT')}
+                      className="text-purple-600"
+                    />
+                    <span>اعزام کارشناس به محل خودرو</span>
+                  </label>
+
+                  <label
+                    onClick={() => setFieldVisitType('BRANCH_VISIT')}
+                    className={`p-3 rounded-xl border-2 flex items-center gap-2 cursor-pointer transition-all ${
+                      fieldVisitType === 'BRANCH_VISIT'
+                        ? 'border-purple-600 bg-purple-50/70 text-purple-950 font-bold'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="fieldVisitType"
+                      checked={fieldVisitType === 'BRANCH_VISIT'}
+                      onChange={() => setFieldVisitType('BRANCH_VISIT')}
+                      className="text-purple-600"
+                    />
+                    <span>مراجعه حضوری به شعبه خسارت</span>
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  آدرس و موقعیت استقرار فعلی خودرو جهت بازدید <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={fieldVisitAddress}
+                  onChange={(e) => setFieldVisitAddress(e.target.value)}
+                  placeholder="شهر، خیابان، کوچه، پلاک، محل توقف خودرو یا تعمیرگاه..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white font-medium text-slate-900 focus:ring-2 focus:ring-purple-200 focus:border-purple-600 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  شماره تماس جهت هماهنگی کارشناس میدانی <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={fieldVisitContactPhone}
+                  onChange={(e) => setFieldVisitContactPhone(e.target.value)}
+                  placeholder="۰۹۱۲xxxxxxx"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono bg-white text-slate-900 focus:ring-2 focus:ring-purple-200 focus:border-purple-600 focus:outline-none"
+                  dir="ltr"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  توضیحات و نکات تکمیلی برای کارشناس میدانی (اختیاری)
+                </label>
+                <textarea
+                  rows={2}
+                  value={fieldVisitReason}
+                  onChange={(e) => setFieldVisitReason(e.target.value)}
+                  placeholder="نکاتی در مورد زمان مناسب بازدید، قطعات تعویضی مورد اختلاف، یا وضعیت حرکت خودرو..."
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 focus:ring-2 focus:ring-purple-200 focus:border-purple-600 focus:outline-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowFieldVisitModal(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold shadow-md shadow-purple-600/30 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <UserCheck className="w-4 h-4" />
+                  <span>ثبت درخواست ارزیابی میدانی</span>
                 </button>
               </div>
             </form>
@@ -4155,7 +4558,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 بستن پنجره جزئیات
               </button>
 
-              {isVictim && claimCase.status !== 'پرداخت شده' && (
+              {isVictim && !selectedAssessmentModal.isHistorical && !isWaitingForNewAssessment && claimCase.status !== 'پرداخت شده' && (
                 <button
                   type="button"
                   onClick={() => {

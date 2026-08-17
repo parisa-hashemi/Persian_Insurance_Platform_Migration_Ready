@@ -288,6 +288,13 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
             reviewerNote: activeCase.assessment.reviewerNote || 'تایید شده توسط بازبین کیفیت'
           }
         : undefined,
+      assessments: activeCase.assessments
+        ? activeCase.assessments.map((a, i) =>
+            i === activeCase.assessments!.length - 1
+              ? { ...a, status: 'PUBLISHED', approvedByReviewer: true }
+              : a
+          )
+        : undefined,
       docChat: [
         ...(activeCase.docChat || []),
         {
