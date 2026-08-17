@@ -171,6 +171,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
     const updatedCalls = [newLog, ...callLogs];
     setCallLogs(updatedCalls);
     saveCrmCallLogsToStorage(updatedCalls);
+    window.dispatchEvent(new CustomEvent('claimflow_crm_calls_updated'));
 
     // If linked to a case, append audit history entry to authoritative case
     if (newCallForm.caseId.trim()) {
@@ -329,6 +330,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
     const updatedTickets = [newTicket, ...tickets];
     setTickets(updatedTickets);
     saveCrmTicketsToStorage(updatedTickets);
+    window.dispatchEvent(new CustomEvent('claimflow_crm_tickets_updated'));
 
     // If linked to case, append audit history
     if (newTicketForm.caseId.trim()) {
@@ -747,6 +749,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
             onUpdateTickets={updated => {
               setTickets(updated);
               saveCrmTicketsToStorage(updated);
+              window.dispatchEvent(new CustomEvent('claimflow_crm_tickets_updated'));
             }}
             onSelectCase={caseId => {
               setSelectedCaseId(caseId);

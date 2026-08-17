@@ -194,39 +194,39 @@ export const CrmTimeline: React.FC<CrmTimelineProps> = ({
   const getTypeBadge = (type: TimelineItem['type']) => {
     switch (type) {
       case 'STATUS':
-        return { bg: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30', label: 'وضعیت گردش‌کار' };
+        return { bg: 'bg-indigo-50 text-indigo-700 border-indigo-200', label: 'وضعیت گردش‌کار' };
       case 'EVIDENCE':
-        return { bg: 'bg-sky-500/20 text-sky-300 border-sky-500/30', label: 'مدارک و کروکی' };
+        return { bg: 'bg-sky-50 text-sky-700 border-sky-200', label: 'مدارک و کروکی' };
       case 'ASSESSMENT':
-        return { bg: 'bg-amber-500/20 text-amber-300 border-amber-500/30', label: 'ارزیابی خسارت' };
+        return { bg: 'bg-amber-50 text-amber-800 border-amber-200', label: 'ارزیابی خسارت' };
       case 'REVIEW':
-        return { bg: 'bg-purple-500/20 text-purple-300 border-purple-500/30', label: 'بازبینی و نظارت' };
+        return { bg: 'bg-purple-50 text-purple-700 border-purple-200', label: 'بازبینی و نظارت' };
       case 'PAYOUT':
-        return { bg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30', label: 'مالی و تسویه' };
+        return { bg: 'bg-emerald-50 text-emerald-700 border-emerald-200', label: 'مالی و تسویه' };
       case 'COMPLAINT':
-        return { bg: 'bg-rose-500/20 text-rose-300 border-rose-500/30', label: 'شکایت و تیکت' };
+        return { bg: 'bg-rose-50 text-rose-700 border-rose-200', label: 'شکایت و تیکت' };
       case 'CALL':
-        return { bg: 'bg-teal-500/20 text-teal-300 border-teal-500/30', label: 'تماس تلفنی' };
+        return { bg: 'bg-teal-50 text-teal-700 border-teal-200', label: 'تماس تلفنی' };
       case 'FOLLOWUP':
-        return { bg: 'bg-orange-500/20 text-orange-300 border-orange-500/30', label: 'پیگیری داخلی' };
+        return { bg: 'bg-orange-50 text-orange-800 border-orange-200', label: 'پیگیری داخلی' };
       default:
-        return { bg: 'bg-slate-700 text-slate-300 border-slate-600', label: 'رویداد' };
+        return { bg: 'bg-slate-100 text-slate-700 border-slate-200', label: 'رویداد' };
     }
   };
 
   return (
-    <div className="bg-slate-800/80 border border-slate-700/80 rounded-3xl p-5 sm:p-6 space-y-5 shadow-lg">
+    <div className="bg-white border border-slate-200/80 rounded-3xl p-5 sm:p-6 space-y-5 shadow-xs">
       {/* Header & Filter Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/60 pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-2xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center justify-center font-bold">
+          <div className="w-9 h-9 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-200 flex items-center justify-center font-bold">
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="font-extrabold text-sm sm:text-base text-white">
+            <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
               تایم‌لاین یکپارچه و امن پرونده خسارت
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               تجمیع وقایع پذیرش، کارشناسی، بازبینی، مالی، شکایات و مکالمات ثبت‌شده
             </p>
           </div>
@@ -238,8 +238,8 @@ export const CrmTimeline: React.FC<CrmTimelineProps> = ({
             onClick={() => setOnlyCustomerSafe(!onlyCustomerSafe)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
               onlyCustomerSafe
-                ? 'bg-emerald-600/30 text-emerald-200 border-emerald-500/50'
-                : 'bg-slate-700 text-slate-300 border-slate-600'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
             }`}
           >
             {onlyCustomerSafe ? '✓ فقط رویدادهای قابل اعلام به مشتری' : 'نمایش همه رویدادها (شامل یادداشت‌های داخلی)'}
@@ -248,33 +248,33 @@ export const CrmTimeline: React.FC<CrmTimelineProps> = ({
       </div>
 
       {/* Timeline Stream */}
-      <div className="relative border-r-2 border-slate-700 mr-3 pr-5 space-y-6">
+      <div className="relative border-r-2 border-slate-200 mr-3 pr-5 space-y-5">
         {filteredItems.map((item, idx) => {
           const badge = getTypeBadge(item.type);
           return (
             <div key={item.id || idx} className="relative group">
               {/* Dot */}
-              <div className="absolute -right-[27px] top-1.5 w-3.5 h-3.5 rounded-full bg-slate-900 border-2 border-indigo-500 group-hover:scale-125 transition-transform"></div>
+              <div className="absolute -right-[27px] top-1.5 w-3.5 h-3.5 rounded-full bg-white border-2 border-indigo-600 group-hover:scale-125 transition-transform shadow-2xs"></div>
 
-              <div className="bg-slate-900/70 border border-slate-700/70 hover:border-slate-600 rounded-2xl p-4 space-y-2 transition-all">
+              <div className="bg-slate-50/80 border border-slate-200/80 hover:border-indigo-200 rounded-2xl p-4 space-y-2 transition-all shadow-2xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${badge.bg}`}>
                       {badge.label}
                     </span>
-                    <span className="font-bold text-white text-xs">{item.title}</span>
+                    <span className="font-bold text-slate-900 text-xs">{item.title}</span>
                   </div>
-                  <span className="font-mono text-slate-400 text-[11px]">{item.timestamp}</span>
+                  <span className="font-mono text-slate-500 text-[11px]">{item.timestamp}</span>
                 </div>
 
-                <p className="text-xs text-slate-300 leading-relaxed">{item.description}</p>
+                <p className="text-xs text-slate-700 leading-relaxed">{item.description}</p>
 
-                <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 border-t border-slate-800">
+                <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-slate-200/60">
                   <span>
-                    ثبت‌کننده: <strong className="text-slate-200">{item.actor}</strong> ({item.actorRole})
+                    ثبت‌کننده: <strong className="text-slate-800">{item.actor}</strong> ({item.actorRole})
                   </span>
                   {!item.isCustomerSafe && (
-                    <span className="text-amber-400 font-bold text-[10px]">
+                    <span className="text-amber-800 font-bold text-[10px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
                       🔒 یادداشت محرمانه داخلی CRM
                     </span>
                   )}

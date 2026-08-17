@@ -40,13 +40,19 @@ import {
   Car,
   FileSpreadsheet,
   DollarSign,
-  Info
+  Info,
+  PhoneCall,
+  MessageSquarePlus,
+  Headphones
 } from 'lucide-react';
-import { ClaimCase, UserSession, CaseStatus, AdditionalDocItem, ExpertComplaint } from '../../types';
-import { formatCurrency, parseMoneyNumber, getInsurerPersianName, loadComplaintsFromStorage, saveComplaintsToStorage } from '../../lib/storage';
+import { ClaimCase, UserSession, CaseStatus, AdditionalDocItem, ExpertComplaint, CustomerTicket, PaymentOrder } from '../../types';
+import { formatCurrency, parseMoneyNumber, getInsurerPersianName, loadComplaintsFromStorage, saveComplaintsToStorage, loadCrmTicketsFromStorage, saveCrmTicketsToStorage, loadPaymentOrdersFromStorage, savePaymentOrdersToStorage } from '../../lib/storage';
 import { compressImageFile } from '../../lib/imageCompressor';
 import { calculateClaimDamageWithPolicyLimits, performPolicySanhabInquiry } from '../../lib/policyLimitCalculator';
 import { Car3DViewer } from '../Car3DViewer';
+import { CustomerTicketModal } from './CustomerTicketModal';
+import { CustomerTicketsSection } from './CustomerTicketsSection';
+import { CustomerExpertCallModal } from './CustomerExpertCallModal';
 
 // Helper to detect Iranian bank name from IBAN (Sheba) code
 export const getBankNameFromIban = (ibanStr: string): string => {
@@ -130,14 +136,6 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [disputeSubject, setDisputeSubject] = useState('مبلغ ارزیابی نامتناسب');
   const [disputeDesc, setDisputeDesc] = useState('');
-
-  // Authenticity Dispute state (تردید در اصالت تصادف / اعزام کارشناس میدانی)
-  const [showAuthenticityModal, setShowAuthenticityModal] = useState(false);
-  const [authenticityReason, setAuthenticityReason] = useState('صحنه تصادف صوری یا ساختگی است');
-  const [authenticityDesc, setAuthenticityDesc] = useState('');
-  const [authenticityPhoto, setAuthenticityPhoto] = useState<string | null>(null);
-  const [authenticityPhotoName, setAuthenticityPhotoName] = useState<string>('');
-  const [authenticitySuccessMsg, setAuthenticitySuccessMsg] = useState<string | null>(null);
 
   // Rating state
   const [ratingStars, setRatingStars] = useState<number>(0);
@@ -285,6 +283,11 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     }
     return c.target === 'هر دو' || c.target === userRole;
   });
+
+  // CRM Ticket & Support State
+  const [showCrmTicketModal, setShowCrmTicketModal] = useState(false);
+  const [showExpertCallModal, setShowExpertCallModal] = useState(false);
+  const [ticketToastMsg, setTicketToastMsg] = useState<string | null>(null);
 
   // Customer Complaint Against Expert State
   const [showExpertComplaintModal, setShowExpertComplaintModal] = useState(false);
@@ -987,6 +990,65 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
     onUpdateCase(updated);
 
+    // Save and sync payment order directly to finance queue storage
+    try {
+      const existingOrders = loadPaymentOrdersFromStorage();
+      const orderIndex = existingOrders.findIndex(o => o.caseId === claimCase.id);
+      const netAmt = payableFinal;
+      const isCriticalOrUrgent = claimCase.damageType === 'خسارت جرحی/فوتی' || netAmt > 200000000;
+      const slaPrio = isCriticalOrUrgent ? 'CRITICAL' : netAmt > 80000000 ? 'HIGH' : 'NORMAL';
+
+      const orderPayload: PaymentOrder = {
+        id: orderIndex >= 0 ? existingOrders[orderIndex].id : `PAY-ORD-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 899 + 100)}`,
+        caseId: claimCase.id,
+        victimName: beneficiary || claimCase.victimName || claimCase.ownerName || 'زیان‌دیده محترم',
+        victimNationalId: nationalId,
+        victimPhone: claimCase.victimPhone || session.phone || '09120000000',
+        victimIban: iban,
+        victimBankName: detectedBank,
+        culpritName: claimCase.culpritName || 'طرف مقابل',
+        culpritInsurer: claimCase.culpritInsurer || claimCase.insurer || 'dana',
+        grossAmount: claimCase.assessment?.gross || netAmt,
+        salvageDeduction: claimCase.assessment?.salvageDeduction || 0,
+        taxDeduction: 0,
+        franchiseDeduction: damageCalc.franchiseAmount || 0,
+        netPayableAmount: netAmt,
+        status: 'READY_FOR_PAYMENT',
+        slaPriority: slaPrio,
+        slaDeadline: slaPrio === 'CRITICAL' ? 'امروز ساعت ۱۴:۰۰' : slaPrio === 'HIGH' ? 'فردا ساعت ۱۱:۰۰' : '۴۸ ساعت آینده',
+        slaRemainingHours: slaPrio === 'CRITICAL' ? 2 : slaPrio === 'HIGH' ? 12 : 36,
+        slaStatus: 'ON_TRACK',
+        paymentMethod: netAmt > 100000000 ? 'SATNA' : 'PAYA',
+        issueDate: new Date().toLocaleDateString('fa-IR'),
+        readyDate: nowTimeStr,
+        financeNotes: `اطلاعات بانکی توسط زیان‌دیده (${beneficiary || claimCase.victimName}) ثبت و پرونده به صورت برخط به کارتابل مدیر مالی منتقل شد.`,
+        accountVoucherNumber: `VCH-${new Date().getFullYear()}-${Math.floor(Math.random() * 8999 + 1000)}`,
+        preCheck: {
+          ibanValid: true,
+          ibanBankName: detectedBank,
+          nameMatchConfidence: 100,
+          nameMatchPassed: true,
+          amountUnderCeiling: true,
+          payoutReadyVerified: true,
+          noDuplicatePassed: true,
+          checkedAt: new Date().toLocaleDateString('fa-IR'),
+          checkedBy: 'سیستم اعتبارسنجی خزانه‌داری'
+        }
+      };
+
+      let updatedOrdersList: PaymentOrder[];
+      if (orderIndex >= 0) {
+        updatedOrdersList = [...existingOrders];
+        updatedOrdersList[orderIndex] = { ...existingOrders[orderIndex], ...orderPayload, status: 'READY_FOR_PAYMENT' };
+      } else {
+        updatedOrdersList = [orderPayload, ...existingOrders];
+      }
+      savePaymentOrdersToStorage(updatedOrdersList);
+      window.dispatchEvent(new CustomEvent('claimflow_payment_orders_updated'));
+    } catch (e) {
+      console.error('Error updating payment orders storage:', e);
+    }
+
     // Show comprehensive success modal to inform the user about insurance queue and finance manager forwarding
     setBankSuccessModal({
       isOpen: true,
@@ -1028,67 +1090,6 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
     onUpdateCase(updated);
     setShowDisputeModal(false);
-  };
-
-  const handleSubmitAuthenticityDispute = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!authenticityDesc.trim()) return;
-
-    const myDisplayName = session.name || (isPartyOne ? claimCase.victimName : claimCase.culpritName) || 'مشتری';
-    const nowTimeStr = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
-
-    let updatedDocs = claimCase.additionalDocs || [];
-    if (authenticityPhoto) {
-      const docItem: AdditionalDocItem = {
-        id: `DOC-AUTH-${Date.now()}`,
-        title: authenticityPhotoName || 'مستندات تردید در اصالت تصادف',
-        docType: 'مدرک تردید در اصالت تصادف',
-        fileType: 'image',
-        fileName: authenticityPhotoName || 'evidence.jpg',
-        dataUrl: authenticityPhoto,
-        uploadedBy: myDisplayName,
-        uploaderRole: myRoleLabel,
-        uploaderParty: isPartyOne ? 'PARTY_ONE' : 'PARTY_TWO',
-        uploadedAt: nowTimeStr,
-        visibility: 'SHARED',
-        note: authenticityDesc.trim()
-      };
-      updatedDocs = [...updatedDocs, docItem];
-    }
-
-    const updated: ClaimCase = {
-      ...claimCase,
-      status: 'تردید در اصالت تصادف',
-      needsCulpritFieldVisit: true,
-      additionalDocs: updatedDocs,
-      authenticityDispute: {
-        disputedBy: myDisplayName,
-        role: myRoleLabel,
-        reason: authenticityReason,
-        description: authenticityDesc.trim(),
-        submittedAt: nowTimeStr,
-        evidencePhotos: authenticityPhoto ? [authenticityPhoto] : undefined
-      },
-      history: [
-        ...(claimCase.history || []),
-        {
-          status: 'تردید در اصالت تصادف',
-          time: nowTimeStr,
-          user: myDisplayName,
-          userRole: myRoleLabel,
-          uploaderParty: isPartyOne ? 'PARTY_ONE' : 'PARTY_TWO',
-          note: `ثبت اعلام تردید در اصالت تصادف توسط ${myRoleLabel} (${myDisplayName}) به علت: «${authenticityReason}». پرونده جهت اعزام کارشناس میدانی به شرکت بیمه ارسال گردید.`
-        }
-      ]
-    };
-
-    onUpdateCase(updated);
-    setShowAuthenticityModal(false);
-    setAuthenticityDesc('');
-    setAuthenticityPhoto(null);
-    setAuthenticityPhotoName('');
-    setAuthenticitySuccessMsg('اعلام تردید در اصالت تصادف با موفقیت ثبت شد و پرونده جهت اعزام کارشناس میدانی به شرکت بیمه ارسال گردید.');
-    setTimeout(() => setAuthenticitySuccessMsg(null), 7000);
   };
 
   const handleRatingSubmit = (stars: number) => {
@@ -1135,18 +1136,27 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {/* Authenticity Doubt Button */}
-            {claimCase.status !== 'پرداخت شده' && (
-              <button
-                type="button"
-                onClick={() => setShowAuthenticityModal(true)}
-                className="px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border-2 border-amber-400 font-black text-xs transition-all flex items-center gap-1.5 shadow-xs active:scale-95"
-                title="در صورت صوری یا ساختگی بودن تصادف یا عدم تطابق خسارت"
-              >
-                <ShieldAlert className="w-4 h-4 text-amber-700" />
-                <span>تردید در اصالت تصادف (اعزام کارشناس میدانی)</span>
-              </button>
-            )}
+            {/* Direct Expert Call / Inquiry Button */}
+            <button
+              type="button"
+              onClick={() => setShowExpertCallModal(true)}
+              className="px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-black text-xs transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
+              title="تماس مستقیم یا ارسال پیام اضطراری به کارشناس ارزیاب"
+            >
+              <PhoneCall className="w-4 h-4 text-sky-600" />
+              <span>تماس با کارشناس</span>
+            </button>
+
+            {/* Submit Ticket / CRM Complaint Button */}
+            <button
+              type="button"
+              onClick={() => setShowCrmTicketModal(true)}
+              className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-black text-xs transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
+              title="ثبت تیکت پشتیبانی و شکایت در مرکز CRM بیمه"
+            >
+              <MessageSquarePlus className="w-4 h-4 text-rose-600" />
+              <span>ثبت تیکت / شکایت CRM</span>
+            </button>
 
             {claimCase.assessment && (
               <button
@@ -1175,136 +1185,84 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
         )}
 
-        {/* Authenticity Success Feedback Banner */}
-        {authenticitySuccessMsg && (
-          <div className="bg-emerald-100 border-2 border-emerald-400 rounded-3xl p-5 flex items-start gap-3 shadow-md animate-in fade-in">
-            <CheckCircle2 className="w-6 h-6 text-emerald-700 shrink-0 mt-0.5" />
-            <div className="space-y-1 text-xs">
-              <h4 className="font-black text-emerald-950 text-sm">
-                درخواست بررسی اصالت تصادف با موفقیت ثبت شد
-              </h4>
-              <p className="text-emerald-900 font-medium leading-relaxed">
-                {authenticitySuccessMsg}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Active Authenticity Dispute Banner (When Case is flagged for authenticity inspection) */}
-        {(claimCase.authenticityDispute || claimCase.status === 'تردید در اصالت تصادف' || claimCase.status === 'در انتظار بازدید کارشناس میدانی' || claimCase.status === 'در حال بازدید کارشناس میدانی') && (
-          <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100 border-2 border-amber-400 rounded-3xl p-5 sm:p-6 space-y-3 shadow-sm animate-in fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-amber-200 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold shadow-xs">
-                  <ShieldAlert className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-amber-950 text-sm sm:text-base">
-                    پرونده در وضعیت «تردید در اصالت تصادف و اعزام کارشناس میدانی»
-                  </h3>
-                  <p className="text-[11px] text-amber-800 font-bold">
-                    ثبت‌شده توسط: {claimCase.authenticityDispute?.disputedBy || 'مشتری'} ({claimCase.authenticityDispute?.role || 'طرف حادثه'}) | تاریخ: {claimCase.authenticityDispute?.submittedAt || claimCase.date}
-                  </p>
-                </div>
+        {/* Field Expert & Branch Dispatch Live Card */}
+        {(claimCase.assignedFieldExpert || claimCase.assignedBranch) && (
+          <div className="p-4 bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-2xl text-xs space-y-3 shadow-md border border-sky-500/30">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-2.5">
+              <div className="flex items-center gap-2 font-bold text-amber-300">
+                <UserCheck className="w-4.5 h-4.5 text-amber-400" />
+                <span className="text-xs sm:text-sm font-black">وضعیت کارشناسی میدانی و هماهنگی شعبه بیمه ({getInsurerPersianName(claimCase.culpritInsurer)}):</span>
               </div>
-
-              <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-200 text-amber-950 border border-amber-300 self-start sm:self-auto">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-200 border border-amber-400/30 self-start sm:self-auto">
                 {claimCase.status}
               </span>
             </div>
 
-            <div className="bg-white/80 rounded-2xl p-4 border border-amber-200 text-xs space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="font-extrabold text-amber-900">علت اعلام تردید:</span>
-                <span className="font-bold text-slate-800 bg-amber-100 px-2.5 py-0.5 rounded-lg border border-amber-300">
-                  {claimCase.authenticityDispute?.reason || 'بررسی انطباق فیزیکی و اصالت صحنه'}
-                </span>
-              </div>
-              {claimCase.authenticityDispute?.description && (
-                <p className="text-slate-700 leading-relaxed font-medium">
-                  <strong>توضیحات ثبت‌شده:</strong> {claimCase.authenticityDispute.description}
-                </p>
+            <p className="text-slate-200 text-xs leading-relaxed">
+              {claimCase.assignedFieldExpert
+                ? `کارشناس رسمی میدانی «${claimCase.assignedFieldExpert.name}» (${claimCase.assignedFieldExpert.role}) توسط شرکت بیمه جهت بازدید حضوری از خودروها و محل حادثه تخصیص یافته است.`
+                : 'شرکت بیمه‌گر در حال تخصیص و اعزام کارشناس میدانی متخصص به محل حادثه جهت بازرسی فیزیکی، احراز اصالت و تعیین خسارت می‌باشد.'}
+            </p>
+
+            {/* Expert & Assigned Branch Details Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+              {claimCase.assignedFieldExpert && (
+                <div className="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-sky-300 font-bold text-[11px]">
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>مشخصات کارشناس میدانی تخصیص‌یافته:</span>
+                  </div>
+                  <div className="font-extrabold text-white text-xs">
+                    {claimCase.assignedFieldExpert.name} ({claimCase.assignedFieldExpert.role})
+                  </div>
+                  {claimCase.assignedFieldExpert.phone && (
+                    <div className="text-[11px] text-slate-300 flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-sky-400" />
+                      <span>تلفن تماس: <span className="font-mono text-white font-bold" dir="ltr">{claimCase.assignedFieldExpert.phone}</span></span>
+                    </div>
+                  )}
+                  {claimCase.fieldVisitSchedule && (
+                    <div className="text-[11px] text-amber-300 flex items-center gap-1">
+                      <Calendar className="w-3 h-3" />
+                      <span>
+                        زمان هماهنگ‌شده: <strong>
+                          {typeof claimCase.fieldVisitSchedule === 'string'
+                            ? claimCase.fieldVisitSchedule
+                            : `${claimCase.fieldVisitSchedule.scheduledDate || ''} ${claimCase.fieldVisitSchedule.scheduledTime ? `ساعت ${claimCase.fieldVisitSchedule.scheduledTime}` : ''}`.trim() || 'هماهنگ‌شده با طرفین'}
+                        </strong>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {claimCase.assignedBranch && (
+                <div className="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1.5">
+                  <div className="flex items-center gap-1.5 text-amber-300 font-bold text-[11px]">
+                    <Building2 className="w-3.5 h-3.5" />
+                    <span>نزدیک‌ترین شعبه تخصصی بیمه (محل حضور و بازدید):</span>
+                  </div>
+                  <div className="font-extrabold text-white text-xs">
+                    {claimCase.assignedBranch.name} ({claimCase.assignedBranch.city})
+                  </div>
+                  <div className="text-[11px] text-slate-200 leading-snug flex items-start gap-1">
+                    <MapPin className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />
+                    <span>{claimCase.assignedBranch.address}</span>
+                  </div>
+                  {claimCase.assignedBranch.phone && (
+                    <div className="text-[11px] text-slate-300 flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-sky-400" />
+                      <span>تلفن شعبه: <span className="font-mono text-white" dir="ltr">{claimCase.assignedBranch.phone}</span></span>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 
-            {/* Field Expert & Branch Dispatch Live Card */}
-            <div className="p-4 bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-2xl text-xs space-y-3 shadow-md border border-sky-500/30">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-2.5">
-                <div className="flex items-center gap-2 font-bold text-amber-300">
-                  <UserCheck className="w-4.5 h-4.5 text-amber-400" />
-                  <span className="text-xs sm:text-sm font-black">وضعیت کارشناسی میدانی و هماهنگی شعبه بیمه ({getInsurerPersianName(claimCase.culpritInsurer)}):</span>
-                </div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-200 border border-amber-400/30 self-start sm:self-auto">
-                  {claimCase.status}
-                </span>
-              </div>
-
-              <p className="text-slate-200 text-xs leading-relaxed">
-                {claimCase.assignedFieldExpert
-                  ? `کارشناس رسمی میدانی «${claimCase.assignedFieldExpert.name}» (${claimCase.assignedFieldExpert.role}) توسط شرکت بیمه جهت بازدید حضوری از خودروها و محل حادثه تخصیص یافته است.`
-                  : 'شرکت بیمه‌گر در حال تخصیص و اعزام کارشناس میدانی متخصص به محل حادثه جهت بازرسی فیزیکی، احراز اصالت و تعیین خسارت می‌باشد.'}
-              </p>
-
-              {/* Expert & Assigned Branch Details Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
-                {claimCase.assignedFieldExpert && (
-                  <div className="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-sky-300 font-bold text-[11px]">
-                      <UserCheck className="w-3.5 h-3.5" />
-                      <span>مشخصات کارشناس میدانی تخصیص‌یافته:</span>
-                    </div>
-                    <div className="font-extrabold text-white text-xs">
-                      {claimCase.assignedFieldExpert.name} ({claimCase.assignedFieldExpert.role})
-                    </div>
-                    {claimCase.assignedFieldExpert.phone && (
-                      <div className="text-[11px] text-slate-300 flex items-center gap-1">
-                        <Phone className="w-3 h-3 text-sky-400" />
-                        <span>تلفن تماس: <span className="font-mono text-white font-bold" dir="ltr">{claimCase.assignedFieldExpert.phone}</span></span>
-                      </div>
-                    )}
-                    {claimCase.fieldVisitSchedule && (
-                      <div className="text-[11px] text-amber-300 flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        <span>
-                          زمان هماهنگ‌شده: <strong>
-                            {typeof claimCase.fieldVisitSchedule === 'string'
-                              ? claimCase.fieldVisitSchedule
-                              : `${claimCase.fieldVisitSchedule.scheduledDate || ''} ${claimCase.fieldVisitSchedule.scheduledTime ? `ساعت ${claimCase.fieldVisitSchedule.scheduledTime}` : ''}`.trim() || 'هماهنگ‌شده با طرفین'}
-                          </strong>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {claimCase.assignedBranch && (
-                  <div className="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1.5">
-                    <div className="flex items-center gap-1.5 text-amber-300 font-bold text-[11px]">
-                      <Building2 className="w-3.5 h-3.5" />
-                      <span>نزدیک‌ترین شعبه تخصصی بیمه (محل حضور و بازدید):</span>
-                    </div>
-                    <div className="font-extrabold text-white text-xs">
-                      {claimCase.assignedBranch.name} ({claimCase.assignedBranch.city})
-                    </div>
-                    <div className="text-[11px] text-slate-200 leading-snug flex items-start gap-1">
-                      <MapPin className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />
-                      <span>{claimCase.assignedBranch.address}</span>
-                    </div>
-                    {claimCase.assignedBranch.phone && (
-                      <div className="text-[11px] text-slate-300 flex items-center gap-1">
-                        <Phone className="w-3 h-3 text-sky-400" />
-                        <span>تلفن شعبه: <span className="font-mono text-white" dir="ltr">{claimCase.assignedBranch.phone}</span></span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* SMS Notification Banner for Customer */}
-              <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-400/30 flex items-center gap-2 text-[11px] text-sky-200">
-                <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
-                <span>پیامک مشخصات کارشناس و آدرس نزدیک‌ترین شعبه جهت حضور و تحویل مدارک، هم‌زمان برای شما و کارشناس میدانی ارسال گردیده است.</span>
-              </div>
+            {/* SMS Notification Banner for Customer */}
+            <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-400/30 flex items-center gap-2 text-[11px] text-sky-200">
+              <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
+              <span>پیامک مشخصات کارشناس و آدرس نزدیک‌ترین شعبه جهت حضور و تحویل مدارک، هم‌زمان برای شما و کارشناس میدانی ارسال گردیده است.</span>
             </div>
           </div>
         )}
@@ -3216,6 +3174,15 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
         )}
 
+        {/* CRM Customer Tickets & Complaints Section */}
+        <div className="pt-2 border-t border-slate-100">
+          <CustomerTicketsSection
+            claimCase={claimCase}
+            session={session}
+            onOpenCreateTicket={() => setShowCrmTicketModal(true)}
+          />
+        </div>
+
         {/* Case Timeline */}
         <div className="space-y-3 pt-4 border-t border-slate-100">
           <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
@@ -3881,137 +3848,6 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                       <span>ثبت و افزودن به پرونده</span>
                     </>
                   )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Authenticity Doubt / Field Expert Request Modal */}
-      {showAuthenticityModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl space-y-4 animate-in zoom-in-95 border-2 border-amber-300">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-xs">
-                  <ShieldAlert className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
-                    اعلام تردید در اصالت تصادف و درخواست کارشناس میدانی
-                  </h3>
-                  <p className="text-[10px] text-slate-500 font-bold">
-                    ثبت توسط: <span className="text-amber-800 font-black">{myRoleLabel}</span> | شرکت بیمه: {getInsurerPersianName(claimCase.culpritInsurer)}
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowAuthenticityModal(false)}
-                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-950 space-y-1">
-              <p className="font-bold flex items-center gap-1 text-amber-900">
-                <span>⚠️ توجه مهم:</span>
-              </p>
-              <p className="text-[11px] leading-relaxed text-amber-900/90 font-medium">
-                با ثبت این فرم، پرونده مستقیماً برای شرکت بیمه‌گر ({getInsurerPersianName(claimCase.culpritInsurer)}) ارسال شده و یک <strong>کارشناس میدانی مجرب</strong> جهت بازدید حضوری از خودروها و صحنه تصادف، بررسی اصالت و ارزیابی خسارت به محل اعزام خواهد شد.
-              </p>
-            </div>
-
-            <form onSubmit={handleSubmitAuthenticityDispute} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  علت اصلی تردید در اصالت یا نحوه حادثه <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={authenticityReason}
-                  onChange={(e) => setAuthenticityReason(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 font-bold bg-white text-slate-800 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-                >
-                  <option value="صحنه تصادف صوری یا ساختگی است">صحنه تصادف صوری یا ساختگی است</option>
-                  <option value="عدم تطابق زاویه و ارتفاع برخورد با آسیب‌های خودرو">عدم تطابق زاویه و ارتفاع برخورد با آسیب‌های خودرو</option>
-                  <option value="آسیب‌های ادعاشده قدیمی یا مربوط به حادثه قبلی است">آسیب‌های ادعاشده قدیمی یا مربوط به حادثه قبلی است</option>
-                  <option value="راننده در زمان حادثه شخص دیگری بوده است (جابجایی راننده)">راننده در زمان حادثه شخص دیگری بوده است (جابجایی راننده)</option>
-                  <option value="عدم حضور طرفین در محل اعلام‌شده / صحنه‌سازی مجدد">عدم حضور طرفین در محل اعلام‌شده / صحنه‌سازی مجدد</option>
-                  <option value="اختلاف نظر جدی در نحوه وقوع و نیاز به بازدید فیزیکی">اختلاف نظر جدی در نحوه وقوع و نیاز به بازدید فیزیکی</option>
-                  <option value="سایر موارد مشکوک به تقلب بیمه‌ای">سایر موارد مشکوک به تقلب بیمه‌ای</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  شرح دقیق دلایل و شواهد تردید <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  rows={3}
-                  required
-                  value={authenticityDesc}
-                  onChange={(e) => setAuthenticityDesc(e.target.value)}
-                  placeholder="لطفاً جزییات مواردی که نشان‌دهنده غیرواقعی بودن حادثه یا آسیب‌ها است را با دقت شرح دهید..."
-                  className="w-full px-3.5 py-2 rounded-xl border border-slate-300 bg-white font-medium text-slate-800 focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">
-                  پیوست عکس، ویدیو یا مدرک مستند (اختیاری)
-                </label>
-                <input
-                  type="file"
-                  id="auth-evidence-file"
-                  accept="image/*,video/*"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      setAuthenticityPhotoName(file.name);
-                      const dataUrl = await compressImageFile(file, 1000, 0.7);
-                      setAuthenticityPhoto(dataUrl);
-                    }
-                  }}
-                  className="hidden"
-                />
-                <label
-                  htmlFor="auth-evidence-file"
-                  className="cursor-pointer border-2 border-dashed border-slate-300 hover:border-amber-500 rounded-2xl p-3 text-center block bg-slate-50 transition-colors"
-                >
-                  <Upload className="w-5 h-5 text-amber-600 mx-auto mb-1" />
-                  <span className="font-bold text-slate-700 block text-xs">
-                    {authenticityPhotoName ? `فایل انتخاب شده: ${authenticityPhotoName}` : 'برای انتخاب تصویر یا فیلم مدرک کلیک کنید'}
-                  </span>
-                </label>
-                {authenticityPhoto && (
-                  <button
-                    type="button"
-                    onClick={() => { setAuthenticityPhoto(null); setAuthenticityPhotoName(''); }}
-                    className="text-[11px] text-rose-600 font-bold mt-1 hover:underline block"
-                  >
-                    حذف فایل پیوست
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowAuthenticityModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold"
-                >
-                  انصراف
-                </button>
-                <button
-                  type="submit"
-                  disabled={!authenticityDesc.trim()}
-                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-blue-950 font-black shadow-md flex items-center gap-1.5 active:scale-95"
-                >
-                  <ShieldAlert className="w-4 h-4" />
-                  <span>ثبت و ارسال به بیمه‌گر جهت اعزام کارشناس</span>
                 </button>
               </div>
             </form>
@@ -4731,6 +4567,34 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             </button>
             <img src={previewImageModal} alt="Document Preview" className="w-full h-auto max-h-[80vh] object-contain mx-auto rounded-2xl" />
           </div>
+        </div>
+      )}
+
+      {/* Customer CRM Ticket / Complaint Creation Modal */}
+      <CustomerTicketModal
+        isOpen={showCrmTicketModal}
+        onClose={() => setShowCrmTicketModal(false)}
+        claimCase={claimCase}
+        session={session}
+        onSuccess={(msg) => {
+          setTicketToastMsg(msg);
+          setTimeout(() => setTicketToastMsg(null), 5000);
+        }}
+      />
+
+      {/* Direct Customer Call to Expert Modal */}
+      <CustomerExpertCallModal
+        isOpen={showExpertCallModal}
+        onClose={() => setShowExpertCallModal(false)}
+        claimCase={claimCase}
+        session={session}
+      />
+
+      {/* Toast Feedback Notification */}
+      {ticketToastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white px-5 py-3.5 rounded-2xl shadow-xl border border-emerald-500/40 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-3 duration-300">
+          <CheckCircle2 className="w-5 h-5 text-emerald-200 shrink-0" />
+          <span className="text-xs sm:text-sm font-extrabold">{ticketToastMsg}</span>
         </div>
       )}
     </div>

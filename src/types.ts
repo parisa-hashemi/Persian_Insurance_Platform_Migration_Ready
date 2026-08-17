@@ -625,29 +625,61 @@ export interface ClaimCase {
   };
 }
 
+export type StaffRoleCategory =
+  | 'assessor' // کارشناس ارزیاب خسارت آنلاین
+  | 'reviewer' // بازبین و کنترل کیفیت
+  | 'fieldexpert' // کارشناس بازدید میدانی و حضوری
+  | 'finance' // مدیر مالی و خزانه‌داری
+  | 'crm' // کارشناس امور مشتریان و شکایات
+  | 'insurer'; // مدیر ارشد شرکت بیمه
+
 export interface InsurerInfo {
   code: string;
   name: string;
   defaultPassword: string;
+  logoUrl?: string;
+  brandColor?: string;
+  licenseNumber?: string; // شماره پروانه بیمه مرکزی
+  sanhabCode?: string; // کد اتصال وب‌سرویس سنهاب
+  phone?: string;
+  email?: string;
+  address?: string;
+  province?: string;
+  onlineWithoutCroquiCeiling?: number; // سقف پرداخت آنلاین بدون کروکی ریال
+  onlineWithCroquiCeiling?: number; // سقف پرداخت آنلاین با کروکی ریال
+  status?: 'ACTIVE' | 'SUSPENDED' | 'DEVELOPMENT';
+  sanhabConnected?: boolean;
+  activeBranchesCount?: number;
+  establishedYear?: string;
+  description?: string;
 }
 
 export interface StaffMember {
   id: string;
   name: string;
   role: string;
+  category?: StaffRoleCategory;
   phone?: string;
   nationalId?: string;
   active?: boolean;
   company?: string;
+  companyName?: string;
+  licenseCode?: string; // کد نظام کارشناسی / شماره پروانه رسمی ارزیابی
+  maxApprovalCeiling?: number; // سقف مجاز اختیار ریالی تایید خسارت
   branchId?: string;
   branchName?: string;
+  province?: string;
   city?: string;
   activeCases?: number;
-  status?: 'AVAILABLE' | 'ON_MISSION' | 'BUSY';
+  completedCases?: number;
+  status?: 'AVAILABLE' | 'ON_MISSION' | 'BUSY' | 'INACTIVE';
   rating?: number;
   expertise?: string;
   coordinates?: { lat: number; lng: number };
   avatarUrl?: string;
+  password?: string;
+  registeredAt?: string;
+  lastLoginAt?: string;
 }
 
 export interface ThresholdProfile {

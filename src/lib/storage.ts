@@ -1,14 +1,16 @@
-import { ClaimCase, UserSession, ThresholdProfile, DepreciationConfig, StaffMember, ExpertComplaint, AssessorNotification, CustomerNotification, PaymentOrder, PaymentBatch, CustomerCallLog, CustomerTicket, CrmSatisfactionSurvey, CrmFollowUpTask } from '../types';
-import { INITIAL_CASES, DEFAULT_THRESHOLDS, DEFAULT_DEPRECIATION_TABLES, INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS, INITIAL_EXPERT_COMPLAINTS, INITIAL_FINANCE_STAFF, INITIAL_CRM_STAFF } from '../data/mockData';
+import { ClaimCase, UserSession, ThresholdProfile, DepreciationConfig, StaffMember, ExpertComplaint, AssessorNotification, CustomerNotification, PaymentOrder, PaymentBatch, CustomerCallLog, CustomerTicket, CrmSatisfactionSurvey, CrmFollowUpTask, InsurerInfo } from '../types';
+import { INITIAL_CASES, DEFAULT_THRESHOLDS, DEFAULT_DEPRECIATION_TABLES, INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS, INITIAL_EXPERT_COMPLAINTS, INITIAL_FINANCE_STAFF, INITIAL_CRM_STAFF, INITIAL_REVIEWERS, INSURER_COMPANIES } from '../data/mockData';
 import { sanitizeMediaForStorage } from './imageCompressor';
 
 const STORAGE_KEYS = {
   CASES: 'claimflow_cases',
   USER_SESSION: 'currentUser',
   CUSTOMERS: 'claimflow_customers',
+  INSURERS: 'claimflow_insurers',
   THRESHOLDS: 'claimflow_ai_threshold_profiles',
   DEPRECIATION: 'claimflow_depreciation_tables',
   EXPERTS: 'claimflow_experts',
+  REVIEWERS: 'claimflow_reviewers',
   FIELD_EXPERTS: 'claimflow_field_experts',
   FINANCE_STAFF: 'claimflow_finance_staff',
   CRM_STAFF: 'claimflow_crm_staff',
@@ -247,6 +249,44 @@ export function getInsurerPersianName(insurerStr?: string): string {
   return insurerStr;
 }
 
+// ----------------------------------------------------
+// INSURANCE COMPANIES MANAGEMENT
+// ----------------------------------------------------
+export function loadInsurersFromStorage(): InsurerInfo[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.INSURERS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Merge with initial companies if missing
+        const merged = [...parsed];
+        INSURER_COMPANIES.forEach((initComp) => {
+          if (!merged.some((m) => m.code === initComp.code)) {
+            merged.push(initComp);
+          }
+        });
+        return merged;
+      }
+    }
+  } catch (e) {
+    console.error('Error loading insurers from storage:', e);
+  }
+
+  saveInsurersToStorage(INSURER_COMPANIES);
+  return INSURER_COMPANIES;
+}
+
+export function saveInsurersToStorage(insurers: InsurerInfo[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.INSURERS, JSON.stringify(insurers));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('claimflow_insurers_updated'));
+    }
+  } catch (e) {
+    console.error('Error saving insurers to storage:', e);
+  }
+}
+
 export function loadExpertsFromStorage(): Record<string, StaffMember[]> {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.EXPERTS);
@@ -283,8 +323,53 @@ export function loadExpertsFromStorage(): Record<string, StaffMember[]> {
 export function saveExpertsToStorage(data: Record<string, StaffMember[]>): void {
   try {
     localStorage.setItem(STORAGE_KEYS.EXPERTS, JSON.stringify(data));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('claimflow_staff_updated'));
+    }
   } catch (e) {
     console.error('Error saving experts to storage:', e);
+  }
+}
+
+export function loadReviewersFromStorage(): Record<string, StaffMember[]> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.REVIEWERS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        const normalized: Record<string, StaffMember[]> = {};
+        for (const companyKey of Object.keys(parsed)) {
+          normalized[companyKey] = (parsed[companyKey] || []).map((rv: StaffMember) => ({
+            ...rv,
+            active: rv.active !== false
+          }));
+        }
+        return normalized;
+      }
+    }
+  } catch (e) {
+    console.error('Error loading reviewers from storage:', e);
+  }
+
+  const initialData: Record<string, StaffMember[]> = {};
+  for (const companyKey of Object.keys(INITIAL_REVIEWERS)) {
+    initialData[companyKey] = INITIAL_REVIEWERS[companyKey].map((rv) => ({
+      ...rv,
+      active: true
+    }));
+  }
+  saveReviewersToStorage(initialData);
+  return initialData;
+}
+
+export function saveReviewersToStorage(data: Record<string, StaffMember[]>): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.REVIEWERS, JSON.stringify(data));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('claimflow_staff_updated'));
+    }
+  } catch (e) {
+    console.error('Error saving reviewers to storage:', e);
   }
 }
 
@@ -314,6 +399,14 @@ export function loadFieldExpertsFromStorage(): Record<string, StaffMember[]> {
 
           normalized[companyKey] = merged;
         }
+
+        // Also preserve other custom companies
+        for (const companyKey of Object.keys(parsed)) {
+          if (!normalized[companyKey]) {
+            normalized[companyKey] = parsed[companyKey];
+          }
+        }
+
         return normalized;
       }
     }
@@ -335,6 +428,9 @@ export function loadFieldExpertsFromStorage(): Record<string, StaffMember[]> {
 export function saveFieldExpertsToStorage(data: Record<string, StaffMember[]>): void {
   try {
     localStorage.setItem(STORAGE_KEYS.FIELD_EXPERTS, JSON.stringify(data));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('claimflow_staff_updated'));
+    }
   } catch (e) {
     console.error('Error saving field experts to storage:', e);
   }
@@ -756,6 +852,9 @@ export function loadFinanceStaffFromStorage(): Record<string, StaffMember[]> {
 export function saveFinanceStaffToStorage(staff: Record<string, StaffMember[]>): void {
   try {
     localStorage.setItem(STORAGE_KEYS.FINANCE_STAFF, JSON.stringify(staff));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('claimflow_staff_updated'));
+    }
   } catch (e) {
     console.error('Error saving finance staff', e);
   }
@@ -1198,6 +1297,9 @@ export function loadCrmStaffFromStorage(): Record<string, StaffMember[]> {
 export function saveCrmStaffToStorage(staff: Record<string, StaffMember[]>): void {
   try {
     localStorage.setItem(STORAGE_KEYS.CRM_STAFF, JSON.stringify(staff));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('claimflow_staff_updated'));
+    }
   } catch (e) {
     console.error('Error saving CRM staff', e);
   }

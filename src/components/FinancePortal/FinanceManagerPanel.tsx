@@ -161,6 +161,24 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
     return updatedOrders;
   });
 
+  // Real-time synchronization for new payment orders arriving from customer portal
+  React.useEffect(() => {
+    const handleSync = () => {
+      const stored = loadPaymentOrdersFromStorage();
+      if (stored && stored.length > 0) {
+        setOrders(stored);
+      }
+    };
+
+    window.addEventListener('claimflow_payment_orders_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    return () => {
+      window.removeEventListener('claimflow_payment_orders_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
   const [batches, setBatches] = useState<PaymentBatch[]>(() => loadPaymentBatchesFromStorage());
 
   // Search and filters

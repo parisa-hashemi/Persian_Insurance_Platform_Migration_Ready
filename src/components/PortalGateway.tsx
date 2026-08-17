@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   User,
   Building2,
@@ -24,16 +24,14 @@ import {
   CreditCard,
   Headphones
 } from 'lucide-react';
-import { RoleType, UserSession } from '../types';
+import { RoleType, UserSession, InsurerInfo, StaffMember } from '../types';
 import {
-  INSURER_COMPANIES,
-  INITIAL_EXPERTS,
-  INITIAL_FIELD_EXPERTS,
-  INITIAL_REVIEWERS,
-  INITIAL_FINANCE_STAFF,
-  INITIAL_CRM_STAFF
-} from '../data/mockData';
-import {
+  loadInsurersFromStorage,
+  loadExpertsFromStorage,
+  loadFieldExpertsFromStorage,
+  loadReviewersFromStorage,
+  loadFinanceStaffFromStorage,
+  loadCrmStaffFromStorage,
   loadCustomersFromStorage,
   registerCustomer,
   RegisteredCustomer
@@ -52,6 +50,35 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 }) => {
   // Main Login Mode: 'customer' or 'org'
   const [mainMode, setMainMode] = useState<MainLoginType>('customer');
+
+  // Dynamic Data loaded from storage
+  const [insurersList, setInsurersList] = useState<InsurerInfo[]>(() => loadInsurersFromStorage());
+  const [expertsMap, setExpertsMap] = useState<Record<string, StaffMember[]>>(() => loadExpertsFromStorage());
+  const [fieldExpertsMap, setFieldExpertsMap] = useState<Record<string, StaffMember[]>>(() => loadFieldExpertsFromStorage());
+  const [reviewersMap, setReviewersMap] = useState<Record<string, StaffMember[]>>(() => loadReviewersFromStorage());
+  const [financeStaffMap, setFinanceStaffMap] = useState<Record<string, StaffMember[]>>(() => loadFinanceStaffFromStorage());
+  const [crmStaffMap, setCrmStaffMap] = useState<Record<string, StaffMember[]>>(() => loadCrmStaffFromStorage());
+
+  const refreshDynamicData = () => {
+    setInsurersList(loadInsurersFromStorage());
+    setExpertsMap(loadExpertsFromStorage());
+    setFieldExpertsMap(loadFieldExpertsFromStorage());
+    setReviewersMap(loadReviewersFromStorage());
+    setFinanceStaffMap(loadFinanceStaffFromStorage());
+    setCrmStaffMap(loadCrmStaffFromStorage());
+  };
+
+  useEffect(() => {
+    refreshDynamicData();
+    window.addEventListener('claimflow_insurers_updated', refreshDynamicData);
+    window.addEventListener('claimflow_staff_updated', refreshDynamicData);
+    window.addEventListener('storage', refreshDynamicData);
+    return () => {
+      window.removeEventListener('claimflow_insurers_updated', refreshDynamicData);
+      window.removeEventListener('claimflow_staff_updated', refreshDynamicData);
+      window.removeEventListener('storage', refreshDynamicData);
+    };
+  }, []);
 
   // Organizational Role selected from Dropdown
   const [orgRole, setOrgRole] = useState<RoleType>('insurer');
