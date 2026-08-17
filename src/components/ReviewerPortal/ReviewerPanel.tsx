@@ -40,7 +40,16 @@ import {
   SlidersHorizontal,
   X,
   Filter,
-  Tag
+  Tag,
+  Video,
+  Mic,
+  Volume2,
+  Play,
+  Pause,
+  Download,
+  Film,
+  Headphones,
+  Music
 } from 'lucide-react';
 import { ClaimCase, UserSession, PartItem } from '../../types';
 import { formatCurrency, parseMoneyNumber, getInsurerPersianName } from '../../lib/storage';
@@ -86,6 +95,16 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [searchTag, setSearchTag] = useState<'all' | 'kroki' | 'peugeot' | 'saipa' | 'depreciation' | 'returned'>('all');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedMediaItem, setSelectedMediaItem] = useState<{
+    url: string;
+    name: string;
+    type: 'image' | 'video' | 'audio' | 'pdf' | 'document' | string;
+    category?: string;
+    uploader?: string;
+    date?: string;
+    note?: string;
+  } | null>(null);
+  const [mediaCategoryFilter, setMediaCategoryFilter] = useState<'ALL' | 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOC' | 'KROKI'>('ALL');
   const [showSmsModal, setShowSmsModal] = useState<boolean>(false);
   const [showQuickSearchModal, setShowQuickSearchModal] = useState<boolean>(false);
   
@@ -1413,47 +1432,101 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
           )}
 
           {/* ========================================================================= */}
-          {/* SUB-VIEW D: DEDICATED PAGE FOR CARD 3 (DOCUMENTS & PHOTOS) */}
+          {/* SUB-VIEW D: DEDICATED PAGE FOR CARD 3 (DOCUMENTS, PHOTOS, AUDIO & VIDEO) */}
           {/* ========================================================================= */}
           {activeCardTab === 'docs' && (() => {
             // Aggregate all uploaded media from registration, victim, culprit, expert, and croqui
-            const allMedia: Array<{
+            interface MediaGalleryItem {
               id: string;
               url: string;
               name: string;
               category: string;
               uploader: string;
-            }> = [];
+              type: 'image' | 'video' | 'audio' | 'pdf' | 'document' | string;
+              date?: string;
+              duration?: string;
+              note?: string;
+            }
 
+            const allMedia: MediaGalleryItem[] = [];
+
+            // 1. Initial uploaded files (photos, audio explanation, video clips, etc.)
             (activeCase.files || []).forEach((file, idx) => {
+              const fileType = file.type || (file.name?.includes('صوتی') || file.name?.includes('voice') ? 'audio' : file.name?.includes('ویدیو') || file.name?.includes('video') ? 'video' : 'image');
               allMedia.push({
-                id: `case-file-${idx}`,
-                url: file.url || file.preview || 'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&q=80&w=400',
-                name: file.name || `مدرک پرونده ${idx + 1}`,
-                category: file.uploadedByRole || 'مدارک ثبت اولیه',
-                uploader: file.uploadedByRole || 'زیان‌دیده (طرف اول)'
+                id: `case-file-${idx}-${file.name || 'file'}`,
+                url: file.dataUrl || file.url || file.preview || 'https://images.unsplash.com/photo-1590362891991-f776e747a588?auto=format&fit=crop&q=80&w=400',
+                name: file.name || file.fileName || `مدرک ثبت اولیه ${idx + 1}`,
+                category: file.category || (fileType === 'audio' ? 'توضیحات صوتی مشتری' : fileType === 'video' ? 'ویدیو صحنه تصادف' : 'تصویر ثبت اولیه'),
+                uploader: file.uploadedBy || file.uploadedByRole || 'ثبت‌کننده پرونده (مشتری)',
+                type: fileType,
+                date: file.uploadedAt || activeCase.date,
+                duration: file.duration
               });
             });
 
-            (activeCase.additionalDocs || []).forEach((doc, idx) => {
-              if (doc.dataUrl) {
-                allMedia.push({
-                  id: `additional-doc-${doc.id || idx}`,
-                  url: doc.dataUrl,
-                  name: doc.title || doc.fileName || `سند ضمیمه ${idx + 1}`,
-                  category: doc.docType || 'سند تکمیلی',
-                  uploader: doc.uploadedBy || doc.uploaderRole || 'طرفین پرونده'
+            // 2. Explicit Audio Explanation if available and not already added
+            if (activeCase.audioExplanation?.dataUrl) {
+              const exists = allMedia.some(m => m.url === activeCase.audioExplanation?.dataUrl);
+              if (!exists) {
+                allMedia.unshift({
+                  id: 'audio-explanation-item',
+                  url: activeCase.audioExplanation.dataUrl,
+                  name: activeCase.audioExplanation.name || 'توضیحات صوتی کامل راننده/زیان‌دیده',
+                  category: 'وویس و صوت ضبط‌شده',
+                  uploader: activeCase.victimName || 'زیان‌دیده (طرف اول)',
+                  type: 'audio',
+                  date: activeCase.date
                 });
+              }
+            }
+
+            // 3. Explicit Video Explanation if available and not already added
+            if (activeCase.videoExplanation?.dataUrl) {
+              const exists = allMedia.some(m => m.url === activeCase.videoExplanation?.dataUrl);
+              if (!exists) {
+                allMedia.unshift({
+                  id: 'video-explanation-item',
+                  url: activeCase.videoExplanation.dataUrl,
+                  name: activeCase.videoExplanation.name || 'ویدیو مستند ضبط‌شده از صحنه تصادف',
+                  category: 'ویدیو صحنه تصادف',
+                  uploader: activeCase.victimName || 'زیان‌دیده (طرف اول)',
+                  type: 'video',
+                  date: activeCase.date
+                });
+              }
+            }
+
+            // 4. Additional Documents (uploaded later by customer, culprit, or field expert)
+            (activeCase.additionalDocs || []).forEach((doc, idx) => {
+              if (doc.dataUrl || doc.url) {
+                const docUrl = doc.dataUrl || doc.url || '';
+                // Avoid exact duplicate URLs
+                if (!allMedia.some(m => m.url === docUrl)) {
+                  allMedia.push({
+                    id: `additional-doc-${doc.id || idx}`,
+                    url: docUrl,
+                    name: doc.title || doc.fileName || `سند ضمیمه ${idx + 1}`,
+                    category: doc.docType || (doc.fileType === 'audio' ? 'صوت ضمیمه' : doc.fileType === 'video' ? 'ویدیو ضمیمه' : 'مدرک بارگذاری شده'),
+                    uploader: doc.uploadedBy || doc.uploaderRole || 'کاربر سامانه',
+                    type: doc.fileType || (doc.title?.includes('صوتی') || doc.title?.includes('ویس') ? 'audio' : doc.title?.includes('ویدیو') ? 'video' : 'image'),
+                    date: doc.uploadedAt,
+                    note: doc.note
+                  });
+                }
               }
             });
 
+            // 5. Customer Kroki / Police Report Photo
             if (activeCase.customerKrokiPhoto) {
               allMedia.push({
                 id: 'kroki-photo-item',
                 url: activeCase.customerKrokiPhoto,
-                name: 'تصویر برگه رسمی کروکی راهور',
-                category: 'کروکی کاغذی پلیس',
-                uploader: 'بارگذاری مشتری'
+                name: 'تصویر برگه رسمی کروکی فراجا',
+                category: 'کروکی رسمی پلیس راهور',
+                uploader: 'بارگذاری مشتری / فراجا',
+                type: 'kroki',
+                date: activeCase.date
               });
             } else if (activeCase.croquiData?.fileUrl) {
               allMedia.push({
@@ -1461,7 +1534,9 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                 url: activeCase.croquiData.fileUrl,
                 name: 'تصویر کروکی الکترونیک ترسیم شده فراجا',
                 category: 'کروکی الکترونیک',
-                uploader: 'سامانه راهور'
+                uploader: 'سامانه برخط راهور',
+                type: 'kroki',
+                date: activeCase.date
               });
             }
 
@@ -1469,86 +1544,320 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
               allMedia.push({
                 id: 'police-report-item',
                 url: activeCase.customerPoliceReportFile,
-                name: 'تصویر گزارش پلیس و صحنه تصادف',
-                category: 'گزارش تصادف',
-                uploader: 'ثبت در پرونده'
+                name: 'تصویر گزارش پلیس و صورتجلسه صحنه',
+                category: 'گزارش پلیس',
+                uploader: 'ثبت در پرونده',
+                type: 'document',
+                date: activeCase.date
               });
             }
 
+            // 6. Culprit uploaded files if any
             if ((activeCase as any).culpritFiles && Array.isArray((activeCase as any).culpritFiles)) {
               (activeCase as any).culpritFiles.forEach((cf: any, idx: number) => {
-                if (cf.url || cf.preview) {
+                if (cf.url || cf.preview || cf.dataUrl) {
+                  const cfUrl = cf.url || cf.preview || cf.dataUrl;
+                  if (!allMedia.some(m => m.url === cfUrl)) {
+                    allMedia.push({
+                      id: `culprit-file-${idx}`,
+                      url: cfUrl,
+                      name: cf.name || `مدرک ارسالی مقصر ${idx + 1}`,
+                      category: 'مدارک طرف مقصر',
+                      uploader: 'مقصر حادثه (طرف دوم)',
+                      type: cf.type || 'image'
+                    });
+                  }
+                }
+              });
+            }
+
+            // 7. Field Expert Inspection Photos if available
+            if (activeCase.fieldAssessmentReport?.inspectionPhotos && activeCase.fieldAssessmentReport.inspectionPhotos.length > 0) {
+              activeCase.fieldAssessmentReport.inspectionPhotos.forEach((photoUrl, idx) => {
+                if (!allMedia.some(m => m.url === photoUrl)) {
                   allMedia.push({
-                    id: `culprit-file-${idx}`,
-                    url: cf.url || cf.preview,
-                    name: cf.name || `تصویر ارسالی مقصر ${idx + 1}`,
-                    category: 'مدارک طرف مقصر',
-                    uploader: 'مقصر حادثه (طرف دوم)'
+                    id: `field-inspect-photo-${idx}`,
+                    url: photoUrl,
+                    name: `عکس کارشناسی در محل ${idx + 1}`,
+                    category: 'کارشناسی حضوری خسارت',
+                    uploader: activeCase.fieldAssessmentReport?.expertName || 'کارشناس سیار',
+                    type: 'image',
+                    date: activeCase.fieldAssessmentReport?.visitedAt
                   });
                 }
               });
             }
 
+            // Media Counts for filter chips
+            const totalCount = allMedia.length;
+            const imgCount = allMedia.filter(m => m.type === 'image').length;
+            const videoCount = allMedia.filter(m => m.type === 'video').length;
+            const audioCount = allMedia.filter(m => m.type === 'audio').length;
+            const docCount = allMedia.filter(m => m.type === 'document' || m.type === 'pdf').length;
+            const krokiCount = allMedia.filter(m => m.type === 'kroki').length;
+
+            // Apply active category filter
+            const filteredMedia = allMedia.filter(m => {
+              if (mediaCategoryFilter === 'ALL') return true;
+              if (mediaCategoryFilter === 'IMAGE') return m.type === 'image';
+              if (mediaCategoryFilter === 'VIDEO') return m.type === 'video';
+              if (mediaCategoryFilter === 'AUDIO') return m.type === 'audio';
+              if (mediaCategoryFilter === 'DOC') return m.type === 'document' || m.type === 'pdf';
+              if (mediaCategoryFilter === 'KROKI') return m.type === 'kroki';
+              return true;
+            });
+
             return (
               <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6 animate-in fade-in">
-                <div className="flex items-center justify-between pb-4 border-b border-slate-200 flex-wrap gap-2">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-5 border-b border-slate-200 flex-wrap gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-800 flex items-center justify-center font-black">
-                      <ImageIcon className="w-5 h-5" />
+                    <div className="w-11 h-11 rounded-2xl bg-blue-100 text-blue-900 flex items-center justify-center font-black shadow-xs">
+                      <ImageIcon className="w-6 h-6" />
                     </div>
                     <div>
-                      <h3 className="text-base font-black text-slate-900">صفحه اختصاصی کارت ۳: گالری کلیه مدارک و تصاویر</h3>
-                      <p className="text-xs text-slate-500 font-medium">نمایش یکپارچه کلیه مدارک هویتی، تصاویر خودروها و کروکی بارگذاری شده در پرونده</p>
+                      <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                        صفحه اختصاصی کارت ۳: گالری کلیه مدارک، عکس‌ها، صوت و ویدیو
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium">
+                        نمایش جامع و تفکیک‌شده تمام عکس‌های خسارت، ویدیوهای صحنه، وویس‌های ضبط‌شده و مدارک هویتی و کروکی
+                      </p>
                     </div>
                   </div>
-                  <div className="px-3.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 font-extrabold text-xs flex items-center gap-1.5">
-                    <Paperclip className="w-3.5 h-3.5 text-blue-700" />
-                    <span>مجموع مدارک ثبت‌شده: {allMedia.length} مورد</span>
+                  <div className="flex items-center gap-2">
+                    <div className="px-3.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 font-extrabold text-xs flex items-center gap-1.5 shadow-xs">
+                      <Paperclip className="w-4 h-4 text-blue-700" />
+                      <span>کل مدارک پرونده: {totalCount} مورد</span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Photo Grid */}
-                {allMedia.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {allMedia.map((file) => (
-                      <div
-                        key={file.id}
-                        onClick={() => setSelectedImage(file.url)}
-                        className="group relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer aspect-4/3 flex flex-col justify-between shadow-xs hover:shadow-md transition-all"
-                      >
-                        <img
-                          src={file.url}
-                          alt={file.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-transparent to-slate-950/40 p-2.5 flex flex-col justify-between">
-                          <div className="flex justify-between items-start gap-1">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-900/80 text-blue-200 backdrop-blur-xs border border-blue-400/30 truncate max-w-[120px]">
-                              {file.category}
-                            </span>
-                            <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-900/70 text-slate-300 backdrop-blur-xs">
-                              {file.uploader}
-                            </span>
+                {/* Filter Pills */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
+                  <button
+                    onClick={() => setMediaCategoryFilter('ALL')}
+                    className={`px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                      mediaCategoryFilter === 'ALL'
+                        ? 'bg-blue-900 text-white border-blue-900 shadow-sm'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>همه مدارک ({totalCount})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setMediaCategoryFilter('IMAGE')}
+                    className={`px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                      mediaCategoryFilter === 'IMAGE'
+                        ? 'bg-indigo-700 text-white border-indigo-700 shadow-sm'
+                        : 'bg-slate-50 hover:bg-indigo-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>تصاویر خسارت و خودرو ({imgCount})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setMediaCategoryFilter('VIDEO')}
+                    className={`px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                      mediaCategoryFilter === 'VIDEO'
+                        ? 'bg-purple-700 text-white border-purple-700 shadow-sm'
+                        : 'bg-slate-50 hover:bg-purple-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <Film className="w-3.5 h-3.5 text-purple-600" />
+                    <span>ویدیوهای صحنه ({videoCount})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setMediaCategoryFilter('AUDIO')}
+                    className={`px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                      mediaCategoryFilter === 'AUDIO'
+                        ? 'bg-emerald-700 text-white border-emerald-700 shadow-sm'
+                        : 'bg-slate-50 hover:bg-emerald-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <Headphones className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>توضیحات صوتی و وویس ({audioCount})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setMediaCategoryFilter('KROKI')}
+                    className={`px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                      mediaCategoryFilter === 'KROKI'
+                        ? 'bg-amber-700 text-white border-amber-700 shadow-sm'
+                        : 'bg-slate-50 hover:bg-amber-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <FileCheck className="w-3.5 h-3.5 text-amber-600" />
+                    <span>کروکی پلیس ({krokiCount})</span>
+                  </button>
+
+                  <button
+                    onClick={() => setMediaCategoryFilter('DOC')}
+                    className={`px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                      mediaCategoryFilter === 'DOC'
+                        ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    <FileText className="w-3.5 h-3.5 text-slate-600" />
+                    <span>مدارک و بیمه‌نامه ({docCount})</span>
+                  </button>
+                </div>
+
+                {/* Media Grid */}
+                {filteredMedia.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {filteredMedia.map((file) => {
+                      // AUDIO ITEM CARD
+                      if (file.type === 'audio') {
+                        return (
+                          <div
+                            key={file.id}
+                            className="bg-emerald-50/80 border-2 border-emerald-300 hover:border-emerald-500 rounded-2xl p-4 flex flex-col justify-between space-y-3 transition-all hover:shadow-md group"
+                          >
+                            <div className="space-y-2">
+                              <div className="flex items-start justify-between gap-2">
+                                <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-200 text-emerald-900 border border-emerald-300">
+                                  {file.category}
+                                </span>
+                                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                                  <Mic className="w-4 h-4" />
+                                </div>
+                              </div>
+                              <h4 className="font-extrabold text-xs text-slate-900 line-clamp-2">
+                                {file.name}
+                              </h4>
+                              <p className="text-[10px] text-emerald-800 font-bold">
+                                بارگذاری توسط: {file.uploader}
+                              </p>
+                            </div>
+
+                            {/* Embedded Audio Player */}
+                            <div className="space-y-2 pt-2 border-t border-emerald-200">
+                              <audio
+                                controls
+                                src={file.url}
+                                className="w-full h-8 rounded-lg outline-none"
+                              />
+                              <div className="flex items-center justify-between text-[10px] text-slate-500">
+                                <span>{file.date || 'ثبت شده'}</span>
+                                <button
+                                  onClick={() => setSelectedMediaItem(file)}
+                                  className="text-emerald-800 hover:text-emerald-950 font-bold flex items-center gap-1 cursor-pointer"
+                                >
+                                  پخش تمام‌صفحه <Maximize2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between text-white pt-1">
-                            <span className="text-[11px] font-bold truncate max-w-[130px]">{file.name}</span>
-                            <Maximize2 className="w-3.5 h-3.5 opacity-80 group-hover:opacity-100 shrink-0" />
+                        );
+                      }
+
+                      // VIDEO ITEM CARD
+                      if (file.type === 'video') {
+                        return (
+                          <div
+                            key={file.id}
+                            className="bg-purple-50/80 border-2 border-purple-300 hover:border-purple-500 rounded-2xl overflow-hidden flex flex-col justify-between transition-all hover:shadow-md group"
+                          >
+                            <div className="relative aspect-video bg-slate-900 flex items-center justify-center cursor-pointer overflow-hidden"
+                              onClick={() => setSelectedMediaItem(file)}
+                            >
+                              <video
+                                src={file.url}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                preload="metadata"
+                              />
+                              <div className="absolute inset-0 bg-slate-950/40 group-hover:bg-slate-950/20 transition-colors flex items-center justify-center">
+                                <div className="w-12 h-12 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                  <Play className="w-6 h-6 fill-white ml-0.5" />
+                                </div>
+                              </div>
+                              <span className="absolute top-2 right-2 text-[10px] font-black px-2 py-0.5 rounded-md bg-purple-900/80 text-purple-200 border border-purple-400/30 backdrop-blur-xs">
+                                {file.category}
+                              </span>
+                            </div>
+
+                            <div className="p-3.5 space-y-2 bg-white">
+                              <h4 className="font-extrabold text-xs text-slate-900 truncate" title={file.name}>
+                                {file.name}
+                              </h4>
+                              <div className="flex items-center justify-between text-[10px] text-slate-600 border-t border-slate-100 pt-2">
+                                <span>{file.uploader}</span>
+                                <button
+                                  onClick={() => setSelectedMediaItem(file)}
+                                  className="text-purple-700 hover:text-purple-900 font-bold flex items-center gap-1 cursor-pointer"
+                                >
+                                  پخش ویدیو <Maximize2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      // IMAGE / KROKI / DOCUMENT ITEM CARD
+                      return (
+                        <div
+                          key={file.id}
+                          onClick={() => setSelectedMediaItem(file)}
+                          className="group relative rounded-2xl overflow-hidden border-2 border-slate-200 hover:border-blue-400 bg-slate-100 cursor-pointer aspect-4/3 flex flex-col justify-between shadow-xs hover:shadow-md transition-all"
+                        >
+                          <img
+                            src={file.url}
+                            alt={file.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-slate-950/50 p-2.5 flex flex-col justify-between">
+                            <div className="flex justify-between items-start gap-1">
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs border truncate max-w-[130px] ${
+                                file.type === 'kroki'
+                                  ? 'bg-amber-900/80 text-amber-200 border-amber-400/30'
+                                  : 'bg-blue-900/80 text-blue-200 border-blue-400/30'
+                              }`}>
+                                {file.category}
+                              </span>
+                              <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-slate-900/70 text-slate-300 backdrop-blur-xs">
+                                {file.uploader}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-white pt-1">
+                              <span className="text-[11px] font-bold truncate max-w-[150px]">{file.name}</span>
+                              <div className="w-6 h-6 rounded-md bg-white/20 hover:bg-white/40 flex items-center justify-center transition-colors">
+                                <Maximize2 className="w-3.5 h-3.5 text-white" />
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
-                  <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs font-bold">
-                    مدرک یا تصویری برای این پرونده ثبت نشده است.
+                  <div className="p-12 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                    <Paperclip className="w-8 h-8 text-slate-400 mx-auto" />
+                    <p className="font-bold text-xs text-slate-600">مدرکی در این دسته‌بندی یافت نشد.</p>
+                    <button
+                      onClick={() => setMediaCategoryFilter('ALL')}
+                      className="text-xs text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer"
+                    >
+                      نمایش تمام مدارک پرونده
+                    </button>
                   </div>
                 )}
 
                 {/* Written narrative */}
                 {activeCase.writtenReport && (
                   <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5 text-xs">
-                    <span className="font-bold text-slate-700 block">شرح و اظهارات حادثه ثبت‌شده در پرونده:</span>
-                    <p className="text-slate-900 font-medium leading-relaxed">{activeCase.writtenReport}</p>
+                    <span className="font-bold text-slate-800 block flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-blue-700" />
+                      شرح و اظهارات کتبی ثبت‌شده توسط مشتری در پرونده:
+                    </span>
+                    <p className="text-slate-900 font-medium leading-relaxed bg-white p-3 rounded-xl border border-slate-200">
+                      {activeCase.writtenReport}
+                    </p>
                   </div>
                 )}
               </div>
@@ -1806,25 +2115,117 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
         </div>
       )}
 
-      {/* Modal Zoom for Image Gallery */}
-      {selectedImage && (
-        <div className="fixed inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-4">
-          <div className="relative max-w-4xl w-full bg-white rounded-3xl p-4 space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <span className="font-bold text-sm text-slate-900">مشاهده تصویر مدرک</span>
-              <button
-                onClick={() => setSelectedImage(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="max-h-[75vh] overflow-auto flex items-center justify-center">
-              <img src={selectedImage} alt="مدرک" className="max-w-full h-auto rounded-xl" />
+      {/* Modal Zoom & Player for All Media (Photo, Video, Audio, Doc) */}
+      {(selectedMediaItem || selectedImage) && (() => {
+        const item = selectedMediaItem || {
+          url: selectedImage!,
+          name: 'تصویر مدرک',
+          type: 'image',
+          category: 'مدرک پرونده',
+          uploader: 'بارگذاری شده'
+        };
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-in fade-in">
+            <div className="relative max-w-4xl w-full bg-white rounded-3xl p-5 sm:p-6 space-y-4 shadow-2xl border border-slate-200">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center font-bold">
+                    {item.type === 'audio' ? (
+                      <Headphones className="w-4 h-4 text-emerald-600" />
+                    ) : item.type === 'video' ? (
+                      <Film className="w-4 h-4 text-purple-600" />
+                    ) : item.type === 'kroki' ? (
+                      <FileCheck className="w-4 h-4 text-amber-600" />
+                    ) : (
+                      <ImageIcon className="w-4 h-4 text-blue-600" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900">{item.name}</h3>
+                    <p className="text-[10px] text-slate-500 font-medium">
+                      دسته‌بندی: <span className="font-bold text-slate-700">{item.category}</span> • ارسال‌کننده: <span className="font-bold text-slate-700">{item.uploader}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedMediaItem(null);
+                    setSelectedImage(null);
+                  }}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Media Content Display */}
+              <div className="max-h-[70vh] overflow-auto flex items-center justify-center bg-slate-950/5 rounded-2xl p-3">
+                {item.type === 'audio' ? (
+                  <div className="w-full max-w-lg bg-emerald-950 text-white rounded-2xl p-6 space-y-5 shadow-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                          <Mic className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-sm text-white">توضیحات صوتی ضبط شده راننده / زیان‌دیده</h4>
+                          <span className="text-xs text-emerald-300">فرمت صوتی وب‌ام/ویو با کیفیت استاندارد</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-800 text-emerald-200">
+                        صوت معتبر
+                      </span>
+                    </div>
+
+                    {/* Audio Wave Visualizer Bars */}
+                    <div className="flex items-center justify-center gap-1 h-12 py-2 bg-emerald-900/40 rounded-xl px-4">
+                      {[40, 65, 80, 45, 90, 75, 60, 85, 95, 70, 50, 65, 80, 90, 60, 45, 70, 85, 60, 40].map((h, i) => (
+                        <div
+                          key={i}
+                          className="w-1.5 bg-emerald-400 rounded-full transition-all duration-300"
+                          style={{ height: `${h}%` }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Native Audio Controls */}
+                    <audio controls autoPlay src={item.url} className="w-full rounded-xl" />
+
+                    <div className="flex items-center justify-between text-xs text-emerald-200/80 pt-2 border-t border-emerald-800/60">
+                      <span>ثبت شده در پرونده شماره {activeCase.id}</span>
+                      <span>ارسال توسط: {item.uploader}</span>
+                    </div>
+                  </div>
+                ) : item.type === 'video' ? (
+                  <div className="w-full max-w-2xl bg-black rounded-2xl overflow-hidden shadow-2xl">
+                    <video
+                      controls
+                      autoPlay
+                      src={item.url}
+                      className="w-full max-h-[60vh] object-contain"
+                    />
+                  </div>
+                ) : (
+                  <img
+                    src={item.url}
+                    alt={item.name}
+                    className="max-w-full max-h-[65vh] object-contain rounded-xl shadow-md"
+                  />
+                )}
+              </div>
+
+              {/* Note / metadata footer */}
+              {item.note && (
+                <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-100 text-xs text-slate-800">
+                  <span className="font-bold text-blue-950 block mb-0.5">یادداشت مدرک:</span>
+                  <p>{item.note}</p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL 3: REVIEWER SMS NOTIFICATION INBOX SIMULATOR */}
       {showSmsModal && (

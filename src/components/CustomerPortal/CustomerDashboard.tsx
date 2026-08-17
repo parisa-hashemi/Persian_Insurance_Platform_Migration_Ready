@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { ClaimCase, UserSession } from '../../types';
 import { updateCustomerProfile } from '../../lib/storage';
+import { compressImageFile } from '../../lib/imageCompressor';
 
 interface CustomerDashboardProps {
   session: UserSession;
@@ -60,7 +61,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
 
   const myCases = cases.filter((c) => {
-    if (c.isBodily) return false;
+    if (c.isBodily || c.isBodyClaim || c.id?.startsWith('BD-') || Boolean(c.bodyInsuranceInfo)) return false;
     if (!session.phone) return true;
     const isVictim = c.victimPhone === session.phone || c.partyOnePhone === session.phone || (session.name && c.victimName?.includes(session.name));
     const isCulprit = c.culpritPhone === session.phone || c.partyTwoPhone === session.phone || (session.name && c.culpritName?.includes(session.name));
@@ -96,16 +97,11 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const activeClaimsCount = myCases.filter((c) => c.status !== 'پرداخت شده' && c.status !== 'رد شده').length;
 
   // Avatar File Upload Handler
-  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        if (uploadEvent.target?.result) {
-          setProfAvatar(uploadEvent.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+      const dataUrl = await compressImageFile(file, 256, 0.7);
+      setProfAvatar(dataUrl);
     }
   };
 

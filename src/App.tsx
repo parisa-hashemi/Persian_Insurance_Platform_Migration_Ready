@@ -265,6 +265,10 @@ export default function App() {
             cases={cases}
             onSubmitBodily={handleBodilySubmit}
             onBack={() => setActiveView('customerDashboard')}
+            onOpenCaseDetail={(caseId) => {
+              setSelectedCaseId(caseId);
+              setActiveView('customerCaseDetail');
+            }}
           />
         )}
 
@@ -273,7 +277,13 @@ export default function App() {
           <CustomerCaseDetail
             session={session}
             claimCase={selectedCase}
-            onBack={() => setActiveView('customerDashboard')}
+            onBack={() => {
+              if (selectedCase.isBodyClaim || selectedCase.isBodily || selectedCase.id?.startsWith('BD-')) {
+                setActiveView('customerBodily');
+              } else {
+                setActiveView('customerDashboard');
+              }
+            }}
             onUpdateCase={handleUpdateCase}
           />
         )}
@@ -290,6 +300,7 @@ export default function App() {
             onNavigateTab={(tab) => {
               if (tab === 'payout') setActiveView('insurerPayoutQueue');
             }}
+            onUpdateCase={handleUpdateCase}
             onLogout={handleLogout}
           />
         )}

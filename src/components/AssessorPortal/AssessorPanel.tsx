@@ -43,7 +43,21 @@ import {
   RefreshCw,
   Bell,
   Timer,
-  Inbox
+  Inbox,
+  History,
+  Eye,
+  Copy,
+  ExternalLink,
+  BookOpen,
+  FileSpreadsheet,
+  Headphones,
+  Mic,
+  Film,
+  Play,
+  Pause,
+  Paperclip,
+  FileCheck,
+  Image as ImageIcon
 } from 'lucide-react';
 import { ClaimCase, UserSession, PartItem, AIDecisionLine, AdditionalDocItem, CarDamageSpot, AssessorNotification } from '../../types';
 import {
@@ -146,8 +160,18 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const [rejectModalCase, setRejectModalCase] = useState<ClaimCase | null>(null);
   const [rejectReasonInput, setRejectReasonInput] = useState<string>('');
 
-  // Image Preview Modal
+  // Multi-Media & Image Preview Modal
   const [previewImageModal, setPreviewImageModal] = useState<string | null>(null);
+  const [previewMediaModal, setPreviewMediaModal] = useState<{
+    url: string;
+    name: string;
+    type: 'image' | 'video' | 'audio' | 'kroki' | 'document' | string;
+    category?: string;
+    uploader?: string;
+    date?: string;
+    note?: string;
+  } | null>(null);
+  const [assessorMediaFilter, setAssessorMediaFilter] = useState<'ALL' | 'IMAGE' | 'VIDEO' | 'AUDIO' | 'DOC' | 'KROKI'>('ALL');
 
   // Police Inquiry State
   const [policeInquiryState, setPoliceInquiryState] = useState<{
@@ -310,6 +334,10 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const [isDocRequestsOpen, setIsDocRequestsOpen] = useState(false);
   const [isQuickDocMenuOpen, setIsQuickDocMenuOpen] = useState(false);
 
+  // Previous Assessment Viewer (For reassigned / objected cases)
+  const [selectedPrevAssessmentModal, setSelectedPrevAssessmentModal] = useState<any | null>(null);
+  const [isPrevAssessmentsCardExpanded, setIsPrevAssessmentsCardExpanded] = useState<boolean>(false);
+
   // Correction Request Reason
   const [correctionReason, setCorrectionReason] = useState('');
 
@@ -421,6 +449,67 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   }, [assignedCases, quickFilter, searchAny, searchProvince, searchCity, searchType, searchStatus]);
 
   const activeCase = cases.find((c) => c.id === selectedCaseId);
+
+  // Previous Assessments List (For reassigned / objected cases to view previous expert findings)
+  const previousAssessmentsList = useMemo(() => {
+    if (!activeCase) return [];
+    const list: any[] = [];
+    if (activeCase.assessments && activeCase.assessments.length > 0) {
+      activeCase.assessments.forEach((a, idx) => {
+        list.push({
+          id: `prev-assess-${idx}`,
+          round: a.round || `ارزیابی نوبت ${idx + 1}`,
+          roundIdx: a.roundIdx || idx + 1,
+          expertName: a.expertName || activeCase.previousAssignedExpert?.name || 'کارشناس ارزیاب اول',
+          submittedAt: a.submittedAt || activeCase.assignedAt || 'ثبت شده',
+          gross: a.gross || 0,
+          deductions: a.deductions || 0,
+          salvage: a.salvage || 0,
+          payable: a.payable || 0,
+          reviewerNote: a.reviewerNote || '',
+          parts: a.parts || [],
+          aiDecisions: a.aiDecisions || [],
+          status: a.status || 'ارزیابی شده',
+          isPrevious: true
+        });
+      });
+    } else if (activeCase.previousAssignedExpert || activeCase.objectionStage || activeCase.reassessReason || activeCase.reassessType || activeCase.status.includes('مجدد')) {
+      if (activeCase.assessment) {
+        list.push({
+          id: 'prev-assess-single',
+          round: 'ارزیابی کارشناس اول (مورد اعتراض زیان‌دیده)',
+          roundIdx: 1,
+          expertName: activeCase.previousAssignedExpert?.name || activeCase.assessment.submittedBy || 'کارشناس ارزیاب اول',
+          submittedAt: activeCase.assessment.submittedAt || activeCase.assignedAt || 'ثبت اولیه',
+          gross: activeCase.assessment.gross || 0,
+          deductions: activeCase.assessment.deductions || 0,
+          salvage: activeCase.assessment.salvage || 0,
+          payable: activeCase.assessment.payable || 0,
+          reviewerNote: activeCase.assessment.reviewerNote || '',
+          parts: activeCase.assessment.parts || [],
+          aiDecisions: activeCase.aiDecisions || [],
+          status: 'مورد اعتراض زیان‌دیده',
+          isPrevious: true
+        });
+      }
+    }
+    return list;
+  }, [activeCase]);
+
+  const handleCopyPrevAssessmentToCurrent = (prevItem: any) => {
+    if (prevItem.parts && prevItem.parts.length > 0) {
+      setParts(JSON.parse(JSON.stringify(prevItem.parts)));
+      setGrossInput(String(prevItem.gross || 0));
+      setDeductionsInput(String(prevItem.deductions || 0));
+      setSalvageInput(String(prevItem.salvage || 0));
+      if (prevItem.reviewerNote) {
+        setNoteInput(`[بر مبنای بازبینی ارزیابی کارشناس قبل (${prevItem.expertName})]: ` + prevItem.reviewerNote);
+      }
+      alert('کلیه اقلام قطعات و برآوردهای کارشناس قبلی با موفقیت به پیش‌نویس ارزیابی شما منتقل شد. اکنون می‌توانید تغییرات مورد نظرتان را اعمال فرمایید.');
+    } else {
+      alert('اقلام قطعه‌ای برای کپی یافت نشد.');
+    }
+  };
 
   // Default AI Findings
   const defaultAiFindings: AIDecisionLine[] = useMemo(() => {
@@ -1696,11 +1785,11 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl text-xs font-black">
+                <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl text-xs font-black flex-wrap">
                   <button
                     type="button"
                     onClick={() => setActiveTab('summary')}
-                    className={`px-4 py-2 rounded-xl transition-all ${
+                    className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
                       activeTab === 'summary' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-600 hover:bg-white/60'
                     }`}
                   >
@@ -1709,7 +1798,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveTab('parts')}
-                    className={`px-4 py-2 rounded-xl transition-all ${
+                    className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
                       activeTab === 'parts' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-600 hover:bg-white/60'
                     }`}
                   >
@@ -1718,12 +1807,27 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   <button
                     type="button"
                     onClick={() => setActiveTab('money')}
-                    className={`px-4 py-2 rounded-xl transition-all ${
+                    className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
                       activeTab === 'money' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-600 hover:bg-white/60'
                     }`}
                   >
                     برآورد نهایی و ثبت
                   </button>
+
+                  {previousAssessmentsList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPrevAssessmentModal(previousAssessmentsList[0])}
+                      className="px-3.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 font-black text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer mr-auto"
+                      title="دیدن صفحه و کلیه ارزیابی‌های کارشناس قبلی"
+                    >
+                      <History className="w-4 h-4 text-amber-700" />
+                      <span>دیدن صفحه ارزیابی کارشناس قبل</span>
+                      <span className="w-5 h-5 rounded-full bg-amber-600 text-white text-[10px] flex items-center justify-center font-mono">
+                        {previousAssessmentsList.length}
+                      </span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1814,6 +1918,163 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   </div>
                 );
               })()}
+
+              {/* PREVIOUS EXPERT ASSESSMENT CARD (FOR REASSIGNED / OBJECTED CASES) */}
+              {previousAssessmentsList.length > 0 && (
+                <div className="p-5 sm:p-6 bg-gradient-to-br from-amber-500/10 via-purple-500/5 to-indigo-500/10 border-2 border-amber-300/80 rounded-3xl space-y-4 shadow-sm animate-in fade-in">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-amber-200/70 pb-4">
+                    <div className="flex items-start sm:items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center font-black shadow-md shadow-amber-500/20 shrink-0">
+                        <History className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-black text-slate-900 text-sm sm:text-base">
+                            سوابق و برآورد کارشناس قبلی (پرونده اعتراضی / ارجاع مجدد)
+                          </h4>
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-950 font-black text-[11px] border border-amber-300">
+                            مرحله {activeCase.objectionStage || 1} اعتراض زیان‌دیده
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 font-medium mt-0.5">
+                          کارشناس ارزیاب اول: <strong className="text-slate-900">{previousAssessmentsList[0].expertName}</strong> | تاریخ ثبت ارزیابی قبلی: <span className="font-mono font-bold text-slate-800">{previousAssessmentsList[0].submittedAt}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Action buttons: Open Full Page Modal & Toggle In-Card View */}
+                    <div className="flex items-center gap-2 self-start md:self-auto flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPrevAssessmentModal(previousAssessmentsList[0])}
+                        className="px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-black shadow-md shadow-purple-700/20 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                      >
+                        <Eye className="w-4 h-4" />
+                        <span>دیدن صفحه ارزیابی کارشناس قبل</span>
+                        <Maximize2 className="w-3.5 h-3.5 opacity-80" />
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsPrevAssessmentsCardExpanded(!isPrevAssessmentsCardExpanded)}
+                        className="px-3.5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <span>{isPrevAssessmentsCardExpanded ? 'بستن خلاصه کارت' : 'مشاهده سریع در کارت'}</span>
+                        {isPrevAssessmentsCardExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Customer Objection Statement */}
+                  <div className="p-4 bg-amber-100/80 border border-amber-300 rounded-2xl flex items-start gap-3 text-xs text-amber-950">
+                    <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 font-black">
+                        <span>علت ثبت اعتراض توسط زیان‌دیده (مشتری):</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded bg-amber-200 text-amber-900">مرحله {activeCase.objectionStage || 1}</span>
+                      </div>
+                      <p className="font-medium leading-relaxed bg-white/70 p-2.5 rounded-xl border border-amber-200 text-amber-950">
+                        {activeCase.reassessReason || 'زیان‌دیده نسبت به مبالغ تعیین‌شده و عدم تایید تعویض قطعات آسیب‌دیده اعتراض نموده و پرونده جهت ارزیابی به کارشناس مجدد محول گردیده است.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Financial Overview Cards of Previous Assessment */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                    <div className="bg-white/95 p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+                      <span className="text-slate-500 font-bold block text-[11px]">خسارت ناخالص قبلی</span>
+                      <span className="font-black font-mono text-slate-900 text-base">
+                        {formatCurrency(previousAssessmentsList[0].gross)}
+                      </span>
+                    </div>
+                    <div className="bg-white/95 p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+                      <span className="text-slate-500 font-bold block text-[11px]">کسورات و فرانشیز قبلی</span>
+                      <span className="font-black font-mono text-rose-700 text-base">
+                        {formatCurrency(previousAssessmentsList[0].deductions)}
+                      </span>
+                    </div>
+                    <div className="bg-white/95 p-3.5 rounded-2xl border border-slate-200 shadow-2xs space-y-1">
+                      <span className="text-slate-500 font-bold block text-[11px]">ارزش داغی / اسقاط قبلی</span>
+                      <span className="font-black font-mono text-amber-700 text-base">
+                        {formatCurrency(previousAssessmentsList[0].salvage)}
+                      </span>
+                    </div>
+                    <div className="bg-purple-50 p-3.5 rounded-2xl border-2 border-purple-300 shadow-2xs space-y-1">
+                      <span className="text-purple-700 font-extrabold block text-[11px]">خالص پرداختی قبلی</span>
+                      <span className="font-black font-mono text-purple-900 text-base">
+                        {formatCurrency(previousAssessmentsList[0].payable)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Quick In-Card Expanded View */}
+                  {isPrevAssessmentsCardExpanded && (
+                    <div className="p-4 sm:p-5 bg-white rounded-2xl border border-amber-200 space-y-4 animate-in fade-in">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                        <h5 className="font-black text-xs sm:text-sm text-slate-900 flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-purple-600" />
+                          <span>ریز اقلام و تصمیمات کارشناس قبلی ({previousAssessmentsList[0].expertName}):</span>
+                        </h5>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPrevAssessmentToCurrent(previousAssessmentsList[0])}
+                          className="px-3 py-1.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-900 text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-auto"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>کپی کلیه اقلام در برآورد جاری</span>
+                        </button>
+                      </div>
+
+                      {previousAssessmentsList[0].parts && previousAssessmentsList[0].parts.length > 0 ? (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-right text-xs">
+                            <thead className="bg-slate-50 text-slate-600 font-black border-b border-slate-200">
+                              <tr>
+                                <th className="p-2.5">نام قطعه / عملیات</th>
+                                <th className="p-2.5">نوع اقدام</th>
+                                <th className="p-2.5">قیمت قطعه (ریال)</th>
+                                <th className="p-2.5">اجرت تعمیر / صافکاری</th>
+                                <th className="p-2.5">کسر داغی</th>
+                                <th className="p-2.5">جمع ردیف</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                              {previousAssessmentsList[0].parts.map((p: any, idx: number) => {
+                                const rowTotal = (p.partPrice || 0) + (p.repairPrice || 0) - (p.salvageValue || 0);
+                                return (
+                                  <tr key={idx} className="hover:bg-slate-50/60">
+                                    <td className="p-2.5 font-bold text-slate-900">{p.name}</td>
+                                    <td className="p-2.5">
+                                      <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                        p.type === 'replace' ? 'bg-rose-100 text-rose-800' : 'bg-blue-100 text-blue-800'
+                                      }`}>
+                                        {p.type === 'replace' ? 'تعویض قطعه' : 'تعمیر / صافکاری / نقاشی'}
+                                      </span>
+                                    </td>
+                                    <td className="p-2.5 font-mono">{formatCurrency(p.partPrice || 0)}</td>
+                                    <td className="p-2.5 font-mono">{formatCurrency(p.repairPrice || 0)}</td>
+                                    <td className="p-2.5 font-mono text-amber-700">{formatCurrency(p.salvageValue || 0)}</td>
+                                    <td className="p-2.5 font-mono font-black text-slate-900">{formatCurrency(rowTotal)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-500 font-medium">اقلام تفکیکی برای این ارزیابی ثبت نشده است.</p>
+                      )}
+
+                      {previousAssessmentsList[0].reviewerNote && (
+                        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+                          <span className="font-black text-slate-800 block">یادداشت فنی کارشناس قبلی:</span>
+                          <p className="text-slate-600 font-medium leading-relaxed">{previousAssessmentsList[0].reviewerNote}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* TAB 1: Summary & Checklist */}
               {activeTab === 'summary' && (
@@ -2150,55 +2411,143 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       </span>
                     </div>
 
-                    {((activeCase.additionalDocs && activeCase.additionalDocs.length > 0) || (activeCase.files && activeCase.files.length > 0) || activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl) ? (
+                    {((activeCase.additionalDocs && activeCase.additionalDocs.length > 0) || (activeCase.files && activeCase.files.length > 0) || activeCase.audioExplanation || activeCase.videoExplanation || activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl) ? (
                       <div className="space-y-4">
+                        {/* Audio & Video Explanations */}
+                        {(activeCase.audioExplanation || activeCase.videoExplanation) && (
+                          <div className="space-y-2">
+                            <h5 className="text-xs font-bold text-slate-700">شرح صوتی و فیلم ارسالی راننده:</h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              {activeCase.audioExplanation && (
+                                <div className="p-3.5 bg-gradient-to-br from-emerald-950 to-slate-900 text-white rounded-xl space-y-2 border border-emerald-800/60">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                        <Mic className="w-3.5 h-3.5 animate-pulse" />
+                                      </div>
+                                      <span className="font-bold text-xs">توضیحات صوتی راننده</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewMediaModal({
+                                        url: activeCase.audioExplanation!,
+                                        name: 'توضیحات صوتی راننده',
+                                        type: 'audio',
+                                        category: 'شرح صوتی حادثه',
+                                        uploader: 'زیان‌دیده / راننده'
+                                      })}
+                                      className="p-1 bg-emerald-800/80 hover:bg-emerald-700 rounded text-white cursor-pointer"
+                                      title="نمای بزرگ"
+                                    >
+                                      <Maximize2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  <audio controls src={activeCase.audioExplanation} className="w-full h-8 rounded-lg" />
+                                </div>
+                              )}
+                              {activeCase.videoExplanation && (
+                                <div className="p-3 bg-slate-900 text-white rounded-xl space-y-2 border border-slate-800">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center">
+                                        <Film className="w-3.5 h-3.5" />
+                                      </div>
+                                      <span className="font-bold text-xs">فیلم صحنه تصادف</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewMediaModal({
+                                        url: activeCase.videoExplanation!,
+                                        name: 'فیلم صحنه تصادف',
+                                        type: 'video',
+                                        category: 'فیلم حادثه',
+                                        uploader: 'زیان‌دیده / راننده'
+                                      })}
+                                      className="p-1 bg-slate-800 hover:bg-slate-700 rounded text-white cursor-pointer"
+                                      title="نمای بزرگ"
+                                    >
+                                      <Maximize2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  <div className="rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
+                                    <video controls src={activeCase.videoExplanation} className="w-full h-full object-contain" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Additional Documents Uploaded by Parties */}
                         {activeCase.additionalDocs && activeCase.additionalDocs.length > 0 && (
                           <div className="space-y-2">
                             <h5 className="text-xs font-bold text-slate-700">مدارک و شواهد ثبت‌شده توسط طرفین حادثه:</h5>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {activeCase.additionalDocs.map((doc) => (
-                                <div key={doc.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="font-extrabold text-slate-900 truncate">{doc.title}</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
-                                      doc.uploaderParty === 'PARTY_ONE' || doc.uploaderRole?.includes('اول') || doc.uploaderRole?.includes('زیان‌دیده')
-                                        ? 'bg-blue-100 text-blue-900 border-blue-300'
-                                        : 'bg-amber-100 text-amber-900 border-amber-300'
-                                    }`}>
-                                      {doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول' : 'طرف دوم')}
-                                    </span>
-                                  </div>
+                              {activeCase.additionalDocs.map((doc) => {
+                                const isAudio = doc.fileType === 'audio' || doc.type === 'audio' || doc.title?.includes('صوت') || doc.title?.includes('voice');
+                                const isVideo = doc.fileType === 'video' || doc.type === 'video' || doc.title?.includes('ویدیو');
 
-                                  <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-white p-2 rounded-lg border border-slate-200/80">
-                                    <div><span className="font-bold text-slate-500">ارسال‌کننده:</span> {doc.uploadedBy || 'کاربر'}</div>
-                                    <div><span className="font-bold text-slate-500">نقش:</span> {doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول / زیان‌دیده' : 'طرف دوم / مقصر')}</div>
-                                    <div><span className="font-bold text-slate-500">نوع مدرک:</span> {doc.docType || 'مستند تکمیلی'}</div>
-                                    <div><span className="font-bold text-slate-500">وضعیت:</span> <span className="text-emerald-700 font-bold">ثبت در پرونده</span></div>
-                                  </div>
-
-                                  {doc.note && (
-                                    <p className="text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-100 leading-relaxed font-medium">
-                                      {doc.note}
-                                    </p>
-                                  )}
-
-                                  {doc.dataUrl && (
-                                    <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
-                                      {doc.fileType === 'video' ? (
-                                        <video src={doc.dataUrl} controls className="w-full max-h-36 rounded-lg" />
-                                      ) : (
-                                        <img src={doc.dataUrl} alt={doc.title} className="w-full h-36 object-cover rounded-lg" />
-                                      )}
+                                return (
+                                  <div key={doc.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-extrabold text-slate-900 truncate">{doc.title}</span>
+                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
+                                        doc.uploaderParty === 'PARTY_ONE' || doc.uploaderRole?.includes('اول') || doc.uploaderRole?.includes('زیان‌دیده')
+                                          ? 'bg-blue-100 text-blue-900 border-blue-300'
+                                          : 'bg-amber-100 text-amber-900 border-amber-300'
+                                      }`}>
+                                        {doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول' : 'طرف دوم')}
+                                      </span>
                                     </div>
-                                  )}
 
-                                  <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1">
-                                    <span>تاریخ: {doc.uploadedAt}</span>
-                                    <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{doc.fileSize || '1.5 MB'}</span>
+                                    <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-white p-2 rounded-lg border border-slate-200/80">
+                                      <div><span className="font-bold text-slate-500">ارسال‌کننده:</span> {doc.uploadedBy || 'کاربر'}</div>
+                                      <div><span className="font-bold text-slate-500">نوع مدرک:</span> {doc.docType || 'مستند تکمیلی'}</div>
+                                    </div>
+
+                                    {doc.note && (
+                                      <p className="text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-100 leading-relaxed font-medium">
+                                        {doc.note}
+                                      </p>
+                                    )}
+
+                                    {doc.dataUrl && (
+                                      <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                                        {isAudio ? (
+                                          <div className="p-2 bg-emerald-950 rounded-lg">
+                                            <audio src={doc.dataUrl} controls className="w-full h-8" />
+                                          </div>
+                                        ) : isVideo ? (
+                                          <video src={doc.dataUrl} controls className="w-full max-h-36 rounded-lg" />
+                                        ) : (
+                                          <div
+                                            onClick={() => setPreviewMediaModal({
+                                              url: doc.dataUrl!,
+                                              name: doc.title,
+                                              type: 'image',
+                                              category: doc.docType || 'مستند تکمیلی',
+                                              uploader: doc.uploadedBy || 'طرفین',
+                                              note: doc.note
+                                            })}
+                                            className="cursor-pointer group relative"
+                                          >
+                                            <img src={doc.dataUrl} alt={doc.title} className="w-full h-36 object-cover rounded-lg group-hover:scale-105 transition-transform" />
+                                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                              <Maximize2 className="w-3.5 h-3.5" />
+                                              <span>بزرگ‌نمایی</span>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+
+                                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1">
+                                      <span>تاریخ: {doc.uploadedAt}</span>
+                                      <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{doc.fileSize || '1.5 MB'}</span>
+                                    </div>
                                   </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -2212,6 +2561,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                                 const fileName = typeof f === 'string' ? f : (f?.name || f?.fileName || `تصویر ${i + 1}`);
                                 const dataUrl = typeof f === 'object' ? f?.dataUrl : undefined;
                                 const isAudio = fileName?.includes('صوت') || fileName?.includes('voice') || f?.type === 'audio';
+                                const isVideo = fileName?.includes('ویدیو') || fileName?.includes('video') || f?.type === 'video';
 
                                 return (
                                   <div key={i} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
@@ -2220,15 +2570,33 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                                       <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-800 rounded font-mono">ثبت اولیه</span>
                                     </div>
 
-                                    {dataUrl && !isAudio && (
-                                      <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-white">
-                                        <img src={dataUrl} alt={fileName} className="w-full h-28 object-cover rounded-lg" />
+                                    {dataUrl && !isAudio && !isVideo && (
+                                      <div
+                                        onClick={() => setPreviewMediaModal({
+                                          url: dataUrl,
+                                          name: fileName,
+                                          type: 'image',
+                                          category: 'عکس خسارت ثبت اولیه',
+                                          uploader: 'زیان‌دیده'
+                                        })}
+                                        className="relative rounded-lg overflow-hidden border border-slate-200 bg-white cursor-pointer group"
+                                      >
+                                        <img src={dataUrl} alt={fileName} className="w-full h-28 object-cover rounded-lg group-hover:scale-105 transition-transform" />
+                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                          <Maximize2 className="w-3.5 h-3.5" />
+                                        </div>
                                       </div>
                                     )}
 
                                     {dataUrl && isAudio && (
-                                      <div className="p-2 bg-white rounded-lg border border-slate-200">
+                                      <div className="p-2 bg-emerald-950 rounded-lg">
                                         <audio src={dataUrl} controls className="w-full h-8" />
+                                      </div>
+                                    )}
+
+                                    {dataUrl && isVideo && (
+                                      <div className="rounded-lg overflow-hidden bg-black aspect-video">
+                                        <video src={dataUrl} controls className="w-full h-full object-contain" />
                                       </div>
                                     )}
 
@@ -2254,11 +2622,26 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                                 <span>برگه کروکی رسمی پلیس</span>
                                 {activeCase.sceneReportCode && <span className="font-mono">کد: {activeCase.sceneReportCode}</span>}
                               </div>
-                              <img
-                                src={activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl || ''}
-                                alt="Official Croqui"
-                                className="w-full max-h-56 object-contain rounded-lg bg-white border border-amber-300"
-                              />
+                              <div
+                                onClick={() => setPreviewMediaModal({
+                                  url: activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl || '',
+                                  name: 'برگه رسمی کروکی راهور',
+                                  type: 'kroki',
+                                  category: 'کروکی پلیس راهور',
+                                  uploader: 'پلیس / راننده'
+                                })}
+                                className="cursor-pointer group relative rounded-lg overflow-hidden"
+                              >
+                                <img
+                                  src={activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl || ''}
+                                  alt="Official Croqui"
+                                  className="w-full max-h-56 object-contain rounded-lg bg-white border border-amber-300 group-hover:scale-101 transition-transform"
+                                />
+                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
+                                  <Maximize2 className="w-4 h-4" />
+                                  <span>بزرگ‌نمایی کروکی</span>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -3808,96 +4191,454 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
             </div>
 
             {/* Modal 1: Accident Details */}
-            {cardDetailModal === 'accident' && (
-              <div className="space-y-5">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">شماره پیگیری</label>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono font-black text-slate-800">
-                      {preliminaryCheckCase.id}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">تاریخ و ساعت حادثه</label>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono font-bold text-slate-800">
-                      {preliminaryCheckCase.date || '۱۰:۰۲ ۱۴۰۵/۰۵/۰۶'}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">وضعیت پرونده</label>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold text-slate-800">
-                      {preliminaryCheckCase.status || 'محول شده'}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">مختصات GPS</label>
-                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono text-[11px] text-slate-700">
-                      51.412582397460945, 35.66622234103479
-                    </div>
-                  </div>
-                </div>
+            {cardDetailModal === 'accident' && (() => {
+              // Aggregate all media items for the preliminary check case
+              const allMediaItems: Array<{
+                id: string;
+                name: string;
+                url: string;
+                type: 'image' | 'video' | 'audio' | 'kroki' | 'document';
+                category: string;
+                uploader: string;
+                date?: string;
+                note?: string;
+              }> = [];
 
-                <div>
-                  <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">آدرس ثبت‌شده</label>
-                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 leading-relaxed text-right min-h-[60px]">
-                    {preliminaryCheckCase.address || 'شهید پلمه، تختی، ناحیه ۴، منطقه ۱۲ شهر تهران، تهران، بخش مرکزی تهران، شهرستان تهران، استان تهران، 11987-65116، ایران'}
-                  </div>
-                </div>
+              // 1. Files from initial wizard
+              (preliminaryCheckCase.files || []).forEach((f: any, idx: number) => {
+                const name = typeof f === 'string' ? f : (f?.name || f?.fileName || `مدرک ${idx + 1}`);
+                const url = typeof f === 'object' ? (f?.dataUrl || f?.preview || f?.url) : undefined;
+                const explicitType = typeof f === 'object' ? f?.type : undefined;
+                const isAudio = explicitType === 'audio' || name.toLowerCase().includes('صوت') || name.toLowerCase().includes('voice') || name.toLowerCase().includes('audio');
+                const isVideo = explicitType === 'video' || name.toLowerCase().includes('ویدیو') || name.toLowerCase().includes('video') || name.toLowerCase().includes('film');
 
-                {/* Documents Section */}
-                <div className="pt-2 space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <h4 className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-purple-600" />
-                      مستندات یکپارچه پرونده مشترک (طرف اول و طرف دوم)
-                    </h4>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-900 border border-purple-300">
-                      پرونده مشترک
-                    </span>
-                  </div>
+                if (url) {
+                  allMediaItems.push({
+                    id: `init-${idx}`,
+                    name,
+                    url,
+                    type: isAudio ? 'audio' : isVideo ? 'video' : 'image',
+                    category: (typeof f === 'object' && f?.category) || (isAudio ? 'توضیحات صوتی' : isVideo ? 'فیلم حادثه' : 'عکس خسارت اولیه'),
+                    uploader: (typeof f === 'object' && f?.uploader) || 'زیان‌دیده (ثبت اولیه)',
+                    date: preliminaryCheckCase.date
+                  });
+                }
+              });
 
-                  {preliminaryCheckCase.additionalDocs && preliminaryCheckCase.additionalDocs.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {preliminaryCheckCase.additionalDocs.map((doc) => (
-                        <div key={doc.id} className="p-3 bg-white border border-slate-200 rounded-xl text-xs space-y-2 shadow-2xs">
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="font-bold text-slate-900 truncate">{doc.title}</span>
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                              doc.uploaderParty === 'PARTY_ONE' || doc.uploaderRole?.includes('زیان‌دیده') || doc.uploaderRole?.includes('اول')
-                                ? 'bg-blue-50 text-blue-800 border-blue-200'
-                                : 'bg-amber-50 text-amber-900 border-amber-200'
-                            }`}>
-                              {doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول' : 'طرف دوم')} ({doc.uploadedBy})
-                            </span>
-                          </div>
-                          {doc.note && <p className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-lg">{doc.note}</p>}
-                          {doc.dataUrl && (
-                            <img src={doc.dataUrl} alt={doc.title} className="w-full h-24 object-cover rounded-lg border border-slate-200" />
-                          )}
-                          <div className="text-[10px] text-slate-400 font-mono text-left">{doc.uploadedAt}</div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : preliminaryCheckCase.files && preliminaryCheckCase.files.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 w-full">
-                      {preliminaryCheckCase.files.map((f: any, i: number) => (
-                        <div key={i} className="p-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 truncate font-medium flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-purple-600 shrink-0" />
-                          <span className="truncate">{typeof f === 'string' ? f : (f?.name || f?.fileName || `فایل ${i + 1}`)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="border-2 border-dashed border-slate-200 rounded-2xl p-6 text-center flex flex-col items-center justify-center space-y-2 bg-slate-50/50">
-                      <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
-                        <ImageOff className="w-5 h-5" />
+              // 2. Audio Explanation if separate
+              if (preliminaryCheckCase.audioExplanation) {
+                allMediaItems.push({
+                  id: 'audio-exp',
+                  name: 'توضیحات صوتی راننده / زیان‌دیده',
+                  url: preliminaryCheckCase.audioExplanation,
+                  type: 'audio',
+                  category: 'شرح صوتی حادثه',
+                  uploader: 'راننده / زیان‌دیده',
+                  date: preliminaryCheckCase.date
+                });
+              }
+
+              // 3. Video Explanation if separate
+              if (preliminaryCheckCase.videoExplanation) {
+                allMediaItems.push({
+                  id: 'video-exp',
+                  name: 'ویدیوی ضبط‌شده از صحنه تصادف',
+                  url: preliminaryCheckCase.videoExplanation,
+                  type: 'video',
+                  category: 'فیلم صحنه تصادف',
+                  uploader: 'راننده / زیان‌دیده',
+                  date: preliminaryCheckCase.date
+                });
+              }
+
+              // 4. Kroki Photo
+              if (preliminaryCheckCase.customerKrokiPhoto) {
+                allMediaItems.push({
+                  id: 'kroki-photo',
+                  name: 'برگه رسمی کروکی پلیس راهور',
+                  url: preliminaryCheckCase.customerKrokiPhoto,
+                  type: 'kroki',
+                  category: 'کروکی رسمی راهور',
+                  uploader: 'پلیس / راننده',
+                  date: preliminaryCheckCase.date
+                });
+              }
+              if (preliminaryCheckCase.croquiData?.fileUrl && preliminaryCheckCase.croquiData.fileUrl !== preliminaryCheckCase.customerKrokiPhoto) {
+                allMediaItems.push({
+                  id: 'croqui-data-file',
+                  name: 'ترسیم دیجیتال / برگه کروکی سازمانی',
+                  url: preliminaryCheckCase.croquiData.fileUrl,
+                  type: 'kroki',
+                  category: 'کروکی سیستمی',
+                  uploader: 'راهور ناجا',
+                  date: preliminaryCheckCase.date
+                });
+              }
+
+              // 5. Culprit Files
+              (preliminaryCheckCase.culpritFiles || []).forEach((cf: any, idx: number) => {
+                const name = typeof cf === 'string' ? cf : (cf?.name || `مستند طرف دوم ${idx + 1}`);
+                const url = typeof cf === 'object' ? (cf?.dataUrl || cf?.preview || cf?.url) : undefined;
+                if (url) {
+                  allMediaItems.push({
+                    id: `culprit-${idx}`,
+                    name,
+                    url,
+                    type: 'image',
+                    category: 'مدارک و عکس‌های طرف دوم (مقصر)',
+                    uploader: 'طرف دوم (مقصر)',
+                    date: preliminaryCheckCase.date
+                  });
+                }
+              });
+
+              // 6. Additional Docs
+              (preliminaryCheckCase.additionalDocs || []).forEach((doc: AdditionalDocItem) => {
+                const isAudio = doc.fileType === 'audio' || (doc as any).type === 'audio' || doc.title?.includes('صوت') || doc.title?.includes('voice');
+                const isVideo = doc.fileType === 'video' || (doc as any).type === 'video' || doc.title?.includes('ویدیو') || doc.title?.includes('فیلم');
+                const isDoc = doc.fileType === 'pdf' || doc.fileType === 'document' || doc.docType === 'سند / مدرک';
+
+                allMediaItems.push({
+                  id: doc.id,
+                  name: doc.title,
+                  url: doc.dataUrl || '',
+                  type: isAudio ? 'audio' : isVideo ? 'video' : isDoc ? 'document' : 'image',
+                  category: doc.docType || (isAudio ? 'فایل صوتی' : isVideo ? 'ویدیوی تکمیلی' : 'مستند تکمیلی'),
+                  uploader: doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول (زیان‌دیده)' : 'طرف دوم (مقصر)'),
+                  date: doc.uploadedAt,
+                  note: doc.note
+                });
+              });
+
+              // Filtered list
+              const filteredItems = allMediaItems.filter((item) => {
+                if (assessorMediaFilter === 'ALL') return true;
+                if (assessorMediaFilter === 'IMAGE') return item.type === 'image';
+                if (assessorMediaFilter === 'VIDEO') return item.type === 'video';
+                if (assessorMediaFilter === 'AUDIO') return item.type === 'audio';
+                if (assessorMediaFilter === 'KROKI') return item.type === 'kroki';
+                if (assessorMediaFilter === 'DOC') return item.type === 'document';
+                return true;
+              });
+
+              const countPhotos = allMediaItems.filter(i => i.type === 'image').length;
+              const countVideos = allMediaItems.filter(i => i.type === 'video').length;
+              const countAudios = allMediaItems.filter(i => i.type === 'audio').length;
+              const countKrokis = allMediaItems.filter(i => i.type === 'kroki').length;
+              const countDocs = allMediaItems.filter(i => i.type === 'document').length;
+
+              return (
+                <div className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">شماره پیگیری</label>
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono font-black text-slate-800">
+                        {preliminaryCheckCase.id}
                       </div>
-                      <p className="text-xs font-bold text-slate-400">مستندی برای این پرونده ثبت نشده است.</p>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">تاریخ و ساعت حادثه</label>
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono font-bold text-slate-800">
+                        {preliminaryCheckCase.date || '۱۰:۰۲ ۱۴۰۵/۰۵/۰۶'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">وضعیت پرونده</label>
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-bold text-slate-800">
+                        {preliminaryCheckCase.status || 'محول شده'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">مختصات GPS</label>
+                      <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono text-[11px] text-slate-700">
+                        51.412582397460945, 35.66622234103479
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">آدرس ثبت‌شده</label>
+                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-800 leading-relaxed text-right">
+                      {preliminaryCheckCase.address || 'شهید پلمه، تختی، ناحیه ۴، منطقه ۱۲ شهر تهران، تهران، بخش مرکزی تهران، شهرستان تهران، استان تهران، 11987-65116، ایران'}
+                    </div>
+                  </div>
+
+                  {/* Customer Text Explanation (if present) */}
+                  {preliminaryCheckCase.writtenExplanation && (
+                    <div className="p-3.5 bg-purple-50/50 border border-purple-200/80 rounded-2xl text-xs space-y-1.5 text-right">
+                      <div className="flex items-center gap-2 text-purple-950 font-bold">
+                        <MessageSquare className="w-4 h-4 text-purple-600" />
+                        <span>شرح کتبی نحوه وقوع حادثه توسط زیان‌دیده:</span>
+                      </div>
+                      <p className="text-slate-700 text-xs leading-relaxed pr-6">
+                        {preliminaryCheckCase.writtenExplanation}
+                      </p>
                     </div>
                   )}
+
+                  {/* Comprehensive Multi-Media Gallery Section */}
+                  <div className="pt-2 space-y-3.5 border-t border-slate-200">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-purple-100 text-purple-900 flex items-center justify-center font-bold">
+                          <Layers className="w-4 h-4" />
+                        </div>
+                        <h4 className="font-extrabold text-xs text-slate-900">
+                          مخزن جامع مستندات چندرسانه‌ای بارگذاری‌شده (عکس، صوت، ویدیو، کروکی)
+                        </h4>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-900 border border-purple-200">
+                        مجموع: {allMediaItems.length} مدرک
+                      </span>
+                    </div>
+
+                    {/* Filter Tabs */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setAssessorMediaFilter('ALL')}
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 cursor-pointer ${
+                          assessorMediaFilter === 'ALL'
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        همه ({allMediaItems.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAssessorMediaFilter('IMAGE')}
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                          assessorMediaFilter === 'IMAGE'
+                            ? 'bg-blue-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span>عکس‌ها ({countPhotos})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAssessorMediaFilter('VIDEO')}
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                          assessorMediaFilter === 'VIDEO'
+                            ? 'bg-purple-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        <Film className="w-3.5 h-3.5" />
+                        <span>ویدیوها ({countVideos})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAssessorMediaFilter('AUDIO')}
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                          assessorMediaFilter === 'AUDIO'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        <Mic className="w-3.5 h-3.5" />
+                        <span>وویس / صوت ({countAudios})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAssessorMediaFilter('KROKI')}
+                        className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                          assessorMediaFilter === 'KROKI'
+                            ? 'bg-amber-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        <FileCheck className="w-3.5 h-3.5" />
+                        <span>کروکی پلیس ({countKrokis})</span>
+                      </button>
+                      {countDocs > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setAssessorMediaFilter('DOC')}
+                          className={`px-3 py-1.5 rounded-xl font-bold transition-all shrink-0 cursor-pointer flex items-center gap-1 ${
+                            assessorMediaFilter === 'DOC'
+                              ? 'bg-slate-800 text-white shadow-xs'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          }`}
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>مدارک ({countDocs})</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Media Items Grid */}
+                    {filteredItems.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                        {filteredItems.map((item) => {
+                          if (item.type === 'audio') {
+                            return (
+                              <div
+                                key={item.id}
+                                className="p-4 bg-gradient-to-br from-emerald-950 to-slate-900 text-white rounded-2xl border border-emerald-800/60 shadow-xs space-y-3"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                      <Mic className="w-4 h-4 animate-pulse" />
+                                    </div>
+                                    <div>
+                                      <span className="font-extrabold text-xs text-white block truncate max-w-[160px]">
+                                        {item.name}
+                                      </span>
+                                      <span className="text-[10px] text-emerald-300">
+                                        ارسال‌کننده: {item.uploader}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewMediaModal(item)}
+                                    className="p-1.5 bg-emerald-800/80 hover:bg-emerald-700 rounded-lg text-white transition-colors cursor-pointer"
+                                    title="پخش در نمای کامل"
+                                  >
+                                    <Maximize2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                {/* Audio Wave visualizer */}
+                                <div className="flex items-center justify-center gap-1 h-7 px-3 bg-emerald-900/40 rounded-lg">
+                                  {[30, 70, 45, 80, 95, 60, 40, 85, 90, 65, 50, 75, 40].map((h, i) => (
+                                    <div
+                                      key={i}
+                                      className="w-1 bg-emerald-400 rounded-full"
+                                      style={{ height: `${h}%` }}
+                                    />
+                                  ))}
+                                </div>
+
+                                {item.url && (
+                                  <audio controls src={item.url} className="w-full h-8 rounded-lg" />
+                                )}
+
+                                {item.note && (
+                                  <p className="text-[10px] text-emerald-200/90 bg-emerald-900/40 p-2 rounded-lg leading-relaxed">
+                                    {item.note}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          if (item.type === 'video') {
+                            return (
+                              <div
+                                key={item.id}
+                                className="p-3 bg-slate-900 text-white rounded-2xl border border-slate-800 shadow-xs space-y-2"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center">
+                                      <Film className="w-3.5 h-3.5" />
+                                    </div>
+                                    <div>
+                                      <span className="font-bold text-xs text-white block truncate max-w-[160px]">
+                                        {item.name}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400">
+                                        ارسال‌کننده: {item.uploader}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setPreviewMediaModal(item)}
+                                    className="p-1 bg-slate-800 hover:bg-slate-700 rounded-lg text-white transition-colors cursor-pointer"
+                                  >
+                                    <Maximize2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+
+                                {item.url && (
+                                  <div className="rounded-xl overflow-hidden bg-black aspect-video flex items-center justify-center">
+                                    <video controls src={item.url} className="w-full h-full object-contain" />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          // Photo / Kroki / Doc Item
+                          return (
+                            <div
+                              key={item.id}
+                              className="p-3 bg-white border border-slate-200 hover:border-purple-300 rounded-2xl text-xs space-y-2.5 shadow-2xs transition-all flex flex-col justify-between"
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {item.type === 'kroki' ? (
+                                    <FileCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                                  ) : (
+                                    <ImageIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                                  )}
+                                  <span className="font-bold text-slate-900 truncate">{item.name}</span>
+                                </div>
+                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${
+                                  item.type === 'kroki'
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : 'bg-purple-50 text-purple-800 border border-purple-200'
+                                }`}>
+                                  {item.category}
+                                </span>
+                              </div>
+
+                              {item.url && (
+                                <div
+                                  onClick={() => setPreviewMediaModal(item)}
+                                  className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-100 cursor-pointer aspect-16/10 flex items-center justify-center"
+                                >
+                                  <img
+                                    src={item.url}
+                                    alt={item.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                                  />
+                                  <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <div className="px-3 py-1.5 rounded-lg bg-white/90 text-slate-900 font-black text-[11px] flex items-center gap-1.5 shadow-md">
+                                      <Maximize2 className="w-3.5 h-3.5" />
+                                      <span>مشاهده تصویر بزرگ</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {item.note && (
+                                <p className="text-[11px] text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 leading-relaxed font-medium">
+                                  {item.note}
+                                </p>
+                              )}
+
+                              <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                                <span>ارسال: {item.uploader}</span>
+                                <span className="font-mono">{item.date || preliminaryCheckCase.date}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                        <Paperclip className="w-8 h-8 text-slate-400 mx-auto" />
+                        <p className="font-bold text-xs text-slate-600">مستندی در این دسته‌بندی یافت نشد.</p>
+                        <button
+                          type="button"
+                          onClick={() => setAssessorMediaFilter('ALL')}
+                          className="text-xs text-purple-700 hover:text-purple-900 font-bold underline cursor-pointer"
+                        >
+                          مشاهده همه مدارک
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Modal 2: Victim Info */}
             {cardDetailModal === 'victim' && (
@@ -4138,29 +4879,116 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
         </div>
       )}
 
-      {/* Preview Image Modal */}
-      {previewImageModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="relative max-w-4xl w-full bg-white rounded-3xl p-4 shadow-2xl border border-slate-200 space-y-3 animate-in zoom-in-95">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <span className="font-extrabold text-xs text-slate-800">بزرگ‌نمایی برگه رسمی کروکی و مستندات پرونده</span>
-              <button
-                onClick={() => setPreviewImageModal(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold text-sm"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="max-h-[80vh] overflow-auto flex items-center justify-center rounded-2xl bg-slate-900/5 p-2">
-              <img
-                src={previewImageModal}
-                alt="Preview"
-                className="max-h-[75vh] w-auto object-contain rounded-xl shadow-md"
-              />
+      {/* Preview Image & Media Modal (Audio, Video, Photo, Kroki, Docs) */}
+      {(previewMediaModal || previewImageModal) && (() => {
+        const item = previewMediaModal || {
+          url: previewImageModal!,
+          name: 'تصویر مدرک و کروکی پرونده',
+          type: 'image',
+          category: 'مستندات پرونده',
+          uploader: 'بارگذاری شده'
+        };
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+            <div className="relative max-w-4xl w-full bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-900 flex items-center justify-center font-bold shadow-xs">
+                    {item.type === 'audio' ? (
+                      <Headphones className="w-5 h-5 text-emerald-600" />
+                    ) : item.type === 'video' ? (
+                      <Film className="w-5 h-5 text-purple-600" />
+                    ) : item.type === 'kroki' ? (
+                      <FileCheck className="w-5 h-5 text-amber-600" />
+                    ) : (
+                      <ImageIcon className="w-5 h-5 text-blue-600" />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-slate-900">{item.name}</h3>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      دسته‌بندی: <span className="font-bold text-slate-700">{item.category || 'مستندات پرونده'}</span> • ارسال‌کننده: <span className="font-bold text-slate-700">{item.uploader || 'مشتری / سیستم'}</span>
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setPreviewMediaModal(null);
+                    setPreviewImageModal(null);
+                  }}
+                  className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-rose-100 hover:text-rose-700 flex items-center justify-center font-bold text-sm transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Media Content Display */}
+              <div className="max-h-[75vh] overflow-auto flex items-center justify-center rounded-2xl bg-slate-950/5 p-3">
+                {item.type === 'audio' ? (
+                  <div className="w-full max-w-lg bg-emerald-950 text-white rounded-2xl p-6 space-y-5 shadow-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                          <Mic className="w-6 h-6 animate-pulse" />
+                        </div>
+                        <div>
+                          <h4 className="font-black text-sm text-white">توضیحات صوتی ضبط شده توسط راننده / زیان‌دیده</h4>
+                          <span className="text-xs text-emerald-300">فرمت صوتی وب‌ام/ویو با کیفیت استاندارد</span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-800 text-emerald-200">
+                        صوت معتبر
+                      </span>
+                    </div>
+
+                    {/* Audio Wave Visualizer Bars */}
+                    <div className="flex items-center justify-center gap-1 h-12 py-2 bg-emerald-900/40 rounded-xl px-4">
+                      {[40, 65, 80, 45, 90, 75, 60, 85, 95, 70, 50, 65, 80, 90, 60, 45, 70, 85, 60, 40].map((h, i) => (
+                        <div
+                          key={i}
+                          className="w-1.5 bg-emerald-400 rounded-full transition-all duration-300"
+                          style={{ height: `${h}%` }}
+                        />
+                      ))}
+                    </div>
+
+                    {/* Native Audio Controls */}
+                    <audio controls autoPlay src={item.url} className="w-full rounded-xl" />
+
+                    <div className="flex items-center justify-between text-xs text-emerald-200/80 pt-2 border-t border-emerald-800/60">
+                      <span>مدرک صوتی رسمی در کارتابل ارزیابی</span>
+                      <span>ارسال توسط: {item.uploader}</span>
+                    </div>
+                  </div>
+                ) : item.type === 'video' ? (
+                  <div className="w-full max-w-2xl bg-black rounded-2xl overflow-hidden shadow-2xl">
+                    <video
+                      controls
+                      autoPlay
+                      src={item.url}
+                      className="w-full max-h-[60vh] object-contain"
+                    />
+                  </div>
+                ) : (
+                  <img
+                    src={item.url}
+                    alt={item.name}
+                    className="max-h-[72vh] w-auto object-contain rounded-xl shadow-md"
+                  />
+                )}
+              </div>
+
+              {item.note && (
+                <div className="p-3 bg-purple-50/70 rounded-xl border border-purple-100 text-xs text-slate-800">
+                  <span className="font-bold text-purple-950 block mb-0.5">یادداشت مدرک:</span>
+                  <p>{item.note}</p>
+                </div>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* SMS & SYSTEM NOTIFICATIONS INBOX MODAL */}
       {showSmsInboxModal && (
@@ -4476,6 +5304,270 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 متوجه شدم و بازگشت به لیست پرونده‌ها
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* FULL PAGE MODAL: PREVIOUS EXPERT ASSESSMENT DETAILED VIEWER (دیدن صفحه و بستن صفحه) */}
+      {selectedPrevAssessmentModal && activeCase && (
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in overflow-y-auto">
+          <div
+            className="bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 text-slate-900 overflow-hidden animate-in zoom-in-95 my-auto"
+            dir="rtl"
+          >
+            {/* Modal Header */}
+            <div className="p-5 sm:p-6 bg-gradient-to-r from-purple-900 via-indigo-950 to-slate-900 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0 shadow-md">
+              <div className="flex items-start sm:items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-400/40 flex items-center justify-center font-bold shadow-sm shrink-0">
+                  <History className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-black text-base sm:text-lg text-white">
+                      صفحه ارزیابی و برآورد کارشناس قبلی
+                    </h3>
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-amber-950 font-black text-xs">
+                      {selectedPrevAssessmentModal.round || 'ارزیابی اول'}
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-purple-500/30 text-purple-200 font-bold text-xs border border-purple-400/30 font-mono">
+                      پرونده: {activeCase.id}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 font-medium mt-1">
+                    کارشناس ثبت‌کننده: <strong className="text-white">{selectedPrevAssessmentModal.expertName}</strong> | تاریخ و ساعت ثبت: <span className="font-mono text-amber-300 font-bold">{selectedPrevAssessmentModal.submittedAt}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Close Button Top */}
+              <button
+                type="button"
+                onClick={() => setSelectedPrevAssessmentModal(null)}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-extrabold text-xs flex items-center gap-2 transition-all cursor-pointer border border-white/20 shrink-0 self-start sm:self-auto"
+              >
+                <span>بستن صفحه</span>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable) */}
+            <div className="p-5 sm:p-7 overflow-y-auto space-y-6 flex-1 text-xs">
+              
+              {/* 1. Customer Objection Reason Banner */}
+              <div className="p-4 sm:p-5 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-300 rounded-2xl space-y-2.5 text-amber-950 shadow-xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2 font-black text-sm text-amber-900">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                    <span>شکواییه و علت اعتراض ثبت‌شده توسط زیان‌دیده (مشتری)</span>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-amber-200 text-amber-950 font-extrabold text-[11px]">
+                    مرحله {activeCase.objectionStage || 1} اعتراض
+                  </span>
+                </div>
+                
+                <div className="bg-white/90 p-4 rounded-xl border border-amber-200 text-slate-900 space-y-1.5 leading-relaxed font-medium">
+                  <span className="text-slate-500 font-bold block text-[11px]">شرح اعتراض زیان‌دیده ({activeCase.victimName || 'مشتری'}):</span>
+                  <p className="text-slate-900 font-bold text-xs sm:text-sm">
+                    «{activeCase.reassessReason || 'زیان‌دیده نسبت به برآورد اولیه و عدم تایید تعویض سپر و درب صندوق اعتراض داشته و اعلام نموده هزینه‌های واقعی تعمیرات بیشتر از رقم مصوب کارشناس اول است.'}»
+                  </p>
+                </div>
+
+                {/* Objection Chat messages if available */}
+                {activeCase.objectionChat && activeCase.objectionChat.length > 0 && (
+                  <div className="space-y-2 pt-2 border-t border-amber-200/80">
+                    <span className="font-extrabold text-amber-900 block text-[11px]">پیام‌های رد و بدل شده در چت اعتراض:</span>
+                    <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                      {activeCase.objectionChat.map((msg, idx) => (
+                        <div key={idx} className="p-2.5 rounded-lg bg-white border border-amber-100 text-xs flex items-start justify-between gap-2">
+                          <span className="font-bold text-slate-800">{msg.name}: <span className="font-normal text-slate-700">{msg.text}</span></span>
+                          <span className="text-[10px] text-slate-400 font-mono shrink-0">{msg.time}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Financial Summary Cards */}
+              <div className="space-y-2">
+                <h4 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                  <FileSpreadsheet className="w-4 h-4 text-purple-600" />
+                  <span>خلاصه محاسبات مالی و ارقام مصوب کارشناس اول</span>
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5">
+                    <span className="text-slate-500 font-extrabold text-[11px] block">۱. خسارت ناخالص قطعات و اجرت</span>
+                    <div className="font-black font-mono text-slate-900 text-base">
+                      {formatCurrency(selectedPrevAssessmentModal.gross)}
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-medium leading-tight">
+                      {rialToPersianToman(selectedPrevAssessmentModal.gross || 0)}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl space-y-1.5">
+                    <span className="text-rose-700 font-extrabold text-[11px] block">۲. فرانشیز و کسورات قانونی</span>
+                    <div className="font-black font-mono text-rose-800 text-base">
+                      {formatCurrency(selectedPrevAssessmentModal.deductions)}
+                    </div>
+                    <div className="text-[10px] text-rose-600 font-medium leading-tight">
+                      {rialToPersianToman(selectedPrevAssessmentModal.deductions || 0)}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-1.5">
+                    <span className="text-amber-800 font-extrabold text-[11px] block">۳. کسر ارزش داغی / اسقاط</span>
+                    <div className="font-black font-mono text-amber-900 text-base">
+                      {formatCurrency(selectedPrevAssessmentModal.salvage)}
+                    </div>
+                    <div className="text-[10px] text-amber-700 font-medium leading-tight">
+                      {rialToPersianToman(selectedPrevAssessmentModal.salvage || 0)}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-purple-50 border-2 border-purple-300 rounded-2xl space-y-1.5 shadow-2xs">
+                    <span className="text-purple-800 font-black text-[11px] block">۴. خالص پرداختی مصوب کارشناس قبل</span>
+                    <div className="font-black font-mono text-purple-950 text-lg">
+                      {formatCurrency(selectedPrevAssessmentModal.payable)}
+                    </div>
+                    <div className="text-[10px] text-purple-700 font-bold leading-tight">
+                      {rialToPersianToman(selectedPrevAssessmentModal.payable || 0)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. Official Notes & Reviewer Instructions */}
+              <div className="p-4 sm:p-5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+                <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-purple-600" />
+                  <span>توضیحات و گزارش فنی کارشناس ثبت‌کننده اولیه ({selectedPrevAssessmentModal.expertName})</span>
+                </h4>
+                <p className="font-medium text-slate-800 leading-relaxed bg-white p-3.5 rounded-xl border border-slate-200 text-xs">
+                  {selectedPrevAssessmentModal.reviewerNote || 'توضیحات تکمیلی توسط کارشناس ثبت نگردیده است. ارزیابی بر اساس تصاویر و مستندات خسارت خودرو انجام شده است.'}
+                </p>
+              </div>
+
+              {/* 4. Full Itemized Parts and Labor Breakdown Table */}
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <h4 className="font-black text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                    <Car className="w-4 h-4 text-purple-600" />
+                    <span>جدول ریز اقلام، قطعات تعویضی و اجرت‌های صافکاری/نقاشی کارشناس قبل</span>
+                  </h4>
+                  <span className="text-slate-500 font-bold text-xs">
+                    تعداد اقلام: {selectedPrevAssessmentModal.parts?.length || 0} ردیف
+                  </span>
+                </div>
+
+                {selectedPrevAssessmentModal.parts && selectedPrevAssessmentModal.parts.length > 0 ? (
+                  <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-2xs">
+                    <table className="w-full text-right text-xs">
+                      <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-200">
+                        <tr>
+                          <th className="p-3.5">ردیف</th>
+                          <th className="p-3.5">نام قطعه / بخش خودرو</th>
+                          <th className="p-3.5">نوع اقدام</th>
+                          <th className="p-3.5">قیمت قطعه (ریال)</th>
+                          <th className="p-3.5">اجرت تعمیر / نقاشی (ریال)</th>
+                          <th className="p-3.5">کسر داغی (ریال)</th>
+                          <th className="p-3.5">جمع کل ردیف (ریال)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 font-medium text-slate-800 bg-white">
+                        {selectedPrevAssessmentModal.parts.map((p: any, idx: number) => {
+                          const rowTotal = (p.partPrice || 0) + (p.repairPrice || 0) - (p.salvageValue || 0);
+                          return (
+                            <tr key={idx} className="hover:bg-purple-50/30 transition-colors">
+                              <td className="p-3.5 text-slate-400 font-mono">{idx + 1}</td>
+                              <td className="p-3.5 font-bold text-slate-900">{p.name}</td>
+                              <td className="p-3.5">
+                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${
+                                  p.type === 'replace' ? 'bg-rose-100 text-rose-800 border border-rose-200' : 'bg-blue-100 text-blue-800 border border-blue-200'
+                                }`}>
+                                  {p.type === 'replace' ? 'تعویض قطعه' : 'تعمیر / صافکاری / نقاشی'}
+                                </span>
+                              </td>
+                              <td className="p-3.5 font-mono">{formatCurrency(p.partPrice || 0)}</td>
+                              <td className="p-3.5 font-mono">{formatCurrency(p.repairPrice || 0)}</td>
+                              <td className="p-3.5 font-mono text-amber-700 font-bold">{formatCurrency(p.salvageValue || 0)}</td>
+                              <td className="p-3.5 font-mono font-black text-purple-900">{formatCurrency(rowTotal)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot className="bg-slate-50 font-black border-t-2 border-slate-200 text-slate-900">
+                        <tr>
+                          <td colSpan={3} className="p-3.5 text-left font-black">جمع کل اقلام کارشناس قبل:</td>
+                          <td className="p-3.5 font-mono">
+                            {formatCurrency(selectedPrevAssessmentModal.parts.reduce((s: number, p: any) => s + (p.partPrice || 0), 0))}
+                          </td>
+                          <td className="p-3.5 font-mono">
+                            {formatCurrency(selectedPrevAssessmentModal.parts.reduce((s: number, p: any) => s + (p.repairPrice || 0), 0))}
+                          </td>
+                          <td className="p-3.5 font-mono text-amber-700">
+                            {formatCurrency(selectedPrevAssessmentModal.parts.reduce((s: number, p: any) => s + (p.salvageValue || 0), 0))}
+                          </td>
+                          <td className="p-3.5 font-mono text-purple-950 text-sm">
+                            {formatCurrency(selectedPrevAssessmentModal.gross)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl text-center text-slate-500 font-bold">
+                    اقلام تفکیکی قطعات برای این ارزیابی ثبت نشده است.
+                  </div>
+                )}
+              </div>
+
+              {/* 5. AI Findings Recorded in that round if any */}
+              {selectedPrevAssessmentModal.aiDecisions && selectedPrevAssessmentModal.aiDecisions.length > 0 && (
+                <div className="p-4 bg-purple-50/60 border border-purple-200 rounded-2xl space-y-2">
+                  <h4 className="font-black text-purple-900 text-xs flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-purple-600" />
+                    <span>تصمیمات هوش مصنوعی ثبت‌شده در ارزیابی اول:</span>
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {selectedPrevAssessmentModal.aiDecisions.map((ai: any, i: number) => (
+                      <div key={i} className="p-2.5 bg-white rounded-xl border border-purple-100 text-xs flex items-center justify-between">
+                        <span className="font-bold text-slate-800">{ai.part || ai.label} ({ai.operation})</span>
+                        <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 text-[10px] font-bold">
+                          {ai.decision === 'APPROVED' ? 'تایید شد' : ai.decision === 'REJECTED' ? 'رد شد' : 'بررسی شد'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Footer with Close and Copy Actions */}
+            <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  handleCopyPrevAssessmentToCurrent(selectedPrevAssessmentModal);
+                  setSelectedPrevAssessmentModal(null);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-950 font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer border border-purple-300 shadow-2xs"
+              >
+                <Copy className="w-4 h-4 text-purple-700" />
+                <span>کپی کلیه اقلام کارشناس قبل در برآورد جاری من</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedPrevAssessmentModal(null)}
+                className="px-6 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-black text-xs flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
+              >
+                <X className="w-4 h-4" />
+                <span>بستن صفحه و بازگشت به کارتابل ارزیابی</span>
+              </button>
+            </div>
+
           </div>
         </div>
       )}

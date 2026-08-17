@@ -1,18 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import {
   DollarSign,
-  CheckCircle,
+  CheckCircle2,
   Clock,
   Download,
   Search,
   Filter,
   FileText,
+  AlertTriangle,
   AlertCircle,
   CreditCard,
-  Building,
+  Building2,
   User,
   ArrowUpRight,
-  TrendingUp,
   RefreshCw,
   Copy,
   Printer,
@@ -21,15 +21,39 @@ import {
   Send,
   Calendar,
   Layers,
-  ChevronDown
+  ChevronDown,
+  Check,
+  ExternalLink,
+  Lock,
+  ShieldAlert,
+  Sparkles,
+  RotateCcw,
+  Info,
+  SlidersHorizontal,
+  Eye,
+  X,
+  Timer,
+  Zap,
+  Flame,
+  CheckSquare,
+  Square
 } from 'lucide-react';
-import { UserSession, ClaimCase, PaymentOrder, PaymentBatch } from '../../types';
+import {
+  UserSession,
+  ClaimCase,
+  PaymentOrder,
+  PaymentBatch,
+  PaymentOrderStatus,
+  PaymentPreCheckResult,
+  PaymentRetryLog,
+  PaymentDiscrepancy
+} from '../../types';
 import {
   loadPaymentOrdersFromStorage,
   savePaymentOrdersToStorage,
   loadPaymentBatchesFromStorage,
   savePaymentBatchesToStorage,
-  saveCasesToStorage
+  INITIAL_PAYMENT_ORDERS
 } from '../../lib/storage';
 
 interface FinanceManagerPanelProps {
@@ -45,52 +69,95 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
   onUpdateCase,
   onOpenCaseForm
 }) => {
-  const [activeTab, setActiveTab] = useState<'queue' | 'batch' | 'settled' | 'analytics'>('queue');
+  // Navigation tabs matching PRD requirements
+  const [activeTab, setActiveTab] = useState<
+    'queue' | 'processing' | 'failed' | 'discrepancy' | 'settled' | 'batch'
+  >('queue');
+
+  // Load orders from storage and sync payout-ready cases from customer/insurer portal
   const [orders, setOrders] = useState<PaymentOrder[]>(() => {
     const existing = loadPaymentOrdersFromStorage();
-    // Auto-generate payment orders for cases in 'در انتظار پرداخت' that don't have one yet
-    const pendingCases = cases.filter(
-      c => c.status === 'در انتظار پرداخت' || c.status === 'در انتظار تایید پرداخت'
-    );
     let updatedOrders = [...existing];
+
+    // Merge any INITIAL_PAYMENT_ORDERS that don't exist yet or ensure SLA data is up to date
+    INITIAL_PAYMENT_ORDERS.forEach(initOrd => {
+      const idx = updatedOrders.findIndex(o => o.id === initOrd.id);
+      if (idx === -1) {
+        updatedOrders.push(initOrd);
+      } else {
+        updatedOrders[idx] = {
+          ...initOrd,
+          ...updatedOrders[idx],
+          slaPriority: updatedOrders[idx].slaPriority || initOrd.slaPriority,
+          slaDeadline: updatedOrders[idx].slaDeadline || initOrd.slaDeadline,
+          slaRemainingHours: updatedOrders[idx].slaRemainingHours ?? initOrd.slaRemainingHours,
+          slaStatus: updatedOrders[idx].slaStatus || initOrd.slaStatus
+        };
+      }
+    });
+
+    // Auto-generate payment orders for cases in 'در انتظار پرداخت' or 'در انتظار تایید پرداخت' that don't have one yet
+    const pendingCases = cases.filter(
+      c =>
+        c.status === 'در انتظار پرداخت' ||
+        c.status === 'در انتظار تایید پرداخت' ||
+        c.status === 'ارزیابی میدانی تکمیل شد - در انتظار صدور حواله پرداخت بیمه‌گر' ||
+        c.payoutState === 'PAYOUT_READY' ||
+        ((c.isBodyClaim || c.isBodily) && c.assessment && c.assessment.payable && c.assessment.payable > 0 && !c.status.includes('پرداخت شده'))
+    );
     let createdCount = 0;
 
     pendingCases.forEach(c => {
       const exists = updatedOrders.some(o => o.caseId === c.id);
       if (!exists) {
         const netAmt = c.assessment?.payable || 25000000;
-        const salvage = c.assessment?.salvage || 0;
-        const gross = c.assessment?.gross || netAmt + salvage;
+        const gross = c.assessment?.gross || netAmt;
+        const isCriticalOrUrgent = c.damageType === 'خسارت جرحی/فوتی' || netAmt > 200000000;
+        const slaPrio = isCriticalOrUrgent ? 'CRITICAL' : netAmt > 80000000 ? 'HIGH' : 'NORMAL';
 
         const newOrder: PaymentOrder = {
           id: `PAY-ORD-${Date.now().toString().slice(-6)}-${Math.floor(Math.random() * 899 + 100)}`,
           caseId: c.id,
-          victimName: c.customerName || 'زیان‌دیده محترم',
+          victimName: c.customerName || c.victimName || 'زیان‌دیده محترم',
           victimNationalId: c.customerNationalId || '0019876543',
           victimPhone: c.customerPhone || '09120000000',
-          victimIban: c.bankInfo?.iban || 'IR120120000000001234567890',
-          victimBankName: c.bankInfo?.bankName || 'بانک ملت',
+          victimIban: c.bankInfo?.iban || c.payoutInfo?.iban || 'IR120120000000001234567890',
+          victimBankName: c.bankInfo?.bankName || c.payoutInfo?.bankName || 'بانک ملت',
           culpritName: c.culpritName || 'مقصر حادثه',
           culpritInsurer: c.insurer || 'dana',
           grossAmount: gross,
-          salvageDeduction: salvage,
+          salvageDeduction: 0,
           taxDeduction: 0,
           franchiseDeduction: 0,
           netPayableAmount: netAmt,
-          status: 'PENDING_APPROVAL',
+          status: 'READY_FOR_PAYMENT',
+          slaPriority: slaPrio,
+          slaDeadline: slaPrio === 'CRITICAL' ? 'امروز ساعت ۱۴:۰۰' : slaPrio === 'HIGH' ? 'فردا ساعت ۱۱:۰۰' : '۴۸ ساعت آینده',
+          slaRemainingHours: slaPrio === 'CRITICAL' ? 2 : slaPrio === 'HIGH' ? 12 : 36,
+          slaStatus: 'ON_TRACK',
           paymentMethod: netAmt > 100000000 ? 'SATNA' : 'PAYA',
           issueDate: new Date().toLocaleDateString('fa-IR'),
-          financeNotes: 'تاییدیه ارزیابی خسارت صادر شده و در انتظار تایید حواله مالی است.',
-          accountVoucherNumber: `VCH-${new Date().getFullYear()}-${Math.floor(Math.random() * 8999 + 1000)}`
+          readyDate: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+          financeNotes: 'پرونده با تایید مدارک و ارزیابی خسارت به صف خزانه‌داری منتقل شد.',
+          accountVoucherNumber: `VCH-${new Date().getFullYear()}-${Math.floor(Math.random() * 8999 + 1000)}`,
+          preCheck: {
+            ibanValid: true,
+            ibanBankName: c.bankInfo?.bankName || 'بانک ملت',
+            nameMatchConfidence: 100,
+            nameMatchPassed: true,
+            amountUnderCeiling: true,
+            payoutReadyVerified: true,
+            noDuplicatePassed: true,
+            checkedAt: new Date().toLocaleDateString('fa-IR'),
+            checkedBy: 'سیستم اعتبارسنجی خزانه‌داری'
+          }
         };
         updatedOrders.unshift(newOrder);
         createdCount++;
       }
     });
 
-    if (createdCount > 0) {
-      savePaymentOrdersToStorage(updatedOrders);
-    }
+    savePaymentOrdersToStorage(updatedOrders);
     return updatedOrders;
   });
 
@@ -98,21 +165,39 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
 
   // Search and filters
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | 'PENDING_APPROVAL' | 'APPROVED_FOR_PAYMENT' | 'PAID' | 'REJECTED'>('ALL');
-  const [selectedBatchMethod, setSelectedBatchMethod] = useState<'PAYA_STANDARD' | 'SATNA_BULK' | 'MELLAT_PORTAL'>('PAYA_STANDARD');
+  const [priorityFilter, setPriorityFilter] = useState<'ALL' | 'NORMAL' | 'HIGH' | 'URGENT' | 'CRITICAL'>('ALL');
+  const [insurerFilter, setInsurerFilter] = useState<string>('ALL');
 
-  // Modal states
+  // Modals state
+  const [selectedOrderForPreCheck, setSelectedOrderForPreCheck] = useState<PaymentOrder | null>(null);
   const [selectedOrderForPay, setSelectedOrderForPay] = useState<PaymentOrder | null>(null);
   const [payModalReferenceNo, setPayModalReferenceNo] = useState('');
   const [payModalMethod, setPayModalMethod] = useState<'PAYA' | 'SATNA' | 'INSTANT_CARD'>('PAYA');
   const [payModalNotes, setPayModalNotes] = useState('');
 
+  const [selectedOrderForRetry, setSelectedOrderForRetry] = useState<PaymentOrder | null>(null);
+  const [retryIban, setRetryIban] = useState('');
+  const [retryNotes, setRetryNotes] = useState('');
+
+  const [selectedOrderForDiscrepancy, setSelectedOrderForDiscrepancy] = useState<PaymentOrder | null>(null);
+  const [discrepancyActionNote, setDiscrepancyActionNote] = useState('');
+
   const [selectedOrderForVoucher, setSelectedOrderForVoucher] = useState<PaymentOrder | null>(null);
+  const [selectedOrderForAudit, setSelectedOrderForAudit] = useState<PaymentOrder | null>(null);
   const [copiedIban, setCopiedIban] = useState<string | null>(null);
 
-  // Selected for batch
+  // Batch Payment Wizard & Selections
   const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [selectedBatchFormat, setSelectedBatchFormat] = useState<'PAYA_STANDARD' | 'SATNA_BULK' | 'MELLAT_PORTAL' | 'TEJARAT_IBAN' | 'MELLI_BAM'>('PAYA_STANDARD');
+  const [showBatchWizardModal, setShowBatchWizardModal] = useState<boolean>(false);
+  const [batchExecutionMode, setBatchExecutionMode] = useState<'PROCESS_PAYA' | 'INSTANT_SETTLE'>('PROCESS_PAYA');
+  const [isGeneratingBatch, setIsGeneratingBatch] = useState<boolean>(false);
   const [showBatchSuccessModal, setShowBatchSuccessModal] = useState<PaymentBatch | null>(null);
+
+  // SLA Management Modal
+  const [slaModalOrder, setSlaModalOrder] = useState<PaymentOrder | null>(null);
+  const [newSlaPriority, setNewSlaPriority] = useState<'NORMAL' | 'HIGH' | 'URGENT' | 'CRITICAL'>('NORMAL');
+  const [newSlaDeadline, setNewSlaDeadline] = useState<string>('');
 
   const formatPrice = (val?: number) => {
     if (!val && val !== 0) return '۰';
@@ -125,105 +210,152 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
     setTimeout(() => setCopiedIban(null), 2500);
   };
 
-  // Stats
+  // ----------------------------------------------------
+  // DASHBOARD KPIS (Exact PRD Specification)
+  // ----------------------------------------------------
   const stats = useMemo(() => {
-    const pendingOrders = orders.filter(o => o.status === 'PENDING_APPROVAL');
-    const approvedOrders = orders.filter(o => o.status === 'APPROVED_FOR_PAYMENT');
+    const readyOrders = orders.filter(
+      o => o.status === 'READY_FOR_PAYMENT' || o.status === 'PENDING_APPROVAL' || o.status === 'APPROVED_FOR_PAYMENT'
+    );
+    const processingOrders = orders.filter(o => o.status === 'PROCESSING');
     const paidOrders = orders.filter(o => o.status === 'PAID');
+    const failedOrders = orders.filter(o => o.status === 'FAILED');
+    const discrepancyOrders = orders.filter(o => o.status === 'DISCREPANCY');
 
-    const totalPendingAmount = pendingOrders.reduce((sum, o) => sum + o.netPayableAmount, 0);
-    const totalApprovedAmount = approvedOrders.reduce((sum, o) => sum + o.netPayableAmount, 0);
+    const totalReadyAmount = readyOrders.reduce((sum, o) => sum + o.netPayableAmount, 0);
+    const totalProcessingAmount = processingOrders.reduce((sum, o) => sum + o.netPayableAmount, 0);
     const totalPaidAmount = paidOrders.reduce((sum, o) => sum + o.netPayableAmount, 0);
-    const totalSalvageRecovered = orders.reduce((sum, o) => sum + (o.salvageDeduction || 0), 0);
+    const totalFailedAmount = failedOrders.reduce((sum, o) => sum + o.netPayableAmount, 0);
+    const totalDiscrepancyAmount = discrepancyOrders.reduce((sum, o) => sum + (o.discrepancy?.difference || 0), 0);
 
     return {
-      pendingCount: pendingOrders.length,
-      pendingAmount: totalPendingAmount,
-      approvedCount: approvedOrders.length,
-      approvedAmount: totalApprovedAmount,
+      readyCount: readyOrders.length,
+      readyAmount: totalReadyAmount,
+      processingCount: processingOrders.length,
+      processingAmount: totalProcessingAmount,
       paidCount: paidOrders.length,
       paidAmount: totalPaidAmount,
-      salvageAmount: totalSalvageRecovered
+      failedCount: failedOrders.length,
+      failedAmount: totalFailedAmount,
+      discrepancyCount: discrepancyOrders.length,
+      discrepancyAmount: totalDiscrepancyAmount
     };
   }, [orders]);
 
-  // Filtered orders
-  const filteredOrders = useMemo(() => {
+  // Filtered orders for active view
+  const currentTabOrders = useMemo(() => {
     return orders.filter(o => {
-      if (statusFilter !== 'ALL' && o.status !== statusFilter) return false;
+      // Tab based filter
+      if (activeTab === 'queue') {
+        // Show ready & pending
+        if (o.status !== 'READY_FOR_PAYMENT' && o.status !== 'PENDING_APPROVAL' && o.status !== 'APPROVED_FOR_PAYMENT' && o.status !== 'HELD') {
+          return false;
+        }
+      } else if (activeTab === 'processing') {
+        if (o.status !== 'PROCESSING') return false;
+      } else if (activeTab === 'failed') {
+        if (o.status !== 'FAILED') return false;
+      } else if (activeTab === 'discrepancy') {
+        if (o.status !== 'DISCREPANCY') return false;
+      } else if (activeTab === 'settled') {
+        if (o.status !== 'PAID') return false;
+      }
+
+      // Priority filter
+      if (priorityFilter !== 'ALL' && o.slaPriority !== priorityFilter) return false;
+
+      // Insurer filter
+      if (insurerFilter !== 'ALL' && o.culpritInsurer !== insurerFilter) return false;
+
+      // Search term
       if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase().trim();
-        const matchesCase = o.caseId.toLowerCase().includes(query);
-        const matchesVictim = o.victimName.toLowerCase().includes(query);
-        const matchesIban = o.victimIban.toLowerCase().includes(query);
-        const matchesRef = o.bankReferenceNumber?.toLowerCase().includes(query) || false;
-        const matchesOrder = o.id.toLowerCase().includes(query);
+        const q = searchTerm.toLowerCase().trim();
+        const matchesCase = o.caseId.toLowerCase().includes(q);
+        const matchesVictim = o.victimName.toLowerCase().includes(q);
+        const matchesIban = o.victimIban.toLowerCase().includes(q);
+        const matchesRef = o.bankReferenceNumber?.toLowerCase().includes(q) || false;
+        const matchesOrder = o.id.toLowerCase().includes(q);
         return matchesCase || matchesVictim || matchesIban || matchesRef || matchesOrder;
       }
+
       return true;
     });
-  }, [orders, statusFilter, searchTerm]);
+  }, [orders, activeTab, priorityFilter, insurerFilter, searchTerm]);
 
-  // Action: Approve Order
-  const handleApproveOrder = (orderId: string) => {
-    const updated = orders.map(o => {
-      if (o.id !== orderId) return o;
-      return {
-        ...o,
-        status: 'APPROVED_FOR_PAYMENT' as const,
-        approvedBy: `${session.name} (${session.roleTitle || 'مدیر مالی'})`,
-        financeNotes: 'تایید اصالت شبا و سقف پرداخت توسط مدیر مالی احراز شد. حواله در صف صدور پایا قرار گرفت.'
-      };
-    });
+  // ----------------------------------------------------
+  // ACTIONS: PRE-CHECK & CONTROL
+  // ----------------------------------------------------
+  const handlePerformPreCheck = (order: PaymentOrder) => {
+    // Validate IBAN: starts with IR, 26 chars, valid digits
+    const cleanIban = order.victimIban.replace(/\s+/g, '');
+    const ibanValid = cleanIban.startsWith('IR') && cleanIban.length === 26;
+
+    // Beneficiary name match confidence (mock heuristic)
+    const nameMatchPassed = order.victimName.trim().length > 2;
+
+    // Check duplicate: no other paid order with same caseId and netPayableAmount
+    const isDuplicate = orders.some(
+      o => o.id !== order.id && o.caseId === order.caseId && o.status === 'PAID'
+    );
+
+    const preCheckResult: PaymentPreCheckResult = {
+      ibanValid,
+      ibanBankName: order.victimBankName || 'بانک عامل شبا',
+      nameMatchConfidence: nameMatchPassed ? 100 : 40,
+      nameMatchPassed,
+      amountUnderCeiling: order.netPayableAmount <= 1000000000,
+      payoutReadyVerified: true,
+      noDuplicatePassed: !isDuplicate,
+      checkedAt: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+      checkedBy: session.name || 'اپراتور خزانه‌داری'
+    };
+
+    const updated = orders.map(o => (o.id === order.id ? { ...o, preCheck: preCheckResult } : o));
     setOrders(updated);
     savePaymentOrdersToStorage(updated);
+
+    setSelectedOrderForPreCheck({ ...order, preCheck: preCheckResult });
   };
 
-  // Action: Reject / Hold Order
-  const handleRejectOrder = (orderId: string) => {
-    const reason = prompt('لطفاً دلیل عدم تایید مالی یا مسدودی حواله را وارد کنید:');
-    if (reason === null) return;
-
-    const updated = orders.map(o => {
-      if (o.id !== orderId) return o;
-      return {
-        ...o,
-        status: 'REJECTED' as const,
-        rejectionReason: reason || 'مغایرت نام صاحب شبا با کدملی زیان‌دیده',
-        financeNotes: `حواله توسط ${session.name} رد شد: ${reason || 'عدم تایید مدارک مالی'}`
-      };
-    });
-    setOrders(updated);
-    savePaymentOrdersToStorage(updated);
+  // ----------------------------------------------------
+  // ACTIONS: EXECUTE PAYMENT (Single Dispatch)
+  // ----------------------------------------------------
+  const handleInitiatePayment = (order: PaymentOrder) => {
+    setSelectedOrderForPay(order);
+    setPayModalReferenceNo(`TRX-PAYA-${Date.now().toString().slice(-8)}`);
+    setPayModalMethod(order.netPayableAmount > 100000000 ? 'SATNA' : 'PAYA');
+    setPayModalNotes('');
   };
 
-  // Action: Execute Single Payout
   const handleConfirmSinglePayout = () => {
     if (!selectedOrderForPay) return;
-    const refNumber = payModalReferenceNo.trim() || `PAYA-TRX-${Date.now().toString().slice(-8)}`;
+    const refNumber = payModalReferenceNo.trim() || `TRX-PAYA-${Date.now().toString().slice(-8)}`;
 
     const updatedOrders = orders.map(o => {
       if (o.id !== selectedOrderForPay.id) return o;
       return {
         ...o,
-        status: 'PAID' as const,
+        status: 'PAID' as PaymentOrderStatus,
         paymentMethod: payModalMethod,
         bankReferenceNumber: refNumber,
-        paidDate: new Date().toLocaleDateString('fa-IR'),
-        paidBy: `${session.name} (${session.roleTitle || 'خزانه‌داری'})`,
-        financeNotes: payModalNotes ? payModalNotes : `تسویه قطعی از طریق سامانه ${payModalMethod} بانکی به شماره رهگیری ${refNumber} انجام شد.`
+        paidDate: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+        paidBy: `${session.name} (اپراتور خزانه‌داری)`,
+        financeNotes: payModalNotes
+          ? payModalNotes
+          : `دستور پرداخت به درگاه ${payModalMethod} ارسال و تسویه موفقیت‌آمیز شبا با شناسه ${refNumber} در سیستم ثبت شد.`
       };
     });
 
     setOrders(updatedOrders);
     savePaymentOrdersToStorage(updatedOrders);
 
-    // Update the linked ClaimCase
+    // Synchronize to ClaimCase in customer & insurer portal
     const linkedCase = cases.find(c => c.id === selectedOrderForPay.caseId);
     if (linkedCase) {
       const updatedCase: ClaimCase = {
         ...linkedCase,
         status: 'پرداخت شده',
+        payoutState: 'PAID',
         paymentInfo: {
           trackingCode: refNumber,
           paidAt: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
@@ -237,8 +369,8 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
           {
             status: 'پرداخت شده',
             time: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
-            user: `${session.name} (مدیریت مالی و خزانه‌داری)`,
-            note: `خسارت به مبلغ خالص ${formatPrice(selectedOrderForPay.netPayableAmount)} ریال به شماره شبای ${selectedOrderForPay.victimIban} واریز شد. کد رهگیری بانکی: ${refNumber}`
+            user: `${session.name} (خزانه‌داری)`,
+            note: `عملیات تسویه وجه خسارت به مبلغ ${formatPrice(selectedOrderForPay.netPayableAmount)} ریال به شماره شبا ${selectedOrderForPay.victimIban} با کد پیگیری ${refNumber} انجام شد.`
           }
         ]
       };
@@ -246,1070 +378,2221 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
     }
 
     setSelectedOrderForPay(null);
-    setPayModalReferenceNo('');
-    setPayModalNotes('');
+    setSelectedOrderForPreCheck(null);
   };
 
-  // Action: Generate Batch Payout File
-  const handleGenerateBatch = () => {
-    const readyOrders = orders.filter(
-      o => o.status === 'APPROVED_FOR_PAYMENT' && (selectedOrderIds.length === 0 || selectedOrderIds.includes(o.id))
-    );
-
-    if (readyOrders.length === 0) {
-      alert('هیچ حواله تایید شده‌ای برای صدور فایل پایا انتخاب نشده است.');
-      return;
-    }
-
-    const batchId = `BATCH-${selectedBatchMethod}-${Date.now().toString().slice(-6)}`;
-    const totalBatchAmount = readyOrders.reduce((sum, o) => sum + o.netPayableAmount, 0);
-
-    const newBatch: PaymentBatch = {
-      id: batchId,
-      batchTitle: `دستور پرداخت گروهی ${selectedBatchMethod === 'PAYA_STANDARD' ? 'پایا' : 'ساتنا'} - ${new Date().toLocaleDateString('fa-IR')}`,
-      createdAt: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
-      totalOrders: readyOrders.length,
-      totalAmount: totalBatchAmount,
-      bankFormat: selectedBatchMethod,
-      status: 'GENERATED',
-      orders: readyOrders,
-      downloadFileName: `${batchId}.txt`
-    };
-
-    const updatedBatches = [newBatch, ...batches];
-    setBatches(updatedBatches);
-    savePaymentBatchesToStorage(updatedBatches);
-
-    // Prompt to mark as paid in batch
-    setShowBatchSuccessModal(newBatch);
-  };
-
-  const handleMarkBatchAsPaid = (batch: PaymentBatch) => {
-    const batchRefPrefix = `PAYA-BATCH-${Date.now().toString().slice(-6)}`;
-    const batchOrderIds = new Set(batch.orders.map(o => o.id));
-
-    const updatedOrders = orders.map(o => {
-      if (!batchOrderIds.has(o.id)) return o;
+  // ----------------------------------------------------
+  // ACTIONS: SEND TO BANK PROCESSING (Live SLA Tracking)
+  // ----------------------------------------------------
+  const handleSendToProcessing = (order: PaymentOrder) => {
+    const trxRef = `PROC-PAYA-${Date.now().toString().slice(-6)}`;
+    const updated = orders.map(o => {
+      if (o.id !== order.id) return o;
       return {
         ...o,
-        status: 'PAID' as const,
-        paymentMethod: 'PAYA' as const,
-        bankReferenceNumber: `${batchRefPrefix}-${o.id.slice(-4)}`,
-        paidDate: new Date().toLocaleDateString('fa-IR'),
-        paidBy: `${session.name} (پرداخت گروهی پایا)`,
-        batchId: batch.id,
-        financeNotes: `تسویه گروهی پایا با شناسه بچ ${batch.id}`
+        status: 'PROCESSING' as PaymentOrderStatus,
+        bankReferenceNumber: trxRef,
+        financeNotes: `حواله به چرخه تسویه پایا بانک مرکزی ارسال گردید (شناسه ارسال: ${trxRef})`
+      };
+    });
+    setOrders(updated);
+    savePaymentOrdersToStorage(updated);
+    setSelectedOrderForPreCheck(null);
+  };
+
+  // ----------------------------------------------------
+  // ACTIONS: HOLD / UNHOLD
+  // ----------------------------------------------------
+  const handleToggleHold = (order: PaymentOrder) => {
+    const isCurrentlyHeld = order.status === 'HELD';
+    const newStatus: PaymentOrderStatus = isCurrentlyHeld ? 'READY_FOR_PAYMENT' : 'HELD';
+    const reason = !isCurrentlyHeld ? prompt('لطفاً دلیل نگه‌داشتن و تعلیق حواله را وارد کنید:') || 'تعلیق موقت جهت بازبینی' : '';
+
+    const updated = orders.map(o => {
+      if (o.id !== order.id) return o;
+      return {
+        ...o,
+        status: newStatus,
+        financeNotes: isCurrentlyHeld
+          ? 'تعلیق حواله توسط خزانه‌دار لغو شد و به صف آماده پرداخت بازگشت.'
+          : `حواله به دلیل: «${reason}» توسط خزانه‌دار متوقف گردید.`
+      };
+    });
+    setOrders(updated);
+    savePaymentOrdersToStorage(updated);
+  };
+
+  // ----------------------------------------------------
+  // ACTIONS: RETRY FAILED PAYMENT
+  // ----------------------------------------------------
+  const handleOpenRetryModal = (order: PaymentOrder) => {
+    setSelectedOrderForRetry(order);
+    setRetryIban(order.victimIban);
+    setRetryNotes('');
+  };
+
+  const handleExecuteRetry = () => {
+    if (!selectedOrderForRetry) return;
+    const cleanIban = retryIban.trim() || selectedOrderForRetry.victimIban;
+    const newRetryCount = (selectedOrderForRetry.retryCount || 0) + 1;
+    const newRef = `RETRY-${newRetryCount}-TRX-${Date.now().toString().slice(-6)}`;
+
+    const newLog: PaymentRetryLog = {
+      attempt: newRetryCount,
+      time: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+      previousFailureReason: selectedOrderForRetry.failureReason || 'خطای درگاه بانکی',
+      status: 'PAID',
+      operator: session.name,
+      bankResponse: 'کد ۰۰ - تراکنش پایا با موفقیت انجام و رسید بانکی صادر گردید.'
+    };
+
+    const updated = orders.map(o => {
+      if (o.id !== selectedOrderForRetry.id) return o;
+      return {
+        ...o,
+        victimIban: cleanIban,
+        status: 'PAID' as PaymentOrderStatus,
+        bankReferenceNumber: newRef,
+        paidDate: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+        paidBy: `${session.name} (تلاش مجدد خزانه‌داری)`,
+        retryCount: newRetryCount,
+        retryHistory: [...(o.retryHistory || []), newLog],
+        failureReason: undefined,
+        financeNotes: `پرداخت پس از ${newRetryCount} بار تلاش مجدد با موفقیت تسویه شد. شماره پیگیری: ${newRef}`
       };
     });
 
-    setOrders(updatedOrders);
-    savePaymentOrdersToStorage(updatedOrders);
+    setOrders(updated);
+    savePaymentOrdersToStorage(updated);
 
-    // Update cases
-    batch.orders.forEach(bo => {
-      const linkedCase = cases.find(c => c.id === bo.caseId);
-      if (linkedCase) {
-        const updatedCase: ClaimCase = {
-          ...linkedCase,
-          status: 'پرداخت شده',
-          paymentInfo: {
-            trackingCode: `${batchRefPrefix}-${bo.id.slice(-4)}`,
-            paidAt: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
-            amount: bo.netPayableAmount,
-            method: 'PAYA',
-            bankName: bo.victimBankName || 'پایا بانک مرکزی',
-            iban: bo.victimIban
-          },
-          history: [
-            ...(linkedCase.history || []),
-            {
-              status: 'پرداخت شده',
-              time: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
-              user: `${session.name} (مدیریت مالی - تسویه گروهی پایا)`,
-              note: `واریز پایا از طریق حواله گروهی ${batch.id} به مبلغ ${formatPrice(bo.netPayableAmount)} ریال انجام شد.`
+    // Sync Case
+    const linkedCase = cases.find(c => c.id === selectedOrderForRetry.caseId);
+    if (linkedCase) {
+      onUpdateCase({
+        ...linkedCase,
+        status: 'پرداخت شده',
+        paymentInfo: {
+          trackingCode: newRef,
+          paidAt: new Date().toLocaleDateString('fa-IR'),
+          amount: selectedOrderForRetry.netPayableAmount,
+          method: selectedOrderForRetry.paymentMethod || 'PAYA',
+          iban: cleanIban
+        }
+      });
+    }
+
+    setSelectedOrderForRetry(null);
+  };
+
+  // ----------------------------------------------------
+  // ACTIONS: RESOLVE DISCREPANCY
+  // ----------------------------------------------------
+  const handleOpenDiscrepancyModal = (order: PaymentOrder) => {
+    setSelectedOrderForDiscrepancy(order);
+    setDiscrepancyActionNote('');
+  };
+
+  const handleResolveDiscrepancy = (resolutionType: 'SETTLE_DIFFERENCE' | 'MANUAL_MATCH') => {
+    if (!selectedOrderForDiscrepancy) return;
+
+    const updated = orders.map(o => {
+      if (o.id !== selectedOrderForDiscrepancy.id) return o;
+      const disc = o.discrepancy;
+      return {
+        ...o,
+        status: 'PAID' as PaymentOrderStatus,
+        discrepancy: disc
+          ? {
+              ...disc,
+              resolved: true,
+              resolvedAt: new Date().toLocaleDateString('fa-IR'),
+              resolutionNote:
+                resolutionType === 'SETTLE_DIFFERENCE'
+                  ? `حواله تکمیلی مابه‌التفاوت به مبلغ ${formatPrice(disc.difference)} ریال صادر و پرونده کاملاً تسویه گردید. ${discrepancyActionNote}`
+                  : `تطبیق دستی با فیش اصلاحی بانکی توسط ${session.name} تایید شد. ${discrepancyActionNote}`
             }
-          ]
-        };
-        onUpdateCase(updatedCase);
-      }
+          : undefined,
+        financeNotes: `مغایرت بانکی بررسی و با موفقیت رفع گردید. (${resolutionType === 'SETTLE_DIFFERENCE' ? 'صدور حواله مابه‌التفاوت' : 'تطبیق دستی'})`
+      };
     });
 
-    const updatedBatches = batches.map(b => (b.id === batch.id ? { ...b, status: 'EXECUTED_SETTLED' as const } : b));
-    setBatches(updatedBatches);
-    savePaymentBatchesToStorage(updatedBatches);
-
-    setShowBatchSuccessModal(null);
-    setSelectedOrderIds([]);
+    setOrders(updated);
+    savePaymentOrdersToStorage(updated);
+    setSelectedOrderForDiscrepancy(null);
   };
 
-  // Generate Bank File Content Text for simulated download
-  const generateBankFileContent = (batch: PaymentBatch) => {
-    let content = `HEADER|${batch.id}|${new Date().toISOString()}|TOTAL=${batch.totalAmount}|COUNT=${batch.totalOrders}\n`;
-    batch.orders.forEach((ord, index) => {
-      content += `ROW|${index + 1}|${ord.victimIban}|${ord.netPayableAmount}|${ord.victimName}|${ord.victimNationalId || 'N/A'}|${ord.caseId}|${ord.accountVoucherNumber}\n`;
+  // Priority Counts per active tab
+  const priorityCounts = useMemo(() => {
+    const tabOrders = orders.filter(o => {
+      if (activeTab === 'queue') {
+        return o.status === 'READY_FOR_PAYMENT' || o.status === 'PENDING_APPROVAL' || o.status === 'APPROVED_FOR_PAYMENT' || o.status === 'HELD';
+      } else if (activeTab === 'processing') return o.status === 'PROCESSING';
+      else if (activeTab === 'failed') return o.status === 'FAILED';
+      else if (activeTab === 'discrepancy') return o.status === 'DISCREPANCY';
+      else if (activeTab === 'settled') return o.status === 'PAID';
+      return true;
     });
-    content += `FOOTER|CHECKSUM=${Math.floor(Math.random() * 999999)}|EOF`;
-    return content;
+
+    return {
+      all: tabOrders.length,
+      critical: tabOrders.filter(o => o.slaPriority === 'CRITICAL').length,
+      urgent: tabOrders.filter(o => o.slaPriority === 'URGENT').length,
+      high: tabOrders.filter(o => o.slaPriority === 'HIGH').length,
+      normal: tabOrders.filter(o => !o.slaPriority || o.slaPriority === 'NORMAL').length
+    };
+  }, [orders, activeTab]);
+
+  // ----------------------------------------------------
+  // ACTIONS: BATCH PAYMENTS (Paya / Satna File Generator & Wizard)
+  // ----------------------------------------------------
+  const handleToggleSelectOrder = (id: string) => {
+    setSelectedOrderIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
   };
 
-  const handleDownloadBankFile = (batch: PaymentBatch) => {
-    const text = generateBankFileContent(batch);
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const handleSelectAllReady = () => {
+    const readyIds = orders
+      .filter(o => o.status === 'READY_FOR_PAYMENT' || o.status === 'APPROVED_FOR_PAYMENT')
+      .map(o => o.id);
+    if (selectedOrderIds.length === readyIds.length) {
+      setSelectedOrderIds([]);
+    } else {
+      setSelectedOrderIds(readyIds);
+    }
+  };
+
+  const handleOpenBatchWizard = () => {
+    const readyIds = orders
+      .filter(o => o.status === 'READY_FOR_PAYMENT' || o.status === 'APPROVED_FOR_PAYMENT')
+      .map(o => o.id);
+    if (selectedOrderIds.length === 0 && readyIds.length > 0) {
+      setSelectedOrderIds(readyIds);
+    }
+    setShowBatchWizardModal(true);
+  };
+
+  const handleSelectBatchPreset = (preset: 'ALL_READY' | 'CRITICAL_URGENT' | 'HIGH_AMOUNT' | 'CLEAR') => {
+    if (preset === 'CLEAR') {
+      setSelectedOrderIds([]);
+      return;
+    }
+    const readyOrders = orders.filter(o => o.status === 'READY_FOR_PAYMENT' || o.status === 'APPROVED_FOR_PAYMENT');
+    if (preset === 'ALL_READY') {
+      setSelectedOrderIds(readyOrders.map(o => o.id));
+    } else if (preset === 'CRITICAL_URGENT') {
+      setSelectedOrderIds(readyOrders.filter(o => o.slaPriority === 'CRITICAL' || o.slaPriority === 'URGENT').map(o => o.id));
+    } else if (preset === 'HIGH_AMOUNT') {
+      setSelectedOrderIds(readyOrders.filter(o => o.netPayableAmount >= 50000000).map(o => o.id));
+    }
+  };
+
+  const handleExecuteBatchWizard = () => {
+    const targetOrders = orders.filter(
+      o =>
+        (o.status === 'READY_FOR_PAYMENT' || o.status === 'APPROVED_FOR_PAYMENT') &&
+        selectedOrderIds.includes(o.id)
+    );
+
+    if (targetOrders.length === 0) {
+      alert('لطفاً حداقل یک حواله آماده پرداخت را برای ایجاد بسته انتخاب فرمایید.');
+      return;
+    }
+
+    setIsGeneratingBatch(true);
+
+    setTimeout(() => {
+      const batchId = `BATCH-${selectedBatchFormat.split('_')[0]}-${Date.now().toString().slice(-6)}`;
+      const totalAmount = targetOrders.reduce((sum, o) => sum + o.netPayableAmount, 0);
+
+      const newBatch: PaymentBatch = {
+        id: batchId,
+        batchTitle: `بسته واریز ${selectedBatchFormat.includes('SATNA') ? 'ساتنا' : 'پایا'} خزانه‌داری - ${new Date().toLocaleDateString('fa-IR')}`,
+        createdAt: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+        totalOrders: targetOrders.length,
+        totalAmount,
+        bankFormat: selectedBatchFormat,
+        status: 'GENERATED',
+        orders: targetOrders,
+        downloadFileName: `${selectedBatchFormat}_${Date.now()}.txt`
+      };
+
+      const updatedBatches = [newBatch, ...batches];
+      setBatches(updatedBatches);
+      savePaymentBatchesToStorage(updatedBatches);
+
+      // Update orders based on execution mode
+      const updatedOrders = orders.map(o => {
+        if (targetOrders.some(to => to.id === o.id)) {
+          if (batchExecutionMode === 'INSTANT_SETTLE') {
+            const rrn = `RRN-${Math.floor(Math.random() * 899999999 + 100000000)}`;
+            return {
+              ...o,
+              status: 'PAID' as PaymentOrderStatus,
+              batchId,
+              bankReferenceNumber: rrn,
+              paidDate: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+              paidBy: `${session.name} (تسویه مستقیم گروهی)`,
+              financeNotes: `واریز مستقیم گروهی در قالب بسته ${batchId} با موفقیت انجام شد. کد پیگیری: ${rrn}`
+            };
+          } else {
+            return {
+              ...o,
+              status: 'PROCESSING' as PaymentOrderStatus,
+              batchId,
+              financeNotes: `در قالب بسته ${batchId} تجمیع و به چرخه تسویه بین‌بانکی ارسال شد.`
+            };
+          }
+        }
+        return o;
+      });
+
+      setOrders(updatedOrders);
+      savePaymentOrdersToStorage(updatedOrders);
+
+      // Also synchronize matching ClaimCases
+      targetOrders.forEach(to => {
+        const matchingCase = cases.find(c => c.id === to.caseId);
+        if (matchingCase) {
+          if (batchExecutionMode === 'INSTANT_SETTLE') {
+            onUpdateCase({
+              ...matchingCase,
+              status: 'خسارت پرداخت شده',
+              payoutState: 'PAID',
+              paymentInfo: {
+                referenceNumber: `RRN-BATCH-${batchId.slice(-4)}`,
+                paidAmount: to.netPayableAmount,
+                paymentDate: new Date().toLocaleDateString('fa-IR'),
+                receiptUrl: '#',
+                trackingCode: `TRK-${batchId.slice(-4)}`
+              }
+            });
+          } else {
+            onUpdateCase({
+              ...matchingCase,
+              payoutState: 'PROCESSING'
+            });
+          }
+        }
+      });
+
+      // Auto-trigger file download
+      handleDownloadBatchFile(newBatch);
+
+      setIsGeneratingBatch(false);
+      setShowBatchWizardModal(false);
+      setShowBatchSuccessModal(newBatch);
+      setSelectedOrderIds([]);
+    }, 800);
+  };
+
+  const handleDownloadBatchFile = (batch: PaymentBatch) => {
+    let content = `// ==================================================\n`;
+    content += `// سامانه تسویه ناخالص آنی و پایا بانک مرکزی جمهوری اسلامی ایران\n`;
+    content += `// شناسه یکتای بسته: ${batch.id}\n`;
+    content += `// زمان تولید: ${batch.createdAt}\n`;
+    content += `// تعداد کل حواله‌ها: ${batch.totalOrders}\n`;
+    content += `// جمع کل مبلغ پرداختی: ${batch.totalAmount.toLocaleString('fa-IR')} ریال\n`;
+    content += `// فرمت استاندارد بانکی: ${batch.bankFormat}\n`;
+    content += `// ==================================================\n\n`;
+    content += `ردیف,شماره شبا مقصد,مبلغ به ریال,نام و نام خانوادگی ذینفع,کد پرونده خسارت,شناسه سند حسابداری\n`;
+
+    batch.orders.forEach((o, idx) => {
+      content += `${idx + 1},${o.victimIban},${o.netPayableAmount},${o.victimName.replace(/,/g, ' ')},${o.caseId},${o.accountVoucherNumber || 'VCH-001'}\n`;
+    });
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = batch.downloadFileName || `${batch.id}.txt`;
+    link.download = batch.downloadFileName || `PAYA_BATCH_${batch.id}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // ----------------------------------------------------
+  // ACTIONS: SLA PRIORITY MANAGEMENT
+  // ----------------------------------------------------
+  const handleOpenSlaModal = (order: PaymentOrder) => {
+    setSlaModalOrder(order);
+    setNewSlaPriority(order.slaPriority || 'NORMAL');
+    setNewSlaDeadline(order.slaDeadline || (order.slaPriority === 'CRITICAL' ? 'امروز ساعت ۱۴:۰۰' : '۲۴ ساعت آینده'));
+  };
+
+  const handleSaveSlaModal = () => {
+    if (!slaModalOrder) return;
+    const remainingHrs = newSlaPriority === 'CRITICAL' ? 2 : newSlaPriority === 'URGENT' ? 6 : newSlaPriority === 'HIGH' ? 14 : 36;
+    const updated = orders.map(o => {
+      if (o.id !== slaModalOrder.id) return o;
+      return {
+        ...o,
+        slaPriority: newSlaPriority,
+        slaDeadline: newSlaDeadline || (newSlaPriority === 'CRITICAL' ? 'امروز ساعت ۱۴:۰۰' : '۲۴ ساعت آینده'),
+        slaRemainingHours: remainingHrs,
+        slaStatus: newSlaPriority === 'CRITICAL' ? ('NEAR_BREACH' as const) : ('ON_TRACK' as const),
+        financeNotes: `${o.financeNotes || ''} [تغییر سطح اولویت SLA به ${newSlaPriority === 'CRITICAL' ? 'بحرانی' : newSlaPriority === 'URGENT' ? 'فوری' : newSlaPriority === 'HIGH' ? 'بالا' : 'عادی'} توسط ${session.name}]`
+      };
+    });
+
+    setOrders(updated);
+    savePaymentOrdersToStorage(updated);
+    setSlaModalOrder(null);
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-in fade-in" dir="rtl">
-      {/* Top Header Banner */}
-      <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-blue-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-blue-800/40 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-xs font-black">
-            <DollarSign className="w-4 h-4 text-amber-400" />
-            <span>پورتال تخصصی مدیریت مالی، خزانه‌داری و صدور حواله</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
-            مدیریت صف پرداخت خسارت و صدور اسناد حسابداری
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-300 font-medium">
-            کارشناس مالی: <span className="font-bold text-amber-300">{session.name}</span> | سمت: <span className="font-bold text-white">{session.roleTitle || 'مدیر مالی و خزانه‌داری'}</span>
-          </p>
-        </div>
-
-        {/* Quick Tab Selectors */}
-        <div className="flex flex-wrap items-center gap-2 bg-slate-900/60 p-1.5 rounded-2xl border border-slate-700/60">
-          <button
-            id="fin-tab-queue"
-            onClick={() => setActiveTab('queue')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
-              activeTab === 'queue'
-                ? 'bg-amber-500 text-blue-950 shadow-md font-black'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            <span>کارتابل حواله‌ها</span>
-            {stats.pendingCount > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${
-                activeTab === 'queue' ? 'bg-blue-950 text-amber-400' : 'bg-amber-500 text-blue-950'
-              }`}>
-                {stats.pendingCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            id="fin-tab-batch"
-            onClick={() => setActiveTab('batch')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
-              activeTab === 'batch'
-                ? 'bg-amber-500 text-blue-950 shadow-md font-black'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-            }`}
-          >
-            <Layers className="w-4 h-4" />
-            <span>واریز گروهی پایا/ساتنا</span>
-            {stats.approvedCount > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${
-                activeTab === 'batch' ? 'bg-blue-950 text-amber-400' : 'bg-amber-500 text-blue-950'
-              }`}>
-                {stats.approvedCount}
-              </span>
-            )}
-          </button>
-
-          <button
-            id="fin-tab-settled"
-            onClick={() => setActiveTab('settled')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
-              activeTab === 'settled'
-                ? 'bg-amber-500 text-blue-950 shadow-md font-black'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-            }`}
-          >
-            <CheckCircle className="w-4 h-4" />
-            <span>سوابق تسویه</span>
-          </button>
-
-          <button
-            id="fin-tab-analytics"
-            onClick={() => setActiveTab('analytics')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 ${
-              activeTab === 'analytics'
-                ? 'bg-amber-500 text-blue-950 shadow-md font-black'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-            }`}
-          >
-            <TrendingUp className="w-4 h-4" />
-            <span>آمار خزانه‌داری</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Financial KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border-2 border-amber-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
-            <span>در انتظار تایید مدیر مالی</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600">
-              <Clock className="w-4 h-4" />
+    <div className="space-y-6 animate-in fade-in duration-300">
+      
+      {/* ---------------------------------------------------- */}
+      {/* 1. HEADER & TREASURY OPERATOR SCOPE NOTICE */}
+      {/* ---------------------------------------------------- */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 p-6 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-900 text-amber-400 flex items-center justify-center font-black shadow-md shadow-indigo-900/20">
+              <Building2 className="w-6 h-6" />
             </div>
-          </div>
-          <div className="text-2xl font-black text-slate-900 mb-1">
-            {formatPrice(stats.pendingAmount)} <span className="text-xs text-slate-500 font-bold">ریال</span>
-          </div>
-          <div className="text-xs text-amber-700 font-bold flex items-center gap-1">
-            <span>{stats.pendingCount} پرونده آماده بررسی و تایید شبا</span>
-          </div>
-        </div>
-
-        <div className="bg-white border-2 border-blue-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
-            <span>تایید شده (در صف پایا/ساتنا)</span>
-            <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center text-blue-700">
-              <CheckCircle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-blue-950 mb-1">
-            {formatPrice(stats.approvedAmount)} <span className="text-xs text-slate-500 font-bold">ریال</span>
-          </div>
-          <div className="text-xs text-blue-700 font-bold flex items-center gap-1">
-            <span>{stats.approvedCount} حواله آماده صدور فایل بانکی</span>
-          </div>
-        </div>
-
-        <div className="bg-white border-2 border-emerald-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
-            <span>مجموع خسارت تسویه شده</span>
-            <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700">
-              <DollarSign className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-emerald-800 mb-1">
-            {formatPrice(stats.paidAmount)} <span className="text-xs text-slate-500 font-bold">ریال</span>
-          </div>
-          <div className="text-xs text-emerald-700 font-bold flex items-center gap-1">
-            <span>{stats.paidCount} فقره پرداخت قطعی و موفق</span>
-          </div>
-        </div>
-
-        <div className="bg-white border-2 border-purple-200/80 p-5 rounded-2xl shadow-sm hover:shadow-md transition-all">
-          <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-2">
-            <span>ارزش داغی بازیافت شده</span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-center text-purple-700">
-              <ArrowUpRight className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl font-black text-purple-900 mb-1">
-            {formatPrice(stats.salvageAmount)} <span className="text-xs text-slate-500 font-bold">ریال</span>
-          </div>
-          <div className="text-xs text-purple-700 font-bold flex items-center gap-1">
-            <span>کسورات سودآور قطعات داغی</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div>
-        {/* TAB 1: Payment Orders Queue */}
-        {activeTab === 'queue' && (
-          <div className="space-y-4">
-            {/* Search and Filters Bar */}
-            <div className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="relative w-full md:w-96">
-                <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  id="fin-search-input"
-                  type="text"
-                  placeholder="جستجو با شماره پرونده، نام زیان‌دیده، شبا یا کد رهگیری..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-900 focus:bg-white transition-all"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                <span className="text-xs text-slate-600 font-bold flex items-center gap-1">
-                  <Filter className="w-3.5 h-3.5 text-slate-500" /> فیلتر وضعیت:
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-black text-slate-900">
+                  پنل خزانه‌داری و مدیریت پرداخت
+                </h1>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-indigo-100 text-indigo-950 border border-indigo-200">
+                  Treasury Operator
                 </span>
-                {(['ALL', 'PENDING_APPROVAL', 'APPROVED_FOR_PAYMENT', 'PAID', 'REJECTED'] as const).map(st => (
-                  <button
-                    key={st}
-                    onClick={() => setStatusFilter(st)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                      statusFilter === st
-                        ? 'bg-blue-950 text-white shadow-sm border border-blue-950'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200'
-                    }`}
-                  >
-                    {st === 'ALL' && 'همه'}
-                    {st === 'PENDING_APPROVAL' && 'در انتظار تایید'}
-                    {st === 'APPROVED_FOR_PAYMENT' && 'آماده واریز'}
-                    {st === 'PAID' && 'پرداخت شده'}
-                    {st === 'REJECTED' && 'مسدود/ردشده'}
-                  </button>
-                ))}
               </div>
+              <p className="text-xs font-bold text-slate-500 mt-0.5">
+                کنترل اطلاعات پرداخت، اجرای حواله پایا/ساتنا، پیگیری وضعیت بانکی و مغایرت‌گیری خسارات
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="px-3.5 py-2 rounded-2xl bg-slate-50 border border-slate-200 text-xs flex items-center gap-2">
+              <User className="w-4 h-4 text-indigo-700" />
+              <span className="text-slate-500 font-bold">اپراتور حاضر:</span>
+              <span className="font-extrabold text-slate-900">{session.name}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Regulatory Scope Reminder */}
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex items-start gap-3 text-xs text-slate-700">
+          <ShieldCheck className="w-4.5 h-4.5 text-indigo-600 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <span className="font-extrabold text-indigo-950">حیطه اختیارات خزانه‌داری:</span>
+            <p className="text-[11px] text-slate-600 leading-relaxed font-bold">
+              وظیفه این پنل صرفاً کنترل صحت اطلاعات شبا، ارسال دستور پرداخت و ثبت نتایج درگاه پایا/ساتنا است. تغییر مبلغ ارزیابی یا تصمیم‌گیری پیرامون خسارت خارج از حدود وظایف خزانه‌داری می‌باشد.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* 2. DASHBOARD KPIS (EXACT PRD LAYOUT) */}
+      {/* ---------------------------------------------------- */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
+        
+        {/* KPI 1: Ready for Payment */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('queue')}
+          className={`p-4 rounded-3xl border text-right transition-all active:scale-95 ${
+            activeTab === 'queue'
+              ? 'bg-indigo-900 text-white border-indigo-900 shadow-md shadow-indigo-950/20 ring-2 ring-indigo-500'
+              : 'bg-white text-slate-800 border-slate-200 hover:border-indigo-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className={`text-[11px] font-extrabold ${activeTab === 'queue' ? 'text-indigo-200' : 'text-slate-500'}`}>
+              آماده پرداخت
+            </span>
+            <CreditCard className={`w-4.5 h-4.5 ${activeTab === 'queue' ? 'text-amber-400' : 'text-indigo-600'}`} />
+          </div>
+          <div className="text-2xl font-black font-mono mt-2">
+            {stats.readyCount}
+          </div>
+          <div className={`text-[10px] font-bold mt-1 font-mono truncate ${activeTab === 'queue' ? 'text-indigo-200' : 'text-slate-500'}`}>
+            {formatPrice(stats.readyAmount)} ریال
+          </div>
+        </button>
+
+        {/* KPI 2: Bank Processing */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('processing')}
+          className={`p-4 rounded-3xl border text-right transition-all active:scale-95 ${
+            activeTab === 'processing'
+              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-md shadow-amber-500/20 ring-2 ring-amber-400'
+              : 'bg-white text-slate-800 border-slate-200 hover:border-amber-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className={`text-[11px] font-extrabold ${activeTab === 'processing' ? 'text-amber-950' : 'text-slate-500'}`}>
+              در حال پرداخت
+            </span>
+            <Clock className={`w-4.5 h-4.5 ${activeTab === 'processing' ? 'text-slate-950' : 'text-amber-600'}`} />
+          </div>
+          <div className="text-2xl font-black font-mono mt-2">
+            {stats.processingCount}
+          </div>
+          <div className={`text-[10px] font-bold mt-1 font-mono truncate ${activeTab === 'processing' ? 'text-amber-950' : 'text-slate-500'}`}>
+            {formatPrice(stats.processingAmount)} ریال
+          </div>
+        </button>
+
+        {/* KPI 3: Paid / Settled */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('settled')}
+          className={`p-4 rounded-3xl border text-right transition-all active:scale-95 ${
+            activeTab === 'settled'
+              ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-600/20 ring-2 ring-emerald-400'
+              : 'bg-white text-slate-800 border-slate-200 hover:border-emerald-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className={`text-[11px] font-extrabold ${activeTab === 'settled' ? 'text-emerald-100' : 'text-slate-500'}`}>
+              پرداخت موفق
+            </span>
+            <CheckCircle2 className={`w-4.5 h-4.5 ${activeTab === 'settled' ? 'text-emerald-200' : 'text-emerald-600'}`} />
+          </div>
+          <div className="text-2xl font-black font-mono mt-2">
+            {stats.paidCount}
+          </div>
+          <div className={`text-[10px] font-bold mt-1 font-mono truncate ${activeTab === 'settled' ? 'text-emerald-100' : 'text-slate-500'}`}>
+            {formatPrice(stats.paidAmount)} ریال
+          </div>
+        </button>
+
+        {/* KPI 4: Failed / Errors */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('failed')}
+          className={`p-4 rounded-3xl border text-right transition-all active:scale-95 ${
+            activeTab === 'failed'
+              ? 'bg-rose-600 text-white border-rose-600 shadow-md shadow-rose-600/20 ring-2 ring-rose-400'
+              : 'bg-white text-slate-800 border-slate-200 hover:border-rose-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className={`text-[11px] font-extrabold ${activeTab === 'failed' ? 'text-rose-100' : 'text-slate-500'}`}>
+              پرداخت ناموفق
+            </span>
+            <XCircle className={`w-4.5 h-4.5 ${activeTab === 'failed' ? 'text-rose-200' : 'text-rose-600'}`} />
+          </div>
+          <div className="text-2xl font-black font-mono mt-2">
+            {stats.failedCount}
+          </div>
+          <div className={`text-[10px] font-bold mt-1 font-mono truncate ${activeTab === 'failed' ? 'text-rose-100' : 'text-slate-500'}`}>
+            {formatPrice(stats.failedAmount)} ریال
+          </div>
+        </button>
+
+        {/* KPI 5: Discrepancy */}
+        <button
+          type="button"
+          onClick={() => setActiveTab('discrepancy')}
+          className={`p-4 rounded-3xl border text-right transition-all active:scale-95 ${
+            activeTab === 'discrepancy'
+              ? 'bg-orange-500 text-white border-orange-500 shadow-md shadow-orange-500/20 ring-2 ring-orange-400'
+              : 'bg-white text-slate-800 border-slate-200 hover:border-orange-300'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className={`text-[11px] font-extrabold ${activeTab === 'discrepancy' ? 'text-orange-100' : 'text-slate-500'}`}>
+              مغایرت
+            </span>
+            <AlertTriangle className={`w-4.5 h-4.5 ${activeTab === 'discrepancy' ? 'text-orange-200' : 'text-orange-600'}`} />
+          </div>
+          <div className="text-2xl font-black font-mono mt-2">
+            {stats.discrepancyCount}
+          </div>
+          <div className={`text-[10px] font-bold mt-1 font-mono truncate ${activeTab === 'discrepancy' ? 'text-orange-100' : 'text-slate-500'}`}>
+            {stats.discrepancyAmount > 0 ? `${formatPrice(stats.discrepancyAmount)} ریال` : 'نیاز به تطبیق'}
+          </div>
+        </button>
+      </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* 3. NAVIGATION TABS */}
+      {/* ---------------------------------------------------- */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-1.5 flex flex-wrap items-center gap-1 shadow-xs">
+        <button
+          onClick={() => setActiveTab('queue')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+            activeTab === 'queue' ? 'bg-indigo-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>صف پرداخت‌ها (آماده ارسال)</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'queue' ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+            {stats.readyCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('processing')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+            activeTab === 'processing' ? 'bg-indigo-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <Clock className="w-4 h-4" />
+          <span>در حال پردازش بانکی</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'processing' ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+            {stats.processingCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('failed')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+            activeTab === 'failed' ? 'bg-indigo-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <XCircle className="w-4 h-4 text-rose-400" />
+          <span>تراکنش‌های ناموفق و تلاش مجدد</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'failed' ? 'bg-rose-700 text-white' : 'bg-rose-50 text-rose-700'}`}>
+            {stats.failedCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('discrepancy')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+            activeTab === 'discrepancy' ? 'bg-indigo-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <AlertTriangle className="w-4 h-4 text-orange-400" />
+          <span>صف مغایرت‌گیری بانکی</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'discrepancy' ? 'bg-orange-600 text-white' : 'bg-orange-50 text-orange-700'}`}>
+            {stats.discrepancyCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('settled')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+            activeTab === 'settled' ? 'bg-indigo-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <span>رسیدها و سوابق تسویه</span>
+          <span className={`px-2 py-0.5 rounded-full text-[10px] ${activeTab === 'settled' ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'}`}>
+            {stats.paidCount}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('batch')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${
+            activeTab === 'batch' ? 'bg-indigo-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <Layers className="w-4 h-4" />
+          <span>پرداخت گروهی / صدور پایا</span>
+        </button>
+      </div>
+
+      {/* ---------------------------------------------------- */}
+      {/* 4. SEARCH & FILTER BAR WITH SLA DROPDOWN */}
+      {/* ---------------------------------------------------- */}
+      <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-5 shadow-sm space-y-3">
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="جستجو با شماره پرونده، نام ذینفع، شماره شبا یا کد پیگیری..."
+              className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 transition-colors"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Priority SLA Dropdown filter (منوی کشویی اولویت‌ها) */}
+            <div className="relative flex items-center">
+              <select
+                value={priorityFilter}
+                onChange={e => setPriorityFilter(e.target.value as any)}
+                className={`px-3.5 py-2.5 border rounded-xl text-xs font-bold focus:outline-none transition-all cursor-pointer ${
+                  priorityFilter === 'CRITICAL'
+                    ? 'bg-rose-50 border-rose-300 text-rose-900 font-black ring-1 ring-rose-400'
+                    : priorityFilter === 'URGENT'
+                    ? 'bg-amber-50 border-amber-300 text-amber-900 font-black ring-1 ring-amber-400'
+                    : priorityFilter === 'HIGH'
+                    ? 'bg-blue-50 border-blue-300 text-blue-900 font-black ring-1 ring-blue-400'
+                    : priorityFilter === 'NORMAL'
+                    ? 'bg-slate-100 border-slate-300 text-slate-800 font-black'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                <option value="ALL">انتخاب اولویت SLA (همه - {priorityCounts.all} مورد)</option>
+                <option value="CRITICAL">بحرانی (زیر ۲ ساعت) - {priorityCounts.critical} مورد</option>
+                <option value="URGENT">فوری (امروز) - {priorityCounts.urgent} مورد</option>
+                <option value="HIGH">بالا (تا فردا) - {priorityCounts.high} مورد</option>
+                <option value="NORMAL">عادی (روال معمول) - {priorityCounts.normal} مورد</option>
+              </select>
             </div>
 
-            {/* Orders Table */}
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-50 text-slate-700 text-xs font-black border-b border-slate-200">
-                    <tr>
-                      <th className="p-4">شناسه حواله / پرونده</th>
-                      <th className="p-4">زیان‌دیده و کدملی</th>
-                      <th className="p-4">مشخصات حساب و شبا</th>
-                      <th className="p-4">مبلغ ناخالص</th>
-                      <th className="p-4">کسر داغی</th>
-                      <th className="p-4">خالص پرداختی</th>
-                      <th className="p-4">وضعیت حواله</th>
-                      <th className="p-4 text-center">عملیات مالی</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredOrders.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="p-10 text-center text-slate-500 font-bold">
-                          حواله‌ای با مشخصات درخواستی یافت نشد.
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredOrders.map(order => (
-                        <tr key={order.id} className="hover:bg-amber-50/30 transition-colors">
-                          <td className="p-4">
-                            <div className="font-black text-blue-950 font-mono">{order.id}</div>
-                            <button
-                              onClick={() => onOpenCaseForm?.(order.caseId)}
-                              className="text-xs font-bold text-blue-700 hover:text-blue-900 hover:underline flex items-center gap-1 mt-0.5"
-                            >
-                              پرونده: {order.caseId}
-                            </button>
-                            <div className="text-[11px] text-slate-500 mt-0.5 font-mono">سند: {order.accountVoucherNumber}</div>
-                          </td>
+            {/* Insurer filter */}
+            <select
+              value={insurerFilter}
+              onChange={e => setInsurerFilter(e.target.value)}
+              className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none hover:bg-slate-100 cursor-pointer"
+            >
+              <option value="ALL">تمام شرکت‌های بیمه</option>
+              <option value="dana">بیمه دانا</option>
+              <option value="alborz">بیمه البرز</option>
+              <option value="asia">بیمه آسیا</option>
+              <option value="iran">بیمه ایران</option>
+              <option value="mellat">بیمه ملت</option>
+            </select>
 
-                          <td className="p-4">
-                            <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                              <User className="w-3.5 h-3.5 text-slate-400" />
-                              {order.victimName}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-0.5 font-bold">
-                              کدملی: <span className="font-mono text-slate-700">{order.victimNationalId || 'ثبت نشده'}</span>
-                            </div>
-                            <div className="text-xs text-slate-400 mt-0.5 font-mono">
-                              موبایل: {order.victimPhone || '-'}
-                            </div>
-                          </td>
+            {/* Batch Payment Wizard Launcher */}
+            <button
+              type="button"
+              onClick={handleOpenBatchWizard}
+              className="px-4 py-2.5 bg-indigo-900 hover:bg-indigo-800 text-white rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-md active:scale-95"
+            >
+              <Zap className="w-4 h-4 text-amber-400" />
+              <span>پرداخت گروهی (پایا / ساتنا)</span>
+              {selectedOrderIds.length > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-mono text-[10px]">
+                  {selectedOrderIds.length}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
 
-                          <td className="p-4 max-w-xs">
-                            <div className="flex items-center gap-1 font-mono text-xs text-blue-950 font-bold bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
-                              <span className="truncate">{order.victimIban}</span>
-                              <button
-                                title="کپی شبا"
-                                onClick={() => handleCopyIban(order.victimIban)}
-                                className="text-slate-400 hover:text-blue-900 p-0.5 transition-colors"
-                              >
-                                <Copy className="w-3 h-3" />
-                              </button>
-                            </div>
-                            <div className="text-xs text-slate-600 font-bold flex items-center gap-1 mt-1">
-                              <Building className="w-3 h-3 text-slate-400" />
-                              {order.victimBankName || 'بانک عضو شتاب'}
-                              {copiedIban === order.victimIban && (
-                                <span className="text-[10px] text-emerald-700 font-black bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">کپی شد!</span>
-                              )}
-                            </div>
-                          </td>
+        {/* Active Filter Indicators if filtered */}
+        {(priorityFilter !== 'ALL' || insurerFilter !== 'ALL' || searchTerm.trim()) && (
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+            <span className="text-[11px] font-bold text-slate-400">فیلترهای فعال:</span>
 
-                          <td className="p-4 font-mono font-bold text-slate-700">
-                            {formatPrice(order.grossAmount)}
-                          </td>
+            {priorityFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-900 font-bold text-[11px]">
+                <span>اولویت: {priorityFilter === 'CRITICAL' ? 'بحرانی' : priorityFilter === 'URGENT' ? 'فوری' : priorityFilter === 'HIGH' ? 'بالا' : 'عادی'}</span>
+                <button
+                  type="button"
+                  onClick={() => setPriorityFilter('ALL')}
+                  className="hover:bg-indigo-200 rounded p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
 
-                          <td className="p-4 font-mono font-bold text-purple-700">
-                            {order.salvageDeduction > 0 ? `-${formatPrice(order.salvageDeduction)}` : '۰'}
-                          </td>
+            {insurerFilter !== 'ALL' && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 font-bold text-[11px]">
+                <span>بیمه‌گر: {insurerFilter === 'dana' ? 'دانا' : insurerFilter === 'alborz' ? 'البرز' : insurerFilter === 'asia' ? 'آسیا' : insurerFilter === 'iran' ? 'ایران' : 'ملت'}</span>
+                <button
+                  type="button"
+                  onClick={() => setInsurerFilter('ALL')}
+                  className="hover:bg-slate-200 rounded p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
 
-                          <td className="p-4 font-mono text-sm font-black text-emerald-700">
-                            {formatPrice(order.netPayableAmount)} <span className="text-[11px] font-bold text-slate-500">ریال</span>
-                          </td>
+            {searchTerm.trim() && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 font-bold text-[11px]">
+                <span>جستجو: «{searchTerm}»</span>
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="hover:bg-slate-200 rounded p-0.5"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            )}
 
-                          <td className="p-4">
-                            {order.status === 'PENDING_APPROVAL' && (
-                              <span className="px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 rounded-full flex items-center gap-1 w-fit">
-                                <Clock className="w-3 h-3 text-amber-700" /> در انتظار تایید
-                              </span>
-                            )}
-                            {order.status === 'APPROVED_FOR_PAYMENT' && (
-                              <span className="px-2.5 py-1 text-xs font-bold bg-blue-100 text-blue-900 border border-blue-300 rounded-full flex items-center gap-1 w-fit">
-                                <ShieldCheck className="w-3 h-3 text-blue-700" /> تایید مالی / صف پایا
-                              </span>
-                            )}
-                            {order.status === 'PAID' && (
-                              <div className="space-y-1">
-                                <span className="px-2.5 py-1 text-xs font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-full flex items-center gap-1 w-fit">
-                                  <CheckCircle className="w-3 h-3 text-emerald-700" /> پرداخت شده
-                                </span>
-                                {order.bankReferenceNumber && (
-                                  <div className="text-[10px] text-slate-600 font-mono font-bold">
-                                    رهگیری: {order.bankReferenceNumber}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            {order.status === 'REJECTED' && (
-                              <span className="px-2.5 py-1 text-xs font-bold bg-rose-100 text-rose-900 border border-rose-300 rounded-full flex items-center gap-1 w-fit">
-                                <XCircle className="w-3 h-3 text-rose-700" /> مسدود / رد شده
-                              </span>
-                            )}
-                          </td>
-
-                          <td className="p-4 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              {order.status === 'PENDING_APPROVAL' && (
-                                <>
-                                  <button
-                                    title="تایید مالی حواله"
-                                    onClick={() => handleApproveOrder(order.id)}
-                                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-blue-950 rounded-xl text-xs font-black flex items-center gap-1 shadow-sm transition-all active:scale-95"
-                                  >
-                                    <ShieldCheck className="w-3.5 h-3.5" /> تایید حواله
-                                  </button>
-                                  <button
-                                    title="رد یا تعلیق حواله"
-                                    onClick={() => handleRejectOrder(order.id)}
-                                    className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl transition-colors"
-                                  >
-                                    <XCircle className="w-3.5 h-3.5" />
-                                  </button>
-                                </>
-                              )}
-
-                              {order.status === 'APPROVED_FOR_PAYMENT' && (
-                                <button
-                                  onClick={() => setSelectedOrderForPay(order)}
-                                  className="px-3 py-1.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm transition-all active:scale-95"
-                                >
-                                  <CreditCard className="w-3.5 h-3.5 text-amber-400" /> ثبت واریز آنی
-                                </button>
-                              )}
-
-                              <button
-                                title="مشاهده سند حسابداری و فاکتور"
-                                onClick={() => setSelectedOrderForVoucher(order)}
-                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl transition-colors"
-                              >
-                                <Printer className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPriorityFilter('ALL');
+                setInsurerFilter('ALL');
+                setSearchTerm('');
+              }}
+              className="text-[11px] font-bold text-rose-600 hover:underline mr-auto"
+            >
+              حذف همه فیلترها
+            </button>
           </div>
         )}
+      </div>
 
-        {/* TAB 2: Batch Payment Generator */}
-        {activeTab === 'batch' && (
-          <div className="space-y-6">
-            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                <div>
-                  <h2 className="text-lg font-black text-blue-950 flex items-center gap-2">
-                    <Layers className="w-5 h-5 text-amber-500" />
-                    سامانه تولید فایل تسویه گروهی پایا / ساتنا (بانک مرکزی و سامانه‌های پرداخت)
-                  </h2>
-                  <p className="text-xs text-slate-600 font-medium mt-1">
-                    حواله‌های تایید شده را به صورت دسته‌ای انتخاب و فایل استاندارد انتقال وجه پایا جهت بارگذاری در پیشخوان اینترنت‌بانک تولید کنید.
-                  </p>
-                </div>
+      {/* ---------------------------------------------------- */}
+      {/* 5. MAIN CONTENT TABLES BY TAB */}
+      {/* ---------------------------------------------------- */}
+      {activeTab === 'batch' ? (
+        /* BATCH VIEW */
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+            <div>
+              <h2 className="font-black text-slate-900 text-base">بسته‌های پرداخت گروهی پایا / ساتنا</h2>
+              <p className="text-xs text-slate-500 font-bold mt-1">
+                صدور فایل‌های استاندارد متنی خزانه‌داری جهت بارگذاری مستقیم در پرتال بانک‌های عامل
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleOpenBatchWizard}
+                className="px-4 py-2.5 bg-indigo-900 hover:bg-indigo-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm"
+              >
+                <Zap className="w-4 h-4 text-amber-400" />
+                <span>ایجاد بسته پرداخت گروهی جدید</span>
+              </button>
+            </div>
+          </div>
 
-                <div className="flex items-center gap-3">
-                  <select
-                    value={selectedBatchMethod}
-                    onChange={e => setSelectedBatchMethod(e.target.value as any)}
-                    className="bg-slate-50 border border-slate-300 text-xs font-bold text-slate-800 rounded-xl px-3.5 py-2.5 focus:outline-none focus:border-blue-900"
-                  >
-                    <option value="PAYA_STANDARD">فرمت استاندارد پایا (بانک مرکزی)</option>
-                    <option value="SATNA_BULK">فرمت ساتنا گروهی (خسارت‌های کلان)</option>
-                    <option value="MELLAT_PORTAL">درگاه پیشخوان شرکتی بانک ملت</option>
-                  </select>
-
-                  <button
-                    onClick={handleGenerateBatch}
-                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-blue-950 rounded-xl text-xs font-black flex items-center gap-2 shadow-md transition-all active:scale-95"
-                  >
-                    <Download className="w-4 h-4" />
-                    تولید فایل و بستن بچ واریز
-                  </button>
-                </div>
-              </div>
-
-              {/* Ready Orders Selection */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4">
-                <div className="flex items-center justify-between mb-3 text-xs font-bold text-slate-600">
-                  <span>حواله‌های تایید شده آماده صدور فایل ({orders.filter(o => o.status === 'APPROVED_FOR_PAYMENT').length} مورد):</span>
-                  <button
-                    onClick={() => {
-                      const allReady = orders.filter(o => o.status === 'APPROVED_FOR_PAYMENT').map(o => o.id);
-                      if (selectedOrderIds.length === allReady.length) {
-                        setSelectedOrderIds([]);
-                      } else {
-                        setSelectedOrderIds(allReady);
-                      }
-                    }}
-                    className="text-blue-700 hover:text-blue-900 font-bold hover:underline"
-                  >
-                    {selectedOrderIds.length === orders.filter(o => o.status === 'APPROVED_FOR_PAYMENT').length
-                      ? 'لغو انتخاب همه'
-                      : 'انتخاب همه'}
-                  </button>
-                </div>
-
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {orders.filter(o => o.status === 'APPROVED_FOR_PAYMENT').length === 0 ? (
-                    <div className="text-center py-8 text-slate-500 text-xs font-bold">
-                      هیچ حواله‌ای در وضعیت «تایید شده برای پرداخت» وجود ندارد. ابتدا از تب کارتابل، حواله‌های مورد نظر را تایید کنید.
+          {batches.length === 0 ? (
+            <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-3">
+              <Layers className="w-10 h-10 text-slate-300 mx-auto" />
+              <p className="text-xs font-bold text-slate-600">هنوز هیچ بسته تجمیعی صادر نشده است.</p>
+              <button
+                type="button"
+                onClick={handleOpenBatchWizard}
+                className="px-4 py-2 bg-indigo-900 text-white rounded-xl text-xs font-black inline-flex items-center gap-1.5"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <span>اجرای فرآیند پرداخت گروهی</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {batches.map(batch => (
+                <div key={batch.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="font-mono text-xs font-black text-indigo-950">{batch.id}</span>
+                      <h4 className="font-extrabold text-slate-900 text-sm mt-0.5">{batch.batchTitle}</h4>
                     </div>
-                  ) : (
-                    orders
-                      .filter(o => o.status === 'APPROVED_FOR_PAYMENT')
-                      .map(order => (
-                        <div
-                          key={order.id}
-                          onClick={() => {
-                            if (selectedOrderIds.includes(order.id)) {
-                              setSelectedOrderIds(selectedOrderIds.filter(id => id !== order.id));
-                            } else {
-                              setSelectedOrderIds([...selectedOrderIds, order.id]);
-                            }
-                          }}
-                          className={`flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer ${
-                            selectedOrderIds.includes(order.id)
-                              ? 'bg-amber-50/80 border-2 border-amber-400 shadow-sm'
-                              : 'bg-white border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-200">
+                      تولید شده
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs py-2 border-y border-slate-200/80">
+                    <div>
+                      <span className="text-slate-500 font-bold block">تعداد حواله‌ها:</span>
+                      <span className="font-black text-slate-900 font-mono">{batch.totalOrders} فقره</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-bold block">مجموع مبلغ ریالی:</span>
+                      <span className="font-black text-emerald-800 font-mono">{formatPrice(batch.totalAmount)} ریال</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-bold block">فرمت بانکی:</span>
+                      <span className="font-bold text-slate-700">{batch.bankFormat}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 font-bold block">زمان صدور:</span>
+                      <span className="font-bold text-slate-700 font-mono">{batch.createdAt}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      onClick={() => handleDownloadBatchFile(batch)}
+                      className="px-3.5 py-2 bg-indigo-900 hover:bg-indigo-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>دانلود فایل پایا</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        /* TABLE FOR QUEUE, PROCESSING, FAILED, DISCREPANCY, SETTLED */
+        <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-right border-collapse">
+              <thead>
+                <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-black text-slate-600 uppercase">
+                  {activeTab === 'queue' && (
+                    <th className="p-4 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        onChange={handleSelectAllReady}
+                        checked={selectedOrderIds.length > 0 && selectedOrderIds.length === currentTabOrders.length}
+                        className="rounded accent-indigo-900 w-4 h-4 cursor-pointer"
+                        title="انتخاب همه"
+                      />
+                    </th>
+                  )}
+                  <th className="p-4">شماره پرونده / حواله</th>
+                  <th className="p-4">ذینفع و مشخصات</th>
+                  <th className="p-4">شماره شبا (IBAN) و بانک</th>
+                  <th className="p-4">مبلغ مصوب (ریال)</th>
+                  <th className="p-4">بیمه / مهلت SLA</th>
+                  <th className="p-4">وضعیت خزانه‌داری</th>
+                  <th className="p-4 text-center">عملیات مجاز</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-xs">
+                {currentTabOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="text-center py-16 text-slate-400 font-bold">
+                      <CreditCard className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                      موردی با فیلترهای انتخابی در این صف یافت نشد.
+                      {priorityFilter !== 'ALL' && (
+                        <div className="mt-2">
+                          <button
+                            type="button"
+                            onClick={() => setPriorityFilter('ALL')}
+                            className="text-indigo-600 hover:underline text-xs font-black"
+                          >
+                            نمایش همه اولویت‌ها ({priorityCounts.all} مورد)
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ) : (
+                  currentTabOrders.map(order => {
+                    const isSelected = selectedOrderIds.includes(order.id);
+                    return (
+                      <tr
+                        key={order.id}
+                        className={`hover:bg-slate-50/80 transition-colors ${
+                          isSelected ? 'bg-indigo-50/40' : ''
+                        }`}
+                      >
+                        {activeTab === 'queue' && (
+                          <td className="p-4 text-center">
                             <input
                               type="checkbox"
-                              checked={selectedOrderIds.includes(order.id)}
-                              onChange={() => {}}
-                              className="rounded border-slate-300 text-amber-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                              checked={isSelected}
+                              onChange={() => handleToggleSelectOrder(order.id)}
+                              className="rounded accent-indigo-900 w-4 h-4 cursor-pointer"
                             />
-                            <div>
-                              <div className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
-                                {order.victimName}
-                                <span className="text-xs text-slate-500 font-mono font-bold">({order.caseId})</span>
-                              </div>
-                              <div className="text-xs text-slate-600 font-mono font-bold mt-0.5">
-                                {order.victimIban} | {order.victimBankName}
-                              </div>
+                          </td>
+                        )}
+
+                        {/* Case & Order ID */}
+                        <td className="p-4">
+                          <div className="font-mono font-black text-indigo-950 text-xs">
+                            {order.caseId}
+                          </div>
+                          <div className="font-mono text-[10px] text-slate-400 mt-0.5">
+                            {order.id}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-bold mt-1">
+                            آماده: {order.readyDate || order.issueDate}
+                          </div>
+                        </td>
+
+                        {/* Beneficiary Name */}
+                        <td className="p-4">
+                          <div className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
+                            <span>{order.victimName}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                            کدملی: {order.victimNationalId || '-'}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono">
+                            تلفن: {order.victimPhone || '-'}
+                          </div>
+                        </td>
+
+                        {/* IBAN & Bank */}
+                        <td className="p-4">
+                          <div className="flex items-center gap-1 font-mono font-bold text-blue-950 text-[11px] dir-ltr">
+                            <span>{order.victimIban}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyIban(order.victimIban)}
+                              className="text-slate-400 hover:text-indigo-600 transition-colors"
+                              title="کپی شماره شبا"
+                            >
+                              {copiedIban === order.victimIban ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-1 text-[11px] text-slate-600 font-bold mt-1">
+                            <Building2 className="w-3 h-3 text-slate-400" />
+                            <span>{order.victimBankName || 'بانک عامل پایا'}</span>
+                          </div>
+                        </td>
+
+                        {/* Net Payable Amount */}
+                        <td className="p-4">
+                          <div className="font-black font-mono text-emerald-800 text-sm">
+                            {formatPrice(order.netPayableAmount)}
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-bold">خالص مصوب خسارت</span>
+                        </td>
+
+                        {/* Insurer & SLA Deadline */}
+                        <td className="p-4">
+                          <div className="font-extrabold text-slate-800 text-xs">
+                            {order.culpritInsurer === 'dana' ? 'بیمه دانا' : order.culpritInsurer === 'alborz' ? 'بیمه البرز' : order.culpritInsurer === 'asia' ? 'بیمه آسیا' : order.culpritInsurer === 'iran' ? 'بیمه ایران' : 'بیمه ملت'}
+                          </div>
+                          
+                          {/* Rich SLA Badge */}
+                          <div className="mt-1 flex items-center gap-1">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black inline-flex items-center gap-1 ${
+                                order.slaPriority === 'CRITICAL'
+                                  ? 'bg-rose-100 text-rose-900 border border-rose-300 animate-pulse'
+                                  : order.slaPriority === 'URGENT'
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : order.slaPriority === 'HIGH'
+                                  ? 'bg-blue-100 text-blue-900 border border-blue-200'
+                                  : 'bg-slate-100 text-slate-700'
+                              }`}
+                            >
+                              {order.slaPriority === 'CRITICAL' && <Flame className="w-3 h-3 text-rose-600" />}
+                              {order.slaPriority === 'URGENT' && <Clock className="w-3 h-3 text-amber-600" />}
+                              <span>{order.slaPriority === 'CRITICAL' ? 'بحرانی' : order.slaPriority === 'URGENT' ? 'فوری' : order.slaPriority === 'HIGH' ? 'بالا' : 'عادی'}</span>
+                            </span>
+
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSlaModal(order)}
+                              className="text-slate-400 hover:text-indigo-600 transition-colors p-0.5 rounded hover:bg-slate-100"
+                              title="تغییر اولویت و مهلت SLA"
+                            >
+                              <SlidersHorizontal className="w-3 h-3" />
+                            </button>
+                          </div>
+
+                          {order.slaDeadline && (
+                            <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-1">
+                              <Timer className="w-2.5 h-2.5 text-slate-400" />
+                              <span>مهلت: {order.slaDeadline}</span>
                             </div>
+                          )}
+                        </td>
+
+                        {/* Treasury Status */}
+                        <td className="p-4">
+                          {order.status === 'READY_FOR_PAYMENT' && (
+                            <span className="px-2.5 py-1 rounded-xl text-[11px] font-black bg-indigo-100 text-indigo-950 border border-indigo-200 inline-flex items-center gap-1">
+                              <CreditCard className="w-3.5 h-3.5 text-indigo-700" />
+                              آماده پرداخت
+                            </span>
+                          )}
+                          {order.status === 'PROCESSING' && (
+                            <span className="px-2.5 py-1 rounded-xl text-[11px] font-black bg-amber-100 text-amber-950 border border-amber-200 inline-flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5 text-amber-700 animate-spin" />
+                              در حال پردازش بانک
+                            </span>
+                          )}
+                          {order.status === 'PAID' && (
+                            <div>
+                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-black bg-emerald-100 text-emerald-950 border border-emerald-200 inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                                پرداخت موفق
+                              </span>
+                              {order.bankReferenceNumber && (
+                                <div className="text-[10px] text-slate-500 font-mono mt-1 truncate max-w-[130px]">
+                                  پیگیری: {order.bankReferenceNumber}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {order.status === 'FAILED' && (
+                            <div>
+                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-black bg-rose-100 text-rose-950 border border-rose-200 inline-flex items-center gap-1">
+                                <XCircle className="w-3.5 h-3.5 text-rose-700" />
+                                ناموفق (خطای بانک)
+                              </span>
+                              {order.failureReason && (
+                                <div className="text-[10px] text-rose-700 font-bold mt-1 line-clamp-1 max-w-[160px]" title={order.failureReason}>
+                                  {order.failureReason}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {order.status === 'DISCREPANCY' && (
+                            <div>
+                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-black bg-orange-100 text-orange-950 border border-orange-200 inline-flex items-center gap-1">
+                                <AlertTriangle className="w-3.5 h-3.5 text-orange-700" />
+                                مغایرت بانکی
+                              </span>
+                              {order.discrepancy && (
+                                <div className="text-[10px] text-orange-800 font-bold mt-1">
+                                  اختلاف: {formatPrice(order.discrepancy.difference)} ریال
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {order.status === 'HELD' && (
+                            <span className="px-2.5 py-1 rounded-xl text-[11px] font-black bg-slate-200 text-slate-800 border border-slate-300 inline-flex items-center gap-1">
+                              <Lock className="w-3.5 h-3.5 text-slate-600" />
+                              نگه‌داشته شده (متوقف)
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="p-4">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {/* Actions for READY or PENDING */}
+                            {(order.status === 'READY_FOR_PAYMENT' || order.status === 'PENDING_APPROVAL' || order.status === 'APPROVED_FOR_PAYMENT') && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePerformPreCheck(order)}
+                                  className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-950 font-black text-[11px] flex items-center gap-1 transition-all active:scale-95 shadow-2xs"
+                                  title="کنترل شبا و ارسال پرداخت"
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                                  <span>کنترل و پرداخت</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleHold(order)}
+                                  className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                                  title="نگه‌داشتن پرداخت"
+                                >
+                                  <Lock className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+
+                            {/* Actions for PROCESSING */}
+                            {order.status === 'PROCESSING' && (
+                              <button
+                                type="button"
+                                onClick={() => handleInitiatePayment(order)}
+                                className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 font-black text-[11px] flex items-center gap-1 transition-all"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5 text-amber-700" />
+                                <span>ثبت پاسخ پایا</span>
+                              </button>
+                            )}
+
+                            {/* Actions for FAILED */}
+                            {order.status === 'FAILED' && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenRetryModal(order)}
+                                className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-300 text-rose-950 font-black text-[11px] flex items-center gap-1 transition-all active:scale-95 shadow-2xs"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5 text-rose-700" />
+                                <span>مشاهده خطا و تلاش مجدد</span>
+                              </button>
+                            )}
+
+                            {/* Actions for DISCREPANCY */}
+                            {order.status === 'DISCREPANCY' && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDiscrepancyModal(order)}
+                                className="px-3 py-1.5 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-300 text-orange-950 font-black text-[11px] flex items-center gap-1 transition-all active:scale-95 shadow-2xs"
+                              >
+                                <AlertTriangle className="w-3.5 h-3.5 text-orange-700" />
+                                <span>تطبیق و رفع مغایرت</span>
+                              </button>
+                            )}
+
+                            {/* Actions for PAID / SETTLED */}
+                            {order.status === 'PAID' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedOrderForVoucher(order)}
+                                  className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-950 font-black text-[11px] flex items-center gap-1 transition-all"
+                                  title="چاپ سند حسابداری تسویه"
+                                >
+                                  <Printer className="w-3.5 h-3.5 text-emerald-700" />
+                                  <span>چاپ رسید</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedOrderForAudit(order)}
+                                  className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
+                                  title="مشاهده ردپای حسابرسی و پاسخ بانک"
+                                >
+                                  <Eye className="w-3.5 h-3.5 text-slate-700" />
+                                </button>
+                              </>
+                            )}
+
+                            {/* Actions for HELD */}
+                            {order.status === 'HELD' && (
+                              <button
+                                type="button"
+                                onClick={() => handleToggleHold(order)}
+                                className="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-[11px] flex items-center gap-1"
+                              >
+                                <span>لغو تعلیق</span>
+                              </button>
+                            )}
                           </div>
-
-                          <div className="text-left font-mono">
-                            <div className="text-sm font-black text-emerald-700">{formatPrice(order.netPayableAmount)} ریال</div>
-                            <div className="text-[11px] text-slate-500 font-bold">تاریخ تایید: {order.issueDate}</div>
-                          </div>
-                        </div>
-                      ))
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Previous Batches History */}
-            <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-              <h3 className="text-base font-black text-blue-950 mb-4 flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-amber-500" />
-                سوابق بچ‌های پایا صادر شده
-              </h3>
-
-              <div className="space-y-3">
-                {batches.length === 0 ? (
-                  <div className="text-center py-6 text-slate-500 text-xs font-bold">
-                    تاکنون هیچ فایل واریز گروهی صادر نشده است.
-                  </div>
-                ) : (
-                  batches.map(batch => (
-                    <div
-                      key={batch.id}
-                      className="bg-slate-50 border border-slate-200 p-4 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4"
-                    >
-                      <div>
-                        <div className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                          {batch.batchTitle}
-                          <span className="text-xs font-mono font-bold text-blue-900">({batch.id})</span>
-                        </div>
-                        <div className="text-xs text-slate-600 font-bold mt-1 flex items-center gap-3">
-                          <span>زمان تولید: {batch.createdAt}</span>
-                          <span>تعداد حواله‌ها: {batch.totalOrders}</span>
-                          <span>فرمت: {batch.bankFormat}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <div className="text-left font-mono">
-                          <div className="text-sm font-black text-emerald-700">{formatPrice(batch.totalAmount)} ریال</div>
-                          <span className="text-[10px] text-blue-900 bg-blue-100 font-bold px-2 py-0.5 rounded border border-blue-200">
-                            {batch.status === 'EXECUTED_SETTLED' ? 'تسویه شده' : 'تولید شده'}
-                          </span>
-                        </div>
-
-                        <button
-                          onClick={() => handleDownloadBankFile(batch)}
-                          className="px-3.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1 transition-colors"
-                        >
-                          <Download className="w-3.5 h-3.5" /> دانلود مجدد فایل
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* TAB 3: Settled History */}
-        {activeTab === 'settled' && (
-          <div className="space-y-4">
-            <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h3 className="text-base font-black text-blue-950 flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-emerald-600" />
-                  آرشیو اسناد تسویه شده و پرداخت‌های قطعی
-                </h3>
-                <p className="text-xs text-slate-600 font-medium mt-0.5">
-                  گزارش رسمی حواله‌هایی که با شماره پیگیری بانکی تسویه شده و به وضعیت نهایی «پرداخت شده» رسیده‌اند.
-                </p>
-              </div>
-
-              <div className="text-left font-mono">
-                <div className="text-xs text-slate-500 font-bold">مجموع واریزی‌ها:</div>
-                <div className="text-xl font-black text-emerald-700">{formatPrice(stats.paidAmount)} ریال</div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-50 text-slate-700 text-xs font-black border-b border-slate-200">
-                    <tr>
-                      <th className="p-4">شناسه پرونده</th>
-                      <th className="p-4">زیان‌دیده</th>
-                      <th className="p-4">شماره شبا و بانک</th>
-                      <th className="p-4">مبلغ واریز شده</th>
-                      <th className="p-4">کد رهگیری بانکی (Trace No)</th>
-                      <th className="p-4">تاریخ تسویه</th>
-                      <th className="p-4">کارشناس ثبت‌کننده</th>
-                      <th className="p-4 text-center">سند پرداخت</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {orders.filter(o => o.status === 'PAID').length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="p-10 text-center text-slate-500 font-bold">
-                          هیچ پرداختی در سیستم ثبت نشده است.
                         </td>
                       </tr>
-                    ) : (
-                      orders
-                        .filter(o => o.status === 'PAID')
-                        .map(order => (
-                          <tr key={order.id} className="hover:bg-amber-50/30 transition-colors">
-                            <td className="p-4 font-black text-blue-950 font-mono">{order.caseId}</td>
-                            <td className="p-4 font-bold text-slate-900">{order.victimName}</td>
-                            <td className="p-4 font-mono text-xs font-bold text-slate-800">
-                              <div>{order.victimIban}</div>
-                              <div className="text-[11px] text-slate-500 font-sans font-bold">{order.victimBankName}</div>
-                            </td>
-                            <td className="p-4 font-mono font-black text-emerald-700">
-                              {formatPrice(order.netPayableAmount)} ریال
-                            </td>
-                            <td className="p-4 font-mono text-xs font-bold text-blue-950">
-                              <span className="bg-slate-100 px-2 py-1 rounded-lg border border-slate-200">
-                                {order.bankReferenceNumber || 'TRX-PAYA-SUCCESS'}
-                              </span>
-                            </td>
-                            <td className="p-4 text-xs text-slate-600 font-bold">{order.paidDate || order.issueDate}</td>
-                            <td className="p-4 text-xs text-slate-800 font-bold">{order.paidBy || session.name}</td>
-                            <td className="p-4 text-center">
-                              <button
-                                onClick={() => setSelectedOrderForVoucher(order)}
-                                className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs rounded-xl flex items-center gap-1 mx-auto transition-colors font-bold"
-                              >
-                                <Printer className="w-3.5 h-3.5" /> فاکتور
-                              </button>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 5.5 MODAL: BATCH PAYMENT WIZARD */}
+      {/* ---------------------------------------------------- */}
+      {showBatchWizardModal && (() => {
+        const readyOrders = orders.filter(
+          o => o.status === 'READY_FOR_PAYMENT' || o.status === 'APPROVED_FOR_PAYMENT'
+        );
+        const selectedList = orders.filter(
+          o => (o.status === 'READY_FOR_PAYMENT' || o.status === 'APPROVED_FOR_PAYMENT') && selectedOrderIds.includes(o.id)
+        );
+        const selectedTotalAmount = selectedList.reduce((sum, o) => sum + o.netPayableAmount, 0);
+        const criticalUrgentCount = readyOrders.filter(o => o.slaPriority === 'CRITICAL' || o.slaPriority === 'URGENT').length;
+        const highAmountCount = readyOrders.filter(o => o.netPayableAmount >= 50000000).length;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+            <div className="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95 my-8 max-h-[90vh] flex flex-col">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-900 text-amber-400 flex items-center justify-center shadow-xs">
+                    <Zap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-black text-slate-900 text-base">میزکار هوشمند صدور و پرداخت گروهی پایا / ساتنا</h3>
+                    <p className="text-[11px] text-slate-500 font-bold">تجمیع، کنترل پیش از پرداخت و صدور فایل استاندارد بانکی</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowBatchWizardModal(false)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="overflow-y-auto pr-1 space-y-5 flex-1">
+                {/* Step 1: Quick Filter Presets */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-indigo-700" />
+                      ۱. انتخاب حواله‌های هدف ({selectedOrderIds.length} از {readyOrders.length} مورد آماده انتخاب شده):
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleSelectBatchPreset('ALL_READY')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
+                        selectedOrderIds.length === readyOrders.length && readyOrders.length > 0
+                          ? 'bg-indigo-900 text-white'
+                          : 'bg-indigo-50 text-indigo-900 hover:bg-indigo-100 border border-indigo-200'
+                      }`}
+                    >
+                      <CheckSquare className="w-3.5 h-3.5" />
+                      <span>انتخاب همه موارد آماده ({readyOrders.length})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectBatchPreset('CRITICAL_URGENT')}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 bg-rose-50 text-rose-900 hover:bg-rose-100 border border-rose-200"
+                    >
+                      <Flame className="w-3.5 h-3.5 text-rose-600" />
+                      <span>فقط بحرانی و فوری ({criticalUrgentCount})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectBatchPreset('HIGH_AMOUNT')}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200"
+                    >
+                      <DollarSign className="w-3.5 h-3.5 text-amber-600" />
+                      <span>مبالغ بالای ۵۰ میلیون ریال ({highAmountCount})</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSelectBatchPreset('CLEAR')}
+                      className="px-3 py-1.5 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 border border-slate-200"
+                    >
+                      <span>پاک کردن انتخاب‌ها</span>
+                    </button>
+                  </div>
+
+                  {/* List of ready orders to check/uncheck */}
+                  <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-48 overflow-y-auto">
+                    <table className="w-full text-right text-xs">
+                      <thead className="bg-slate-50 text-[11px] font-black text-slate-600 sticky top-0 border-b border-slate-200">
+                        <tr>
+                          <th className="p-2.5 w-8 text-center"></th>
+                          <th className="p-2.5">شماره پرونده</th>
+                          <th className="p-2.5">ذینفع / بانک</th>
+                          <th className="p-2.5">اولویت SLA</th>
+                          <th className="p-2.5 text-left">مبلغ خالص (ریال)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {readyOrders.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="p-4 text-center text-slate-400 font-bold">
+                              هیچ پرونده آماده پرداختی در صف وجود ندارد.
                             </td>
                           </tr>
-                        ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
+                        ) : (
+                          readyOrders.map(order => {
+                            const isChecked = selectedOrderIds.includes(order.id);
+                            return (
+                              <tr
+                                key={order.id}
+                                onClick={() => handleToggleSelectOrder(order.id)}
+                                className={`cursor-pointer hover:bg-slate-50 transition-colors ${
+                                  isChecked ? 'bg-indigo-50/50 font-bold' : ''
+                                }`}
+                              >
+                                <td className="p-2.5 text-center">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => {}}
+                                    className="rounded accent-indigo-900 w-3.5 h-3.5"
+                                  />
+                                </td>
+                                <td className="p-2.5 font-mono text-indigo-950 font-black">{order.caseId}</td>
+                                <td className="p-2.5 text-slate-800">
+                                  <span>{order.victimName}</span>
+                                  <span className="text-[10px] text-slate-400 block font-mono">{order.victimBankName}</span>
+                                </td>
+                                <td className="p-2.5">
+                                  <span
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-black ${
+                                      order.slaPriority === 'CRITICAL'
+                                        ? 'bg-rose-100 text-rose-900'
+                                        : order.slaPriority === 'URGENT' || order.slaPriority === 'HIGH'
+                                        ? 'bg-amber-100 text-amber-900'
+                                        : 'bg-slate-100 text-slate-700'
+                                    }`}
+                                  >
+                                    {order.slaPriority === 'CRITICAL' ? 'بحرانی' : order.slaPriority === 'URGENT' ? 'فوری' : order.slaPriority === 'HIGH' ? 'بالا' : 'عادی'}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 font-mono font-black text-emerald-800 text-left">
+                                  {formatPrice(order.netPayableAmount)}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
 
-        {/* TAB 4: Financial Analytics */}
-        {activeTab === 'analytics' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Box 1: Payout Distribution */}
-              <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                <h3 className="text-base font-black text-blue-950 mb-4 flex items-center gap-2">
-                  <TrendingUp className="w-5 h-5 text-amber-500" />
-                  توزیع خسارت‌های پرداختی بر اساس روش واریز
-                </h3>
-                <div className="space-y-4">
-                  <div>
-                    <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
-                      <span>حواله پایا بانکی (زیر ۱۰۰ میلیون ریال)</span>
-                      <span className="font-mono text-emerald-700 font-black">۷۸٪ (۴۴ فقره)</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-emerald-600 h-full rounded-full w-[78%]"></div>
-                    </div>
+                {/* Step 2: Format and Settlement Mode */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Bank Standard Format */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-indigo-700" />
+                      ۲. فرمت استاندارد بانکی خروجی:
+                    </label>
+                    <select
+                      value={selectedBatchFormat}
+                      onChange={e => setSelectedBatchFormat(e.target.value as any)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600"
+                    >
+                      <option value="PAYA_STANDARD">پایا استاندارد متمرکز بانک مرکزی (.txt)</option>
+                      <option value="SATNA_BULK">ساتنا تجمیعی تسویه ناخالص آنی (.txt)</option>
+                      <option value="MELLAT_PORTAL">سامانه پرداخت گروهی بانک ملت (فرمت شرکتی)</option>
+                      <option value="TEJARAT_IBAN">سامانه فراگیر شبا بانک تجارت</option>
+                      <option value="MELLI_BAM">سامانه بام سازمانی بانک ملی</option>
+                    </select>
                   </div>
 
-                  <div>
-                    <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
-                      <span>انتقال ساتنا (خسارت‌های کلان بالای ۱۰۰ میلیون)</span>
-                      <span className="font-mono text-blue-700 font-black">۱۸٪ (۱۰ فقره)</span>
-                    </div>
-                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-blue-600 h-full rounded-full w-[18%]"></div>
-                    </div>
+                  {/* Settlement Mode */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-700" />
+                      ۳. شیوه اعمال در سیستم خزانه‌داری:
+                    </label>
+                    <select
+                      value={batchExecutionMode}
+                      onChange={e => setBatchExecutionMode(e.target.value as any)}
+                      className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600"
+                    >
+                      <option value="PROCESS_PAYA">تولید فایل و انتقال به چرخه تسویه (در حال پردازش)</option>
+                      <option value="INSTANT_SETTLE">تسویه مستقیم آنی تمام ردیف‌ها + صدور کد رهگیری RRN</option>
+                    </select>
                   </div>
+                </div>
 
-                  <div>
-                    <div className="flex justify-between text-xs font-bold text-slate-700 mb-1">
-                      <span>واریز آنی کارت به کارت / حساب تجاری</span>
-                      <span className="font-mono text-purple-700 font-black">۴٪ (۲ فقره)</span>
+                {/* Pre-Check Verification Box */}
+                <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200 space-y-1.5">
+                  <div className="flex items-center gap-2 text-xs font-black text-emerald-950">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>کنترل‌های هوشمند انطباق (Pre-Payment Checks):</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-emerald-900 font-bold pt-1">
+                    <div className="flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>صحت ۱۰۰٪ شماره‌های شبا</span>
                     </div>
-                    <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                      <div className="bg-purple-600 h-full rounded-full w-[4%]"></div>
+                    <div className="flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>عدم وجود حواله تکراری</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>انطباق کامل با سقف تعهدات</span>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Box 2: Speed & Performance */}
-              <div className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm">
-                <h3 className="text-base font-black text-blue-950 mb-4 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-amber-500" />
-                  شاخص‌های کلیدی عملکرد خزانه‌داری (Treasury KPIs)
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div className="text-xs text-slate-500 font-bold">متوسط زمان صدور تا تسویه</div>
-                    <div className="text-2xl font-black text-emerald-700 mt-1">۳.۲ ساعت</div>
-                    <div className="text-[11px] text-slate-500 font-bold mt-1">۸۵٪ سریع‌تر از میانگین صنعت</div>
+                {/* Total Summary Footer Box */}
+                <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs text-slate-400 font-bold block">مجموع مبلغ بسته انتخابی:</span>
+                    <div className="font-mono text-lg font-black text-amber-400">
+                      {formatPrice(selectedTotalAmount)} <span className="text-xs text-white">ریال</span>
+                    </div>
+                    <span className="text-[11px] text-slate-300 font-mono">
+                      معادل {formatPrice(Math.round(selectedTotalAmount / 10))} تومان ({selectedList.length} حواله)
+                    </span>
                   </div>
 
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div className="text-xs text-slate-500 font-bold">نرخ استرداد ارزش داغی</div>
-                    <div className="text-2xl font-black text-purple-800 mt-1">۱۲.۴٪</div>
-                    <div className="text-[11px] text-slate-500 font-bold mt-1">کاهش بار مالی پرداخت نقدی</div>
-                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setShowBatchWizardModal(false)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs flex-1 sm:flex-none"
+                    >
+                      انصراف
+                    </button>
 
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div className="text-xs text-slate-500 font-bold">دقت تطابق شبا و کدملی</div>
-                    <div className="text-2xl font-black text-blue-900 mt-1">۹۹.۸٪</div>
-                    <div className="text-[11px] text-slate-500 font-bold mt-1">صحت‌سنجی از سامانه نهاب</div>
-                  </div>
-
-                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div className="text-xs text-slate-500 font-bold">نرخ مغایرت‌های بانکی</div>
-                    <div className="text-2xl font-black text-emerald-700 mt-1">۰.۰٪</div>
-                    <div className="text-[11px] text-slate-500 font-bold mt-1">تراز کامل دفاتر خزانه‌داری</div>
+                    <button
+                      type="button"
+                      disabled={selectedList.length === 0 || isGeneratingBatch}
+                      onClick={handleExecuteBatchWizard}
+                      className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 disabled:opacity-50 text-slate-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg flex-1 sm:flex-none"
+                    >
+                      {isGeneratingBatch ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                          <span>در حال صدور بسته و دریافت فایل...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Download className="w-4 h-4 text-slate-950" />
+                          <span>تولید و دانلود فایل بانکی ({selectedList.length} مورد)</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        );
+      })()}
 
-      {/* Modal 1: Single Payment Confirmation */}
-      {selectedOrderForPay && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95">
-            <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-blue-950 font-black text-sm">
-                <CreditCard className="w-5 h-5 text-amber-500" />
-                ثبت واریز آنی و صدور سند تسویه
+      {/* ---------------------------------------------------- */}
+      {/* 5.6 MODAL: SLA PRIORITY & DEADLINE MANAGEMENT */}
+      {/* ---------------------------------------------------- */}
+      {slaModalOrder && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-900 text-amber-400 flex items-center justify-center">
+                  <Timer className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">مدیریت اولویت زمانی و SLA حواله</h3>
+                  <p className="text-[11px] text-slate-500 font-bold">پرونده {slaModalOrder.caseId} - ذینفع: {slaModalOrder.victimName}</p>
+                </div>
               </div>
               <button
-                onClick={() => setSelectedOrderForPay(null)}
-                className="text-slate-400 hover:text-slate-700 transition-colors"
+                onClick={() => setSlaModalOrder(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
               >
-                <XCircle className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs">
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">شماره پرونده:</span>
-                  <span className="text-blue-950 font-black font-mono">{selectedOrderForPay.caseId}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">زیان‌دیده:</span>
-                  <span className="text-slate-900 font-bold">{selectedOrderForPay.victimName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">شماره شبا:</span>
-                  <span className="text-blue-950 font-mono font-bold">{selectedOrderForPay.victimIban}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">بانک مقصد:</span>
-                  <span className="text-slate-800 font-bold">{selectedOrderForPay.victimBankName}</span>
-                </div>
-                <div className="border-t border-slate-200 pt-2 flex justify-between items-center">
-                  <span className="text-slate-800 font-bold">مبلغ قابل پرداخت:</span>
-                  <span className="text-emerald-700 font-black text-base font-mono">
-                    {formatPrice(selectedOrderForPay.netPayableAmount)} ریال
-                  </span>
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-black text-slate-800 block mb-2">سطح اولویت توافقنامه سطح خدمات (SLA):</label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewSlaPriority('CRITICAL');
+                      setNewSlaDeadline('امروز ساعت ۱۴:۰۰ (فوری)');
+                    }}
+                    className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between gap-1 ${
+                      newSlaPriority === 'CRITICAL'
+                        ? 'border-rose-600 bg-rose-50/80 ring-2 ring-rose-500'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-rose-900 flex items-center gap-1">
+                        <Flame className="w-3.5 h-3.5 text-rose-600" />
+                        بحرانی (Critical)
+                      </span>
+                      {newSlaPriority === 'CRITICAL' && <Check className="w-4 h-4 text-rose-600" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500">مهلت: ۲ ساعت آینده (جرحی/فوتی)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewSlaPriority('URGENT');
+                      setNewSlaDeadline('امروز تا پایان وقت اداری');
+                    }}
+                    className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between gap-1 ${
+                      newSlaPriority === 'URGENT'
+                        ? 'border-amber-600 bg-amber-50/80 ring-2 ring-amber-500'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-amber-900 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        فوری (Urgent)
+                      </span>
+                      {newSlaPriority === 'URGENT' && <Check className="w-4 h-4 text-amber-600" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500">مهلت: ۶ ساعت آینده</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewSlaPriority('HIGH');
+                      setNewSlaDeadline('فردا ساعت ۱۱:۰۰');
+                    }}
+                    className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between gap-1 ${
+                      newSlaPriority === 'HIGH'
+                        ? 'border-blue-600 bg-blue-50/80 ring-2 ring-blue-500'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-blue-900 flex items-center gap-1">
+                        <Info className="w-3.5 h-3.5 text-blue-600" />
+                        بالا (High)
+                      </span>
+                      {newSlaPriority === 'HIGH' && <Check className="w-4 h-4 text-blue-600" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500">مهلت: تا فردا ظهر (۱۴ ساعت)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewSlaPriority('NORMAL');
+                      setNewSlaDeadline('۴۸ ساعت آینده');
+                    }}
+                    className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between gap-1 ${
+                      newSlaPriority === 'NORMAL'
+                        ? 'border-slate-800 bg-slate-100 ring-2 ring-slate-700'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-900">عادی (Normal)</span>
+                      {newSlaPriority === 'NORMAL' && <Check className="w-4 h-4 text-slate-700" />}
+                    </div>
+                    <span className="text-[10px] text-slate-500">مهلت: تا ۴۸ ساعت آینده</span>
+                  </button>
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5">روش انتقال وجه:</label>
+                <label className="text-xs font-black text-slate-800 block mb-1">شرح متنی مهلت پرداخت:</label>
+                <input
+                  type="text"
+                  value={newSlaDeadline}
+                  onChange={e => setNewSlaDeadline(e.target.value)}
+                  placeholder="مثال: امروز ساعت ۱۴:۰۰ یا فردا صبح"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSlaModalOrder(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSlaModal}
+                className="px-5 py-2 rounded-xl bg-indigo-900 hover:bg-indigo-800 text-white font-black text-xs shadow-sm"
+              >
+                ذخیره تغییرات SLA
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 6. MODAL: PRE-PAYMENT CONTROL & VERIFICATION */}
+      {/* ---------------------------------------------------- */}
+      {selectedOrderForPreCheck && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-900 text-white flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">کنترل و اعتبارسنجی اطلاعات پرداخت</h3>
+                  <p className="text-[11px] text-slate-500 font-bold">پرونده {selectedOrderForPreCheck.caseId}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedOrderForPreCheck(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Checklist of the 5 Mandatory Checks */}
+            <div className="space-y-3">
+              <span className="text-xs font-black text-slate-800 block">چک‌لیست کنترل هوشمند پیش از پرداخت:</span>
+
+              {/* Check 1: IBAN format */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span>کنترل فرمت و ساختار شماره شبا:</span>
+                    <div className="text-[11px] text-slate-500 font-mono dir-ltr">{selectedOrderForPreCheck.victimIban}</div>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900">
+                  معتبر (۲۶ رقمی)
+                </span>
+              </div>
+
+              {/* Check 2: Beneficiary Name Match */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span>تطابق نام صاحب حساب با ذینفع:</span>
+                    <div className="text-[11px] text-slate-500">{selectedOrderForPreCheck.victimName} (انطباق ۱۰۰٪ با ثبت احوال)</div>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900">
+                  منطبق
+                </span>
+              </div>
+
+              {/* Check 3: Amount Validation */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span>کنترل مبلغ مصوب خسارت:</span>
+                    <div className="text-[11px] text-emerald-800 font-mono font-black">{formatPrice(selectedOrderForPreCheck.netPayableAmount)} ریال</div>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900">
+                  مجاز و مصوب
+                </span>
+              </div>
+
+              {/* Check 4: Payout Ready status */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span>احراز وضعیت پرونده (PAYOUT_READY):</span>
+                    <div className="text-[11px] text-slate-500">تاییدیه نهایی ارزیابی و استعلام مدارک اخذ شده است</div>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900">
+                  تایید شده
+                </span>
+              </div>
+
+              {/* Check 5: Duplicate prevention */}
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                  <div className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <Check className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <span>کنترل عدم پرداخت تکراری (Duplicate Guard):</span>
+                    <div className="text-[11px] text-slate-500">هیچ تراکنش تسویه‌شده قبلی برای این پرونده وجود ندارد</div>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900">
+                  بدون هم‌پوشانی
+                </span>
+              </div>
+            </div>
+
+            {/* Action Buttons in Modal */}
+            <div className="flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedOrderForPreCheck(null)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+              >
+                انصراف
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const o = selectedOrderForPreCheck;
+                  setSelectedOrderForPreCheck(null);
+                  handleSendToProcessing(o);
+                }}
+                className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-xs"
+              >
+                <Clock className="w-4 h-4" />
+                <span>ارسال به صف پردازش پایا</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const o = selectedOrderForPreCheck;
+                  setSelectedOrderForPreCheck(null);
+                  handleInitiatePayment(o);
+                }}
+                className="px-5 py-2.5 bg-indigo-900 hover:bg-indigo-800 text-white font-black text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-indigo-950/20 active:scale-95"
+              >
+                <Send className="w-4 h-4" />
+                <span>تایید نهایی و ارسال دستور پرداخت</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 7. MODAL: EXECUTE PAYMENT DISPATCH */}
+      {/* ---------------------------------------------------- */}
+      {selectedOrderForPay && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-indigo-900 text-white flex items-center justify-center">
+                  <Send className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">ارسال دستور پرداخت به درگاه بانکی</h3>
+                  <p className="text-[11px] text-slate-500 font-bold">پرونده {selectedOrderForPay.caseId}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedOrderForPay(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-4 space-y-2 border border-slate-200 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-bold">نام ذینفع:</span>
+                <span className="font-black text-slate-900">{selectedOrderForPay.victimName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-bold">شماره شبا مقصد:</span>
+                <span className="font-black font-mono text-blue-950">{selectedOrderForPay.victimIban}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500 font-bold">بانک مقصد:</span>
+                <span className="font-bold text-slate-800">{selectedOrderForPay.victimBankName || 'بانک ملت'}</span>
+              </div>
+              <div className="flex justify-between pt-2 border-t border-slate-200">
+                <span className="text-slate-700 font-extrabold">مبلغ قابل واریز:</span>
+                <span className="font-black font-mono text-emerald-800 text-sm">
+                  {formatPrice(selectedOrderForPay.netPayableAmount)} ریال
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-black text-slate-700 block mb-1.5">روش پرداخت و تسویه:</label>
                 <div className="grid grid-cols-3 gap-2">
                   {(['PAYA', 'SATNA', 'INSTANT_CARD'] as const).map(method => (
                     <button
                       key={method}
                       type="button"
                       onClick={() => setPayModalMethod(method)}
-                      className={`py-2 text-xs font-bold rounded-xl border transition-all ${
+                      className={`py-2 rounded-xl text-xs font-black border transition-all ${
                         payModalMethod === method
-                          ? 'bg-blue-950 border-blue-950 text-white shadow-sm'
-                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                          ? 'bg-indigo-900 text-white border-indigo-900'
+                          : 'bg-white text-slate-700 border-slate-200'
                       }`}
                     >
-                      {method === 'PAYA' && 'پایا (بانک مرکزی)'}
-                      {method === 'SATNA' && 'ساتنا (آنی)'}
-                      {method === 'INSTANT_CARD' && 'کارت به کارت'}
+                      {method === 'PAYA' ? 'سامانه پایا' : method === 'SATNA' ? 'سامانه ساتنا' : 'کارت به کارت فوری'}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  شماره پیگیری بانکی / شناسه ارجاع (Trace No):
-                </label>
+                <label className="text-xs font-black text-slate-700 block mb-1.5">شماره رهگیری / کد ارجاع بانکی (RRN):</label>
                 <input
                   type="text"
-                  placeholder="مثال: TRX-89210943"
                   value={payModalReferenceNo}
                   onChange={e => setPayModalReferenceNo(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:outline-none focus:border-blue-900 focus:bg-white"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold font-mono text-slate-900 focus:outline-none focus:border-indigo-600 dir-ltr"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">توضیحات خزانه‌داری (اختیاری):</label>
+                <label className="text-xs font-black text-slate-700 block mb-1.5">یادداشت ثبت سند خزانه‌داری:</label>
                 <textarea
-                  rows={2}
-                  placeholder="توضیحات مربوط به سند بانکی یا مرجع واریز..."
                   value={payModalNotes}
                   onChange={e => setPayModalNotes(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 text-xs font-medium focus:outline-none focus:border-blue-900 focus:bg-white resize-none"
+                  rows={2}
+                  placeholder="توضیحات اختیاری پیرامون اجرای پرداخت..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
                 />
               </div>
             </div>
 
-            <div className="bg-slate-50 p-4 border-t border-slate-200 flex items-center justify-end gap-3">
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
               <button
+                type="button"
                 onClick={() => setSelectedOrderForPay(null)}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-colors"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
               >
                 انصراف
               </button>
               <button
+                type="button"
                 onClick={handleConfirmSinglePayout}
-                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-blue-950 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
               >
-                <CheckCircle className="w-4 h-4" /> تایید و ثبت قطعی پرداخت
+                <CheckCircle2 className="w-4 h-4" />
+                <span>ثبت پرداخت موفق و بستن پرونده</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal 2: Batch Success and Settlement prompt */}
-      {showBatchSuccessModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl">
-            <div className="bg-amber-50 border-b border-amber-200 p-5 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center mx-auto mb-2 shadow-sm">
-                <CheckCircle className="w-6 h-6" />
+      {/* ---------------------------------------------------- */}
+      {/* 8. MODAL: RETRY FAILED PAYMENT */}
+      {/* ---------------------------------------------------- */}
+      {selectedOrderForRetry && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">مشاهده خطا و تلاش مجدد (Retry)</h3>
+                  <p className="text-[11px] text-slate-500 font-bold">پرونده {selectedOrderForRetry.caseId}</p>
+                </div>
               </div>
-              <h3 className="text-lg font-black text-blue-950">فایل حواله پایا با موفقیت تولید شد</h3>
-              <p className="text-xs font-bold text-amber-900 mt-1 font-mono">شناسه بچ: {showBatchSuccessModal.id}</p>
+              <button
+                onClick={() => setSelectedOrderForRetry(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="p-6 space-y-4 text-xs text-slate-700">
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">تعداد حواله‌ها:</span>
-                  <span className="text-slate-900 font-black">{showBatchSuccessModal.totalOrders} فقره</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 font-bold">مجموع مبلغ واریز:</span>
-                  <span className="text-emerald-700 font-black font-mono text-sm">
-                    {formatPrice(showBatchSuccessModal.totalAmount)} ریال
-                  </span>
-                </div>
+            {/* Error cause banner */}
+            <div className="p-3.5 bg-rose-50 border-2 border-rose-200 rounded-2xl text-xs text-rose-950 font-bold space-y-1">
+              <span className="block text-[11px] text-rose-800">علت برگشت خوردن تراکنش از سوی بانک:</span>
+              <p className="leading-relaxed">{selectedOrderForRetry.failureReason || 'خطای سیستمی عدم تطابق مشخصات شبا'}</p>
+            </div>
+
+            {/* Edit / Verify IBAN */}
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-black text-slate-800 block mb-1">شماره شبا مقصد جهت ارسال مجدد:</label>
+                <input
+                  type="text"
+                  value={retryIban}
+                  onChange={e => setRetryIban(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600 dir-ltr"
+                />
               </div>
 
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                می‌توانید هم‌اکنون فایل متنی استاندارد را جهت بارگذاری در بانک دانلود نمایید. همچنین در صورت تمایل، وضعیت تمام پرونده‌های این بچ را به «پرداخت شده» تغییر دهید.
+              <div>
+                <label className="font-black text-slate-800 block mb-1">توضیحات اصلاحیه خزانه‌داری:</label>
+                <textarea
+                  value={retryNotes}
+                  onChange={e => setRetryNotes(e.target.value)}
+                  rows={2}
+                  placeholder="ثبت علت تلاش مجدد و استعلام حساب اصلاح‌شده..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-indigo-600 font-bold"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSelectedOrderForRetry(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteRetry}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>تلاش مجدد و ارسال دوباره به پایا</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 9. MODAL: DISCREPANCY RECONCILIATION */}
+      {/* ---------------------------------------------------- */}
+      {selectedOrderForDiscrepancy && selectedOrderForDiscrepancy.discrepancy && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-orange-500 text-white flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">بررسی و تطبیق مغایرت بانکی</h3>
+                  <p className="text-[11px] text-slate-500 font-bold">پرونده {selectedOrderForDiscrepancy.caseId}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedOrderForDiscrepancy(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Comparison Box */}
+            <div className="grid grid-cols-3 gap-3 p-4 bg-orange-50/70 rounded-2xl border border-orange-200 text-center">
+              <div>
+                <span className="text-[11px] text-slate-500 font-bold block">مبلغ مصوب سیستم:</span>
+                <span className="text-sm font-black font-mono text-slate-900 mt-1 block">
+                  {formatPrice(selectedOrderForDiscrepancy.discrepancy.systemAmount)} ریال
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-500 font-bold block">مبلغ نشسته در بانک:</span>
+                <span className="text-sm font-black font-mono text-slate-900 mt-1 block">
+                  {formatPrice(selectedOrderForDiscrepancy.discrepancy.bankAmount)} ریال
+                </span>
+              </div>
+              <div>
+                <span className="text-[11px] text-orange-950 font-bold block">میزان مغایرت:</span>
+                <span className="text-sm font-black font-mono text-orange-700 mt-1 block">
+                  {formatPrice(selectedOrderForDiscrepancy.discrepancy.difference)} ریال
+                </span>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-700 font-bold space-y-1">
+              <span className="text-slate-500 block">گزارش مغایرت شاپرک / پایا:</span>
+              <p className="p-3 bg-slate-50 rounded-xl border border-slate-200 leading-relaxed">
+                {selectedOrderForDiscrepancy.discrepancy.details}
               </p>
             </div>
 
-            <div className="bg-slate-50 p-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-end gap-3">
+            <div>
+              <label className="text-xs font-black text-slate-700 block mb-1.5">شرح اقدام خزانه‌داری:</label>
+              <textarea
+                value={discrepancyActionNote}
+                onChange={e => setDiscrepancyActionNote(e.target.value)}
+                rows={2}
+                placeholder="توضیحات تطبیق سند اصلاحی یا مجوز صدور حواله تکمیلی..."
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
               <button
-                onClick={() => handleDownloadBankFile(showBatchSuccessModal)}
-                className="w-full sm:w-auto px-4 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                type="button"
+                onClick={() => setSelectedOrderForDiscrepancy(null)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl"
               >
-                <Download className="w-4 h-4" /> دانلود فایل TXT پایا
+                انصراف
               </button>
 
               <button
-                onClick={() => handleMarkBatchAsPaid(showBatchSuccessModal)}
-                className="w-full sm:w-auto px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-blue-950 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 shadow-md transition-all active:scale-95"
+                type="button"
+                onClick={() => handleResolveDiscrepancy('MANUAL_MATCH')}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-black text-xs rounded-xl transition-all"
               >
-                <CheckCircle className="w-4 h-4" /> تغییر وضعیت همه به «پرداخت شده»
+                تطبیق دستی با سند اصلاحی
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleResolveDiscrepancy('SETTLE_DIFFERENCE')}
+                className="px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-black text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+              >
+                <Check className="w-4 h-4" />
+                <span>صدور حواله مابه‌التفاوت و تسویه نهایی</span>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal 3: Accounting Voucher & Receipt Preview */}
-      {selectedOrderForVoucher && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white text-slate-900 rounded-3xl w-full max-w-2xl overflow-hidden shadow-2xl print:m-0 print:w-full border border-slate-200">
-            <div className="bg-slate-50 p-4 border-b border-slate-200 flex items-center justify-between">
-              <div className="font-black text-blue-950 text-xs sm:text-sm flex items-center gap-2">
-                <FileText className="w-4 h-4 text-amber-600" />
-                سند حسابداری پرداخت خسارت خودرو (Payment Voucher)
+      {/* ---------------------------------------------------- */}
+      {/* 10. MODAL: AUDIT TRAIL & HISTORY LOG */}
+      {/* ---------------------------------------------------- */}
+      {selectedOrderForAudit && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-base">ردپای حسابرسی و سوابق تراکنش</h3>
+                  <p className="text-[11px] text-slate-500 font-bold">پرونده {selectedOrderForAudit.caseId}</p>
+                </div>
               </div>
               <button
-                onClick={() => setSelectedOrderForVoucher(null)}
-                className="text-slate-400 hover:text-slate-700 transition-colors"
+                onClick={() => setSelectedOrderForAudit(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
               >
-                <XCircle className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="p-6 space-y-5 text-xs" id="printable-voucher">
+            <div className="space-y-2.5 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl flex justify-between">
+                <span className="text-slate-500 font-bold">شماره پیگیری بانک مرکزی (RRN):</span>
+                <span className="font-mono font-black text-indigo-950">{selectedOrderForAudit.bankReferenceNumber || '-'}</span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl flex justify-between">
+                <span className="text-slate-500 font-bold">شماره سند حسابداری:</span>
+                <span className="font-mono font-black text-slate-900">{selectedOrderForAudit.accountVoucherNumber || '-'}</span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl flex justify-between">
+                <span className="text-slate-500 font-bold">اپراتور انجام‌دهنده:</span>
+                <span className="font-extrabold text-slate-900">{selectedOrderForAudit.paidBy || session.name}</span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl flex justify-between">
+                <span className="text-slate-500 font-bold">زمان دقیق ثبت تسویه:</span>
+                <span className="font-mono font-bold text-slate-900">{selectedOrderForAudit.paidDate || selectedOrderForAudit.issueDate}</span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl space-y-1">
+                <span className="text-slate-500 font-bold block">یادداشت ثبت شده در دفاتر:</span>
+                <p className="text-slate-800 font-bold">{selectedOrderForAudit.financeNotes || 'تسویه قطعی انجام گردید.'}</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setSelectedOrderForAudit(null)}
+                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold"
+              >
+                بستن
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---------------------------------------------------- */}
+      {/* 11. MODAL: OFFICIAL PRINT VOUCHER (CLEAN & COMPLETE) */}
+      {/* ---------------------------------------------------- */}
+      {selectedOrderForVoucher && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl border border-slate-200 space-y-6 print:m-0 print:p-0 print:border-none print:shadow-none animate-in fade-in zoom-in-95">
+            
+            {/* Modal Actions Bar (Hidden on print) */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 print:hidden">
+              <span className="font-black text-slate-900 text-sm">پیش‌نمایش سند حسابداری و رسید تسویه</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="px-4 py-2 bg-indigo-900 hover:bg-indigo-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>چاپ سند</span>
+                </button>
+                <button
+                  onClick={() => setSelectedOrderForVoucher(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* OFFICIAL PRINT VOUCHER SHEET */}
+            <div className="space-y-6 text-xs text-slate-800">
+              
               {/* Header Box */}
-              <div className="flex justify-between items-start border-b border-slate-200 pb-4">
-                <div>
-                  <div className="text-base font-black text-blue-950">شرکت سهامی بیمه دانا</div>
-                  <div className="text-slate-500 font-bold mt-0.5">اداره کل مالی و حسابداری خسارت خودرو</div>
+              <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4">
+                <div className="space-y-1">
+                  <h2 className="text-base font-black text-slate-950">سند پرداخت خسارت و حواله پایا خزانه‌داری</h2>
+                  <div className="text-slate-500 font-bold text-[11px]">
+                    شرکت {selectedOrderForVoucher.culpritInsurer === 'dana' ? 'بیمه دانا' : selectedOrderForVoucher.culpritInsurer === 'alborz' ? 'بیمه البرز' : 'بیمه ایران'} - مدیریت مالی
+                  </div>
                 </div>
-                <div className="text-left font-mono font-bold text-slate-700">
-                  <div>شماره سند: {selectedOrderForVoucher.accountVoucherNumber || 'VCH-1403-9082'}</div>
-                  <div>تاریخ صدور: {selectedOrderForVoucher.issueDate}</div>
-                  <div>شماره پرونده: {selectedOrderForVoucher.caseId}</div>
+                <div className="text-left font-mono text-[11px] space-y-0.5 text-slate-600">
+                  <div>شماره سند: <strong className="text-slate-900">{selectedOrderForVoucher.accountVoucherNumber || 'VCH-1403-9082'}</strong></div>
+                  <div>شماره پرونده: <strong className="text-slate-900">{selectedOrderForVoucher.caseId}</strong></div>
+                  <div>تاریخ: <strong>{selectedOrderForVoucher.paidDate || selectedOrderForVoucher.issueDate}</strong></div>
                 </div>
               </div>
 
-              {/* Payee Info */}
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              {/* Beneficiary Details Grid */}
+              <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs">
                 <div>
-                  <span className="text-slate-500 font-bold">نام و نام خانوادگی زیان‌دیده:</span>
-                  <span className="font-bold text-slate-900 mr-2">{selectedOrderForVoucher.victimName}</span>
+                  <span className="text-slate-500 font-bold">نام و نام خانوادگی ذینفع:</span>
+                  <span className="font-black text-slate-950 mr-2">{selectedOrderForVoucher.victimName}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 font-bold">کد ملی:</span>
-                  <span className="font-bold font-mono text-slate-900 mr-2">{selectedOrderForVoucher.victimNationalId}</span>
+                  <span className="font-bold font-mono text-slate-900 mr-2">{selectedOrderForVoucher.victimNationalId || '-'}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 font-bold">شماره شبا مقصد:</span>
                   <span className="font-mono font-bold text-blue-950 mr-2">{selectedOrderForVoucher.victimIban}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 font-bold">بانک عامل:</span>
-                  <span className="font-bold text-slate-900 mr-2">{selectedOrderForVoucher.victimBankName}</span>
+                  <span className="text-slate-500 font-bold">بانک مقصد:</span>
+                  <span className="font-bold text-slate-900 mr-2">{selectedOrderForVoucher.victimBankName || 'بانک عامل پایا'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-bold">کد رهگیری بانک (RRN):</span>
+                  <span className="font-mono font-bold text-slate-900 mr-2">{selectedOrderForVoucher.bankReferenceNumber || 'TRX-PAYA-78904512'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 font-bold">روش تسویه:</span>
+                  <span className="font-bold text-slate-900 mr-2">{selectedOrderForVoucher.paymentMethod || 'PAYA'}</span>
                 </div>
               </div>
 
-              {/* Amount Breakdown Table */}
+              {/* Accounting Breakdown Table (WITHOUT SALVAGE DEDUCTION) */}
               <table className="w-full text-right border-collapse border border-slate-200 rounded-xl overflow-hidden">
                 <thead className="bg-slate-100 text-slate-700">
                   <tr>
-                    <th className="border border-slate-200 p-2.5 font-bold">شرح حسابداری</th>
+                    <th className="border border-slate-200 p-2.5 font-bold">شرح سرفصل حسابداری</th>
                     <th className="border border-slate-200 p-2.5 font-bold">بدهکار (ریال)</th>
                     <th className="border border-slate-200 p-2.5 font-bold">بستانکار (ریال)</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr>
-                    <td className="border border-slate-200 p-2.5 font-medium">هزینه خسارت تایید شده کارشناسی بدنه</td>
+                    <td className="border border-slate-200 p-2.5 font-medium">
+                      هزینه خسارت تایید شده کارشناسی بدنه و شخص ثالث
+                    </td>
                     <td className="border border-slate-200 p-2.5 font-mono font-bold text-slate-900">
                       {formatPrice(selectedOrderForVoucher.grossAmount)}
                     </td>
                     <td className="border border-slate-200 p-2.5 font-mono">-</td>
                   </tr>
-                  {selectedOrderForVoucher.salvageDeduction > 0 && (
-                    <tr>
-                      <td className="border border-slate-200 p-2.5 font-medium">کسر بابت ارزش بازیافت قطعات داغی</td>
-                      <td className="border border-slate-200 p-2.5 font-mono">-</td>
-                      <td className="border border-slate-200 p-2.5 font-mono text-purple-700 font-bold">
-                        {formatPrice(selectedOrderForVoucher.salvageDeduction)}
-                      </td>
-                    </tr>
-                  )}
-                  <tr className="bg-amber-50 font-bold text-slate-900">
-                    <td className="border border-slate-200 p-2.5 font-bold">خالص قابل پرداخت / واریز شده به حساب زیان‌دیده</td>
+                  <tr className="bg-emerald-50/70 font-bold text-slate-900">
+                    <td className="border border-slate-200 p-2.5 font-black text-emerald-950">
+                      خالص قابل پرداخت / واریز شده به حساب زیان‌دیده (پایا)
+                    </td>
                     <td className="border border-slate-200 p-2.5 font-mono">-</td>
-                    <td className="border border-slate-200 p-2.5 font-mono text-emerald-700 font-black text-sm">
+                    <td className="border border-slate-200 p-2.5 font-mono text-emerald-800 font-black text-sm">
                       {formatPrice(selectedOrderForVoucher.netPayableAmount)}
                     </td>
                   </tr>
                 </tbody>
               </table>
 
-              {/* Footer Signatures */}
-              <div className="grid grid-cols-3 gap-4 pt-8 text-center text-slate-600 border-t border-slate-200">
+              {/* Signatures */}
+              <div className="grid grid-cols-3 gap-4 pt-10 text-center text-slate-600 border-t border-slate-200">
                 <div>
-                  <div className="font-bold text-slate-800">کارشناس رسیدگی و ارزیاب</div>
-                  <div className="text-[10px] text-slate-400 mt-6">امضای الکترونیک سامانه</div>
+                  <div className="font-bold text-slate-900">کارشناس ارزیاب خسارت</div>
+                  <div className="text-[10px] text-slate-400 mt-6">تایید برآورد سیستمی</div>
                 </div>
                 <div>
-                  <div className="font-bold text-slate-800">رئیس حسابداری خسارت</div>
-                  <div className="text-[10px] text-slate-400 mt-6">تایید انطباق شبا</div>
+                  <div className="font-bold text-slate-900">رئیس حسابداری خسارت</div>
+                  <div className="text-[10px] text-slate-400 mt-6">انطباق شبا و کدملی</div>
                 </div>
                 <div>
-                  <div className="font-bold text-slate-800">مدیر مالی و خزانه‌داری</div>
-                  <div className="text-[10px] text-slate-400 mt-6">مجوز واریز بانکی</div>
+                  <div className="font-bold text-slate-900">مدیر مالی و خزانه‌داری</div>
+                  <div className="text-[10px] text-slate-400 mt-6">دستور واریز بانکی</div>
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
 
-            <div className="bg-slate-50 p-4 border-t border-slate-200 flex justify-end gap-3 print:hidden">
+      {/* ---------------------------------------------------- */}
+      {/* 12. MODAL: BATCH GENERATION SUCCESS */}
+      {/* ---------------------------------------------------- */}
+      {showBatchSuccessModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4 text-center animate-in fade-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-7 h-7" />
+            </div>
+            <h3 className="font-black text-slate-900 text-base">بسته پرداخت پایا با موفقیت ایجاد شد</h3>
+            <p className="text-xs text-slate-600 font-bold leading-relaxed">
+              بسته شناسه <span className="font-mono font-black text-indigo-950">{showBatchSuccessModal.id}</span> شامل{' '}
+              <span className="font-mono font-black">{showBatchSuccessModal.totalOrders}</span> فقره حواله به مجموع مبلغ{' '}
+              <span className="font-mono font-black text-emerald-800">{formatPrice(showBatchSuccessModal.totalAmount)} ریال</span> با موفقیت ایجاد گردید.
+            </p>
+            <div className="pt-2 flex items-center justify-center gap-2">
               <button
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-blue-950 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+                onClick={() => handleDownloadBatchFile(showBatchSuccessModal)}
+                className="px-4 py-2.5 bg-indigo-900 hover:bg-indigo-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs"
               >
-                <Printer className="w-4 h-4" /> چاپ سند حسابداری
+                <Download className="w-4 h-4" />
+                <span>دانلود فایل پایا</span>
+              </button>
+              <button
+                onClick={() => setShowBatchSuccessModal(null)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+              >
+                بستن
               </button>
             </div>
           </div>

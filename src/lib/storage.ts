@@ -1,5 +1,6 @@
-import { ClaimCase, UserSession, ThresholdProfile, DepreciationConfig, StaffMember, ExpertComplaint, AssessorNotification, PaymentOrder, PaymentBatch, CustomerCallLog, CustomerTicket, CrmSatisfactionSurvey } from '../types';
+import { ClaimCase, UserSession, ThresholdProfile, DepreciationConfig, StaffMember, ExpertComplaint, AssessorNotification, CustomerNotification, PaymentOrder, PaymentBatch, CustomerCallLog, CustomerTicket, CrmSatisfactionSurvey } from '../types';
 import { INITIAL_CASES, DEFAULT_THRESHOLDS, DEFAULT_DEPRECIATION_TABLES, INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS, INITIAL_EXPERT_COMPLAINTS, INITIAL_FINANCE_STAFF, INITIAL_CRM_STAFF } from '../data/mockData';
+import { sanitizeMediaForStorage } from './imageCompressor';
 
 const STORAGE_KEYS = {
   CASES: 'claimflow_cases',
@@ -13,6 +14,7 @@ const STORAGE_KEYS = {
   CRM_STAFF: 'claimflow_crm_staff',
   EXPERT_COMPLAINTS: 'claimflow_expert_complaints',
   ASSESSOR_NOTIFICATIONS: 'claimflow_assessor_notifications',
+  CUSTOMER_NOTIFICATIONS: 'claimflow_customer_notifications',
   PAYMENT_ORDERS: 'claimflow_payment_orders',
   PAYMENT_BATCHES: 'claimflow_payment_batches',
   CRM_CALL_LOGS: 'claimflow_crm_call_logs',
@@ -128,8 +130,31 @@ export function loadCasesFromStorage(): ClaimCase[] {
 export function saveCasesToStorage(cases: ClaimCase[]): void {
   try {
     localStorage.setItem(STORAGE_KEYS.CASES, JSON.stringify(cases));
-  } catch (e) {
-    console.error('Error saving cases to storage:', e);
+  } catch (e: any) {
+    console.warn('Direct save to storage failed (likely quota limit). Attempting sanitization and recovery...', e);
+    try {
+      // Stage 1: Sanitize long base64/media payloads
+      const sanitized = sanitizeMediaForStorage(cases, 50000);
+      localStorage.setItem(STORAGE_KEYS.CASES, JSON.stringify(sanitized));
+      console.info('Successfully saved cases after Stage 1 media sanitization.');
+    } catch (e2) {
+      console.warn('Stage 1 sanitization still exceeded quota. Attempting aggressive compression...', e2);
+      try {
+        // Stage 2: Aggressive trimming of heavy historical blobs
+        const aggressive = sanitizeMediaForStorage(cases, 15000);
+        localStorage.setItem(STORAGE_KEYS.CASES, JSON.stringify(aggressive));
+        console.info('Successfully saved cases after Stage 2 aggressive sanitization.');
+      } catch (e3) {
+        console.error('Final fallback: could not persist all cases to localStorage due to browser quota.', e3);
+        try {
+          // Stage 3: Keep last 15 cases with lightweight attachments
+          const lightweight = sanitizeMediaForStorage(cases.slice(0, 15), 5000);
+          localStorage.setItem(STORAGE_KEYS.CASES, JSON.stringify(lightweight));
+        } catch (e4) {
+          console.error('Critical quota exhaustion on localStorage:', e4);
+        }
+      }
+    }
   }
 }
 
@@ -269,11 +294,24 @@ export function loadFieldExpertsFromStorage(): Record<string, StaffMember[]> {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
         const normalized: Record<string, StaffMember[]> = {};
-        for (const companyKey of Object.keys(parsed)) {
-          normalized[companyKey] = (parsed[companyKey] || []).map((exp: StaffMember) => ({
-            ...exp,
-            active: exp.active !== false
-          }));
+        for (const companyKey of Object.keys(INITIAL_FIELD_EXPERTS)) {
+          const storedList = parsed[companyKey] || [];
+          const initialList = INITIAL_FIELD_EXPERTS[companyKey] || [];
+          
+          // Seed with latest initial branch experts, merging stored state if available
+          const merged: StaffMember[] = initialList.map((initExp) => {
+            const match = storedList.find((s: StaffMember) => s.id === initExp.id);
+            return match ? { ...initExp, ...match } : { ...initExp, active: true };
+          });
+
+          // Add any custom staff added by user that are not in initial seeds
+          storedList.forEach((st: StaffMember) => {
+            if (!merged.some((m) => m.id === st.id)) {
+              merged.push({ ...st, active: st.active !== false });
+            }
+          });
+
+          normalized[companyKey] = merged;
         }
         return normalized;
       }
@@ -353,6 +391,99 @@ export function markAssessorNotificationAsRead(id: string): void {
   const list = loadAssessorNotifications();
   const updated = list.map((n) => (n.id === id ? { ...n, read: true } : n));
   saveAssessorNotifications(updated);
+}
+
+// ----------------------------------------------------
+// CUSTOMER NOTIFICATIONS MANAGEMENT
+// ----------------------------------------------------
+const INITIAL_CUSTOMER_NOTIFICATIONS: CustomerNotification[] = [
+  {
+    id: 'notif-cust-init-1',
+    type: 'BRANCH_VISIT',
+    caseId: 'BD-1403-8821-DANA',
+    recipientPhone: '09123456789',
+    title: 'درخواست مراجعه حضوری به شعبه و ارزیابی خسارت',
+    message: 'مشتری گرامی مهدی کشاورز، پرونده خسارت بدنه شما ارجاع گردید. جهت رویت خودرو و تطبیق اصالت با کارشناس رسمی میدانی جناب آقای کیوان عزیزی (همراه: ۰۹۱۲۹۰۰۱۰۰۱)، لطفاً به نزدیک‌ترین شعبه بیمه دانا به نشانی: تهران، میدان ونک، خیابان گاندی جنوبی، پلاک ۱۲ (تلفن: ۰۲۱-۸۸۷۷۶۶۵۵) مراجعه فرمایید.',
+    branchName: 'مجتمع تخصصی خسارت اتومبیل بیمه دانا (مرکزی - میدان ونک)',
+    branchAddress: 'تهران، میدان ونک، خیابان گاندی جنوبی، کوچه هفدهم، پلاک ۱۲',
+    branchPhone: '۰۲۱-۸۸۷۷۶۶۵۵',
+    expertName: 'کیوان عزیزی (کارشناس میدانی)',
+    expertPhone: '09129001001',
+    sentAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    date: '۱۴۰۵/۰۵/۱۷',
+    time: '۱۰:۱۵',
+    read: false,
+    linkAction: 'case_detail'
+  }
+];
+
+export function loadCustomerNotifications(phone?: string): CustomerNotification[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.CUSTOMER_NOTIFICATIONS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        if (!phone) return parsed;
+        return parsed.filter((n) => !n.recipientPhone || n.recipientPhone === phone);
+      }
+    }
+    // Return initial default notifications on first launch
+    saveCustomerNotifications(INITIAL_CUSTOMER_NOTIFICATIONS);
+    if (!phone) return INITIAL_CUSTOMER_NOTIFICATIONS;
+    return INITIAL_CUSTOMER_NOTIFICATIONS.filter((n) => !n.recipientPhone || n.recipientPhone === phone);
+  } catch (e) {
+    console.error('Error loading customer notifications from storage:', e);
+  }
+  return [];
+}
+
+export function saveCustomerNotifications(notifications: CustomerNotification[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.CUSTOMER_NOTIFICATIONS, JSON.stringify(notifications));
+  } catch (e) {
+    console.error('Error saving customer notifications to storage:', e);
+  }
+}
+
+export function addCustomerNotification(notification: CustomerNotification): void {
+  const existing = loadCustomerNotifications();
+  const updated = [notification, ...existing.filter((n) => n.id !== notification.id)];
+  saveCustomerNotifications(updated);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('claimflow_notifications_updated'));
+  }
+}
+
+export function markCustomerNotificationAsRead(id: string): void {
+  const list = loadCustomerNotifications();
+  const updated = list.map((n) => (n.id === id ? { ...n, read: true } : n));
+  saveCustomerNotifications(updated);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('claimflow_notifications_updated'));
+  }
+}
+
+export function markAllCustomerNotificationsAsRead(phone?: string): void {
+  const list = loadCustomerNotifications();
+  const updated = list.map((n) => {
+    if (!phone || n.recipientPhone === phone) {
+      return { ...n, read: true };
+    }
+    return n;
+  });
+  saveCustomerNotifications(updated);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('claimflow_notifications_updated'));
+  }
+}
+
+export function deleteCustomerNotification(id: string): void {
+  const list = loadCustomerNotifications();
+  const updated = list.filter((n) => n.id !== id);
+  saveCustomerNotifications(updated);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('claimflow_notifications_updated'));
+  }
 }
 
 const TIMEOUT_72_HOURS_MS = 72 * 60 * 60 * 1000;
@@ -630,6 +761,83 @@ export function saveFinanceStaffToStorage(staff: Record<string, StaffMember[]>):
 }
 
 export const INITIAL_PAYMENT_ORDERS: PaymentOrder[] = [
+  // --- READY_FOR_PAYMENT QUEUE (Diverse SLA Priorities) ---
+  {
+    id: 'PAY-ORD-1403-0105',
+    caseId: 'CLM-1403-9910',
+    victimName: 'حامد سرلک (خسارت فوتی/ویژه)',
+    victimNationalId: '0054321098',
+    victimPhone: '09121998877',
+    victimIban: 'IR900190000000001122334455',
+    victimBankName: 'بانک صادرات ایران',
+    culpritName: 'بهنام توکلی',
+    culpritInsurer: 'dana',
+    grossAmount: 350000000,
+    salvageDeduction: 0,
+    taxDeduction: 0,
+    franchiseDeduction: 0,
+    netPayableAmount: 350000000,
+    status: 'READY_FOR_PAYMENT',
+    slaPriority: 'CRITICAL',
+    slaDeadline: 'امروز ساعت ۱۴:۰۰',
+    slaRemainingHours: 1,
+    slaStatus: 'NEAR_BREACH',
+    paymentMethod: 'SATNA',
+    issueDate: '1403/05/22',
+    readyDate: '1403/05/22 ۱۰:۱۵',
+    approvedBy: 'دکتر صابری (معاونت خسارت)',
+    financeNotes: 'پرونده خسارت بدنی فوری با حکم قضایی - الزام تسویه در موعد مقرر ساتنا.',
+    accountVoucherNumber: 'VCH-1403-9086',
+    preCheck: {
+      ibanValid: true,
+      ibanBankName: 'بانک صادرات ایران',
+      nameMatchConfidence: 100,
+      nameMatchPassed: true,
+      amountUnderCeiling: true,
+      payoutReadyVerified: true,
+      noDuplicatePassed: true,
+      checkedAt: '1403/05/22 ۱۰:۳۰',
+      checkedBy: 'سیستم خزانه‌داری مرکزی'
+    }
+  },
+  {
+    id: 'PAY-ORD-1403-0106',
+    caseId: 'CLM-1403-9844',
+    victimName: 'مریم صبوری (مشتری شاکی VIP)',
+    victimNationalId: '0067891234',
+    victimPhone: '09361112233',
+    victimIban: 'IR440150000000009988776655',
+    victimBankName: 'بانک سپه',
+    culpritName: 'داوود رحیمی',
+    culpritInsurer: 'alborz',
+    grossAmount: 85000000,
+    salvageDeduction: 0,
+    taxDeduction: 0,
+    franchiseDeduction: 0,
+    netPayableAmount: 85000000,
+    status: 'READY_FOR_PAYMENT',
+    slaPriority: 'URGENT',
+    slaDeadline: 'امروز ساعت ۱۶:۳۰',
+    slaRemainingHours: 3,
+    slaStatus: 'ON_TRACK',
+    paymentMethod: 'PAYA',
+    issueDate: '1403/05/22',
+    readyDate: '1403/05/22 ۰۹:۴۰',
+    approvedBy: 'مهرداد پاکزاد (مدیر مالی)',
+    financeNotes: 'ارجاعی از امور مشتریان و CRM به دلیل درخواست تسریع در پرداخت حواله.',
+    accountVoucherNumber: 'VCH-1403-9087',
+    preCheck: {
+      ibanValid: true,
+      ibanBankName: 'بانک سپه',
+      nameMatchConfidence: 100,
+      nameMatchPassed: true,
+      amountUnderCeiling: true,
+      payoutReadyVerified: true,
+      noDuplicatePassed: true,
+      checkedAt: '1403/05/22 ۰۹:۵۵',
+      checkedBy: 'سیستم خزانه‌داری مرکزی'
+    }
+  },
   {
     id: 'PAY-ORD-1403-0101',
     caseId: 'CLM-1403-8821',
@@ -641,17 +849,111 @@ export const INITIAL_PAYMENT_ORDERS: PaymentOrder[] = [
     culpritName: 'رضا کمالی',
     culpritInsurer: 'dana',
     grossAmount: 48500000,
-    salvageDeduction: 3500000,
+    salvageDeduction: 0,
     taxDeduction: 0,
     franchiseDeduction: 0,
-    netPayableAmount: 45000000,
-    status: 'APPROVED_FOR_PAYMENT',
+    netPayableAmount: 48500000,
+    status: 'READY_FOR_PAYMENT',
+    slaPriority: 'HIGH',
+    slaDeadline: 'فردا ساعت ۱۰:۰۰',
+    slaRemainingHours: 12,
+    slaStatus: 'ON_TRACK',
     paymentMethod: 'PAYA',
     issueDate: '1403/05/20',
-    approvedBy: 'مهرداد پاکزاد (مدیر مالی دانا)',
-    financeNotes: 'تطبیق شبا با کد ملی زیان‌دیده احراز شد. آماده در صف صدور فایل پایا.',
-    accountVoucherNumber: 'VCH-1403-9082'
+    readyDate: '1403/05/20 ۱۱:۳۰',
+    approvedBy: 'مهرداد پاکزاد (مدیر مالی)',
+    financeNotes: 'تایید اصالت شبا و مدارک احراز شد. در صف ارسال دستور پرداخت به درگاه پایا.',
+    accountVoucherNumber: 'VCH-1403-9082',
+    preCheck: {
+      ibanValid: true,
+      ibanBankName: 'بانک ملت',
+      nameMatchConfidence: 100,
+      nameMatchPassed: true,
+      amountUnderCeiling: true,
+      payoutReadyVerified: true,
+      noDuplicatePassed: true,
+      checkedAt: '1403/05/20 ۱۱:۴۵',
+      checkedBy: 'سیستم خزانه‌داری مرکزی'
+    }
   },
+  {
+    id: 'PAY-ORD-1403-0107',
+    caseId: 'CLM-1403-8740',
+    victimName: 'پیمان یعقوبی',
+    victimNationalId: '0098765432',
+    victimPhone: '09123334455',
+    victimIban: 'IR190160000000002233445566',
+    victimBankName: 'بانک کشاورزی',
+    culpritName: 'سعید احمدی',
+    culpritInsurer: 'dana',
+    grossAmount: 26000000,
+    salvageDeduction: 0,
+    taxDeduction: 0,
+    franchiseDeduction: 0,
+    netPayableAmount: 26000000,
+    status: 'READY_FOR_PAYMENT',
+    slaPriority: 'NORMAL',
+    slaDeadline: 'فردا ساعت ۱۷:۰۰',
+    slaRemainingHours: 24,
+    slaStatus: 'ON_TRACK',
+    paymentMethod: 'PAYA',
+    issueDate: '1403/05/21',
+    readyDate: '1403/05/21 ۱۶:۲۰',
+    approvedBy: 'مهرداد پاکزاد (مدیر مالی)',
+    financeNotes: 'تاییدیه کارشناسی خسارت بدنه ثبت گردید. آماده ورود به بسته پایا.',
+    accountVoucherNumber: 'VCH-1403-9088',
+    preCheck: {
+      ibanValid: true,
+      ibanBankName: 'بانک کشاورزی',
+      nameMatchConfidence: 100,
+      nameMatchPassed: true,
+      amountUnderCeiling: true,
+      payoutReadyVerified: true,
+      noDuplicatePassed: true,
+      checkedAt: '1403/05/21 ۱۶:۴۵',
+      checkedBy: 'سیستم خزانه‌داری مرکزی'
+    }
+  },
+  {
+    id: 'PAY-ORD-1403-0108',
+    caseId: 'CLM-1403-8612',
+    victimName: 'نیلوفر امینی',
+    victimNationalId: '0041239876',
+    victimPhone: '09124445566',
+    victimIban: 'IR880180000000003344556677',
+    victimBankName: 'بانک تجارت',
+    culpritName: 'کاظم میرزایی',
+    culpritInsurer: 'asia',
+    grossAmount: 39000000,
+    salvageDeduction: 0,
+    taxDeduction: 0,
+    franchiseDeduction: 0,
+    netPayableAmount: 39000000,
+    status: 'READY_FOR_PAYMENT',
+    slaPriority: 'NORMAL',
+    slaDeadline: '۲ روز آینده',
+    slaRemainingHours: 40,
+    slaStatus: 'ON_TRACK',
+    paymentMethod: 'PAYA',
+    issueDate: '1403/05/22',
+    readyDate: '1403/05/22 ۰۸:۰۰',
+    approvedBy: 'مهرداد پاکزاد',
+    financeNotes: 'مدارک بازدید آنلاین تکمیل است. در صف خزانه‌داری.',
+    accountVoucherNumber: 'VCH-1403-9089',
+    preCheck: {
+      ibanValid: true,
+      ibanBankName: 'بانک تجارت',
+      nameMatchConfidence: 100,
+      nameMatchPassed: true,
+      amountUnderCeiling: true,
+      payoutReadyVerified: true,
+      noDuplicatePassed: true,
+      checkedAt: '1403/05/22 ۰۸:۱۵',
+      checkedBy: 'سیستم خزانه‌داری مرکزی'
+    }
+  },
+
+  // --- PROCESSING QUEUE ---
   {
     id: 'PAY-ORD-1403-0102',
     caseId: 'CLM-1403-9014',
@@ -662,17 +964,52 @@ export const INITIAL_PAYMENT_ORDERS: PaymentOrder[] = [
     victimBankName: 'بانک تجارت',
     culpritName: 'محسن افشار',
     culpritInsurer: 'dana',
-    grossAmount: 32000000,
-    salvageDeduction: 2000000,
+    grossAmount: 30000000,
+    salvageDeduction: 0,
     taxDeduction: 0,
     franchiseDeduction: 0,
     netPayableAmount: 30000000,
-    status: 'PENDING_APPROVAL',
+    status: 'PROCESSING',
+    slaPriority: 'NORMAL',
+    slaDeadline: 'سیکل پایا ساعت ۱۳:۴۵',
+    slaRemainingHours: 2,
+    slaStatus: 'ON_TRACK',
     paymentMethod: 'PAYA',
     issueDate: '1403/05/21',
-    financeNotes: 'پرونده بازدید میدانی فاقد کروکی با تایید اصالت کارشناس رسمی.',
+    readyDate: '1403/05/21 ۰۹:۱۵',
+    bankReferenceNumber: 'TRX-PAYA-PROC-901402',
+    financeNotes: 'حواله به چرخه تسویه پایا بانک مرکزی ساعت ۱۳:۴۵ ارسال گردید. در انتظار اعلام نتیجه قطعی بانک.',
     accountVoucherNumber: 'VCH-1403-9083'
   },
+  {
+    id: 'PAY-ORD-1403-0109',
+    caseId: 'CLM-1403-9421',
+    victimName: 'پویا معتمدی (ساتنا فوری)',
+    victimNationalId: '0071234567',
+    victimPhone: '09126667788',
+    victimIban: 'IR330560000000007788990011',
+    victimBankName: 'بانک سامان',
+    culpritName: 'حسین جلیلی',
+    culpritInsurer: 'dana',
+    grossAmount: 210000000,
+    salvageDeduction: 0,
+    taxDeduction: 0,
+    franchiseDeduction: 0,
+    netPayableAmount: 210000000,
+    status: 'PROCESSING',
+    slaPriority: 'CRITICAL',
+    slaDeadline: 'امروز ساعت ۱۳:۰۰',
+    slaRemainingHours: 1,
+    slaStatus: 'NEAR_BREACH',
+    paymentMethod: 'SATNA',
+    issueDate: '1403/05/22',
+    readyDate: '1403/05/22 ۱۱:۰۰',
+    bankReferenceNumber: 'TRX-SATNA-PROC-94210',
+    financeNotes: 'دستور پرداخت ساتنا به هسته صرافی و سوئیچ بانک مرکزی ارسال شد.',
+    accountVoucherNumber: 'VCH-1403-9090'
+  },
+
+  // --- PAID / SETTLED ---
   {
     id: 'PAY-ORD-1403-0098',
     caseId: 'CLM-1403-7741',
@@ -683,41 +1020,125 @@ export const INITIAL_PAYMENT_ORDERS: PaymentOrder[] = [
     victimBankName: 'بانک ملی ایران',
     culpritName: 'کامران نوری',
     culpritInsurer: 'dana',
-    grossAmount: 72000000,
-    salvageDeduction: 5000000,
+    grossAmount: 67000000,
+    salvageDeduction: 0,
     taxDeduction: 0,
     franchiseDeduction: 0,
     netPayableAmount: 67000000,
     status: 'PAID',
+    slaPriority: 'NORMAL',
     paymentMethod: 'PAYA',
     bankReferenceNumber: 'TRX-PAYA-78904512',
     issueDate: '1403/05/18',
-    paidDate: '1403/05/19',
+    readyDate: '1403/05/18 ۱۰:۰۰',
+    paidDate: '1403/05/19 ۱۲:۳۰',
     approvedBy: 'مهرداد پاکزاد',
-    paidBy: 'فرزانه شفیعی (کارشناس خزانه)',
+    paidBy: 'فرزانه شفیعی (اپراتور خزانه)',
     batchId: 'BATCH-PAYA-14030519-01',
     accountVoucherNumber: 'VCH-1403-8990'
   },
   {
+    id: 'PAY-ORD-1403-0099',
+    caseId: 'CLM-1403-7802',
+    victimName: 'الهام مقدسی',
+    victimNationalId: '0089123456',
+    victimPhone: '09123332211',
+    victimIban: 'IR770120000000001144778899',
+    victimBankName: 'بانک ملت',
+    culpritName: 'فرشاد کیانی',
+    culpritInsurer: 'dana',
+    grossAmount: 145000000,
+    salvageDeduction: 0,
+    taxDeduction: 0,
+    franchiseDeduction: 0,
+    netPayableAmount: 145000000,
+    status: 'PAID',
+    slaPriority: 'HIGH',
+    paymentMethod: 'SATNA',
+    bankReferenceNumber: 'TRX-SATNA-88129034',
+    issueDate: '1403/05/19',
+    readyDate: '1403/05/19 ۰۹:۰۰',
+    paidDate: '1403/05/19 ۱۱:۱۵',
+    approvedBy: 'مهرداد پاکزاد',
+    paidBy: 'مهرداد پاکزاد (مدیر مالی)',
+    accountVoucherNumber: 'VCH-1403-8995'
+  },
+
+  // --- FAILED / RETRY ---
+  {
     id: 'PAY-ORD-1403-0103',
     caseId: 'CLM-1403-9120',
-    victimName: 'فرشاد کریمی',
+    victimName: 'رضا امینی',
     victimNationalId: '0078901234',
     victimPhone: '09351234567',
     victimIban: 'IR640560000000006677889900',
     victimBankName: 'بانک سامان',
     culpritName: 'وحید شریفی',
     culpritInsurer: 'alborz',
-    grossAmount: 115000000,
-    salvageDeduction: 10000000,
+    grossAmount: 120000000,
+    salvageDeduction: 0,
     taxDeduction: 0,
     franchiseDeduction: 0,
-    netPayableAmount: 105000000,
-    status: 'PENDING_APPROVAL',
+    netPayableAmount: 120000000,
+    status: 'FAILED',
+    slaPriority: 'CRITICAL',
+    slaDeadline: 'مهلت منقضی‌شده (نیاز به اقدام آنی)',
+    slaRemainingHours: 0,
+    slaStatus: 'BREACHED',
     paymentMethod: 'SATNA',
     issueDate: '1403/05/22',
-    financeNotes: 'خسارت بالای ۱۰۰ میلیون ریال - نیاز به امضای مدیر ارشد مالی و انتقال ساتنا.',
+    readyDate: '1403/05/22 ۰۸:۳۰',
+    failureReason: 'خطای کد ۵۴ شاپرک: شماره حساب مقصد مسدود / غیرفعال است (عدم تطابق با کدملی)',
+    retryCount: 1,
+    retryHistory: [
+      {
+        attempt: 1,
+        time: '1403/05/22 ۰۹:۰۰',
+        previousFailureReason: 'عدم تطابق کدملی زیان‌دیده با صاحب شبا در استعلام بانک مرکزی',
+        status: 'FAILED',
+        operator: 'سیستم پایا بانکی'
+      }
+    ],
+    financeNotes: 'ارسال با خطا مواجه شد. نیاز به بررسی اصلاح شبا توسط اپراتور خزانه و تلاش مجدد.',
     accountVoucherNumber: 'VCH-1403-9084'
+  },
+
+  // --- DISCREPANCY ---
+  {
+    id: 'PAY-ORD-1403-0104',
+    caseId: 'CLM-1403-9250',
+    victimName: 'علیرضا اسماعیلی',
+    victimNationalId: '0034567890',
+    victimPhone: '09127776655',
+    victimIban: 'IR720540000000008899112233',
+    victimBankName: 'بانک پارسیان',
+    culpritName: 'احمد کمالی',
+    culpritInsurer: 'dana',
+    grossAmount: 125000000,
+    salvageDeduction: 0,
+    taxDeduction: 0,
+    franchiseDeduction: 0,
+    netPayableAmount: 125000000,
+    status: 'DISCREPANCY',
+    slaPriority: 'URGENT',
+    slaDeadline: 'امروز ساعت ۱۵:۰۰',
+    slaRemainingHours: 2,
+    slaStatus: 'NEAR_BREACH',
+    paymentMethod: 'PAYA',
+    issueDate: '1403/05/22',
+    readyDate: '1403/05/22 ۱۰:۱۵',
+    bankReferenceNumber: 'TRX-PAYA-DISC-92501',
+    discrepancy: {
+      systemAmount: 125000000,
+      bankAmount: 120000000,
+      difference: 5000000,
+      type: 'AMOUNT_MISMATCH',
+      detectedAt: '1403/05/22 ۱۱:۲۰',
+      details: 'مبلغ تایید شده در سیستم ۱۲۵,۰۰۰,۰۰۰ ریال است اما فیش اعلامی بانک ۱۲۰,۰۰۰,۰۰۰ ریال ثبت شده است (مغایرت ۵,۰۰۰,۰۰۰ ریال).',
+      resolved: false
+    },
+    financeNotes: 'در صف مغایرت‌گیری بانکی خزانه‌داری - در انتظار تسویه و تطبیق سند اصلاحی.',
+    accountVoucherNumber: 'VCH-1403-9085'
   }
 ];
 

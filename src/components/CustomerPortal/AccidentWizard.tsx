@@ -39,6 +39,7 @@ import {
 import L from 'leaflet';
 import { ClaimCase, UserSession, MediaFile, CaseStatus, CroquiData, DriverRole } from '../../types';
 import { generateTrackingCode, getInsurerPersianName } from '../../lib/storage';
+import { compressImageFile } from '../../lib/imageCompressor';
 import { sampleCroquis } from '../../data/mockData';
 import { ShamsiDateTimePicker, toFaDigits } from '../ShamsiDateTimePicker';
 import { IranianPlateInput } from './IranianPlateInput';
@@ -181,22 +182,19 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
     setFiles((prev) => prev.filter((f) => f.name !== label));
   };
 
-  const handleFileUploadForLabel = (e: React.ChangeEvent<HTMLInputElement>, label: string) => {
+  const handleFileUploadForLabel = async (e: React.ChangeEvent<HTMLInputElement>, label: string) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setFiles((prev) => [
-          ...prev.filter((f) => f.name !== label),
-          {
-            name: label,
-            type: file.type.startsWith('image/') ? 'image' : 'video',
-            dataUrl: event.target?.result as string,
-            fileName: file.name
-          }
-        ]);
-      };
-      reader.readAsDataURL(file);
+      const dataUrl = await compressImageFile(file, 1000, 0.7);
+      setFiles((prev) => [
+        ...prev.filter((f) => f.name !== label),
+        {
+          name: label,
+          type: file.type.startsWith('image/') ? 'image' : 'video',
+          dataUrl,
+          fileName: file.name
+        }
+      ]);
     }
   };
 
@@ -234,7 +232,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
           ...prev.filter((f) => f.name !== 'توضیحات صوتی'),
           {
             name: 'توضیحات صوتی',
-            type: 'video',
+            type: 'audio',
             dataUrl: url,
             fileName: 'voice_description.webm'
           }
@@ -268,7 +266,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         ...prev.filter((f) => f.name !== 'توضیحات صوتی'),
         {
           name: 'توضیحات صوتی',
-          type: 'video',
+          type: 'audio',
           dataUrl: simUrl,
           fileName: 'voice_description.wav'
         }
@@ -517,22 +515,19 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
     );
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, label: string) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, label: string) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setFiles((prev) => [
-          ...prev,
-          {
-            name: label,
-            type: file.type.startsWith('image/') ? 'image' : 'video',
-            dataUrl: event.target?.result as string,
-            fileName: file.name
-          }
-        ]);
-      };
-      reader.readAsDataURL(file);
+      const dataUrl = await compressImageFile(file, 1000, 0.7);
+      setFiles((prev) => [
+        ...prev,
+        {
+          name: label,
+          type: file.type.startsWith('image/') ? 'image' : 'video',
+          dataUrl,
+          fileName: file.name
+        }
+      ]);
     }
   };
 
@@ -700,6 +695,25 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       } : undefined,
       writtenReport: writtenReport,
       files: files,
+      audioExplanation: files.find(f => f.type === 'audio' || f.name?.includes('صوتی')) || (audioUrl ? { name: 'توضیحات صوتی', type: 'audio', dataUrl: audioUrl, fileName: 'voice_description.webm' } : undefined),
+      videoExplanation: files.find(f => f.type === 'video' || f.name?.includes('ویدیو')),
+      customerKrokiPhoto: croquiData?.fileUrl || files.find(f => f.name?.includes('کروکی'))?.dataUrl || undefined,
+      additionalDocs: [
+        ...files.map((f, idx) => ({
+          id: `wiz-doc-${idx}-${Date.now()}`,
+          title: f.name || f.fileName || `مدرک ${idx + 1}`,
+          docType: f.type === 'audio' ? 'توضیحات صوتی' : f.type === 'video' ? 'ویدیو صحنه تصادف' : (f.name || 'مدرک ضمیمه'),
+          dataUrl: f.dataUrl,
+          url: f.dataUrl,
+          uploadedBy: session.name || p1Name || 'ثبت‌کننده اولیه',
+          uploaderRole: p1Role || 'زیان‌دیده',
+          uploaderParty: 'PARTY_ONE' as const,
+          uploadedAt: new Date().toLocaleDateString('fa-IR'),
+          fileType: f.type as any,
+          fileName: f.fileName,
+          visibility: 'SHARED' as const
+        }))
+      ],
       createdAt: new Date().toISOString(),
       history: [
         {

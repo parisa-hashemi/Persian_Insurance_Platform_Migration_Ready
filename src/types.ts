@@ -43,10 +43,19 @@ export interface UserSession {
 
 export interface MediaFile {
   name: string;
-  type: 'image' | 'video' | 'audio';
+  type: 'image' | 'video' | 'audio' | 'pdf' | 'document' | string;
   dataUrl: string;
+  url?: string;
+  preview?: string;
   fileName?: string;
+  fileSize?: string;
   role?: string;
+  uploadedBy?: string;
+  uploadedByRole?: string;
+  uploadedParty?: 'PARTY_ONE' | 'PARTY_TWO' | 'EXPERT' | 'FIELD_EXPERT' | 'SYSTEM' | string;
+  uploadedAt?: string;
+  category?: string;
+  duration?: string;
 }
 
 export interface PartItem {
@@ -180,12 +189,13 @@ export interface AdditionalDocItem {
   title: string;
   docType: string;
   dataUrl?: string;
+  url?: string;
   uploadedBy: string;
   uploaderRole: 'زیان‌دیده' | 'مقصر' | 'ارزیاب' | 'طرف اول' | 'طرف دوم' | string;
   uploaderParty?: 'PARTY_ONE' | 'PARTY_TWO' | 'EXPERT' | string;
   uploadedAt: string;
   note?: string;
-  fileType?: 'image' | 'video' | 'pdf' | 'text' | string;
+  fileType?: 'image' | 'video' | 'audio' | 'pdf' | 'text' | string;
   fileName?: string;
   fileSize?: string;
   visibility?: 'SHARED' | 'EXPERT_ONLY' | 'PARTY_ONLY';
@@ -429,15 +439,25 @@ export interface ClaimCase {
     note: string;
   };
   fieldExpertDraft?: {
-    gross: string;
-    deductions: string;
-    salvage: string;
-    note: string;
-    photos: MediaFile[];
-    videos: MediaFile[];
-    savedAt: string;
-    savedBy: string;
+    gross?: string | number;
+    deductions?: string | number;
+    salvage?: string | number;
+    payable?: string | number;
+    note?: string;
+    fieldReportText?: string;
+    authVerdict?: 'CONFIRMED' | 'FRAUD_REJECTED' | 'PARTIAL_MISMATCH' | string;
+    checklistItems?: Record<string, boolean>;
+    parts?: any[];
+    fieldParts?: any[];
+    fieldPhotos?: any[];
+    carDamageSpots?: Record<string, any>;
+    photos?: MediaFile[];
+    videos?: MediaFile[];
+    savedAt?: string;
+    savedBy?: string;
   };
+  fieldDraftSaved?: boolean;
+  fieldDraftSavedAt?: string;
   reviewerApproval?: {
     approved: boolean;
     approvedBy: string;
@@ -538,13 +558,71 @@ export interface ClaimCase {
   };
   smsDispatchLogs?: Array<{
     id: string;
-    recipientType: 'VICTIM' | 'CULPRIT';
+    recipientType: 'VICTIM' | 'CULPRIT' | 'FIELD_EXPERT' | 'INSURED' | 'CUSTOMER' | string;
     recipientName: string;
     phone: string;
     text: string;
     sentAt: string;
     status: 'DELIVERED' | 'SENT' | 'FAILED';
   }>;
+  isBodyClaim?: boolean;
+  bodyInsuranceInfo?: {
+    policyNo: string;
+    insurerCode: string;
+    insurerName: string;
+    nationalId: string;
+    carModel: string;
+    plate: string;
+    coverageCeiling?: number;
+    discountPercent?: number;
+    expireDate?: string;
+    franchisePercent?: number;
+    autoSanhabMatched?: boolean;
+    damageType?: string;
+  };
+  audioExplanation?: MediaFile | null;
+  videoExplanation?: MediaFile | null;
+  assignedBranch?: {
+    branchId: string;
+    name: string;
+    address: string;
+    phone: string;
+    distance?: string;
+    city: string;
+    managerName?: string;
+  };
+  fieldVisitSchedule?: {
+    scheduledDate: string;
+    scheduledTime: string;
+    branchName?: string;
+    branchAddress?: string;
+    branchPhone?: string;
+    expertId?: string;
+    expertName?: string;
+    expertPhone?: string;
+    note?: string;
+    status?: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
+  };
+  fieldAssessmentReport?: {
+    parts?: Array<{
+      id: string;
+      name: string;
+      type: 'تعویض' | 'صافکاری' | 'نقاشی' | 'تعمیر' | string;
+      partCost: number;
+      wageCost: number;
+      salvageCost: number;
+    }>;
+    gross: number;
+    franchise: number;
+    depreciation: number;
+    salvage: number;
+    payable: number;
+    technicalNotes?: string;
+    inspectionPhotos?: MediaFile[];
+    inspectionDate?: string;
+    status: 'SUBMITTED_TO_FINANCE' | 'PAID' | string;
+    submittedAt?: string;
+  };
 }
 
 export interface InsurerInfo {
@@ -561,6 +639,15 @@ export interface StaffMember {
   nationalId?: string;
   active?: boolean;
   company?: string;
+  branchId?: string;
+  branchName?: string;
+  city?: string;
+  activeCases?: number;
+  status?: 'AVAILABLE' | 'ON_MISSION' | 'BUSY';
+  rating?: number;
+  expertise?: string;
+  coordinates?: { lat: number; lng: number };
+  avatarUrl?: string;
 }
 
 export interface ThresholdProfile {
@@ -642,9 +729,72 @@ export interface AssessorNotification {
   penaltyPoints?: number;
 }
 
+export interface CustomerNotification {
+  id: string;
+  type: 'SMS' | 'BRANCH_VISIT' | 'EXPERT_ASSIGNED' | 'SYSTEM' | 'STATUS_UPDATE';
+  caseId: string;
+  recipientPhone: string;
+  title: string;
+  message: string;
+  branchName?: string;
+  branchAddress?: string;
+  branchPhone?: string;
+  expertName?: string;
+  expertPhone?: string;
+  sentAt: string;
+  date?: string;
+  time?: string;
+  read: boolean;
+  linkAction?: string;
+}
+
 // ----------------------------------------------------
 // FINANCIAL & TREASURY DISBURSEMENT TYPES
 // ----------------------------------------------------
+export type PaymentOrderStatus =
+  | 'PENDING_APPROVAL'
+  | 'READY_FOR_PAYMENT'
+  | 'APPROVED_FOR_PAYMENT'
+  | 'PROCESSING'
+  | 'PAID'
+  | 'FAILED'
+  | 'HELD'
+  | 'REJECTED'
+  | 'DISCREPANCY';
+
+export interface PaymentRetryLog {
+  attempt: number;
+  time: string;
+  previousFailureReason: string;
+  status: 'PROCESSING' | 'PAID' | 'FAILED';
+  operator: string;
+  bankResponse?: string;
+}
+
+export interface PaymentDiscrepancy {
+  systemAmount: number;
+  bankAmount: number;
+  difference: number;
+  type: 'AMOUNT_MISMATCH' | 'STATUS_MISMATCH' | 'TIMING_DELAY' | 'BANK_REVERSED';
+  detectedAt: string;
+  details: string;
+  resolved: boolean;
+  resolvedAt?: string;
+  resolutionNote?: string;
+}
+
+export interface PaymentPreCheckResult {
+  ibanValid: boolean;
+  ibanBankName?: string;
+  nameMatchConfidence: number; // percentage e.g. 100
+  nameMatchPassed: boolean;
+  amountUnderCeiling: boolean;
+  payoutReadyVerified: boolean;
+  noDuplicatePassed: boolean;
+  checkedAt: string;
+  checkedBy: string;
+}
+
 export interface PaymentOrder {
   id: string;
   caseId: string;
@@ -657,24 +807,34 @@ export interface PaymentOrder {
   culpritInsurer: string;
   grossAmount: number;
   diminutionAmount?: number;
-  salvageDeduction: number;
-  taxDeduction: number;
-  franchiseDeduction: number;
+  salvageDeduction?: number;
+  taxDeduction?: number;
+  franchiseDeduction?: number;
   policyCeiling?: number;
   culpritDebtAmount?: number;
   exceedsPolicyCeiling?: boolean;
   netPayableAmount: number;
-  status: 'PENDING_APPROVAL' | 'APPROVED_FOR_PAYMENT' | 'PAID' | 'REJECTED' | 'HELD';
+  status: PaymentOrderStatus;
+  slaPriority?: 'NORMAL' | 'HIGH' | 'URGENT' | 'CRITICAL';
+  slaDeadline?: string;
+  slaRemainingHours?: number;
+  slaStatus?: 'ON_TRACK' | 'NEAR_BREACH' | 'BREACHED';
   paymentMethod?: 'PAYA' | 'SATNA' | 'INSTANT_CARD' | 'CHEQUE';
   bankReferenceNumber?: string;
   issueDate: string;
+  readyDate?: string;
   paidDate?: string;
   approvedBy?: string;
   paidBy?: string;
   rejectionReason?: string;
+  failureReason?: string;
   financeNotes?: string;
   batchId?: string;
   accountVoucherNumber?: string;
+  retryCount?: number;
+  retryHistory?: PaymentRetryLog[];
+  discrepancy?: PaymentDiscrepancy;
+  preCheck?: PaymentPreCheckResult;
 }
 
 export interface PaymentBatch {

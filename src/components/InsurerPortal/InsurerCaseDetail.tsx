@@ -35,11 +35,16 @@ import {
   Camera,
   CheckSquare,
   ShieldAlert,
-  RefreshCw
+  RefreshCw,
+  Send,
+  Navigation,
+  MessageSquare,
+  PhoneCall
 } from 'lucide-react';
-import { ClaimCase, UserSession, StaffMember, AssessorNotification } from '../../types';
+import { ClaimCase, UserSession, StaffMember, AssessorNotification, CustomerNotification } from '../../types';
 import { INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS } from '../../data/mockData';
-import { formatCurrency, getInsurerPersianName, loadExpertsFromStorage, loadFieldExpertsFromStorage, loadAssessorNotifications, saveAssessorNotifications } from '../../lib/storage';
+import { findBestMatchingBranch, INSURANCE_BRANCHES, InsuranceBranch, getRankedFieldExpertsForAccidentLocation, RankedFieldExpertItem } from '../../data/bodyInsuranceData';
+import { formatCurrency, getInsurerPersianName, loadExpertsFromStorage, loadFieldExpertsFromStorage, loadAssessorNotifications, saveAssessorNotifications, addCustomerNotification, loadCasesFromStorage } from '../../lib/storage';
 import { calculateClaimDamageWithPolicyLimits, performPolicySanhabInquiry } from '../../lib/policyLimitCalculator';
 import { Car3DViewer } from '../Car3DViewer';
 
@@ -90,14 +95,66 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
     claimCase.isOnlineCroqui
   );
   const isNoCroquiCase = !hasCroqui;
+  const isPaidCase =
+    claimCase.status === 'پرداخت شده' ||
+    claimCase.payoutState === 'PAID' ||
+    claimCase.status === 'تسویه شده';
+
+  const allStoredCases = useMemo(() => loadCasesFromStorage(), []);
+
+  // Address and Nearest Branch calculation
+  const caseInsurerCode = claimCase.bodyInsuranceInfo?.insurerCode || claimCase.victimInsurer || claimCase.culpritInsurer || companyCode || 'dana';
+  const accidentLocationAddress = claimCase.address || claimCase.accidentLocation || claimCase.accidentAddress || claimCase.location || 'تهران، بزرگراه شهید همت، تقاطع مدرس';
+
+  const branchMatch = useMemo(() => {
+    return findBestMatchingBranch(
+      caseInsurerCode,
+      accidentLocationAddress,
+      claimCase.assignedBranch?.city || 'تهران',
+      claimCase.accidentLocationCoordinates
+    );
+  }, [caseInsurerCode, accidentLocationAddress, claimCase.assignedBranch?.city, claimCase.accidentLocationCoordinates]);
+
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(
+    claimCase.assignedBranch?.branchId || branchMatch.bestBranch.id
+  );
+
+  const rankedRecommendation = useMemo(() => {
+    return getRankedFieldExpertsForAccidentLocation({
+      insurerCode: caseInsurerCode,
+      accidentLocation: accidentLocationAddress,
+      userCity: claimCase.assignedBranch?.city || 'تهران',
+      targetBranchId: selectedBranchId,
+      coordinates: claimCase.accidentLocationCoordinates || (claimCase.isBodyClaim ? { lat: 35.7592, lng: 51.4112 } : undefined),
+      activeCases: allStoredCases,
+      companyFieldExperts: activeCompanyFieldExperts
+    });
+  }, [caseInsurerCode, accidentLocationAddress, selectedBranchId, claimCase, allStoredCases, activeCompanyFieldExperts]);
 
   const [selectedExpertId, setSelectedExpertId] = useState(
     claimCase.assignedExpert?.id || (activeCompanyExperts[0]?.id || '')
   );
 
   const [selectedFieldExpertId, setSelectedFieldExpertId] = useState(
-    claimCase.assignedFieldExpert?.id || (activeCompanyFieldExperts[0]?.id || '')
+    claimCase.assignedFieldExpert?.id || (rankedRecommendation.bestExpert?.expert.id || activeCompanyFieldExperts[0]?.id || '')
   );
+
+  const currentSelectedBranch = useMemo(() => {
+    return INSURANCE_BRANCHES.find(b => b.id === selectedBranchId) || rankedRecommendation.bestBranch || branchMatch.bestBranch;
+  }, [selectedBranchId, rankedRecommendation.bestBranch, branchMatch.bestBranch]);
+
+  // Tab for live SMS preview (Field Expert vs Customer)
+  const [smsPreviewTab, setSmsPreviewTab] = useState<'EXPERT' | 'CUSTOMER'>('EXPERT');
+  const [showSmsPreview, setShowSmsPreview] = useState(false);
+  const [expertFilterTab, setExpertFilterTab] = useState<'BRANCH' | 'ALL'>('BRANCH');
+  const [isExpertPickerModalOpen, setIsExpertPickerModalOpen] = useState(false);
+  const [showNoteInput, setShowNoteInput] = useState(false);
+
+  // Customer & Vehicle details for SMS
+  const customerName = claimCase.victimName || claimCase.partyOneName || claimCase.culpritName || (claimCase.isBodyClaim ? 'بیمه‌گذار محترم بدنه' : 'زیان‌دیده محترم');
+  const customerPhone = claimCase.victimPhone || claimCase.partyOnePhone || claimCase.culpritPhone || '09123456789';
+  const vehicleName = claimCase.carType || claimCase.carModel || claimCase.bodyInsuranceInfo?.carModel || 'خودرو زیان‌دیده';
+  const plateText = claimCase.victimPlate || claimCase.plate || claimCase.plateNumber || claimCase.bodyInsuranceInfo?.plate || 'نامشخص';
 
   // Search filters & custom note to expert
   const [expertSearchTerm, setExpertSearchTerm] = useState('');
@@ -106,6 +163,25 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
   const [fieldExpertAssignmentNote, setFieldExpertAssignmentNote] = useState('');
   const [isExpertDropdownOpen, setIsExpertDropdownOpen] = useState(false);
   const [isFieldExpertDropdownOpen, setIsFieldExpertDropdownOpen] = useState(false);
+
+  // Filtered field experts based on tab and search
+  const displayedFieldExpertsList = useMemo(() => {
+    const baseList = expertFilterTab === 'BRANCH' && rankedRecommendation.selectedBranchExperts.length > 0
+      ? rankedRecommendation.selectedBranchExperts
+      : rankedRecommendation.rankedExperts;
+
+    if (!fieldExpertSearchTerm.trim()) {
+      return baseList;
+    }
+    const q = fieldExpertSearchTerm.trim().toLowerCase();
+    return baseList.filter((item) =>
+      item.expert.name.toLowerCase().includes(q) ||
+      (item.expert.role && item.expert.role.toLowerCase().includes(q)) ||
+      (item.expert.phone && item.expert.phone.includes(q)) ||
+      (item.expert.nationalId && item.expert.nationalId.includes(q)) ||
+      (item.branch.name && item.branch.name.toLowerCase().includes(q))
+    );
+  }, [expertFilterTab, rankedRecommendation, fieldExpertSearchTerm]);
 
   // State to toggle re-assignment dropdown if already assigned
   const [isChangingExpert, setIsChangingExpert] = useState(!claimCase.assignedExpert);
@@ -525,8 +601,54 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
 
     const isReassign = !!claimCase.assignedFieldExpert || !!claimCase.assignedExpert;
     const noteText = fieldExpertAssignmentNote.trim();
+    const branch = currentSelectedBranch;
+    const nowFa = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+    const insurerName = getInsurerPersianName(caseInsurerCode);
 
-    // Create real-time SMS notification for the Field Expert
+    // SMS 1: Dispatch notification for Field Expert containing accident location AND nearest branch address
+    const fieldExpertSmsText = `کارشناس گرامی ${fieldExpert.name}،
+ماموریت ارزیابی میدانی پرونده ${claimCase.id} (${vehicleName} - پلاک ${plateText}) به شما محول گردید.
+📍 محل حادثه: ${accidentLocationAddress}
+🏢 نزدیک‌ترین شعبه بیمه جهت حضور و هماهنگی: ${branch.name}
+📌 نشانی شعبه: ${branch.address}
+📞 تلفن شعبه: ${branch.phone}
+👤 مشتری: ${customerName} (همراه: ${customerPhone})
+${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
+لطفاً جهت هماهنگی و حضور در محل یا شعبه اقدام فرمایید.
+شرکت ${insurerName}`;
+
+    // SMS 2: Dispatch notification for Customer / Insured containing expert info AND nearest branch address
+    const customerSmsText = `مشتری/بیمه‌گذار گرامی ${customerName}،
+پرونده خسارت شماره ${claimCase.id} به کارشناس رسمی میدانی جناب آقای/سرکار خانم ${fieldExpert.name} (همراه: ${fieldExpert.phone || '—'}) محول گردید.
+🏢 نزدیک‌ترین شعبه تخصصی پرداخت خسارت بر اساس آدرس حادثه شما:
+نام مرکز: ${branch.name}
+نشانی: ${branch.address}
+تلفن تماس: ${branch.phone}
+⏱ ساعت کاری: ${branch.operatingHours || 'شنبه تا چهارشنبه ۸:۰۰ الی ۱۶:۰۰'}
+لطفاً جهت رویت خودرو و ارائه اصل مدارک، در زمان مقرر در محل حادثه یا شعبه مذکور حاضر باشید یا با کارشناس هماهنگ فرمایید.
+شرکت ${insurerName}`;
+
+    const feSmsLog = {
+      id: `SMS-FE-${Date.now()}`,
+      recipientType: 'FIELD_EXPERT' as const,
+      recipientName: fieldExpert.name,
+      phone: fieldExpert.phone || '09129001001',
+      text: fieldExpertSmsText,
+      sentAt: nowFa,
+      status: 'DELIVERED' as const
+    };
+
+    const custSmsLog = {
+      id: `SMS-CUST-${Date.now() + 1}`,
+      recipientType: (claimCase.isBodyClaim || claimCase.isBodily) ? ('INSURED' as const) : ('VICTIM' as const),
+      recipientName: customerName,
+      phone: customerPhone,
+      text: customerSmsText,
+      sentAt: nowFa,
+      status: 'DELIVERED' as const
+    };
+
+    // 1. Create real-time in-app notification for the Field Expert
     const existingNotifs = loadAssessorNotifications();
     const newSmsNotif: AssessorNotification = {
       id: `SMS-FE-${Date.now()}`,
@@ -535,8 +657,8 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
       expertId: fieldExpert.id,
       recipientPhone: fieldExpert.phone,
       senderPhone: '10008000',
-      title: 'ارجاع فوری ماموریت بازدید میدانی و احراز اصالت',
-      message: `کارشناس گرامی ${fieldExpert.name}، پرونده خسارت ${claimCase.id} (${claimCase.carModel || 'خودرو زیان‌دیده'} - پلاک ${claimCase.plateNumber || 'نامشخص'}) جهت بازرسی فوری در محل حادثه و احراز اصالت به شما محول گردید. آدرس: ${claimCase.accidentLocation || 'محل حادثه'} ${noteText ? `| دستور بیمه‌گر: ${noteText}` : ''}`,
+      title: `ماموریت ارزیابی میدانی و تعیین شعبه (${branch.name})`,
+      message: fieldExpertSmsText,
       sentAt: new Date().toISOString(),
       date: new Date().toLocaleDateString('fa-IR'),
       time: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
@@ -544,27 +666,74 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
     };
     saveAssessorNotifications([newSmsNotif, ...existingNotifs]);
 
+    // 2. Create real-time in-app notification for the Customer (shown in Bell icon)
+    const newCustomerNotif: CustomerNotification = {
+      id: `NOTIF-CUST-${Date.now()}`,
+      type: 'BRANCH_VISIT',
+      caseId: claimCase.id,
+      recipientPhone: customerPhone,
+      title: 'درخواست مراجعه حضوری به شعبه و ارزیابی خسارت',
+      message: customerSmsText,
+      branchName: branch.name,
+      branchAddress: branch.address,
+      branchPhone: branch.phone,
+      expertName: fieldExpert.name,
+      expertPhone: fieldExpert.phone,
+      sentAt: new Date().toISOString(),
+      date: new Date().toLocaleDateString('fa-IR'),
+      time: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+      read: false,
+      linkAction: 'case_detail'
+    };
+    addCustomerNotification(newCustomerNotif);
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('claimflow_notifications_updated'));
+    }
+
     const updated: ClaimCase = {
       ...claimCase,
       assignedExpert: fieldExpert,
       assignedFieldExpert: fieldExpert,
+      assignedBranch: {
+        branchId: branch.id,
+        name: branch.name,
+        address: branch.address,
+        phone: branch.phone,
+        city: branch.city,
+        managerName: branch.managerName,
+        distance: branchMatch.matchReason
+      },
+      fieldVisitSchedule: {
+        scheduledDate: new Date().toLocaleDateString('fa-IR'),
+        scheduledTime: '۱۰:۳۰',
+        branchName: branch.name,
+        branchAddress: branch.address,
+        branchPhone: branch.phone,
+        expertId: fieldExpert.id,
+        expertName: fieldExpert.name,
+        expertPhone: fieldExpert.phone,
+        note: noteText || undefined,
+        status: 'SCHEDULED'
+      },
       insurerInstruction: noteText || claimCase.insurerInstruction || '',
       insurerAssignmentNote: noteText || claimCase.insurerAssignmentNote || '',
       insurerFieldExpertNote: noteText || claimCase.insurerFieldExpertNote || '',
       insurerNoteAuthor: session.name || 'پورتال شرکت بیمه‌گر',
-      insurerNoteDate: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+      insurerNoteDate: nowFa,
       status: 'در انتظار بازدید کارشناس میدانی',
       needsCulpritFieldVisit: true,
+      smsDispatchLogs: [...(claimCase.smsDispatchLogs || []), feSmsLog, custSmsLog],
       history: [
         ...(claimCase.history || []),
         {
           status: 'در انتظار بازدید کارشناس میدانی',
-          time: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+          time: nowFa,
           user: session.name || 'پورتال بیمه‌گر',
           userRole: 'کارشناس پذیرش شرکت بیمه',
           note: isReassign
-            ? `ارجاع پرونده به کارشناس میدانی جدید «${fieldExpert.name}» (${fieldExpert.role} - ${fieldExpert.phone}) تغییر یافت و پیامک اعزام به محل ارسال شد.${noteText ? ` توضیحات بیمه‌گر: «${noteText}»` : ''}`
-            : `پرونده به کارشناس میدانی «${fieldExpert.name}» (${fieldExpert.role} - ${fieldExpert.phone}) جهت بازدید میدانی و احراز اصالت ارجاع شد و پیامک فوری ارسال گردید.${noteText ? ` توضیحات بیمه‌گر: «${noteText}»` : ''}`
+            ? `ارجاع پرونده به کارشناس میدانی «${fieldExpert.name}» و نزدیک‌ترین شعبه «${branch.name}» (${branch.address}) انجام شد و ۲ پیامک هماهنگی حاوی آدرس شعبه برای کارشناس و مشتری ارسال گردید.${noteText ? ` دستور بیمه‌گر: «${noteText}»` : ''}`
+            : `پرونده به کارشناس میدانی «${fieldExpert.name}» و نزدیک‌ترین شعبه «${branch.name}» (${branch.address}) ارجاع داده شد و پیامک‌های آدرس شعبه و هماهنگی برای کارشناس و مشتری ارسال شدند.${noteText ? ` دستور بیمه‌گر: «${noteText}»` : ''}`
         }
       ]
     };
@@ -572,8 +741,8 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
     onUpdateCase(updated);
     setIsChangingFieldExpert(false);
     setFieldExpertAssignmentNote('');
-    setFieldAssignmentFeedback(`پرونده با موفقیت به کارشناس میدانی «${fieldExpert.name}» ارجاع گردید و پیامک مأموریت ارسال شد.`);
-    setTimeout(() => setFieldAssignmentFeedback(null), 5000);
+    setFieldAssignmentFeedback(`پرونده با موفقیت به کارشناس میدانی «${fieldExpert.name}» و شعبه «${branch.name}» ارجاع شد و پیامک آدرس شعبه برای کارشناس و مشتری ارسال گردید.`);
+    setTimeout(() => setFieldAssignmentFeedback(null), 6000);
   };
 
   const handleAssignExpert = () => {
@@ -783,28 +952,82 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
         
         {/* Left Sidebar: Assessor Assignment & Controls */}
         <div className="lg:col-span-4 space-y-5 order-2 lg:order-1">
-          {/* Card: Assessor or Field Expert Assignment */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                {isNoCroquiCase ? (
-                  <>
-                    <AlertTriangle className="w-4.5 h-4.5 text-amber-600" />
-                    <span>تخصیص کارشناس میدانی</span>
-                  </>
-                ) : (
-                  <>
-                    <UserPlus className="w-4.5 h-4.5 text-purple-600" />
-                    <span>جستجوی ارزیاب و ارجاع</span>
-                  </>
-                )}
-              </h3>
-              {isNoCroquiCase && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
-                  بدون کروکی
-                </span>
+          {isPaidCase ? (
+            /* Locked Card for Paid/Settled Case */
+            <div className="bg-emerald-50/90 border-2 border-emerald-300 rounded-3xl p-5 shadow-sm space-y-4 animate-in fade-in">
+              <div className="flex items-center gap-2.5 border-b border-emerald-200 pb-3.5">
+                <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
+                  <Lock className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-emerald-950 text-sm">پرونده مختومه و پرداخت‌شده</h3>
+                  <p className="text-[11px] text-emerald-800 font-bold">تسویه مالی از طریق پنل مدیر مالی انجام شد</p>
+                </div>
+              </div>
+
+              <div className="p-3.5 bg-white/90 rounded-2xl border border-emerald-200 text-xs text-emerald-950 font-bold space-y-2">
+                <p className="leading-relaxed">
+                  این پرونده به دلیل انجام موفق عملیات پرداخت به شماره شبا زیان‌دیده، مختومه گردیده است.
+                </p>
+                <div className="text-[11px] text-emerald-800 flex items-center gap-1.5 pt-1 border-t border-emerald-100">
+                  <Lock className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>کلیه عملیات ارجاع، ویرایش و تغییر کارشناس به صورت دائمی قفل می‌باشد.</span>
+                </div>
+              </div>
+
+              {claimCase.assignedFieldExpert && (
+                <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 space-y-1">
+                  <span className="text-[10px] text-slate-500 font-bold block">کارشناس میدانی رسیدگی‌کننده:</span>
+                  <div className="font-black text-slate-900 text-xs">{claimCase.assignedFieldExpert.name}</div>
+                  <div className="text-[11px] text-slate-500 font-mono">تلفن: {claimCase.assignedFieldExpert.phone || '-'}</div>
+                </div>
               )}
+
+              {claimCase.assignedExpert && (
+                <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 space-y-1">
+                  <span className="text-[10px] text-slate-500 font-bold block">کارشناس ارزیاب خسارت:</span>
+                  <div className="font-black text-slate-900 text-xs">{claimCase.assignedExpert.name}</div>
+                  <div className="text-[11px] text-slate-500 font-mono">تلفن: {claimCase.assignedExpert.phone || '-'}</div>
+                </div>
+              )}
+
+              {claimCase.payoutInfo && (
+                <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 space-y-1 text-xs">
+                  <span className="text-[10px] text-slate-500 font-bold block">اطلاعات حساب واریزی:</span>
+                  <div className="font-bold text-slate-900">{claimCase.victimName}</div>
+                  <div className="font-mono text-xs font-bold text-blue-950 truncate">{claimCase.payoutInfo.iban}</div>
+                  <div className="text-[11px] text-slate-600">{claimCase.payoutInfo.bankName || 'بانک عامل'}</div>
+                </div>
+              )}
+
+              <div className="p-3 bg-emerald-100/80 rounded-2xl border border-emerald-300 text-center text-xs font-black text-emerald-950 flex items-center justify-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                <span>سند تسویه در پورتال خزانه‌داری آرشیو شد</span>
+              </div>
             </div>
+          ) : (
+            /* Card: Assessor or Field Expert Assignment */
+            <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+                  {isNoCroquiCase ? (
+                    <>
+                      <AlertTriangle className="w-4.5 h-4.5 text-amber-600" />
+                      <span>تخصیص کارشناس میدانی</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-4.5 h-4.5 text-purple-600" />
+                      <span>جستجوی ارزیاب و ارجاع</span>
+                    </>
+                  )}
+                </h3>
+                {isNoCroquiCase && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                    بدون کروکی
+                  </span>
+                )}
+              </div>
 
             {/* Mandatory Regulatory Warning for No-Croqui Cases */}
             {isNoCroquiCase && (
@@ -890,7 +1113,7 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
             {(isNoCroquiCase || claimCase.authenticityDispute || claimCase.status === 'تردید در اصالت تصادف' || claimCase.status === 'در انتظار بازدید کارشناس میدانی' || claimCase.status === 'در حال بازدید کارشناس میدانی' || claimCase.needsCulpritFieldVisit) ? (
               /* NO CROQUI OR AUTHENTICITY DISPUTE: FIELD EXPERT ASSIGNMENT FLOW */
               (claimCase.assignedFieldExpert || (claimCase.assignedExpert && claimCase.assignedExpert.role?.includes('میدانی'))) && !isChangingFieldExpert ? (
-                <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl space-y-3">
+                <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl space-y-3.5">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] text-amber-800 font-extrabold block">کارشناس میدانی پرونده:</span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 border border-amber-300">
@@ -912,8 +1135,36 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                     </div>
                   </div>
 
+                  {/* Nearest Branch Card for already assigned cases */}
+                  {(claimCase.assignedBranch || currentSelectedBranch) && (
+                    <div className="p-3 bg-white/95 rounded-xl border border-blue-200 space-y-1.5 text-right">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black text-blue-900 flex items-center gap-1">
+                          <Building2 className="w-3.5 h-3.5 text-blue-700" />
+                          <span>شعبه تخصصی بیمه جهت مراجعه و هماهنگی:</span>
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-blue-50 text-blue-800 text-[9px] rounded font-bold">
+                          {claimCase.assignedBranch?.city || currentSelectedBranch.city}
+                        </span>
+                      </div>
+                      <p className="font-black text-xs text-slate-900">
+                        {claimCase.assignedBranch?.name || currentSelectedBranch.name}
+                      </p>
+                      <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
+                        نشانی: {claimCase.assignedBranch?.address || currentSelectedBranch.address}
+                      </p>
+                      <div className="text-[10px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
+                        <span>تلفن: {claimCase.assignedBranch?.phone || currentSelectedBranch.phone}</span>
+                        <span className="text-emerald-700 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>آدرس پیامک شد</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
                   <p className="text-[11px] text-slate-700 leading-relaxed bg-white/90 p-2.5 rounded-xl border border-amber-100">
-                    پرونده جهت بررسی میدانی و بازدید صحنه/خودرو به این کارشناس میدانی ارجاع داده شده است.
+                    پرونده جهت بررسی میدانی، احراز اصالت و رویت فیزیکی به این کارشناس میدانی ارجاع داده شده و آدرس نزدیک‌ترین شعبه بیمه به همراه مشخصات پرونده به کارشناس و مشتری پیامک شده است.
                   </p>
 
                   {(claimCase.insurerFieldExpertNote || claimCase.insurerAssignmentNote || claimCase.insurerInstruction) && (
@@ -933,155 +1184,332 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                     </div>
                   )}
 
-                  <button
-                    onClick={() => {
-                      setIsChangingFieldExpert(true);
-                      setIsFieldExpertDropdownOpen(true);
-                    }}
-                    className="w-full py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-600/20 active:scale-95"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>تغییر یا ارجاع به کارشناس میدانی دیگر</span>
-                  </button>
+                  {(() => {
+                    // Expert assignment is locked unless rejected by expert or customer has raised an objection
+                    const isUnlockedByRejectionOrObjection = Boolean(
+                      claimCase.expertRejected ||
+                      claimCase.autoReturnedDueToTimeout ||
+                      claimCase.status === 'رد شده' ||
+                      (claimCase.objectionStage && claimCase.objectionStage > 0) ||
+                      claimCase.objectionChat ||
+                      claimCase.status?.includes('اعتراض') ||
+                      claimCase.complaintStatus === 'SUBMITTED' ||
+                      claimCase.authenticityDispute
+                    );
+
+                    if (isUnlockedByRejectionOrObjection) {
+                      return (
+                        <div className="space-y-2">
+                          <div className="p-2 bg-amber-100/80 border border-amber-300 rounded-xl text-[10px] text-amber-950 font-bold flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                            <span>امکان تغییر کارشناس به دلیل رد توسط کارشناس یا اعتراض مشتری فعال گردید.</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setIsChangingFieldExpert(true);
+                              setIsFieldExpertDropdownOpen(true);
+                            }}
+                            className="w-full py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-600/20 active:scale-95"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>تغییر یا ارجاع به کارشناس میدانی دیگر (رفع اعتراض / عدم پذیرش)</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="p-3 bg-slate-100 border border-slate-300/80 rounded-xl text-[11px] text-slate-700 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 font-bold text-slate-800">
+                          <Lock className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>تخصیص کارشناس نهایی و قفل است</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          (فقط در صورت رد کارشناس یا ثبت اعتراض مشتری باز می‌شود)
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
-                /* Unified Single Search & Select Combobox for Field Expert */
-                <div className="space-y-3.5 animate-in fade-in">
+                /* Ultra-Clean, High-Visibility Field Expert Assignment UX */
+                <div className="space-y-3 animate-in fade-in">
                   {(claimCase.assignedFieldExpert || claimCase.assignedExpert) && (
-                    <div className="p-2.5 bg-amber-100/70 border border-amber-300 rounded-xl text-[11px] text-amber-950 font-bold flex items-center gap-1.5">
-                      <Info className="w-4 h-4 text-amber-700 shrink-0" />
-                      <span>کارشناس کنونی: {claimCase.assignedFieldExpert?.name || claimCase.assignedExpert?.name}</span>
-                    </div>
-                  )}
-
-                  {/* Combobox Container */}
-                  <div className="space-y-1.5 relative">
-                    <label className="block text-xs font-bold text-slate-800">
-                      انتخاب و جستجوی کارشناس میدانی:
-                    </label>
-
-                    {/* Integrated Search & Dropdown Input */}
-                    <div className="relative">
-                      <Search className="w-4 h-4 text-amber-700 absolute right-3.5 top-3.5 pointer-events-none" />
-                      <input
-                        type="text"
-                        value={fieldExpertSearchTerm}
-                        onChange={(e) => {
-                          setFieldExpertSearchTerm(e.target.value);
-                          setIsFieldExpertDropdownOpen(true);
-                        }}
-                        onFocus={() => setIsFieldExpertDropdownOpen(true)}
-                        placeholder="نام کارشناس میدانی، تخصص، تلفن یا کد ملی..."
-                        className="w-full pr-10 pl-9 py-2.5 rounded-xl border-2 border-amber-300 bg-amber-50/40 text-slate-900 font-bold text-xs focus:outline-none focus:border-amber-600 focus:bg-white focus:ring-2 focus:ring-amber-200 transition-all placeholder:text-slate-400"
-                      />
-                      {fieldExpertSearchTerm ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFieldExpertSearchTerm('');
-                            setIsFieldExpertDropdownOpen(true);
-                          }}
-                          className="absolute left-3 top-3 text-slate-400 hover:text-slate-700"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
-                      )}
-                    </div>
-
-                    {/* Combobox Dropdown Results List */}
-                    {isFieldExpertDropdownOpen && (
-                      <div className="absolute z-30 w-full mt-1 bg-white rounded-2xl border-2 border-amber-300 shadow-xl overflow-hidden animate-in fade-in max-h-56 overflow-y-auto divide-y divide-slate-100">
-                        {filteredFieldExperts.length === 0 ? (
-                          <div className="p-4 text-center text-xs text-slate-500 font-bold">
-                            کارشناس میدانی با مشخصات جستجو شده یافت نشد
-                          </div>
-                        ) : (
-                          filteredFieldExperts.map((fe) => {
-                            const isSelected = selectedFieldExpertId === fe.id;
-                            return (
-                              <div
-                                key={fe.id}
-                                onClick={() => {
-                                  setSelectedFieldExpertId(fe.id);
-                                  setFieldExpertSearchTerm(fe.name);
-                                  setIsFieldExpertDropdownOpen(false);
-                                }}
-                                className={`p-3 cursor-pointer transition-all flex items-center justify-between text-xs ${
-                                  isSelected
-                                    ? 'bg-amber-50 text-amber-950 font-black'
-                                    : 'hover:bg-slate-50 text-slate-800 font-bold'
-                                }`}
-                              >
-                                <div className="space-y-0.5 min-w-0 pr-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="truncate">{fe.name}</span>
-                                    <span className="px-2 py-0.5 bg-amber-100 text-amber-900 text-[10px] rounded-md font-bold shrink-0">
-                                      {fe.role}
-                                    </span>
-                                  </div>
-                                  <div className="text-[11px] text-slate-500 font-normal">
-                                    تلفن: {fe.phone || 'ثبت نشده'} {fe.nationalId ? `• کد ملی: ${fe.nationalId}` : ''}
-                                  </div>
-                                </div>
-                                {isSelected ? (
-                                  <span className="px-2 py-1 bg-amber-600 text-white text-[10px] rounded-lg font-bold shrink-0 flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    <span>انتخاب شده</span>
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] text-amber-700 font-bold shrink-0">
-                                    انتخاب
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
+                    <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-950 font-bold flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Info className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span className="truncate">کارشناس قبلی: {claimCase.assignedFieldExpert?.name || claimCase.assignedExpert?.name}</span>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Selected Field Expert Display Badge */}
-                  {selectedFieldExpertId && (
-                    <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-300 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <UserCheck className="w-4 h-4 text-amber-700 shrink-0" />
-                        <div className="truncate">
-                          <span className="text-slate-600 font-medium">کارشناس انتخاب‌شده: </span>
-                          <span className="font-black text-amber-950">
-                            {activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.name || 'انتخاب نشده'}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-bold text-amber-800 shrink-0">
-                        {activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.phone}
+                      <span className="text-[10px] text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded font-bold shrink-0">
+                        در حال تغییر
                       </span>
                     </div>
                   )}
 
-                  {/* Optional Note / Instruction for Field Expert */}
-                  <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-700">
-                      توضیحات و دستور کار برای کارشناس میدانی (اختیاری):
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={fieldExpertAssignmentNote}
-                      onChange={(e) => setFieldExpertAssignmentNote(e.target.value)}
-                      placeholder="مثال: لطفاً تصاویر محل حادثه و زاویه برخورد دو خودرو به همراه مطابقت بیمه‌نامه بررسی گردد..."
-                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-900 font-medium text-xs focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-100 transition-all placeholder:text-slate-400"
-                    />
+                  {/* 1. Location & Branch Selector (Compact & High Legibility) */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2 text-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-slate-700 font-extrabold text-xs">
+                        <Building2 className="w-4 h-4 text-blue-700 shrink-0" />
+                        <span>شعبه معین ارزیابی و خسارت:</span>
+                      </div>
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200 shrink-0">
+                        {branchMatch.matchReason}
+                      </span>
+                    </div>
+
+                    <select
+                      value={selectedBranchId}
+                      onChange={(e) => {
+                        const newBranchId = e.target.value;
+                        setSelectedBranchId(newBranchId);
+                        const branchExperts = activeCompanyFieldExperts.filter((fe) => fe.branchId === newBranchId);
+                        if (branchExperts.length > 0) {
+                          setSelectedFieldExpertId(branchExperts[0].id);
+                        }
+                      }}
+                      className="w-full py-2 px-3 bg-white rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-2xs"
+                    >
+                      <optgroup label={`شعب تخصصی ${getInsurerPersianName(caseInsurerCode)}`}>
+                        {INSURANCE_BRANCHES.filter(b => b.insurerCode === caseInsurerCode).map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} ({b.city})
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="سایر مراکز و شعب استانی">
+                        {INSURANCE_BRANCHES.filter(b => b.insurerCode !== caseInsurerCode).map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name} ({b.city})
+                          </option>
+                        ))}
+                      </optgroup>
+                    </select>
+
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 px-0.5 pt-0.5">
+                      <span className="flex items-center gap-1 truncate text-slate-500 font-medium">
+                        <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
+                        <strong className="text-slate-800">محل حادثه:</strong> {accidentLocationAddress}
+                      </span>
+                      <span className="font-mono text-[10px] text-blue-800 shrink-0 font-bold mr-2">
+                        📞 {currentSelectedBranch.phone}
+                      </span>
+                    </div>
                   </div>
 
+                  {/* 2. Featured Selected Field Expert (Hero Card) */}
+                  {(() => {
+                    const currentExpert = activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId) || activeCompanyFieldExperts[0];
+                    const rankedInfo = rankedRecommendation.rankedExperts.find(r => r.expert.id === currentExpert?.id) || rankedRecommendation.rankedExperts[0];
+                    const otherBranchExperts = activeCompanyFieldExperts.filter(fe => fe.branchId === selectedBranchId && fe.id !== currentExpert?.id);
+
+                    return (
+                      <div className="bg-gradient-to-br from-amber-50/90 via-amber-50/40 to-white border-2 border-amber-300/90 rounded-2xl p-3.5 space-y-3 shadow-xs">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5 text-xs font-black text-amber-950">
+                            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span>کارشناس رسمی منتخب:</span>
+                          </div>
+                          {rankedInfo?.matchScore && (
+                            <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                              {rankedInfo.matchScore}٪ انطباق هوشمند
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Expert Detail Block */}
+                        <div className="bg-white p-3 rounded-xl border border-amber-200/80 flex items-center justify-between gap-3 shadow-2xs">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="relative shrink-0">
+                              {currentExpert?.avatarUrl ? (
+                                <img
+                                  src={currentExpert.avatarUrl}
+                                  alt={currentExpert.name}
+                                  className="w-12 h-12 rounded-2xl object-cover border-2 border-amber-300"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-base shadow-2xs">
+                                  {currentExpert?.name.slice(0, 1) || 'ک'}
+                                </div>
+                              )}
+                              <span className="absolute -bottom-1 -left-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white" />
+                            </div>
+                            <div className="min-w-0 space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <h4 className="font-black text-slate-950 text-sm truncate">{currentExpert?.name}</h4>
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              </div>
+                              <p className="text-[11px] text-slate-600 font-bold truncate">
+                                {currentExpert?.role}
+                              </p>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+                                <span>⭐ {currentExpert?.rating || 4.9}</span>
+                                <span>•</span>
+                                <span>📍 {rankedInfo?.distanceText || 'نزدیک محل'}</span>
+                                <span>•</span>
+                                <span className="font-mono text-amber-900 font-bold">📞 {currentExpert?.phone}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Switch / Change Expert Button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFieldExpertSearchTerm('');
+                            setIsExpertPickerModalOpen(true);
+                          }}
+                          className="w-full py-2 px-3 rounded-xl bg-amber-100/90 hover:bg-amber-200/90 text-amber-950 text-xs font-extrabold flex items-center justify-center gap-2 transition-all border border-amber-300 shadow-2xs active:scale-98"
+                        >
+                          <Search className="w-3.5 h-3.5 text-amber-800" />
+                          <span>انتخاب یا تغییر کارشناس از بین تمام شعب ({rankedRecommendation.rankedExperts.length} کارشناس)</span>
+                        </button>
+
+                        {/* Quick 1-Click Alternate Chips from the same branch */}
+                        {otherBranchExperts.length > 0 && (
+                          <div className="pt-1 border-t border-amber-200/60 space-y-1">
+                            <span className="text-[10px] text-slate-500 font-bold block">
+                              سایر کارشناسان مستقر در «{currentSelectedBranch.name.replace('مرکز پرداخت خسارت و کارشناسی خودرو ', '').replace('مجتمع خسارت و کارشناسی خودرو ', '')}»:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {otherBranchExperts.map((exp) => (
+                                <button
+                                  key={exp.id}
+                                  type="button"
+                                  onClick={() => setSelectedFieldExpertId(exp.id)}
+                                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white text-slate-800 hover:bg-amber-100/70 border border-amber-200 transition-all flex items-center gap-1 shadow-2xs"
+                                >
+                                  <span>👤 {exp.name}</span>
+                                  <span className="text-[9px] text-slate-500 font-normal font-mono">({exp.phone.slice(-4)})</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* 3. Collapsible Instruction Note */}
+                  <div className="space-y-1.5">
+                    {!showNoteInput && !fieldExpertAssignmentNote ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowNoteInput(true)}
+                        className="w-full py-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all border border-slate-200"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-slate-500" />
+                        <span>+ افزودن دستور یا یادداشت برای کارشناس میدانی (اختیاری)</span>
+                      </button>
+                    ) : (
+                      <div className="space-y-1 animate-in fade-in">
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                          <span>دستور کار و توضیحات تکمیلی به کارشناس:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!fieldExpertAssignmentNote) setShowNoteInput(false);
+                            }}
+                            className="text-[10px] text-slate-400 hover:text-slate-600"
+                          >
+                            بستن
+                          </button>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={fieldExpertAssignmentNote}
+                          onChange={(e) => setFieldExpertAssignmentNote(e.target.value)}
+                          placeholder="مثال: رویت اصالت قطعات تعویضی و تطابق زاویه برخورد دو خودرو در صحنه..."
+                          className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 font-medium text-xs focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-100 transition-all placeholder:text-slate-400"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 4. Streamlined SMS Notice Pill with Preview Modal Trigger */}
+                  <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-1.5 min-w-0 text-emerald-950 font-bold text-[11px]">
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                      <span className="truncate">پیامک نشانی شعبه و پرونده به کارشناس و مشتری</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSmsPreview(!showSmsPreview)}
+                      className="px-2 py-0.5 rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-900 text-[10px] font-black shrink-0 transition-colors"
+                    >
+                      {showSmsPreview ? 'پنهان‌سازی' : 'پیش‌نمایش متن'}
+                    </button>
+                  </div>
+
+                  {/* SMS Preview Drawer if expanded */}
+                  {showSmsPreview && (
+                    <div className="p-3 bg-white border border-emerald-200 rounded-xl space-y-2 animate-in fade-in text-xs shadow-xs">
+                      <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => setSmsPreviewTab('EXPERT')}
+                          className={`flex-1 py-1 text-[11px] font-extrabold rounded-lg transition-all ${
+                            smsPreviewTab === 'EXPERT'
+                              ? 'bg-white text-blue-950 shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          ۱. پیامک به کارشناس
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSmsPreviewTab('CUSTOMER')}
+                          className={`flex-1 py-1 text-[11px] font-extrabold rounded-lg transition-all ${
+                            smsPreviewTab === 'CUSTOMER'
+                              ? 'bg-white text-emerald-950 shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          ۲. پیامک به مشتری
+                        </button>
+                      </div>
+
+                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-800 leading-relaxed font-sans font-medium whitespace-pre-line max-h-40 overflow-y-auto">
+                        {smsPreviewTab === 'EXPERT' ? (
+                          <>
+                            <div className="text-[10px] text-blue-700 font-bold mb-1 border-b border-slate-200 pb-1">
+                              گیرنده: {activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.name || 'کارشناس'} ({activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.phone || '09129001001'})
+                            </div>
+                            {`کارشناس گرامی ${activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.name || 'کارشناس'}،
+ماموریت ارزیابی میدانی پرونده ${claimCase.id} (${vehicleName} - پلاک ${plateText}) به شما محول گردید.
+📍 محل حادثه: ${accidentLocationAddress}
+🏢 شعبه هماهنگی: ${currentSelectedBranch.name} (${currentSelectedBranch.phone})
+📌 نشانی: ${currentSelectedBranch.address}
+👤 مشتری: ${customerName} (${customerPhone})
+${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldExpertAssignmentNote.trim()}` : ''}`}
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-[10px] text-emerald-700 font-bold mb-1 border-b border-slate-200 pb-1">
+                              گیرنده: {customerName} ({customerPhone})
+                            </div>
+                            {`مشتری گرامی ${customerName}،
+پرونده خسارت ${claimCase.id} به کارشناس رسمی میدانی جناب آقای/سرکار خانم ${activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.name || 'کارشناس'} (${activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.phone || '—'}) محول گردید.
+🏢 نزدیک‌ترین شعبه تخصصی خسارت: ${currentSelectedBranch.name}
+📌 نشانی: ${currentSelectedBranch.address}
+📞 تلفن: ${currentSelectedBranch.phone}
+شرکت ${getInsurerPersianName(caseInsurerCode)}`}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 5. Primary Action Button */}
                   <button
                     onClick={handleAssignFieldExpert}
                     disabled={!selectedFieldExpertId}
-                    className="w-full py-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl font-extrabold text-xs shadow-md shadow-amber-600/30 transition-all active:scale-95 flex items-center justify-center gap-2"
+                    className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl font-extrabold text-xs shadow-md shadow-amber-600/30 transition-all active:scale-98 flex items-center justify-center gap-2"
                   >
-                    <UserCheck className="w-4 h-4" />
-                    <span>ارجاع پرونده به کارشناس میدانی</span>
+                    <Send className="w-4 h-4" />
+                    <span>تأیید و ابلاغ مأموریت به کارشناس میدانی</span>
                   </button>
 
                   {(claimCase.assignedFieldExpert || claimCase.assignedExpert) && (
@@ -1091,10 +1519,187 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                         setIsChangingFieldExpert(false);
                         setIsFieldExpertDropdownOpen(false);
                       }}
-                      className="w-full py-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
+                      className="w-full py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
                     >
                       انصراف از تغییر
                     </button>
+                  )}
+
+                  {/* 6. Comprehensive Expert Picker Modal (Spacious & Clean UX) */}
+                  {isExpertPickerModalOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in">
+                      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95">
+                        {/* Modal Header */}
+                        <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+                              <Sparkles className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <h3 className="font-black text-sm">انتخاب کارشناس رسمی میدانی</h3>
+                              <p className="text-[11px] text-slate-300">
+                                شرکت {getInsurerPersianName(caseInsurerCode)} • شعبه معین: {currentSelectedBranch.name}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setIsExpertPickerModalOpen(false)}
+                            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Search & Tabs */}
+                        <div className="p-3.5 bg-slate-50 border-b border-slate-200 space-y-2.5">
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setExpertFilterTab('BRANCH')}
+                              className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all ${
+                                expertFilterTab === 'BRANCH'
+                                  ? 'bg-amber-600 text-white shadow-xs'
+                                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              کارشناسان شعبه منتخب ({rankedRecommendation.selectedBranchExperts.length})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setExpertFilterTab('ALL')}
+                              className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all ${
+                                expertFilterTab === 'ALL'
+                                  ? 'bg-amber-600 text-white shadow-xs'
+                                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              تمام کارشناسان استانی ({rankedRecommendation.rankedExperts.length})
+                            </button>
+                          </div>
+
+                          <div className="relative">
+                            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
+                            <input
+                              type="text"
+                              value={fieldExpertSearchTerm}
+                              onChange={(e) => setFieldExpertSearchTerm(e.target.value)}
+                              placeholder="جستجوی نام کارشناس، تخصص، شعبه یا تلفن..."
+                              className="w-full pr-10 pl-8 py-2.5 bg-white rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-100"
+                            />
+                            {fieldExpertSearchTerm && (
+                              <button
+                                type="button"
+                                onClick={() => setFieldExpertSearchTerm('')}
+                                className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-700"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Expert Cards Grid List */}
+                        <div className="p-4 overflow-y-auto space-y-2 flex-1 divide-y divide-slate-100">
+                          {displayedFieldExpertsList.length === 0 ? (
+                            <div className="p-8 text-center text-xs text-slate-500 font-bold">
+                              کارشناسی با این مشخصات یافت نشد
+                            </div>
+                          ) : (
+                            displayedFieldExpertsList.map((item) => {
+                              const isSelected = selectedFieldExpertId === item.expert.id;
+                              return (
+                                <div
+                                  key={item.expert.id}
+                                  onClick={() => {
+                                    setSelectedFieldExpertId(item.expert.id);
+                                    if (item.branch?.id && item.branch.id !== selectedBranchId) {
+                                      setSelectedBranchId(item.branch.id);
+                                    }
+                                    setIsExpertPickerModalOpen(false);
+                                  }}
+                                  className={`pt-2 first:pt-0 p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                                    isSelected
+                                      ? 'bg-amber-50 border-amber-600 shadow-sm ring-2 ring-amber-300/40'
+                                      : 'bg-white border-slate-200 hover:border-amber-400 hover:bg-amber-50/30'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="relative shrink-0">
+                                      {item.expert.avatarUrl ? (
+                                        <img
+                                          src={item.expert.avatarUrl}
+                                          alt={item.expert.name}
+                                          className="w-11 h-11 rounded-2xl object-cover border border-slate-300"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                      ) : (
+                                        <div className="w-11 h-11 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm">
+                                          {item.expert.name.slice(0, 1)}
+                                        </div>
+                                      )}
+                                      <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" />
+                                    </div>
+                                    <div className="min-w-0 space-y-1">
+                                      <div className="flex items-center gap-2">
+                                        <h4 className="font-black text-slate-900 text-xs truncate">{item.expert.name}</h4>
+                                        <span className="text-[10px] text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md font-bold shrink-0">
+                                          {item.expert.role}
+                                        </span>
+                                      </div>
+                                      <div className="text-[11px] text-slate-600 font-medium flex items-center gap-2">
+                                        <Building2 className="w-3 h-3 text-blue-700 shrink-0" />
+                                        <span className="truncate">{item.branch.name}</span>
+                                        <span>•</span>
+                                        <span className="font-mono text-slate-500">📞 {item.expert.phone}</span>
+                                      </div>
+                                      <div className="text-[10px] text-slate-500 flex items-center gap-2">
+                                        <span>⭐ {item.expert.rating || 4.9}</span>
+                                        <span>•</span>
+                                        <span>📍 فاصله تا حادثه: {item.distanceText}</span>
+                                        <span>•</span>
+                                        <span>{item.availabilityText}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="shrink-0 flex items-center gap-3">
+                                    <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
+                                      item.matchScore >= 90
+                                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                        : 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    }`}>
+                                      {item.matchScore}٪ انطباق
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
+                                        isSelected
+                                          ? 'bg-amber-600 text-white shadow-xs'
+                                          : 'bg-slate-100 text-slate-800 hover:bg-amber-100'
+                                      }`}
+                                    >
+                                      {isSelected ? 'منتخب' : 'انتخاب'}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setIsExpertPickerModalOpen(false)}
+                            className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-extrabold hover:bg-slate-800 transition-colors"
+                          >
+                            بستن
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
               )
@@ -1144,16 +1749,52 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                     </div>
                   )}
 
-                  <button
-                    onClick={() => {
-                      setIsChangingExpert(true);
-                      setIsExpertDropdownOpen(true);
-                    }}
-                    className="w-full py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-purple-600/20 active:scale-95"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>تغییر یا ارجاع به ارزیاب دیگر</span>
-                  </button>
+                  {(() => {
+                    // Expert assignment is locked unless rejected by expert or customer has raised an objection
+                    const isUnlockedByRejectionOrObjection = Boolean(
+                      claimCase.expertRejected ||
+                      claimCase.autoReturnedDueToTimeout ||
+                      claimCase.status === 'رد شده' ||
+                      (claimCase.objectionStage && claimCase.objectionStage > 0) ||
+                      claimCase.objectionChat ||
+                      claimCase.status?.includes('اعتراض') ||
+                      claimCase.complaintStatus === 'SUBMITTED' ||
+                      claimCase.authenticityDispute
+                    );
+
+                    if (isUnlockedByRejectionOrObjection) {
+                      return (
+                        <div className="space-y-2">
+                          <div className="p-2 bg-purple-100/80 border border-purple-300 rounded-xl text-[10px] text-purple-950 font-bold flex items-center gap-1.5">
+                            <AlertTriangle className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                            <span>امکان تغییر ارزیاب به دلیل رد توسط کارشناس یا اعتراض مشتری فعال گردید.</span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setIsChangingExpert(true);
+                              setIsExpertDropdownOpen(true);
+                            }}
+                            className="w-full py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-purple-600/20 active:scale-95"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>تغییر یا ارجاع به ارزیاب دیگر (رفع اعتراض / عدم پذیرش)</span>
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="p-3 bg-slate-100 border border-slate-300/80 rounded-xl text-[11px] text-slate-700 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 font-bold text-slate-800">
+                          <Lock className="w-4 h-4 text-slate-500 shrink-0" />
+                          <span>تخصیص ارزیاب نهایی و قفل است</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          (فقط در صورت رد کارشناس یا ثبت اعتراض مشتری باز می‌شود)
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </div>
               ) : (
                 /* Unified Single Search & Select Combobox for Regular Assessor */
@@ -1353,6 +1994,7 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
               </button>
             </div>
           </div>
+          )}
         </div>
 
         {/* Right Main Column */}
@@ -1393,9 +2035,16 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
                 <h2 className="text-lg sm:text-xl font-black text-slate-900 font-mono">
                   پرونده {claimCase.id}
                 </h2>
-                <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-amber-100 text-amber-800 border border-amber-200">
-                  {claimCase.status}
-                </span>
+                {isPaidCase ? (
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>پرداخت شده (مختومه)</span>
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-amber-100 text-amber-800 border border-amber-200">
+                    {claimCase.status}
+                  </span>
+                )}
                 {isNoCroquiCase ? (
                   <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-rose-100 text-rose-900 border border-rose-200">
                     بدون کروکی
@@ -1827,93 +2476,6 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
               </div>
 
             </div>
-
-            {/* REVIEWER ACTION PANEL — SHOWN WHEN ASSESSMENT IS WAITING FOR REVIEWER APPROVAL */}
-            {(claimCase.status === 'در انتظار بررسی بازبین' || claimCase.status === 'در انتظار بازبینی' || (claimCase.assessment && !claimCase.reviewerApproval?.approved && claimCase.status !== 'در انتظار تایید کاربر' && claimCase.status !== 'نیازمند اصلاح کارشناس' && !claimCase.status.includes('پرداخت'))) && (
-              <div className="bg-gradient-to-br from-indigo-900 via-purple-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 border-2 border-amber-400 shadow-xl space-y-4 animate-in fade-in">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
-                      <ShieldCheck className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-base font-black text-white">بررسی و بازبینی کیفیت ارزیابی (پنل بازبین)</h3>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                          نیازمند تایید بازبین
-                        </span>
-                      </div>
-                      <p className="text-xs text-slate-300 mt-0.5">
-                        برآورد خسارت توسط {claimCase.assignedExpert?.name || 'کارشناس ارزیاب'} ثبت گردیده و پیش از ابلاغ به زیان‌دیده نیازمند بررسی بازبین ارشد است.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {claimCase.assessment && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white/5 p-4 rounded-2xl border border-white/10 text-xs">
-                    <div>
-                      <span className="text-slate-400 block text-[10px] mb-0.5 font-bold">خسارت ناخالص:</span>
-                      <strong className="text-white text-sm">{formatCurrency(claimCase.assessment.gross)}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px] mb-0.5 font-bold">کسورات و فرانشیز:</span>
-                      <strong className="text-slate-200 text-sm">{formatCurrency(claimCase.assessment.deductions)}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px] mb-0.5 font-bold">ارزش اسقاط:</span>
-                      <strong className="text-slate-200 text-sm">{formatCurrency(claimCase.assessment.salvage)}</strong>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block text-[10px] mb-0.5 font-bold">قابل پرداخت نهایی:</span>
-                      <strong className="text-emerald-400 text-sm font-black">{formatCurrency(claimCase.assessment.payable)}</strong>
-                    </div>
-                  </div>
-                )}
-
-                {claimCase.assessment?.reviewerNote && (
-                  <div className="p-3 bg-white/5 rounded-xl border border-white/10 text-xs text-slate-200">
-                    <span className="font-extrabold text-amber-300 block mb-1">یادداشت کارشناس ارزیاب:</span>
-                    <p className="leading-relaxed font-medium">{claimCase.assessment.reviewerNote}</p>
-                  </div>
-                )}
-
-                {/* Reviewer Note Input */}
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-200 mb-1">
-                    توضیحات و دستور بازبین (اختیاری):
-                  </label>
-                  <input
-                    type="text"
-                    value={reviewerNote}
-                    onChange={(e) => setReviewerNote(e.target.value)}
-                    placeholder="مثال: برآورد و فرانشیز طبق آئین‌نامه بیمه مرکزی تایید گردید..."
-                    className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-slate-400 text-xs font-medium focus:outline-none focus:border-amber-400"
-                  />
-                </div>
-
-                {/* Approve & Return Buttons */}
-                <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleReviewerApprove}
-                    className="flex-1 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 rounded-xl font-black text-xs shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 active:scale-95"
-                  >
-                    <CheckCircle2 className="w-4 h-4 text-slate-950" />
-                    <span>تایید ارزیابی و ابلاغ به زیان‌دیده</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowReviewerReturnModal(true)}
-                    className="py-3 px-5 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-400/40 rounded-xl font-extrabold text-xs transition-all flex items-center justify-center gap-2 active:scale-95"
-                  >
-                    <AlertTriangle className="w-4 h-4 text-rose-400" />
-                    <span>عدم تایید / عودت به کارشناس جهت اصلاح</span>
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* COMPACT EXPERT ASSESSMENT CARDS GRID (SPACE-SAVING ACCORDION / CARDS VIEW) */}
             <div className="bg-white rounded-3xl border-2 border-slate-200 p-4 sm:p-6 shadow-sm space-y-4 animate-in fade-in transition-all">

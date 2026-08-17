@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { FileCheck, Upload, AlertCircle, CheckCircle, RefreshCw, Shield, FileText, Code, Copy, Check, Eye } from 'lucide-react';
 import { CroquiData, DriverRole } from '../../types';
 import { sampleCroquis } from '../../data/mockData';
+import { compressImageFile } from '../../lib/imageCompressor';
 
 interface CroquiStepProps {
   data: CroquiData | null;
@@ -121,17 +122,13 @@ export const CroquiStep: React.FC<CroquiStepProps> = ({
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUri = event.target?.result as string;
-      setSelectedFile(dataUri);
-      analyzeCroquiApi(dataUri);
-    };
-    reader.readAsDataURL(file);
+    const dataUri = await compressImageFile(file, 1000, 0.7);
+    setSelectedFile(dataUri);
+    analyzeCroquiApi(dataUri);
   };
 
   const handleSampleSelect = (sampleIndex: number) => {

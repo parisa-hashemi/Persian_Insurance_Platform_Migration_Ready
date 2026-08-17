@@ -33,17 +33,35 @@ import {
   UserPlus,
   Star,
   RotateCcw,
-  Timer
+  Timer,
+  Mic,
+  Volume2,
+  Video,
+  Camera,
+  MapPin,
+  Calendar,
+  Send,
+  Check,
+  ExternalLink,
+  Eye,
+  Compass,
+  ShieldPlus,
+  ShieldAlert,
+  Play,
+  Pause
 } from 'lucide-react';
-import { ClaimCase, UserSession, StaffMember, ExpertComplaint } from '../../types';
-import { INSURER_COMPANIES, INITIAL_EXPERTS, INITIAL_REVIEWERS } from '../../data/mockData';
+import { ClaimCase, UserSession, StaffMember, ExpertComplaint, AssessorNotification } from '../../types';
+import { INSURER_COMPANIES, INITIAL_EXPERTS, INITIAL_REVIEWERS, INITIAL_FIELD_EXPERTS } from '../../data/mockData';
+import { findBestMatchingBranch, INSURANCE_BRANCHES, InsuranceBranch } from '../../data/bodyInsuranceData';
 import {
   formatCurrency,
   getInsurerPersianName,
   loadExpertsFromStorage,
   saveExpertsToStorage,
   loadComplaintsFromStorage,
-  saveComplaintsToStorage
+  saveComplaintsToStorage,
+  loadAssessorNotifications,
+  saveAssessorNotifications
 } from '../../lib/storage';
 
 interface InsurerDashboardProps {
@@ -51,6 +69,7 @@ interface InsurerDashboardProps {
   cases: ClaimCase[];
   onOpenCaseDetail: (caseId: string) => void;
   onNavigateTab: (tab: string) => void;
+  onUpdateCase?: (updatedCase: ClaimCase) => void;
   onLogout?: () => void;
 }
 
@@ -69,6 +88,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
   cases,
   onOpenCaseDetail,
   onNavigateTab,
+  onUpdateCase,
   onLogout
 }) => {
   const [activeTab, setActiveTab] = useState<InsurerSubTab>('dash');
@@ -419,6 +439,175 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
     return true;
   });
 
+  // Body Claims Portal State & Handlers
+  const [selectedBodyCaseForReview, setSelectedBodyCaseForReview] = useState<ClaimCase | null>(null);
+  const [selectedBodyCaseForDispatch, setSelectedBodyCaseForDispatch] = useState<ClaimCase | null>(null);
+  const [selectedFieldExpertId, setSelectedFieldExpertId] = useState<string>('');
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('');
+  const [scheduledVisitDate, setScheduledVisitDate] = useState<string>('۱۴۰۳/۰۵/۲۴');
+  const [scheduledVisitTime, setScheduledVisitTime] = useState<string>('۱۰:۳۰');
+  const [dispatchInstructions, setDispatchInstructions] = useState<string>(
+    'بازدید حضوری قطعات آسیب‌دیده، بررسی اصالت ضربه و تطابق با کروکی/شرح حادثه و برآورد اجرت و قطعات در شعبه.'
+  );
+  const [bodySearchTerm, setBodySearchTerm] = useState<string>('');
+  const [bodyStatusFilter, setBodyStatusFilter] = useState<string>('ALL');
+  const [modalSmsPreviewTab, setModalSmsPreviewTab] = useState<'EXPERT' | 'CUSTOMER'>('EXPERT');
+  const [dispatchSuccessToast, setDispatchSuccessToast] = useState<string | null>(null);
+
+  const bodyClaimsList = cases.filter(
+    (c) => c.isBodily || c.isBodyClaim || c.id.startsWith('BD-')
+  );
+
+  const openBodyDispatchModal = (claim: ClaimCase) => {
+    setSelectedBodyCaseForDispatch(claim);
+    const availableFieldExperts = INITIAL_FIELD_EXPERTS[companyCode] || INITIAL_FIELD_EXPERTS['dana'] || [];
+    if (availableFieldExperts.length > 0) {
+      setSelectedFieldExpertId(availableFieldExperts[0].id);
+    }
+    const branchMatch = findBestMatchingBranch(companyCode, claim.address || '', 'تهران');
+    setSelectedBranchId(branchMatch.bestBranch.id);
+  };
+
+  const handleConfirmBodyDispatch = () => {
+    if (!selectedBodyCaseForDispatch || !onUpdateCase) return;
+
+    const availableFieldExperts = INITIAL_FIELD_EXPERTS[companyCode] || INITIAL_FIELD_EXPERTS['dana'] || [];
+    const expert =
+      availableFieldExperts.find((e) => e.id === selectedFieldExpertId) ||
+      availableFieldExperts[0] || {
+        id: 'fe-def',
+        name: 'کارشناس میدانی',
+        phone: '09129001001'
+      };
+
+    const branch = INSURANCE_BRANCHES.find((b) => b.id === selectedBranchId) || INSURANCE_BRANCHES[0];
+    const nowFa = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+    const insurerName = getInsurerPersianName(companyCode);
+
+    const accidentAddress = selectedBodyCaseForDispatch.address || selectedBodyCaseForDispatch.accidentLocation || 'محل حادثه ثبت‌شده در سامانه';
+    const customerName = selectedBodyCaseForDispatch.victimName || selectedBodyCaseForDispatch.partyOneName || selectedBodyCaseForDispatch.culpritName || 'بیمه‌گذار محترم بدنه';
+    const customerPhone = selectedBodyCaseForDispatch.victimPhone || selectedBodyCaseForDispatch.partyOnePhone || selectedBodyCaseForDispatch.culpritPhone || '09123456789';
+    const vehicleInfo = selectedBodyCaseForDispatch.carType || selectedBodyCaseForDispatch.carModel || selectedBodyCaseForDispatch.bodyInsuranceInfo?.carModel || 'خودرو زیان‌دیده';
+    const plateInfo = selectedBodyCaseForDispatch.victimPlate || selectedBodyCaseForDispatch.plate || selectedBodyCaseForDispatch.plateNumber || selectedBodyCaseForDispatch.bodyInsuranceInfo?.plate || '—';
+
+    // SMS 1: Dispatch notification for Field Expert containing accident location and nearest branch address
+    const fieldExpertSmsText = `کارشناس گرامی ${expert.name}،
+ماموریت ارزیابی میدانی پرونده بیمه بدنه ${selectedBodyCaseForDispatch.id} (${vehicleInfo} - پلاک ${plateInfo}) به شما محول گردید.
+📍 محل حادثه: ${accidentAddress}
+🏢 نزدیک‌ترین شعبه بیمه جهت حضور و هماهنگی: ${branch.name}
+📌 نشانی شعبه: ${branch.address}
+📞 تلفن شعبه: ${branch.phone}
+👤 بیمه‌گذار: ${customerName} (همراه: ${customerPhone})
+⏱ زمان پیشنهادی: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
+${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInstructions.trim()}` : ''}
+لطفاً جهت هماهنگی و حضور در محل یا شعبه اقدام فرمایید.
+شرکت ${insurerName}`;
+
+    // SMS 2: Dispatch notification for Customer / Insured containing expert info and nearest branch address
+    const customerSmsText = `بیمه‌گذار گرامی ${customerName}،
+پرونده خسارت بدنه شما به شماره ${selectedBodyCaseForDispatch.id} به کارشناس رسمی میدانی جناب آقای/سرکار خانم ${expert.name} (همراه: ${expert.phone || '—'}) محول گردید.
+🏢 نزدیک‌ترین شعبه تخصصی پرداخت خسارت بر اساس آدرس حادثه شما:
+نام مرکز: ${branch.name}
+نشانی: ${branch.address}
+تلفن تماس: ${branch.phone}
+⏱ زمان پیشنهادی مراجعه: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
+لطفاً جهت رویت خودرو و تشکیل پرونده فیزیکی در محل حادثه یا شعبه مذکور حاضر باشید یا با کارشناس هماهنگ فرمایید.
+شرکت ${insurerName}`;
+
+    const feSmsLog = {
+      id: `SMS-FE-${Date.now()}`,
+      recipientType: 'FIELD_EXPERT' as const,
+      recipientName: expert.name,
+      phone: expert.phone || '09129001001',
+      text: fieldExpertSmsText,
+      sentAt: nowFa,
+      status: 'DELIVERED' as const
+    };
+
+    const custSmsLog = {
+      id: `SMS-CUST-${Date.now() + 1}`,
+      recipientType: 'INSURED' as const,
+      recipientName: customerName,
+      phone: customerPhone,
+      text: customerSmsText,
+      sentAt: nowFa,
+      status: 'DELIVERED' as const
+    };
+
+    // Save in-app notification for the Field Expert
+    const existingNotifs = loadAssessorNotifications();
+    const newSmsNotif: AssessorNotification = {
+      id: `SMS-FE-${Date.now()}`,
+      type: 'SMS',
+      caseId: selectedBodyCaseForDispatch.id,
+      expertId: expert.id,
+      recipientPhone: expert.phone || '09129001001',
+      senderPhone: '10008000',
+      title: `ماموریت ارزیابی میدانی بیمه بدنه (${branch.name})`,
+      message: fieldExpertSmsText,
+      sentAt: new Date().toISOString(),
+      date: new Date().toLocaleDateString('fa-IR'),
+      time: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+      read: false
+    };
+    saveAssessorNotifications([newSmsNotif, ...existingNotifs]);
+
+    const updated: ClaimCase = {
+      ...selectedBodyCaseForDispatch,
+      status: 'در انتظار بازدید کارشناس میدانی',
+      assignedFieldExpert: {
+        id: expert.id,
+        name: expert.name,
+        phone: expert.phone || '09129001001',
+        assignedAt: new Date().toISOString()
+      },
+      assignedBranch: {
+        branchId: branch.id,
+        name: branch.name,
+        address: branch.address,
+        phone: branch.phone,
+        city: branch.city,
+        managerName: branch.managerName
+      },
+      fieldVisitSchedule: {
+        scheduledDate: scheduledVisitDate,
+        scheduledTime: scheduledVisitTime,
+        branchName: branch.name,
+        branchAddress: branch.address,
+        branchPhone: branch.phone,
+        expertId: expert.id,
+        expertName: expert.name,
+        expertPhone: expert.phone,
+        note: dispatchInstructions,
+        status: 'SCHEDULED'
+      },
+      smsDispatchLogs: [...(selectedBodyCaseForDispatch.smsDispatchLogs || []), feSmsLog, custSmsLog],
+      history: [
+        ...(selectedBodyCaseForDispatch.history || []),
+        {
+          status: 'در انتظار بازدید کارشناس میدانی',
+          time: new Date().toLocaleString('fa-IR'),
+          user: session.name || 'مسئول بیمه بدنه',
+          userRole: 'شرکت بیمه',
+          note: `ارجاع به کارشناس میدانی (${expert.name}) و تعیین شعبه مراجعه حضوری (${branch.name} - ${branch.address}) برای ${scheduledVisitDate} ساعت ${scheduledVisitTime} ثبت شد و پیامک‌های حاوی آدرس شعبه به کارشناس و بیمه‌گذار ارسال گردید.`
+        }
+      ]
+    };
+
+    onUpdateCase(updated);
+    if (selectedBodyCaseForReview && selectedBodyCaseForReview.id === updated.id) {
+      setSelectedBodyCaseForReview(updated);
+    }
+    setDispatchSuccessToast(
+      `پرونده ${updated.id} با موفقیت به کارشناس میدانی (${expert.name}) و شعبه (${branch.name}) ارجاع داده شد و پیامک‌های حاوی آدرس شعبه به بیمه‌گذار و کارشناس ارسال گردید.`
+    );
+    setSelectedBodyCaseForDispatch(null);
+
+    setTimeout(() => {
+      setDispatchSuccessToast(null);
+    }, 7000);
+  };
+
   const handleExportCSV = () => {
     if (!filteredCases.length) return;
     const headers = ['کد پیگیری', 'تاریخ', 'وضعیت', 'زیان‌دیده', 'مقصر', 'آدرس', 'مبلغ قابل پرداخت'];
@@ -545,18 +734,6 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
           >
             <UserCheck className="w-4 h-4" />
             <span>مدیریت کارشناسان/بازبین‌ها</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('payments')}
-            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
-              activeTab === 'payments'
-                ? 'bg-blue-900 text-white shadow-md border border-blue-950'
-                : 'text-slate-700 hover:text-blue-950 hover:bg-blue-50 font-bold'
-            }`}
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>پرداخت</span>
           </button>
 
           <button
@@ -1793,56 +1970,747 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
         </div>
       )}
 
-      {/* VIEW 7: PAYMENTS (پرداخت) */}
-      {activeTab === 'payments' && (
-        <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <h2 className="text-lg font-black text-blue-950 flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-emerald-700" />
-              مدیریت صف واریز و تسویه بانکی (شبا)
-            </h2>
+      {/* VIEW 7: BODY CLAIM (ادعای بدنه) */}
+      {activeTab === 'bodyClaim' && (
+        <div className="space-y-6 animate-in fade-in">
+          {/* Dispatch Toast Alert */}
+          {dispatchSuccessToast && (
+            <div className="bg-emerald-50 border-2 border-emerald-400 p-4 rounded-2xl flex items-center justify-between gap-3 text-emerald-950 font-bold text-xs shadow-md animate-in slide-in-from-top">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>{dispatchSuccessToast}</span>
+              </div>
+              <button
+                onClick={() => setDispatchSuccessToast(null)}
+                className="p-1 hover:bg-emerald-200/60 rounded-lg text-emerald-900"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Top Stats Overview */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="bg-white p-4 rounded-2xl border-2 border-slate-200 shadow-xs">
+              <span className="text-[11px] text-slate-500 font-bold block">کل پرونده‌های بدنه</span>
+              <span className="text-xl font-black text-blue-950 font-mono mt-1 block">
+                {bodyClaimsList.length}
+              </span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border-2 border-amber-200 bg-amber-50/30 shadow-xs">
+              <span className="text-[11px] text-amber-900 font-bold block">در انتظار ارجاع میدانی</span>
+              <span className="text-xl font-black text-amber-900 font-mono mt-1 block">
+                {
+                  bodyClaimsList.filter(
+                    (c) =>
+                      c.status.includes('ارجاع شده به شرکت بیمه') ||
+                      c.status.includes('در انتظار ارجاع') ||
+                      !c.assignedFieldExpert
+                  ).length
+                }
+              </span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border-2 border-indigo-200 bg-indigo-50/30 shadow-xs">
+              <span className="text-[11px] text-indigo-900 font-bold block">در حال ارزیابی / شعبه</span>
+              <span className="text-xl font-black text-indigo-900 font-mono mt-1 block">
+                {
+                  bodyClaimsList.filter(
+                    (c) =>
+                      c.status.includes('کارشناس میدانی') ||
+                      c.status.includes('در حال بازدید') ||
+                      c.status.includes('در حال ارزیابی')
+                  ).length
+                }
+              </span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border-2 border-sky-200 bg-sky-50/30 shadow-xs">
+              <span className="text-[11px] text-sky-900 font-bold block">تایید شده / صف مالی</span>
+              <span className="text-xl font-black text-sky-900 font-mono mt-1 block">
+                {
+                  bodyClaimsList.filter(
+                    (c) =>
+                      c.status.includes('در انتظار پرداخت') ||
+                      c.status.includes('ارزیابی شده') ||
+                      c.status.includes('تایید شده')
+                  ).length
+                }
+              </span>
+            </div>
+
+            <div className="bg-white p-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/30 shadow-xs col-span-2 sm:col-span-1">
+              <span className="text-[11px] text-emerald-900 font-bold block">تسویه و پرداخت شده</span>
+              <span className="text-xl font-black text-emerald-900 font-mono mt-1 block">
+                {bodyClaimsList.filter((c) => c.status.includes('پرداخت شده')).length}
+              </span>
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {companyCases.filter((c) => c.status === 'در انتظار پرداخت' || c.payoutState === 'READY').length === 0 ? (
-              <div className="p-8 text-center text-slate-500 font-bold text-xs">
-                پرونده‌ای در صف پرداخت فوری بانک وجود ندارد.
+          {/* Search & Filter Header */}
+          <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-xl bg-blue-900 text-amber-300 flex items-center justify-center font-black shadow-sm">
+                  <Car className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-blue-950">
+                    کارتابل ادعای بدنه - شرکت {companyInfo.name}
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    بررسی مستندات چندرسانه‌ای (عکس، ویدیو، صوت) و ارجاع هوشمند به نزدیک‌ترین شعبه و کارشناس میدانی
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-950 font-black text-xs border border-blue-200">
+                  {bodyClaimsList.length} پرونده ثبتی
+                </span>
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="relative sm:col-span-2">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={bodySearchTerm}
+                  onChange={(e) => setBodySearchTerm(e.target.value)}
+                  placeholder="جستجو با شماره پرونده بدنه، کدملی، پلاک، نام بیمه‌گذار یا آدرس..."
+                  className="w-full pr-10 pl-4 py-2.5 rounded-xl border-2 border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <select
+                  value={bodyStatusFilter}
+                  onChange={(e) => setBodyStatusFilter(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white"
+                >
+                  <option value="ALL">همه وضعیت‌ها</option>
+                  <option value="PENDING_DISPATCH">در انتظار ارجاع به کارشناس میدانی</option>
+                  <option value="FIELD_INSPECTING">در حال ارزیابی در شعبه / کارشناس میدانی</option>
+                  <option value="READY_FOR_PAYMENT">آماده پرداخت در خزانه‌داری</option>
+                  <option value="PAID">پرداخت شده</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Claims Table / Cards List */}
+            {bodyClaimsList.length === 0 ? (
+              <div className="py-12 text-center text-slate-500 space-y-2">
+                <Car className="w-10 h-10 mx-auto text-slate-400" />
+                <p className="text-xs font-bold">هیچ پرونده خسارت بدنه‌ای یافت نشد.</p>
               </div>
             ) : (
-              companyCases.filter((c) => c.status === 'در انتظار پرداخت' || c.payoutState === 'READY').map((c) => (
-                <div key={c.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex items-center justify-between text-xs font-bold">
-                  <div>
-                    <span className="font-extrabold font-mono text-blue-950 block">{c.id}</span>
-                    <span className="text-slate-700">{c.victimName} | شبا: {c.payoutInfo?.iban || '-'}</span>
-                  </div>
-                  <button
-                    onClick={() => onOpenCaseDetail(c.id)}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black"
-                  >
-                    انجام واریز
-                  </button>
-                </div>
-              ))
+              <div className="space-y-3.5">
+                {bodyClaimsList
+                  .filter((c) => {
+                    if (bodySearchTerm) {
+                      const t = bodySearchTerm.toLowerCase();
+                      const matchId = c.id.toLowerCase().includes(t);
+                      const matchName =
+                        c.victimName?.toLowerCase().includes(t) ||
+                        c.culpritName?.toLowerCase().includes(t);
+                      const matchPlate =
+                        c.victimPlate?.toLowerCase().includes(t) ||
+                        c.plate?.toLowerCase().includes(t);
+                      const matchNat =
+                        c.victimNationalId?.includes(t) ||
+                        c.bodyInsuranceInfo?.nationalId?.includes(t);
+                      const matchAddr = c.address?.toLowerCase().includes(t);
+                      if (!matchId && !matchName && !matchPlate && !matchNat && !matchAddr) {
+                        return false;
+                      }
+                    }
+
+                    if (bodyStatusFilter === 'PENDING_DISPATCH') {
+                      return (
+                        c.status.includes('ارجاع شده به شرکت بیمه') ||
+                        c.status.includes('در انتظار ارجاع') ||
+                        !c.assignedFieldExpert
+                      );
+                    }
+                    if (bodyStatusFilter === 'FIELD_INSPECTING') {
+                      return (
+                        c.status.includes('کارشناس میدانی') ||
+                        c.status.includes('در حال بازدید') ||
+                        c.status.includes('در حال ارزیابی')
+                      );
+                    }
+                    if (bodyStatusFilter === 'READY_FOR_PAYMENT') {
+                      return (
+                        c.status.includes('در انتظار پرداخت') ||
+                        c.status.includes('ارزیابی شده') ||
+                        c.status.includes('تایید شده')
+                      );
+                    }
+                    if (bodyStatusFilter === 'PAID') {
+                      return c.status.includes('پرداخت شده');
+                    }
+
+                    return true;
+                  })
+                  .map((claim) => {
+                    const hasAudio =
+                      !!claim.audioExplanation ||
+                      claim.files?.some((f) => f.type === 'audio' || f.name.includes('صوت'));
+                    const hasVideo =
+                      !!claim.videoExplanation ||
+                      claim.files?.some((f) => f.type === 'video' || f.name.includes('ویدیو'));
+                    const photoCount =
+                      claim.files?.filter((f) => f.type === 'image' || !f.type).length || 0;
+
+                    const isDispatched = !!claim.assignedFieldExpert;
+                    const isPaid = claim.status.includes('پرداخت شده');
+
+                    return (
+                      <div
+                        key={claim.id}
+                        className="bg-slate-50/80 hover:bg-white rounded-2xl border-2 border-slate-200 hover:border-blue-900 p-5 transition-all shadow-xs space-y-4"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+                          <div className="flex items-center gap-3">
+                            <span className="font-black text-sm text-blue-950 font-mono bg-blue-100 px-3 py-1 rounded-xl">
+                              {claim.id}
+                            </span>
+                            <div>
+                              <span className="font-extrabold text-xs text-slate-900 block">
+                                {claim.carType || claim.carModel || 'خودروی سواری'} - {claim.victimName}
+                              </span>
+                              <span className="text-[11px] text-slate-500 font-mono mt-0.5 block">
+                                پلاک: {claim.victimPlate || claim.plate} | کدملی: {claim.victimNationalId || '---'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-black border ${
+                                isPaid
+                                  ? 'bg-emerald-100 text-emerald-950 border-emerald-300'
+                                  : isDispatched
+                                  ? 'bg-indigo-100 text-indigo-950 border-indigo-300'
+                                  : 'bg-amber-100 text-amber-950 border-amber-300'
+                              }`}
+                            >
+                              {claim.status}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Middle info grid */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                          {/* Policy Info */}
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
+                            <span className="text-[10px] text-slate-500 font-bold block">
+                              مشخصات بیمه‌نامه بدنه:
+                            </span>
+                            <span className="font-bold text-slate-900 block text-[11px]">
+                              {claim.bodyInsuranceInfo?.insurerName || 'بیمه دانا'} (شماره: {claim.bodyInsuranceInfo?.policyNo || 'BD-1403'})
+                            </span>
+                            <span className="text-[10px] text-emerald-800 font-bold block">
+                              سقف تعهد: {claim.bodyInsuranceInfo?.coverageCeiling ? (claim.bodyInsuranceInfo.coverageCeiling / 1000000).toLocaleString('fa-IR') + ' میلیون تومان' : '۷۵۰ میلیون تومان'}
+                            </span>
+                          </div>
+
+                          {/* Location & Nearest Branch */}
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
+                            <span className="text-[10px] text-slate-500 font-bold block flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-rose-500" />
+                              <span>محل خودرو و شعبه ارجاعی:</span>
+                            </span>
+                            <span className="font-medium text-slate-700 block text-[11px] truncate" title={claim.address}>
+                              {claim.address || 'تهران'}
+                            </span>
+                            <span className="text-[10px] text-indigo-900 font-bold block truncate">
+                              شعبه: {claim.assignedBranch?.name || 'مرکز ارزیابی غرب آزادی'}
+                            </span>
+                          </div>
+
+                          {/* Multimedia Badges */}
+                          <div className="bg-white p-3 rounded-xl border border-slate-200 flex flex-col justify-center space-y-1.5">
+                            <span className="text-[10px] text-slate-500 font-bold block">مدارک چندرسانه‌ای:</span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {hasAudio && (
+                                <span className="px-2 py-0.5 rounded-md bg-sky-100 text-sky-900 font-black text-[10px] flex items-center gap-1">
+                                  <Mic className="w-3 h-3 text-sky-700" />
+                                  <span>صوت راننده</span>
+                                </span>
+                              )}
+                              {hasVideo && (
+                                <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-900 font-black text-[10px] flex items-center gap-1">
+                                  <Video className="w-3 h-3 text-rose-700" />
+                                  <span>ویدیو</span>
+                                </span>
+                              )}
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-800 font-bold text-[10px] flex items-center gap-1">
+                                <Camera className="w-3 h-3" />
+                                <span>{photoCount} عکس</span>
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Assigned Expert Info if dispatched */}
+                        {claim.assignedFieldExpert && (
+                          <div className="bg-indigo-50/70 border border-indigo-200 p-3 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <UserCheck className="w-4 h-4 text-indigo-900" />
+                              <span className="font-bold text-indigo-950">
+                                کارشناس میدانی منتصب: {claim.assignedFieldExpert.name} ({claim.assignedFieldExpert.phone})
+                              </span>
+                            </div>
+
+                            {claim.fieldVisitSchedule && (
+                              <div className="flex items-center gap-2 text-[11px] text-indigo-900 font-bold">
+                                <Calendar className="w-3.5 h-3.5" />
+                                <span>زمان بازدید: {claim.fieldVisitSchedule.scheduledDate} ساعت {claim.fieldVisitSchedule.scheduledTime}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Actions */}
+                        <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBodyCaseForReview(claim)}
+                            className="px-4 py-2 rounded-xl bg-slate-200/80 hover:bg-slate-300 text-slate-900 font-bold text-xs flex items-center gap-1.5 transition-all"
+                          >
+                            <Eye className="w-4 h-4" />
+                            <span>بررسی مدارک، صوت و ویدیو</span>
+                          </button>
+
+                          {!isDispatched && !isPaid && (
+                            <button
+                              type="button"
+                              onClick={() => openBodyDispatchModal(claim)}
+                              className="px-5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-md border border-blue-950 flex items-center gap-2 active:scale-95 transition-all"
+                            >
+                              <Compass className="w-4 h-4 text-amber-400" />
+                              <span>ارجاع به کارشناس میدانی و تعیین شعبه</span>
+                            </button>
+                          )}
+
+                          {isDispatched && !isPaid && (
+                            <button
+                              type="button"
+                              onClick={() => openBodyDispatchModal(claim)}
+                              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-indigo-950 font-bold text-xs border border-indigo-200 flex items-center gap-1.5"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>تغییر کارشناس یا شعبه</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
             )}
           </div>
-        </div>
-      )}
 
-      {/* VIEW 8: BODY CLAIM (ادعای بدنه) */}
-      {activeTab === 'bodyClaim' && (
-        <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <h2 className="text-lg font-black text-blue-950 flex items-center gap-2">
-              <Car className="w-5 h-5 text-blue-900" />
-              مدیریت پرونده‌های بیمه بدنه
-            </h2>
-          </div>
-          <p className="text-xs text-slate-700 leading-relaxed font-medium">
-            کلیه درخواست‌های اعلام خسارت بیمه بدنه پس از ارزیابی خودکار جهت دریافت داغی و صدور حواله در این بخش قابل پیگیری می‌باشند.
-          </p>
+          {/* MODAL 1: DISPATCH TO FIELD EXPERT & BRANCH ALLOCATION */}
+          {selectedBodyCaseForDispatch && (
+            <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+              <div className="bg-white rounded-3xl border-2 border-slate-200 max-w-2xl w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95 my-8 text-right">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-blue-900 text-amber-300 flex items-center justify-center font-bold">
+                      <Compass className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-blue-950">
+                        ارجاع پرونده بدنه به کارشناس میدانی و تعیین شعبه
+                      </h3>
+                      <span className="text-xs text-slate-500 font-mono">
+                        کد پرونده: {selectedBodyCaseForDispatch.id} | پلاک:{' '}
+                        {selectedBodyCaseForDispatch.victimPlate || selectedBodyCaseForDispatch.plate}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedBodyCaseForDispatch(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Customer Address & Smart Branch Calculation */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-slate-500 font-bold">آدرس اعلامی مشتری:</span>
+                    <span className="font-bold text-slate-900 truncate max-w-sm">
+                      {selectedBodyCaseForDispatch.address || 'تهران'}
+                    </span>
+                  </div>
+
+                  {(() => {
+                    const match = findBestMatchingBranch(
+                      companyCode,
+                      selectedBodyCaseForDispatch.address || '',
+                      'تهران'
+                    );
+                    return (
+                      <div className="bg-indigo-50 border border-indigo-200 p-3 rounded-xl space-y-1">
+                        <span className="text-indigo-950 font-black flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-700" />
+                          <span>پیشنهاد هوشمند سیستم: {match.matchReason}</span>
+                        </span>
+                        <p className="text-[11px] text-indigo-900 font-medium">
+                          مرکز پیشنهادی: <strong>{match.bestBranch.name}</strong> ({match.bestBranch.address})
+                        </p>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Form fields */}
+                <div className="space-y-4">
+                  {/* Select Branch */}
+                  <div>
+                    <label className="block text-xs font-black text-blue-950 mb-1.5">
+                      انتخاب شعبه / مرکز ارزیابی خسارت جهت حضور مشتری و کارشناس:
+                    </label>
+                    <select
+                      value={selectedBranchId}
+                      onChange={(e) => setSelectedBranchId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                    >
+                      {INSURANCE_BRANCHES.filter(
+                        (b) => b.insurerCode === companyCode || b.insurerCode === 'all'
+                      ).map((br) => (
+                        <option key={br.id} value={br.id}>
+                          {br.name} ({br.city}) - {br.phone}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Select Field Expert */}
+                  <div>
+                    <label className="block text-xs font-black text-blue-950 mb-1.5">
+                      انتخاب کارشناس میدانی (Field Surveyor):
+                    </label>
+                    <select
+                      value={selectedFieldExpertId}
+                      onChange={(e) => setSelectedFieldExpertId(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                    >
+                      {(INITIAL_FIELD_EXPERTS[companyCode] || INITIAL_FIELD_EXPERTS['dana'] || []).map(
+                        (exp) => (
+                          <option key={exp.id} value={exp.id}>
+                            {exp.name} - {exp.role} (تلفن: {exp.phone})
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Scheduled Date & Time */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 mb-1">
+                        تاریخ پیشنهادی مراجعه حضوری
+                      </label>
+                      <input
+                        type="text"
+                        value={scheduledVisitDate}
+                        onChange={(e) => setScheduledVisitDate(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-800 mb-1">
+                        ساعت پیشنهادی حضور
+                      </label>
+                      <input
+                        type="text"
+                        value={scheduledVisitTime}
+                        onChange={(e) => setScheduledVisitTime(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Dispatch Notes */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1">
+                      دستور کار و توضیحات مسئول بیمه برای کارشناس میدانی
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={dispatchInstructions}
+                      onChange={(e) => setDispatchInstructions(e.target.value)}
+                      className="w-full p-3 rounded-xl border-2 border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-900"
+                    />
+                  </div>
+                </div>
+
+                {/* SMS Dispatch Preview Box */}
+                {(() => {
+                  const availableFieldExperts = INITIAL_FIELD_EXPERTS[companyCode] || INITIAL_FIELD_EXPERTS['dana'] || [];
+                  const expertObj = availableFieldExperts.find((e) => e.id === selectedFieldExpertId) || availableFieldExperts[0] || { name: 'کارشناس میدانی', phone: '09129001001' };
+                  const branchObj = INSURANCE_BRANCHES.find((b) => b.id === selectedBranchId) || INSURANCE_BRANCHES[0];
+                  const cName = selectedBodyCaseForDispatch.victimName || selectedBodyCaseForDispatch.partyOneName || selectedBodyCaseForDispatch.culpritName || 'بیمه‌گذار';
+                  const cPhone = selectedBodyCaseForDispatch.victimPhone || selectedBodyCaseForDispatch.partyOnePhone || selectedBodyCaseForDispatch.culpritPhone || '09123456789';
+                  const accLoc = selectedBodyCaseForDispatch.address || selectedBodyCaseForDispatch.accidentLocation || 'محل حادثه';
+                  const vName = selectedBodyCaseForDispatch.carType || selectedBodyCaseForDispatch.carModel || selectedBodyCaseForDispatch.bodyInsuranceInfo?.carModel || 'خودرو';
+                  const pText = selectedBodyCaseForDispatch.victimPlate || selectedBodyCaseForDispatch.plate || selectedBodyCaseForDispatch.plateNumber || selectedBodyCaseForDispatch.bodyInsuranceInfo?.plate || '—';
+
+                  return (
+                    <div className="bg-slate-50 border border-slate-300 p-3.5 rounded-2xl text-xs space-y-2 text-slate-900">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-1.5 font-black text-slate-800">
+                          <Building2 className="w-4 h-4 text-blue-800" />
+                          <span>پیش‌نمایش پیامک‌های ارسالی با نشانی نزدیک‌ترین شعبه بیمه:</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-blue-900 bg-blue-100 px-2 py-0.5 rounded-full">
+                          ارسال خودکار به ۲ طرف
+                        </span>
+                      </div>
+
+                      <div className="flex gap-1.5 bg-slate-200/80 p-1 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => setModalSmsPreviewTab('EXPERT')}
+                          className={`flex-1 py-1.5 text-[11px] font-extrabold rounded-lg transition-all ${
+                            modalSmsPreviewTab === 'EXPERT'
+                              ? 'bg-white text-blue-950 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          ۱. پیامک به کارشناس میدانی
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setModalSmsPreviewTab('CUSTOMER')}
+                          className={`flex-1 py-1.5 text-[11px] font-extrabold rounded-lg transition-all ${
+                            modalSmsPreviewTab === 'CUSTOMER'
+                              ? 'bg-white text-emerald-950 shadow-xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          ۲. پیامک به بیمه‌گذار / مشتری
+                        </button>
+                      </div>
+
+                      <div className="bg-white p-3 rounded-xl border border-slate-200 text-[11px] text-slate-800 leading-relaxed font-sans font-medium whitespace-pre-line">
+                        {modalSmsPreviewTab === 'EXPERT' ? (
+                          <>
+                            <div className="text-[10px] text-blue-700 font-bold mb-1 border-b border-slate-100 pb-1">
+                              گیرنده: {expertObj.name} ({expertObj.phone})
+                            </div>
+                            {`کارشناس گرامی ${expertObj.name}،
+ماموریت ارزیابی میدانی پرونده بیمه بدنه ${selectedBodyCaseForDispatch.id} (${vName} - پلاک ${pText}) به شما محول گردید.
+📍 محل حادثه: ${accLoc}
+🏢 نزدیک‌ترین شعبه بیمه جهت حضور و هماهنگی: ${branchObj.name}
+📌 نشانی شعبه: ${branchObj.address}
+📞 تلفن شعبه: ${branchObj.phone}
+👤 بیمه‌گذار: ${cName} (همراه: ${cPhone})
+⏱ زمان پیشنهادی: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
+${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInstructions.trim()}` : ''}
+لطفاً جهت هماهنگی و حضور در محل یا شعبه اقدام فرمایید.
+شرکت ${getInsurerPersianName(companyCode)}`}
+                          </>
+                        ) : (
+                          <>
+                            <div className="text-[10px] text-emerald-700 font-bold mb-1 border-b border-slate-100 pb-1">
+                              گیرنده: {cName} ({cPhone})
+                            </div>
+                            {`بیمه‌گذار گرامی ${cName}،
+پرونده خسارت بدنه شما به شماره ${selectedBodyCaseForDispatch.id} به کارشناس رسمی میدانی جناب آقای/سرکار خانم ${expertObj.name} (همراه: ${expertObj.phone || '—'}) محول گردید.
+🏢 نزدیک‌ترین شعبه تخصصی پرداخت خسارت بر اساس آدرس حادثه شما:
+نام مرکز: ${branchObj.name}
+نشانی: ${branchObj.address}
+تلفن تماس: ${branchObj.phone}
+⏱ زمان پیشنهادی مراجعه: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
+لطفاً جهت رویت خودرو و تشکیل پرونده فیزیکی در محل حادثه یا شعبه مذکور حاضر باشید یا با کارشناس هماهنگ فرمایید.
+شرکت ${getInsurerPersianName(companyCode)}`}
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Buttons */}
+                <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBodyCaseForDispatch(null)}
+                    className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    انصراف
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleConfirmBodyDispatch}
+                    className="px-6 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-md border border-blue-950 flex items-center gap-2 active:scale-95"
+                  >
+                    <Send className="w-4 h-4 text-amber-400" />
+                    <span>تایید نهایی ارجاع به کارشناس میدانی</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* MODAL 2: FULL BODY CLAIM INSPECTOR & MULTIMEDIA VIEWER */}
+          {selectedBodyCaseForReview && (
+            <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+              <div className="bg-white rounded-3xl border-2 border-slate-200 max-w-4xl w-full p-6 space-y-6 shadow-2xl animate-in zoom-in-95 my-8 text-right">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-900 text-amber-300 flex items-center justify-center font-black">
+                      <FileText className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-blue-950">
+                        بررسی پرونده خسارت بدنه: {selectedBodyCaseForReview.id}
+                      </h3>
+                      <span className="text-xs text-slate-500 font-medium">
+                        {selectedBodyCaseForReview.carType || selectedBodyCaseForReview.carModel} - مالک: {selectedBodyCaseForReview.victimName}
+                      </span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setSelectedBodyCaseForReview(null)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Section 1: Accident Narrative */}
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
+                  <span className="font-black text-blue-950 block">شرح کتبی سانحه توسط راننده:</span>
+                  <p className="text-slate-700 leading-relaxed font-medium">
+                    {selectedBodyCaseForReview.writtenReport || 'شرح ثبت نشده است.'}
+                  </p>
+                  <div className="flex flex-wrap items-center justify-between pt-2 text-[11px] text-slate-500 border-t border-slate-200">
+                    <span>زمان وقوع: {selectedBodyCaseForReview.date}</span>
+                    <span>محل سانحه: {selectedBodyCaseForReview.address}</span>
+                  </div>
+                </div>
+
+                {/* Section 2: Audio Player for Driver Voice Note */}
+                {(selectedBodyCaseForReview.audioExplanation ||
+                  selectedBodyCaseForReview.files?.find((f) => f.type === 'audio' || f.name.includes('صوت'))) && (
+                  <div className="bg-sky-50 border-2 border-sky-200 p-4 rounded-2xl space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold">
+                          <Mic className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="font-black text-xs text-sky-950 block">
+                            صوت ضبط شده توضیحات راننده (Voice Note)
+                          </span>
+                          <span className="text-[10px] text-sky-800 font-medium">
+                            توضیحات زنده راننده پیرامون نحوه سانحه و قطعات آسیب‌دیده
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="px-2.5 py-1 rounded-full bg-sky-200 text-sky-950 font-bold text-[10px]">
+                        فایل صوتی ضمیمه
+                      </span>
+                    </div>
+
+                    <div className="bg-white p-3 rounded-xl border border-sky-200 flex items-center justify-between">
+                      <audio
+                        src={
+                          selectedBodyCaseForReview.audioExplanation?.dataUrl ||
+                          selectedBodyCaseForReview.files?.find(
+                            (f) => f.type === 'audio' || f.name.includes('صوت')
+                          )?.dataUrl ||
+                          'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+                        }
+                        controls
+                        className="w-full h-10"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Section 3: Walkaround Video Player */}
+                {(selectedBodyCaseForReview.videoExplanation ||
+                  selectedBodyCaseForReview.files?.find((f) => f.type === 'video' || f.name.includes('ویدیو'))) && (
+                  <div className="bg-slate-900 text-white p-4 rounded-2xl space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Video className="w-5 h-5 text-rose-400" />
+                      <span className="font-black text-xs text-white">
+                        ویدیوی بازبینی دور خودرو و جزئیات برخورد
+                      </span>
+                    </div>
+                    <video
+                      src={
+                        selectedBodyCaseForReview.videoExplanation?.dataUrl ||
+                        selectedBodyCaseForReview.files?.find(
+                          (f) => f.type === 'video' || f.name.includes('ویدیو')
+                        )?.dataUrl
+                      }
+                      controls
+                      className="w-full max-h-64 rounded-xl object-contain bg-black"
+                    />
+                  </div>
+                )}
+
+                {/* Section 4: Damage Photos Gallery */}
+                <div className="space-y-3">
+                  <span className="font-black text-xs text-blue-950 block">عکس‌های ارسالی از خسارت بدنه:</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {selectedBodyCaseForReview.files
+                      ?.filter((f) => f.type === 'image' || !f.type)
+                      .map((img, i) => (
+                        <div key={i} className="rounded-xl overflow-hidden border-2 border-slate-200 bg-slate-100 relative group">
+                          <img src={img.dataUrl} alt={img.name} className="w-full h-32 object-cover group-hover:scale-105 transition-transform" />
+                          <div className="absolute inset-x-0 bottom-0 bg-slate-950/70 p-1.5 text-center">
+                            <span className="text-[10px] text-white font-bold truncate block">{img.name}</span>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Close & Action button */}
+                <div className="flex items-center justify-between pt-4 border-t border-slate-200">
+                  <button
+                    onClick={() => setSelectedBodyCaseForReview(null)}
+                    className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
+                  >
+                    بستن پنجره
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const c = selectedBodyCaseForReview;
+                      setSelectedBodyCaseForReview(null);
+                      openBodyDispatchModal(c);
+                    }}
+                    className="px-6 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-md border border-blue-950 flex items-center gap-2 active:scale-95"
+                  >
+                    <Compass className="w-4 h-4 text-amber-400" />
+                    <span>ارجاع این پرونده به کارشناس میدانی و شعبه</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
     </div>
   );
 };
+
