@@ -1991,7 +1991,6 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           // 2. Damage Assessor Assessments (History and Current)
           if (claimCase.assessments && claimCase.assessments.length > 0) {
             claimCase.assessments.forEach((a, idx) => {
-              const payableAmt = a.payable || calc.insurerPayablePortion;
               const isLatestInList = idx === claimCase.assessments!.length - 1;
               const isObjectedStatus = Boolean(a.status?.includes('مورد اعتراض') || a.status === 'REJECTED');
               // A card is historical if:
@@ -2008,6 +2007,10 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
               const roundNum = a.roundIdx || idx + 1;
               const roundTitle = a.round || `ارزیابی نوبت ${roundNum}`;
+              const directDamageVal = Number(a.gross !== undefined ? a.gross : (a.parts && a.parts.length > 0 ? a.parts.reduce((s: number, p: any) => s + Number(p.partPrice || 0) + Number(p.repairPrice || 0), 0) : calc.directDamageAmount));
+              const salvageVal = Number(a.salvage !== undefined ? a.salvage : (a.parts && a.parts.length > 0 ? a.parts.reduce((s: number, p: any) => s + (p.salvageNeeded && p.salvageValue ? Number(p.salvageValue) : 0), 0) : 0));
+              const totalClaimVal = Math.max(0, (directDamageVal - salvageVal) + calc.diminutionAmount);
+              const payableAmt = Math.min(totalClaimVal, calc.policyMaxFinancialLimit);
 
               cards.push({
                 id: `card_desk_assessor_${idx}`,
@@ -2025,15 +2028,15 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 date: a.submittedAt || '۱۴۰۳/۱۱/۱۸',
                 verdict: isHistorical ? 'مورد اعتراض زیان‌دیده و ارجاع به کارشناسی نوبت بعد' : 'تایید کیفیت برآورد خسارت توسط بازبین ارشد بیمه‌گر',
                 verdictType: isHistorical ? 'warning' : 'info',
-                directDamage: a.gross || calc.directDamageAmount,
+                directDamage: directDamageVal,
                 diminution: calc.diminutionAmount,
                 diminutionPercent: calc.diminutionPercent,
-                salvage: a.deductions || calc.franchiseAmount || 0,
-                totalClaim: (a.gross || calc.directDamageAmount) + calc.diminutionAmount - (a.deductions || 0),
+                salvage: salvageVal,
+                totalClaim: totalClaimVal,
                 policyCeiling: calc.policyMaxFinancialLimit,
                 insurerPayable: payableAmt,
-                culpritDebt: calc.culpritExcessDebt,
-                exceedsCeiling: calc.exceedsCeiling,
+                culpritDebt: Math.max(0, totalClaimVal - calc.policyMaxFinancialLimit),
+                exceedsCeiling: totalClaimVal > calc.policyMaxFinancialLimit,
                 notes: a.reviewerNote || claimCase.assessment?.reviewerNote || 'برآورد هزینه تعویض و تعمیر قطعات با استعلام نرخ روز بازار و دستمزد اتحادیه',
                 officialInsuranceMessage: `زیان‌دیده گرامی (${claimCase.victimName || 'پریسا'})؛ برآورد خسارت پرونده ${claimCase.id} به مبلغ ${formatCurrency(payableAmt)} به تایید بازبین ارشد بیمه رسید. جهت دریافت خسارت، لطفاً شماره شبا را تایید نمایید.`,
                 victimSms: calc.victimSmsText,
@@ -2049,7 +2052,10 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             });
           } else if (claimCase.assessment && isDeskAssessmentCompleted && !hasFieldAssessment) {
             const isHistorical = Boolean(isWaitingForNewAssessment && (claimCase.objectionStage || 0) >= 1);
-            const payableAmt = claimCase.assessment.payable || calc.insurerPayablePortion;
+            const directDamageVal = Number(claimCase.assessment.gross !== undefined ? claimCase.assessment.gross : (claimCase.assessment.parts && claimCase.assessment.parts.length > 0 ? claimCase.assessment.parts.reduce((s: number, p: any) => s + Number(p.partPrice || 0) + Number(p.repairPrice || 0), 0) : calc.directDamageAmount));
+            const salvageVal = Number(claimCase.assessment.salvage !== undefined ? claimCase.assessment.salvage : (claimCase.assessment.parts && claimCase.assessment.parts.length > 0 ? claimCase.assessment.parts.reduce((s: number, p: any) => s + (p.salvageNeeded && p.salvageValue ? Number(p.salvageValue) : 0), 0) : 0));
+            const totalClaimVal = Math.max(0, (directDamageVal - salvageVal) + calc.diminutionAmount);
+            const payableAmt = Math.min(totalClaimVal, calc.policyMaxFinancialLimit);
             const currentRound = claimCase.assessment.version ? Number(claimCase.assessment.version) : 1;
 
             cards.push({
@@ -2068,15 +2074,15 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               date: claimCase.assessment.submittedAt || '۱۴۰۳/۱۱/۱۸',
               verdict: isHistorical ? 'مورد اعتراض زیان‌دیده و ارجاع به کارشناسی نوبت بعد' : 'تایید شده توسط بازبین ارشد شرکت بیمه',
               verdictType: isHistorical ? 'warning' : 'info',
-              directDamage: claimCase.assessment.gross || calc.directDamageAmount,
+              directDamage: directDamageVal,
               diminution: calc.diminutionAmount,
               diminutionPercent: calc.diminutionPercent,
-              salvage: claimCase.assessment.salvage || calc.franchiseAmount,
-              totalClaim: calc.totalClaimAmount,
+              salvage: salvageVal,
+              totalClaim: totalClaimVal,
               policyCeiling: calc.policyMaxFinancialLimit,
               insurerPayable: payableAmt,
-              culpritDebt: calc.culpritExcessDebt,
-              exceedsCeiling: calc.exceedsCeiling,
+              culpritDebt: Math.max(0, totalClaimVal - calc.policyMaxFinancialLimit),
+              exceedsCeiling: totalClaimVal > calc.policyMaxFinancialLimit,
               notes: claimCase.assessment.reviewerNote || 'برآورد هزینه‌های فیزیکی و دستمزد بر اساس نرخ‌های مصوب سندیکای بیمه‌گران',
               officialInsuranceMessage: `زیان‌دیده گرامی (${claimCase.victimName || 'پریسا'})؛ برآورد خسارت پرونده ${claimCase.id} به مبلغ ${formatCurrency(payableAmt)} به تایید بازبین ارشد بیمه رسید. جهت دریافت خسارت، لطفاً شماره شبا را تایید نمایید.`,
               victimSms: calc.victimSmsText,
@@ -2605,10 +2611,10 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                                         <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-extrabold text-[11px]">
                                           <th className="py-2 px-2.5">نام قطعه / بخش</th>
                                           <th className="py-2 px-2.5">نوع عملیات</th>
-                                          <th className="py-2 px-2.5">قیمت قطعه (ریال)</th>
-                                          <th className="py-2 px-2.5">اجرت کار (ریال)</th>
-                                          <th className="py-2 px-2.5">کسر داغی (ریال)</th>
-                                          <th className="py-2 px-2.5">مبلغ نهایی (ریال)</th>
+                                          <th className="py-2 px-2.5">قیمت قطعه</th>
+                                          <th className="py-2 px-2.5">اجرت کار</th>
+                                          <th className="py-2 px-2.5">کسر داغی</th>
+                                          <th className="py-2 px-2.5">مبلغ نهایی</th>
                                         </tr>
                                       </thead>
                                       <tbody className="divide-y divide-slate-200 text-slate-800 text-[11px]">
@@ -4311,10 +4317,10 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                           <th className="p-3 text-center w-12">#</th>
                           <th className="p-3">نام قطعه / شرح اقدام</th>
                           <th className="p-3">نوع عملیات</th>
-                          <th className="p-3 text-left">بهای قطعه (ریال)</th>
-                          <th className="p-3 text-left">اجرت تعمیر/نصب (ریال)</th>
+                          <th className="p-3 text-left">بهای قطعه</th>
+                          <th className="p-3 text-left">اجرت تعمیر/نصب</th>
                           <th className="p-3 text-left">داغی/استهلاک</th>
-                          <th className="p-3 text-left">مبلغ خالص مصوب (ریال)</th>
+                          <th className="p-3 text-left">مبلغ خالص مصوب</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">

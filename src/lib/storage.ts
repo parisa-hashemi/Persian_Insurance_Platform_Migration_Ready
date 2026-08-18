@@ -118,8 +118,15 @@ export function loadCasesFromStorage(): ClaimCase[] {
     const raw = localStorage.getItem(STORAGE_KEYS.CASES);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Merge missing seed cases for full insurer company coverage
+        const merged = [...parsed];
+        INITIAL_CASES.forEach(seed => {
+          if (!merged.some(m => m.id === seed.id)) {
+            merged.push(seed);
+          }
+        });
+        return merged;
       }
     }
   } catch (e) {
@@ -247,6 +254,181 @@ export function getInsurerPersianName(insurerStr?: string): string {
   if (clean === 'parsian' || clean.includes('پارسیان')) return 'بیمه پارسیان';
   if (!insurerStr.startsWith('بیمه')) return `بیمه ${insurerStr}`;
   return insurerStr;
+}
+
+export interface InsurerBrandConfig {
+  code: string;
+  name: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  headerBgGradient: string;
+  accentColor: string;
+  cardBorder: string;
+  accentBg: string;
+  subtextColor: string;
+  logoLetter: string;
+  tagline: string;
+}
+
+export function getInsurerBrandConfig(companyCode?: string, companyName?: string): InsurerBrandConfig {
+  const code = (companyCode || 'dana').toLowerCase().trim();
+  const name = companyName || getInsurerPersianName(code);
+
+  if (code === 'iran' || code.includes('iran') || name.includes('ایران')) {
+    return {
+      code: 'iran',
+      name: 'بیمه ایران',
+      badgeBg: 'bg-slate-900',
+      badgeText: 'text-amber-300',
+      badgeBorder: 'border-amber-400/60',
+      headerBgGradient: 'from-slate-950 via-slate-900 to-amber-950 text-white',
+      accentColor: 'text-amber-400',
+      cardBorder: 'border-amber-400/40',
+      accentBg: 'bg-amber-500 hover:bg-amber-400 text-slate-950',
+      subtextColor: 'text-amber-200/90',
+      logoLetter: 'ایران',
+      tagline: 'شرکت سهامی بیمه ایران • بزرگترین و نخستین بیمه‌گر دولتی کشور'
+    };
+  }
+
+  if (code === 'asia' || code.includes('asia') || name.includes('آسیا')) {
+    return {
+      code: 'asia',
+      name: 'بیمه آسیا',
+      badgeBg: 'bg-emerald-950',
+      badgeText: 'text-emerald-300',
+      badgeBorder: 'border-emerald-400/60',
+      headerBgGradient: 'from-emerald-950 via-teal-950 to-slate-950 text-white',
+      accentColor: 'text-emerald-400',
+      cardBorder: 'border-emerald-400/40',
+      accentBg: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950',
+      subtextColor: 'text-emerald-200/90',
+      logoLetter: 'آسیا',
+      tagline: 'بیمه آسیا • پیشرو در خدمت‌رسانی و ارزیابی هوشمند خسارت خودرو'
+    };
+  }
+
+  if (code === 'alborz' || code.includes('alborz') || name.includes('البرز')) {
+    return {
+      code: 'alborz',
+      name: 'بیمه البرز',
+      badgeBg: 'bg-purple-950',
+      badgeText: 'text-purple-300',
+      badgeBorder: 'border-purple-400/60',
+      headerBgGradient: 'from-purple-950 via-indigo-950 to-slate-950 text-white',
+      accentColor: 'text-purple-400',
+      cardBorder: 'border-purple-400/40',
+      accentBg: 'bg-purple-500 hover:bg-purple-400 text-white',
+      subtextColor: 'text-purple-200/90',
+      logoLetter: 'البرز',
+      tagline: 'بیمه البرز • توانگری مالی سطح یک و پرداخت برخط خسارات'
+    };
+  }
+
+  if (code === 'pasargad' || code.includes('pasargad') || name.includes('پاسارگاد')) {
+    return {
+      code: 'pasargad',
+      name: 'بیمه پاسارگاد',
+      badgeBg: 'bg-rose-950',
+      badgeText: 'text-rose-300',
+      badgeBorder: 'border-rose-400/60',
+      headerBgGradient: 'from-rose-950 via-red-950 to-slate-950 text-white',
+      accentColor: 'text-rose-400',
+      cardBorder: 'border-rose-400/40',
+      accentBg: 'bg-rose-500 hover:bg-rose-400 text-white',
+      subtextColor: 'text-rose-200/90',
+      logoLetter: 'پاسارگاد',
+      tagline: 'بیمه پاسارگاد • آرامش شما، هدف ماست'
+    };
+  }
+
+  if (code === 'parsian' || code.includes('parsian') || name.includes('پارسیان')) {
+    return {
+      code: 'parsian',
+      name: 'بیمه پارسیان',
+      badgeBg: 'bg-amber-950',
+      badgeText: 'text-amber-300',
+      badgeBorder: 'border-amber-400/60',
+      headerBgGradient: 'from-amber-950 via-orange-950 to-slate-950 text-white',
+      accentColor: 'text-amber-400',
+      cardBorder: 'border-amber-400/40',
+      accentBg: 'bg-amber-500 hover:bg-amber-400 text-slate-950',
+      subtextColor: 'text-amber-200/90',
+      logoLetter: 'پارسیان',
+      tagline: 'بیمه پارسیان • همراه مطمئن شما در جاده‌ها'
+    };
+  }
+
+  if (code === 'mellat' || code.includes('mellat') || name.includes('ملت')) {
+    return {
+      code: 'mellat',
+      name: 'بیمه ملت',
+      badgeBg: 'bg-teal-950',
+      badgeText: 'text-teal-300',
+      badgeBorder: 'border-teal-400/60',
+      headerBgGradient: 'from-teal-950 via-cyan-950 to-slate-950 text-white',
+      accentColor: 'text-teal-400',
+      cardBorder: 'border-teal-400/40',
+      accentBg: 'bg-teal-500 hover:bg-teal-400 text-slate-950',
+      subtextColor: 'text-teal-200/90',
+      logoLetter: 'ملت',
+      tagline: 'بیمه ملت • همراه خانواده‌ها و فعالان اقتصادی'
+    };
+  }
+
+  // Default / Dana / Custom Company
+  return {
+    code: code,
+    name: name,
+    badgeBg: 'bg-blue-950',
+    badgeText: 'text-cyan-300',
+    badgeBorder: 'border-cyan-400/60',
+    headerBgGradient: 'from-blue-950 via-indigo-950 to-slate-950 text-white',
+    accentColor: 'text-cyan-400',
+    cardBorder: 'border-blue-400/40',
+    accentBg: 'bg-blue-600 hover:bg-blue-500 text-white',
+    subtextColor: 'text-blue-200/90',
+    logoLetter: name.slice(0, 5),
+    tagline: `پورتال رسمی و اختصاصی مدیریت خسارت شرکت ${name}`
+  };
+}
+
+/**
+ * Checks whether a claim case strictly belongs to a specific insurance company.
+ * By legal insurance rules, Third-Party claims are strictly routed to the Culprit's Insurer (بیمه‌گر مقصر).
+ */
+export function isCaseBelongingToInsurer(
+  c: ClaimCase,
+  targetCompanyCode: string,
+  targetCompanyName?: string
+): boolean {
+  if (!c) return false;
+  const targetCode = (targetCompanyCode || '').toLowerCase().trim();
+  const targetPersian = (targetCompanyName || getInsurerPersianName(targetCode)).toLowerCase().trim();
+
+  // 1. Primary culprit insurer
+  const culpritInsurer = (c.culpritInsurer || '').toLowerCase().trim();
+  const culpritPersian = getInsurerPersianName(culpritInsurer).toLowerCase().trim();
+
+  if (culpritInsurer === targetCode || culpritPersian === targetPersian) return true;
+  if (targetCode && culpritInsurer && (culpritInsurer.includes(targetCode) || targetCode.includes(culpritInsurer))) {
+    if (culpritInsurer.length >= 3 && targetCode.length >= 3) return true;
+  }
+
+  // 2. Direct insurerCode or insuranceCompany match
+  const cInsurerCode = (c.insurerCode || '').toLowerCase().trim();
+  const cInsurerName = (c.insurerName || c.insuranceCompany || '').toLowerCase().trim();
+  if (cInsurerCode === targetCode || cInsurerName === targetPersian) return true;
+
+  // 3. For bodily claims specifically filed against victim's own policy (بیمه بدنه)
+  if (c.isBodyClaim || c.isBodily || c.id?.startsWith('BD-')) {
+    const victimInsurer = (c.victimInsurer || '').toLowerCase().trim();
+    const victimPersian = getInsurerPersianName(victimInsurer).toLowerCase().trim();
+    if (victimInsurer === targetCode || victimPersian === targetPersian) return true;
+  }
+
+  return false;
 }
 
 // ----------------------------------------------------
@@ -479,9 +661,90 @@ export function loadAssessorNotifications(): AssessorNotification[] {
 export function saveAssessorNotifications(notifications: AssessorNotification[]): void {
   try {
     localStorage.setItem(STORAGE_KEYS.ASSESSOR_NOTIFICATIONS, JSON.stringify(notifications));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('claimflow_notifications_updated'));
+    }
   } catch (e) {
     console.error('Error saving assessor notifications to storage:', e);
   }
+}
+
+export function addAssessorNotification(notif: AssessorNotification): void {
+  const existing = loadAssessorNotifications();
+  const updated = [notif, ...existing];
+  saveAssessorNotifications(updated);
+}
+
+export function sendCrmMessageToExpert(
+  expertId: string,
+  expertPhone: string | undefined,
+  caseId: string,
+  title: string,
+  message: string,
+  sender: { name: string; role: string; phone?: string }
+): AssessorNotification {
+  const now = new Date();
+  const notif: AssessorNotification = {
+    id: `notif-crm-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    type: 'CRM_MESSAGE',
+    caseId,
+    expertId,
+    recipientPhone: expertPhone,
+    senderPhone: sender.phone,
+    sender: sender.name,
+    senderRole: sender.role,
+    title: title || 'پیام فوری از امور مشتریان و CRM',
+    message,
+    sentAt: now.toISOString(),
+    date: now.toLocaleDateString('fa-IR'),
+    time: now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+    read: false,
+    requiresReply: true
+  };
+
+  addAssessorNotification(notif);
+  return notif;
+}
+
+export function requestCrmContactForCase(
+  caseId: string,
+  customerName: string,
+  customerPhone: string,
+  reason: string,
+  reasonType: string,
+  requester: { name: string; role: string; phone?: string },
+  priority: 'عادی' | 'مهم' | 'فوری و بحرانی' = 'مهم',
+  notes?: string
+): CrmFollowUpTask {
+  const now = new Date();
+  const task: CrmFollowUpTask = {
+    id: `TSK-REQ-${Date.now().toString().slice(-6)}`,
+    caseId,
+    customerName,
+    customerPhone,
+    reason,
+    targetDepartment: 'امور مشتریان',
+    assignedAgent: 'مرکز تماس و CRM',
+    priority,
+    dueDate: now.toLocaleDateString('fa-IR'),
+    status: 'در انتظار انجام',
+    notes: notes || '',
+    createdAt: `${now.toLocaleDateString('fa-IR')} ${now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`,
+    requestedByRole: requester.role,
+    requestedByName: requester.name,
+    requestedByPhone: requester.phone,
+    requestedReasonType: reasonType,
+    isOverdueAction: true,
+    contactAttemptsCount: 0
+  };
+
+  const existing = loadCrmFollowUpsFromStorage();
+  const updated = [task, ...existing];
+  saveCrmFollowUpsToStorage(updated);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('claimflow_crm_followups_updated', { detail: task }));
+  }
+  return task;
 }
 
 export function markAssessorNotificationAsRead(id: string): void {

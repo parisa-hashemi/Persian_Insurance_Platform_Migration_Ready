@@ -33,6 +33,9 @@ import { FinanceManagerPanel } from './components/FinancePortal/FinanceManagerPa
 // CRM & Support Components
 import { CrmSupportPanel } from './components/CrmPortal/CrmSupportPanel';
 
+// Senior Admin & System Management Component
+import { SeniorAdminPanel } from './components/AdminPortal/SeniorAdminPanel';
+
 export default function App() {
   const [cases, setCases] = useState<ClaimCase[]>(() => loadCasesFromStorage());
   const [session, setSession] = useState<UserSession | null>(() => loadSession());
@@ -48,8 +51,9 @@ export default function App() {
         return 'financePanel';
       case 'crm':
         return 'crmPanel';
-      case 'insurer':
       case 'admin':
+        return 'seniorAdminPanel';
+      case 'insurer':
         return 'insurerDashboard';
       case 'fieldexpert':
         return 'fieldExpertPanel';
@@ -135,8 +139,10 @@ export default function App() {
       case 'crm':
         setActiveView('crmPanel');
         break;
-      case 'insurer':
       case 'admin':
+        setActiveView('seniorAdminPanel');
+        break;
+      case 'insurer':
         setActiveView('insurerDashboard');
         break;
       case 'fieldexpert':
@@ -404,6 +410,44 @@ export default function App() {
             onOpenCaseForm={(caseId) => {
               setSelectedCaseId(caseId);
               setActiveView('insurerCaseDetail');
+            }}
+          />
+        )}
+
+        {/* View 14: Dedicated Senior Admin & System Management Panel */}
+        {activeView === 'seniorAdminPanel' && session && (
+          <SeniorAdminPanel
+            session={session}
+            onLogout={handleLogout}
+            onSwitchPortal={(targetPortal, mockSession) => {
+              if (mockSession) {
+                setSession(mockSession);
+                saveSession(mockSession);
+              }
+              switch (targetPortal) {
+                case 'insurer':
+                  setActiveView('insurerDashboard');
+                  break;
+                case 'expert':
+                case 'assessor':
+                  setActiveView('assessorPanel');
+                  break;
+                case 'fieldexpert':
+                  setActiveView('fieldExpertPanel');
+                  break;
+                case 'reviewer':
+                  setActiveView('reviewerPanel');
+                  break;
+                case 'finance':
+                  setActiveView('financePanel');
+                  break;
+                case 'crm':
+                  setActiveView('crmPanel');
+                  break;
+                default:
+                  setActiveView('insurerDashboard');
+                  break;
+              }
             }}
           />
         )}

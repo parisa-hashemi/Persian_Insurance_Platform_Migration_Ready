@@ -219,10 +219,6 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     {session.nationalId}
                   </span>
                 )}
-                <span className="flex items-center gap-1 text-emerald-700 font-extrabold">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  احراز هویت فعال
-                </span>
               </div>
             </div>
           </div>
@@ -351,67 +347,6 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 <ArrowLeft className="w-4 h-4" />
               </div>
             </div>
-          </div>
-
-          {/* Recent Cases Section Preview */}
-          <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-              <h2 className="font-extrabold text-blue-950 text-base flex items-center gap-2">
-                <Clock className="w-5 h-5 text-blue-900" />
-                آخرین پرونده‌های شما
-              </h2>
-              <button
-                onClick={() => setActiveTab('cases')}
-                className="text-xs font-bold text-blue-900 hover:text-blue-700 flex items-center gap-1"
-              >
-                <span>مشاهده همه ({myCases.length})</span>
-                <ArrowLeft className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
-            {myCases.length === 0 ? (
-              <div className="p-8 text-center text-slate-600 text-xs space-y-3">
-                <FolderSearch className="w-12 h-12 mx-auto text-amber-500" />
-                <p className="text-sm font-bold text-slate-900">هنوز پرونده‌ای برای شما ثبت نشده است.</p>
-                <p className="text-slate-600 text-xs max-w-md mx-auto font-medium">
-                  شما می‌توانید پس از وقوع تصادف، مستندات خود را به‌صورت آنلاین ثبت و کد پیگیری دریافت کنید.
-                </p>
-                <button
-                  onClick={onStartWizard}
-                  className="mt-2 px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs shadow-md border border-blue-950"
-                >
-                  ثبت اولین تصادف
-                </button>
-              </div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {myCases.slice(0, 3).map((c) => (
-                  <div
-                    key={c.id}
-                    onClick={() => onOpenCaseDetail(c.id)}
-                    className="py-3.5 flex items-center justify-between hover:bg-blue-50/60 px-3 rounded-2xl cursor-pointer transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-900 border border-blue-200 flex items-center justify-center font-mono font-black text-xs">
-                        CF
-                      </div>
-                      <div>
-                        <span className="font-black text-blue-950 text-sm font-mono">{c.id}</span>
-                        <span className="text-xs text-slate-600 block mt-0.5 font-medium">
-                          تاریخ: {c.date} | خودرو: {c.carType}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getStatusBadgeClass(c.status)}`}>
-                        {c.status}
-                      </span>
-                      <ArrowLeft className="w-4 h-4 text-slate-400" />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       )}

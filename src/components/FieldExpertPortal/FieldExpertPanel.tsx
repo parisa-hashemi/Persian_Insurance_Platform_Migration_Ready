@@ -560,7 +560,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
           time: nowTimeStr,
           user: session.name,
           userRole: 'کارشناس میدانی',
-          note: `اطلاعات و ارزیابی موقت پرونده با موفقیت ذخیره شد (تعداد قطعات: ${fieldParts.length}، عکس‌ها: ${fieldPhotos.length}، برآورد: ${formatCurrency(netPayable)} ریال). پرونده ارسال نشده و در کارتابل «در دست اقدام» کارشناس باقی ماند.`
+          note: `اطلاعات و ارزیابی موقت پرونده با موفقیت ذخیره شد (تعداد قطعات: ${fieldParts.length}، عکس‌ها: ${fieldPhotos.length}، برآورد: ${formatCurrency(netPayable)}). پرونده ارسال نشده و در کارتابل «در دست اقدام» کارشناس باقی ماند.`
         }
       ]
     };
@@ -891,7 +891,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
           time: nowTimeStr,
           user: session.name,
           userRole: 'کارشناس میدانی',
-          note: `تنظیم و ثبت نهایی گزارش میدانی توسط کارشناس «${session.name}» با مبلغ خالص ${formatCurrency(netPayable)} ریال (${formatCurrency(Math.round(netPayable / 10))} تومان) و ارسال مستقیم به واحد مالی و صدور حواله شرکت بیمه. اصالت‌سنجی: ${authVerdict === 'CONFIRMED' ? 'تایید اصالت' : authVerdict === 'PARTIAL_MISMATCH' ? 'عدم انطباق جزئی' : 'رد خسارت صوری'}.`
+          note: `تنظیم و ثبت نهایی گزارش میدانی توسط کارشناس «${session.name}» با مبلغ خالص ${formatCurrency(netPayable)} (${(Math.round(netPayable / 10)).toLocaleString('fa-IR')} تومان) و ارسال مستقیم به واحد مالی و صدور حواله شرکت بیمه. اصالت‌سنجی: ${authVerdict === 'CONFIRMED' ? 'تایید اصالت' : authVerdict === 'PARTIAL_MISMATCH' ? 'عدم انطباق جزئی' : 'رد خسارت صوری'}.`
         }
       ]
     };
@@ -2014,10 +2014,10 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       <th className="p-3">نام قطعه</th>
                       <th className="p-3">شدت آسیب</th>
                       <th className="p-3">نوع عملیات</th>
-                      <th className="p-3">قیمت قطعه (ریال)</th>
-                      <th className="p-3">اجرت (ریال)</th>
-                      <th className="p-3">ارزش داغی (ریال)</th>
-                      <th className="p-3">خالص آیتم (ریال)</th>
+                      <th className="p-3">قیمت قطعه</th>
+                      <th className="p-3">اجرت</th>
+                      <th className="p-3">ارزش داغی</th>
+                      <th className="p-3">خالص آیتم</th>
                       <th className="p-3">توضیحات</th>
                       {!isCaseReadOnly && <th className="p-3 text-center">عملیات</th>}
                     </tr>
@@ -2044,7 +2044,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                                   ? 'bg-amber-100 text-amber-900 border border-amber-200'
                                   : 'bg-yellow-100 text-yellow-900 border border-yellow-200'
                               }`}>
-                                {p.damageSeverity === 'major' ? '🔴 شدید' : p.damageSeverity === 'moderate' ? '🟠 متوسط' : '🟡 جزئی'}
+                                {p.damageSeverity === 'major' ? 'شدید' : p.damageSeverity === 'moderate' ? 'متوسط' : 'جزئی'}
                               </span>
                             </td>
                             <td className="p-3">
@@ -2080,23 +2080,23 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-2xl p-5 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs shadow-md">
                 <div>
                   <span className="text-slate-400 block text-[11px]">مجموع بهای قطعات:</span>
-                  <span className="font-mono text-sm sm:text-base font-black text-amber-300">{formatCurrency(totalPartsCost)} ریال</span>
-                  <span className="text-[10px] text-slate-400 block font-mono">({formatCurrency(Math.round(totalPartsCost / 10))} تومان)</span>
+                  <span className="font-mono text-sm sm:text-base font-black text-amber-300">{formatCurrency(totalPartsCost)}</span>
+                  <span className="text-[10px] text-slate-400 block font-mono">({(Math.round(totalPartsCost / 10)).toLocaleString('fa-IR')} تومان)</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[11px]">مجموع دستمزد و اجرت:</span>
-                  <span className="font-mono text-sm sm:text-base font-black text-slate-200">{formatCurrency(totalWageCost)} ریال</span>
-                  <span className="text-[10px] text-slate-400 block font-mono">({formatCurrency(Math.round(totalWageCost / 10))} تومان)</span>
+                  <span className="font-mono text-sm sm:text-base font-black text-slate-200">{formatCurrency(totalWageCost)}</span>
+                  <span className="text-[10px] text-slate-400 block font-mono">({(Math.round(totalWageCost / 10)).toLocaleString('fa-IR')} تومان)</span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[11px]">کسر ارزش داغی:</span>
-                  <span className="font-mono text-sm sm:text-base font-black text-rose-400">-{formatCurrency(totalScrapValue)} ریال</span>
-                  <span className="text-[10px] text-slate-400 block font-mono">({formatCurrency(Math.round(totalScrapValue / 10))} تومان)</span>
+                  <span className="font-mono text-sm sm:text-base font-black text-rose-400">-{formatCurrency(totalScrapValue)}</span>
+                  <span className="text-[10px] text-slate-400 block font-mono">({(Math.round(totalScrapValue / 10)).toLocaleString('fa-IR')} تومان)</span>
                 </div>
                 <div className="bg-emerald-600/30 p-2.5 rounded-xl border border-emerald-500/50">
                   <span className="text-emerald-300 block text-[11px] font-bold">خالص نهایی قابل پرداخت:</span>
-                  <span className="font-mono text-base sm:text-lg font-black text-white">{formatCurrency(netPayable)} ریال</span>
-                  <span className="text-[10px] text-emerald-200 block font-mono font-bold">({formatCurrency(Math.round(netPayable / 10))} تومان)</span>
+                  <span className="font-mono text-base sm:text-lg font-black text-white">{formatCurrency(netPayable)}</span>
+                  <span className="text-[10px] text-emerald-200 block font-mono font-bold">({(Math.round(netPayable / 10)).toLocaleString('fa-IR')} تومان)</span>
                 </div>
               </div>
 
@@ -2326,7 +2326,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   <div className="p-3.5 bg-white rounded-2xl border border-emerald-200 space-y-1">
                     <span className="text-slate-500 font-bold block">نتیجه اصالت‌سنجی:</span>
                     <span className="font-black text-slate-900 block text-xs">
-                      {authVerdict === 'CONFIRMED' ? '✅ تایید کامل اصالت' : authVerdict === 'PARTIAL_MISMATCH' ? '⚠️ عدم انطباق جزئی' : '❌ رد خسارت صوری'}
+                      {authVerdict === 'CONFIRMED' ? 'تایید کامل اصالت' : authVerdict === 'PARTIAL_MISMATCH' ? 'عدم انطباق جزئی' : 'رد خسارت صوری'}
                     </span>
                   </div>
 
@@ -2342,8 +2342,8 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
                   <div className="p-3.5 bg-white rounded-2xl border border-emerald-200 space-y-1">
                     <span className="text-slate-500 font-bold block">خالص قابل پرداخت:</span>
-                    <span className="font-black text-emerald-700 block font-mono text-sm">{formatCurrency(netPayable)} ریال</span>
-                    <span className="text-[10px] text-emerald-600 block font-mono">({formatCurrency(Math.round(netPayable / 10))} تومان)</span>
+                    <span className="font-black text-emerald-700 block font-mono text-sm">{formatCurrency(netPayable)}</span>
+                    <span className="text-[10px] text-emerald-600 block font-mono">({(Math.round(netPayable / 10)).toLocaleString('fa-IR')} تومان)</span>
                   </div>
                 </div>
 

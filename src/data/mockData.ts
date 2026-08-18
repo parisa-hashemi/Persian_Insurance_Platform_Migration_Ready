@@ -816,7 +816,457 @@ export const DEFAULT_THRESHOLDS: Record<string, ThresholdProfile> = {
   mellat: { minConfidence: 85, fraudSensitivity: 'متوسط', fastTrackCeiling: 50000000 },
 };
 
-export const INITIAL_CASES: ClaimCase[] = [];
+export const INITIAL_CASES: ClaimCase[] = [
+  // ----------------------------------------------------
+  // DANA INSURANCE CASES (بیمه دانا)
+  // ----------------------------------------------------
+  {
+    id: 'CF-9482-DN',
+    date: '۱۴۰۳/۰۵/۱۴ - ۰۹:۳۰',
+    address: 'تهران، بزرگراه نیایش غرب به شرق، نرسیده به تقاطع ولیعصر',
+    victimName: 'مهدی کشاورز',
+    victimPhone: '09123456789',
+    victimPlate: '۴۵ ب ۶۷۸ ایران ۲۲',
+    victimVin: 'IRAN229482710382',
+    victimInsurer: 'بیمه البرز',
+    culpritName: 'علیرضا حسینی',
+    culpritPhone: '09128881122',
+    culpritPlate: '۷۸ د ۴۳۲ ایران ۱۱',
+    culpritVin: 'IRAN118881122334',
+    culpritInsurer: 'dana',
+    insurerCode: 'dana',
+    insurerName: 'بیمه دانا',
+    carType: 'پژو ۲۰۶ تیپ ۵',
+    culpritCarType: 'دنا پلاس توربو',
+    plate: '۴۵ ب ۶۷۸ ایران ۲۲',
+    culpritPolicyNo: 'DAN-1403-99881',
+    culpritPolicyExpiry: '۱۴۰۴/۰۲/۱۵',
+    culpritCoverageFinancial: 600000000,
+    culpritPolicyVerified: true,
+    victimPolicyVerified: true,
+    culpritFaultPercent: 100,
+    status: 'در حال ارزیابی',
+    priority: 'عادی',
+    hasKroki: true,
+    croquiType: 'electronic',
+    sceneReportCode: 'POL-DANA-9981',
+    assignedExpert: {
+      id: 'd1',
+      name: 'محسن کریمی',
+      role: 'کارشناس ارزیاب خسارت',
+      phone: '09121111111'
+    },
+    iban: 'IR890120000000001234567890',
+    ibanConfirmed: true,
+    history: [
+      {
+        status: 'ثبت پرونده با کروکی الکترونیک راهور',
+        time: '۱۴۰۳/۰۵/۱۴ ۰۹:۳۵',
+        user: 'مهدی کشاورز',
+        userRole: 'زیان‌دیده',
+        note: 'ثبت برخط خسارت به طرفیت مقصر بیمه‌نامه دانا'
+      },
+      {
+        status: 'در حال ارزیابی',
+        time: '۱۴۰۳/۰۵/۱۴ ۱۰:۰۰',
+        user: 'سیستم هوشمند دانا',
+        userRole: 'بیمه‌گر',
+        note: 'تخصیص هوشمند به کارشناس ارزیاب (محسن کریمی)'
+      }
+    ]
+  },
+  {
+    id: 'CF-7120-DN',
+    date: '۱۴۰۳/۰۵/۱۵ - ۱۱:۴۵',
+    address: 'تهران، میدان تجریش، ابتدای خیابان باهنر',
+    victimName: 'سارا تهرانی',
+    victimPhone: '09351112233',
+    victimPlate: '۲۱ ج ۳۴۵ ایران ۶۶',
+    victimInsurer: 'بیمه ایران',
+    culpritName: 'کامران یوسفی',
+    culpritPhone: '09124445566',
+    culpritPlate: '۵۴ ق ۹۸۷ ایران ۷۷',
+    culpritInsurer: 'dana',
+    insurerCode: 'dana',
+    insurerName: 'بیمه دانا',
+    carType: 'تارا اتوماتیک',
+    culpritCarType: 'پژو پارس',
+    plate: '۲۱ ج ۳۴۵ ایران ۶۶',
+    culpritPolicyNo: 'DAN-1403-55412',
+    culpritFaultPercent: 100,
+    status: 'در انتظار پرداخت',
+    priority: 'مهم',
+    hasKroki: true,
+    croquiType: 'paper',
+    assessment: {
+      totalPartsPrice: 28500000,
+      totalWagePrice: 14000000,
+      totalDepreciation: 0,
+      totalDamage: 42500000,
+      payableAmount: 42500000,
+      assessedBy: 'محسن کریمی'
+    },
+    iban: 'IR120170000000112233445566',
+    ibanConfirmed: true,
+    history: [
+      {
+        status: 'ارزیابی و تایید مبلغ',
+        time: '۱۴۰۳/۰۵/۱۵ ۱۳:۰۰',
+        user: 'محسن کریمی',
+        userRole: 'ارزیاب خسارت',
+        note: 'برآورد خسارت به مبلغ ۴۲,۵۰۰,۰۰۰ تومان تایید گردید و به خزانه‌داری ارجاع شد.'
+      }
+    ]
+  },
+  {
+    id: 'CF-3391-DN',
+    date: '۱۴۰۳/۰۵/۱۲ - ۱۶:۲۰',
+    address: 'تهران، بزرگراه شیخ فضل‌الله، خروجی ستارخان',
+    victimName: 'پیمان صالحی',
+    victimPhone: '09129990011',
+    victimPlate: '۶۶ ط ۱۲۳ ایران ۳۳',
+    victimInsurer: 'بیمه آسیا',
+    culpritName: 'سعید مرادی',
+    culpritPhone: '09127776655',
+    culpritPlate: '۱۱ ل ۹۸۷ ایران ۲۲',
+    culpritInsurer: 'dana',
+    insurerCode: 'dana',
+    insurerName: 'بیمه دانا',
+    carType: 'شاهین G',
+    culpritCarType: 'پراید ۱۳۱',
+    plate: '۶۶ ط ۱۲۳ ایران ۳۳',
+    culpritPolicyNo: 'DAN-1402-88741',
+    culpritFaultPercent: 100,
+    status: 'پرداخت شده',
+    priority: 'عادی',
+    hasKroki: true,
+    assessment: {
+      totalPartsPrice: 19000000,
+      totalWagePrice: 8500000,
+      totalDepreciation: 0,
+      totalDamage: 27500000,
+      payableAmount: 27500000,
+      assessedBy: 'علیرضا اسدی'
+    },
+    iban: 'IR980180000000998877665544',
+    ibanConfirmed: true,
+    paymentReceipt: {
+      trackingNumber: 'PAY-DAN-994821',
+      date: '۱۴۰۳/۰۵/۱۳',
+      amount: 27500000,
+      status: 'SUCCESS',
+      bankName: 'بانک ملت'
+    }
+  },
+
+  // ----------------------------------------------------
+  // IRAN INSURANCE CASES (بیمه ایران)
+  // ----------------------------------------------------
+  {
+    id: 'CF-8821-IR',
+    date: '۱۴۰۳/۰۵/۱۶ - ۰۸:۱۵',
+    address: 'تهران، بزرگراه همت شرق به غرب، بعد از پل کردستان',
+    victimName: 'نوید رستگار',
+    victimPhone: '09121113344',
+    victimPlate: '۱۸ ص ۹۲۱ ایران ۱۱',
+    victimInsurer: 'بیمه پارسیان',
+    culpritName: 'محمدرضا حیدری',
+    culpritPhone: '09125556677',
+    culpritPlate: '۷۳ ط ۵۴۱ ایران ۳۳',
+    culpritInsurer: 'iran',
+    insurerCode: 'iran',
+    insurerName: 'بیمه ایران',
+    carType: 'سمند سورن پلاس',
+    culpritCarType: 'پژو ۲۰۷',
+    plate: '۱۸ ص ۹۲۱ ایران ۱۱',
+    culpritPolicyNo: 'IRN-1403-11229',
+    culpritPolicyExpiry: '۱۴۰۴/۰۱/۲۰',
+    culpritCoverageFinancial: 1000000000,
+    culpritPolicyVerified: true,
+    victimPolicyVerified: true,
+    culpritFaultPercent: 100,
+    status: 'در حال ارزیابی',
+    priority: 'مهم',
+    hasKroki: true,
+    croquiType: 'electronic',
+    sceneReportCode: 'POL-IRAN-4491',
+    assignedExpert: {
+      id: 'i1',
+      name: 'محمدرضا حیدری',
+      role: 'ارزیاب ارشد خسارت',
+      phone: '09121111114'
+    },
+    iban: 'IR550190000000334455667788',
+    ibanConfirmed: true,
+    history: [
+      {
+        status: 'ارجاع به شرکت بیمه ایران',
+        time: '۱۴۰۳/۰۵/۱۶ ۰۸:۲۰',
+        user: 'سیستم سنهاب',
+        userRole: 'بیمه مرکزی',
+        note: 'پرونده با توجه به بیمه‌نامه مقصر به شرکت سهامی بیمه ایران ارجاع گردید.'
+      }
+    ]
+  },
+  {
+    id: 'CF-5540-IR',
+    date: '۱۴۰۳/۰۵/۱۵ - ۱۴:۰۰',
+    address: 'تهران، بزرگراه اشرفی اصفهانی، نبش خیابان پونک',
+    victimName: 'حامد صادقی',
+    victimPhone: '09192223344',
+    victimPlate: '۳۳ س ۵۶۷ ایران ۲۲',
+    victimInsurer: 'بیمه دانا',
+    culpritName: 'بیژن عباسی',
+    culpritPhone: '09126667788',
+    culpritPlate: '۸۸ و ۱۲۳ ایران ۱۱',
+    culpritInsurer: 'iran',
+    insurerCode: 'iran',
+    insurerName: 'بیمه ایران',
+    carType: 'پژو پارس TU5',
+    culpritCarType: 'ام‌وی‌ام X33',
+    plate: '۳۳ س ۵۶۷ ایران ۲۲',
+    culpritPolicyNo: 'IRN-1403-77665',
+    culpritFaultPercent: 100,
+    status: 'در انتظار ارجاع به کارشناس میدانی',
+    priority: 'عادی',
+    hasKroki: false,
+    needsCulpritFieldVisit: true,
+    history: [
+      {
+        status: 'ثبت بدون کروکی',
+        time: '۱۴۰۳/۰۵/۱۵ ۱۴:۱۰',
+        user: 'حامد صادقی',
+        userRole: 'زیان‌دیده',
+        note: 'پرونده بدون کروکی ثبت و به بیمه ایران جهت اعزام کارشناس میدانی ارسال گردید.'
+      }
+    ]
+  },
+  {
+    id: 'CF-1109-IR',
+    date: '۱۴۰۳/۰۵/۱۱ - ۱۰:۳۰',
+    address: 'تهران، بلوار کشاورز، تقاطع کارگر شمالی',
+    victimName: 'رویا فراهانی',
+    victimPhone: '09127778899',
+    victimPlate: '۹۴ م ۳۲۱ ایران ۲۲',
+    victimInsurer: 'بیمه ملت',
+    culpritName: 'فرشاد نصیری',
+    culpritPhone: '09128889900',
+    culpritPlate: '۱۲ ب ۸۷۶ ایران ۴۴',
+    culpritInsurer: 'iran',
+    insurerCode: 'iran',
+    insurerName: 'بیمه ایران',
+    carType: 'هایما S7 توربو',
+    culpritCarType: 'پراید ۱۱۱',
+    plate: '۹۴ م ۳۲۱ ایران ۲۲',
+    culpritPolicyNo: 'IRN-1402-99312',
+    culpritFaultPercent: 100,
+    status: 'پرداخت شده',
+    priority: 'عادی',
+    hasKroki: true,
+    assessment: {
+      totalPartsPrice: 58000000,
+      totalWagePrice: 22000000,
+      totalDepreciation: 0,
+      totalDamage: 80000000,
+      payableAmount: 80000000,
+      assessedBy: 'محمدرضا حیدری'
+    },
+    iban: 'IR440150000000889900112233',
+    ibanConfirmed: true,
+    paymentReceipt: {
+      trackingNumber: 'PAY-IRN-884912',
+      date: '۱۴۰۳/۰۵/۱۳',
+      amount: 80000000,
+      status: 'SUCCESS',
+      bankName: 'بانک ملی ایران'
+    }
+  },
+
+  // ----------------------------------------------------
+  // ASIA INSURANCE CASES (بیمه آسیا)
+  // ----------------------------------------------------
+  {
+    id: 'CF-6632-AS',
+    date: '۱۴۰۳/۰۵/۱۶ - ۱۰:۱۰',
+    address: 'تهران، خیابان شریعتی، بالاتر از پل رومی',
+    victimName: 'فرناز مقدم',
+    victimPhone: '09123334455',
+    victimPlate: '۶۱ ن ۴۳۲ ایران ۵۵',
+    victimInsurer: 'بیمه ایران',
+    culpritName: 'اردوان شمس',
+    culpritPhone: '09124443322',
+    culpritPlate: '۳۳ د ۸۷۶ ایران ۲۲',
+    culpritInsurer: 'asia',
+    insurerCode: 'asia',
+    insurerName: 'بیمه آسیا',
+    carType: 'کوییک R پلاس',
+    culpritCarType: 'رنو ساندرو',
+    plate: '۶۱ ن ۴۳۲ ایران ۵۵',
+    culpritPolicyNo: 'ASI-1403-66441',
+    culpritFaultPercent: 100,
+    status: 'در انتظار ارجاع به ارزیاب',
+    priority: 'عادی',
+    hasKroki: true,
+    croquiType: 'electronic',
+    sceneReportCode: 'POL-ASIA-8821',
+    history: [
+      {
+        status: 'تخصیص به بیمه آسیا',
+        time: '۱۴۰۳/۰۵/۱۶ ۱۰:۱۵',
+        user: 'سامانه سنهاب',
+        userRole: 'سیستم',
+        note: 'پرونده با توجه به بیمه‌نامه آسیا مقصر ثبت گردید.'
+      }
+    ]
+  },
+  {
+    id: 'CF-4098-AS',
+    date: '۱۴۰۳/۰۵/۱۴ - ۱۵:۳۰',
+    address: 'تهران، میدان ونک، خیابان ملاصدرا',
+    victimName: 'امید سعیدی',
+    victimPhone: '09125554433',
+    victimPlate: '۸۸ ق ۷۶۵ ایران ۳۳',
+    victimInsurer: 'بیمه البرز',
+    culpritName: 'منصور قاسمی',
+    culpritPhone: '09129998877',
+    culpritPlate: '۲۲ ج ۳۴۱ ایران ۱۱',
+    culpritInsurer: 'asia',
+    insurerCode: 'asia',
+    insurerName: 'بیمه آسیا',
+    carType: 'شاهین G',
+    culpritCarType: 'پژو ۴۰۵',
+    plate: '۸۸ ق ۷۶۵ ایران ۳۳',
+    culpritPolicyNo: 'ASI-1403-12890',
+    culpritFaultPercent: 100,
+    status: 'در انتظار بررسی بازبین',
+    priority: 'مهم',
+    hasKroki: true,
+    assessment: {
+      totalPartsPrice: 34000000,
+      totalWagePrice: 15000000,
+      totalDepreciation: 0,
+      totalDamage: 49000000,
+      payableAmount: 49000000,
+      assessedBy: 'کارشناس ارزیاب آسیا'
+    }
+  },
+
+  // ----------------------------------------------------
+  // ALBORZ INSURANCE CASES (بیمه البرز)
+  // ----------------------------------------------------
+  {
+    id: 'CF-5512-AL',
+    date: '۱۴۰۳/۰۵/۱۵ - ۱۷:۴۰',
+    address: 'تهران، بزرگراه ستاری شمال، تقاطع بلوار فردوس',
+    victimName: 'شهاب فتوحی',
+    victimPhone: '09126665544',
+    victimPlate: '۷۲ ط ۸۹۰ ایران ۲۲',
+    victimInsurer: 'بیمه دانا',
+    culpritName: 'مهرداد پاکزاد',
+    culpritPhone: '09128883344',
+    culpritPlate: '۴۴ ل ۲۳۱ ایران ۱۱',
+    culpritInsurer: 'alborz',
+    insurerCode: 'alborz',
+    insurerName: 'بیمه البرز',
+    carType: 'جک S5 اتوماتیک',
+    culpritCarType: 'پژو پارس',
+    plate: '۷۲ ط ۸۹۰ ایران ۲۲',
+    culpritPolicyNo: 'ALB-1403-33901',
+    culpritFaultPercent: 100,
+    status: 'در حال ارزیابی',
+    priority: 'مهم',
+    hasKroki: true,
+    croquiType: 'electronic',
+    assignedExpert: {
+      id: 'al1',
+      name: 'مهدی خسروی',
+      role: 'ارزیاب رسمی البرز',
+      phone: '09121111112'
+    }
+  },
+
+  // ----------------------------------------------------
+  // PASARGAD INSURANCE CASES (بیمه پاسارگاد)
+  // ----------------------------------------------------
+  {
+    id: 'CF-8341-PA',
+    date: '۱۴۰۳/۰۵/۱۶ - ۱۲:۰۰',
+    address: 'تهران، سعادت‌آباد، میدان کاج',
+    victimName: 'مریم بهرامی',
+    victimPhone: '09127771122',
+    victimPlate: '۵۵ ب ۶۵۴ ایران ۳۳',
+    victimInsurer: 'بیمه ایران',
+    culpritName: 'بهنام یزدانی',
+    culpritPhone: '09124449988',
+    culpritPlate: '۱۹ د ۹۸۲ ایران ۲۲',
+    culpritInsurer: 'pasargad',
+    insurerCode: 'pasargad',
+    insurerName: 'بیمه پاسارگاد',
+    carType: 'چانگان CS35',
+    culpritCarType: 'دنا پلاس',
+    plate: '۵۵ ب ۶۵۴ ایران ۳۳',
+    culpritPolicyNo: 'PAS-1403-88201',
+    culpritFaultPercent: 100,
+    status: 'در انتظار ارجاع به ارزیاب',
+    priority: 'عادی',
+    hasKroki: true
+  },
+
+  // ----------------------------------------------------
+  // MELLAT INSURANCE CASES (بیمه ملت)
+  // ----------------------------------------------------
+  {
+    id: 'CF-7719-ML',
+    date: '۱۴۰۳/۰۵/۱۵ - ۱۸:۳۰',
+    address: 'تهران، بزرگراه رسالت، بعد از پل سیدخندان',
+    victimName: 'کیوان اسماعیلی',
+    victimPhone: '09128882233',
+    victimPlate: '۳۱ ج ۴۵۶ ایران ۲۲',
+    victimInsurer: 'بیمه آسیا',
+    culpritName: 'دارا نیکوکار',
+    culpritPhone: '09123338877',
+    culpritPlate: '۷۷ ط ۱۲۹ ایران ۱۱',
+    culpritInsurer: 'mellat',
+    insurerCode: 'mellat',
+    insurerName: 'بیمه ملت',
+    carType: 'ام‌وی‌ام X22 پرو',
+    culpritCarType: 'پژو ۲۰۶',
+    plate: '۳۱ ج ۴۵۶ ایران ۲۲',
+    culpritPolicyNo: 'MEL-1403-44129',
+    culpritFaultPercent: 100,
+    status: 'در حال ارزیابی',
+    priority: 'عادی',
+    hasKroki: true
+  },
+
+  // ----------------------------------------------------
+  // PARSIAN INSURANCE CASES (بیمه پارسیان)
+  // ----------------------------------------------------
+  {
+    id: 'CF-6211-PR',
+    date: '۱۴۰۳/۰۵/۱۶ - ۰۷:۴۵',
+    address: 'محور کرج - چالوس، بعد از تونل ۵',
+    victimName: 'سیروس میرزایی',
+    victimPhone: '09129993344',
+    victimPlate: '۹۱ ل ۸۷۲ ایران ۶۶',
+    victimInsurer: 'بیمه البرز',
+    culpritName: 'رامین گودرزی',
+    culpritPhone: '09126661122',
+    culpritPlate: '۴۲ ص ۳۱۹ ایران ۲۲',
+    culpritInsurer: 'parsian',
+    insurerCode: 'parsian',
+    insurerName: 'بیمه پارسیان',
+    carType: 'کی‌ام‌سی T8',
+    culpritCarType: 'پژو پارس',
+    plate: '۹۱ ل ۸۷۲ ایران ۶۶',
+    culpritPolicyNo: 'PAR-1403-90812',
+    culpritFaultPercent: 100,
+    status: 'در انتظار ارجاع به ارزیاب',
+    priority: 'مهم',
+    hasKroki: true,
+    croquiType: 'electronic'
+  }
+];
 
 export const INITIAL_EXPERT_COMPLAINTS: import('../types').ExpertComplaint[] = [];
 

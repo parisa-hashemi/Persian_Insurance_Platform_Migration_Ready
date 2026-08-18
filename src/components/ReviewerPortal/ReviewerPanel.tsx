@@ -640,7 +640,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <span>📋 دارای کروکی پلیس</span>
+                  <span>دارای کروکی پلیس</span>
                 </button>
 
                 <button
@@ -652,7 +652,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <span>🚗 خودروهای پژو</span>
+                  <span>خودروهای پژو</span>
                 </button>
 
                 <button
@@ -664,7 +664,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <span>🚙 خودروهای سایپا</span>
+                  <span>خودروهای سایپا</span>
                 </button>
 
                 <button
@@ -676,7 +676,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <span>💰 دارای افت قیمت</span>
+                  <span>دارای افت قیمت</span>
                 </button>
 
                 <button
@@ -688,7 +688,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
-                  <span>⚠️ عودت داده شده</span>
+                  <span>عودت داده شده</span>
                 </button>
               </div>
 
@@ -2415,15 +2415,15 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                           </span>
                           {isApproved ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 border border-emerald-200">
-                              ✓ تایید شده
+                              تایید شده
                             </span>
                           ) : isReturned ? (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-200">
-                              ⚠️ عودت داده شده
+                              عودت داده شده
                             </span>
                           ) : (
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 border border-amber-200">
-                              ⏱️ در انتظار بررسی
+                              در انتظار بررسی
                             </span>
                           )}
                         </div>

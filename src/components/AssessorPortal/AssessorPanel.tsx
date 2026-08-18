@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ClipboardCheck,
   CheckCircle2,
@@ -69,7 +69,8 @@ import {
   markAssessorNotificationAsRead,
   expireCaseManuallyForTesting,
   calculateAssessorSlaDetail,
-  adjustCaseAssignmentTimeForTesting
+  adjustCaseAssignmentTimeForTesting,
+  requestCrmContactForCase
 } from '../../lib/storage';
 import { rialToPersianToman } from '../../lib/numberToPersianWords';
 import { INITIAL_REVIEWERS } from '../../data/mockData';
@@ -213,6 +214,27 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   } | null>(null);
   const [smsNotifications, setSmsNotifications] = useState<AssessorNotification[]>(() => loadAssessorNotifications());
 
+  // CRM Contact Request State
+  const [showCrmRequestModal, setShowCrmRequestModal] = useState(false);
+  const [crmRequestReasonType, setCrmRequestReasonType] = useState('MISSING_DOCS');
+  const [crmRequestReasonText, setCrmRequestReasonText] = useState('نقص تصاویر و بارگذاری عکس واضح از قطعات');
+  const [crmRequestPriority, setCrmRequestPriority] = useState<'عادی' | 'مهم' | 'فوری و بحرانی'>('مهم');
+  const [crmRequestNotes, setCrmRequestNotes] = useState('');
+  const [crmRequestSuccessMsg, setCrmRequestSuccessMsg] = useState<string | null>(null);
+
+  // Sync Notifications from Storage & Window Events
+  useEffect(() => {
+    const handleSync = () => {
+      setSmsNotifications(loadAssessorNotifications());
+    };
+    window.addEventListener('claimflow_notifications_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('claimflow_notifications_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
   const assessorSmsList = useMemo(() => {
     return smsNotifications.filter((n) => !n.expertId || n.expertId === session.id);
   }, [smsNotifications, session.id]);
@@ -231,6 +253,45 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const handleMarkSingleSmsAsRead = (id: string) => {
     markAssessorNotificationAsRead(id);
     setSmsNotifications(loadAssessorNotifications());
+  };
+
+  const handleSubmitCrmContactRequest = () => {
+    if (!activeCase) return;
+    requestCrmContactForCase(
+      activeCase.id,
+      activeCase.victimName,
+      activeCase.victimPhone,
+      crmRequestReasonText,
+      crmRequestReasonType,
+      {
+        name: session.name,
+        role: session.roleTitle || 'کارشناس ارزیاب خسارت',
+        phone: session.phone
+      },
+      crmRequestPriority,
+      crmRequestNotes
+    );
+
+    const updatedHistory = [
+      ...(activeCase.history || []),
+      {
+        date: new Date().toLocaleDateString('fa-IR'),
+        time: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+        action: `درخواست تماس فوری امور مشتریان (CRM) توسط کارشناس ارزیاب (${session.name}): «${crmRequestReasonText}»`,
+        actor: session.name,
+        role: 'کارشناس ارزیاب'
+      }
+    ];
+
+    onUpdateCase({
+      ...activeCase,
+      history: updatedHistory
+    });
+
+    setCrmRequestSuccessMsg(`درخواست تماس با مشتری با موفقیت به واحد امور مشتریان (CRM) ارسال و در کارت اقدامات معوق ثبت گردید.`);
+    setShowCrmRequestModal(false);
+    setCrmRequestNotes('');
+    setTimeout(() => setCrmRequestSuccessMsg(null), 5000);
   };
 
   const handleSimulate72hExpiry = (c: ClaimCase) => {
@@ -1814,11 +1875,22 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     برآورد نهایی و ثبت
                   </button>
 
+                  {/* Button to request CRM Support to call customer */}
+                  <button
+                    type="button"
+                    onClick={() => setShowCrmRequestModal(true)}
+                    className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer mr-auto"
+                    title="ارجاع به امور مشتریان (CRM) جهت تماس تلفنی برای تکمیل مدارک، شبا یا رفع تاخیر"
+                  >
+                    <Headphones className="w-4 h-4 text-slate-950" />
+                    <span>درخواست تماس CRM با مشتری</span>
+                  </button>
+
                   {previousAssessmentsList.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setSelectedPrevAssessmentModal(previousAssessmentsList[0])}
-                      className="px-3.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 font-black text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer mr-auto"
+                      className="px-3.5 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 text-amber-950 border border-amber-300 font-black text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
                       title="دیدن صفحه و کلیه ارزیابی‌های کارشناس قبلی"
                     >
                       <History className="w-4 h-4 text-amber-700" />
@@ -2032,7 +2104,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                               <tr>
                                 <th className="p-2.5">نام قطعه / عملیات</th>
                                 <th className="p-2.5">نوع اقدام</th>
-                                <th className="p-2.5">قیمت قطعه (ریال)</th>
+                                <th className="p-2.5">قیمت قطعه</th>
                                 <th className="p-2.5">اجرت تعمیر / صافکاری</th>
                                 <th className="p-2.5">کسر داغی</th>
                                 <th className="p-2.5">جمع ردیف</th>
@@ -5046,7 +5118,9 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   <div
                     key={sms.id}
                     className={`p-4 rounded-2xl border transition-all ${
-                      sms.type === 'TIMEOUT_ALERT'
+                      sms.type === 'CRM_MESSAGE'
+                        ? 'bg-purple-50/95 border-purple-300 text-purple-950 shadow-xs'
+                        : sms.type === 'TIMEOUT_ALERT'
                         ? 'bg-rose-50/90 border-rose-200 text-rose-950'
                         : sms.type === 'REASSIGNMENT'
                         ? 'bg-amber-50/90 border-amber-200 text-amber-950'
@@ -5055,7 +5129,11 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   >
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="flex items-center gap-2">
-                        {sms.type === 'TIMEOUT_ALERT' ? (
+                        {sms.type === 'CRM_MESSAGE' ? (
+                          <div className="w-8 h-8 rounded-xl bg-purple-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+                            <Headphones className="w-4 h-4 stroke-[2.5]" />
+                          </div>
+                        ) : sms.type === 'TIMEOUT_ALERT' ? (
                           <div className="w-8 h-8 rounded-xl bg-rose-200/80 text-rose-800 flex items-center justify-center shrink-0">
                             <Timer className="w-4 h-4 stroke-[2.5]" />
                           </div>
@@ -5065,14 +5143,21 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                           </div>
                         )}
                         <div>
-                          <h4 className="font-extrabold text-xs flex items-center gap-2">
-                            <span>{sms.title}</span>
-                            {!sms.read && (
-                              <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="font-extrabold text-xs flex items-center gap-1.5">
+                              <span>{sms.title}</span>
+                              {!sms.read && (
+                                <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                              )}
+                            </h4>
+                            {sms.type === 'CRM_MESSAGE' && (
+                              <span className="px-2 py-0.5 rounded-full bg-purple-200 text-purple-900 font-black text-[9px]">
+                                پیام امور مشتریان (CRM)
+                              </span>
                             )}
-                          </h4>
+                          </div>
                           <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono mt-0.5">
-                            <span>فرستنده: {sms.senderPhone || '10008445'}</span>
+                            <span>فرستنده: {sms.sender || sms.senderPhone || 'واحد امور مشتریان'}</span>
                             <span>|</span>
                             <span>{sms.date} - {sms.time}</span>
                             {sms.caseId && (
@@ -5096,7 +5181,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       )}
                     </div>
 
-                    <div className="p-3 bg-white/80 rounded-xl border border-slate-200/80 text-xs font-medium leading-relaxed">
+                    <div className="p-3 bg-white/90 rounded-xl border border-slate-200/80 text-xs font-medium leading-relaxed">
                       {sms.message}
                     </div>
 
@@ -5123,6 +5208,117 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 className="px-4 py-2 rounded-xl bg-slate-900 text-white font-extrabold text-xs hover:bg-slate-800 transition-all"
               >
                 بستن
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CRM REQUEST CONTACT MODAL */}
+      {showCrmRequestModal && activeCase && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl space-y-5 border-2 border-amber-400 animate-in zoom-in-95 text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-xs">
+                  <Headphones className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">
+                    درخواست تماس فوری امور مشتریان (CRM) با مشتری
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    پرونده {activeCase.id} • مخاطب: {activeCase.victimName} ({activeCase.victimPhone})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCrmRequestModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-black text-slate-800 mb-1">
+                  علت ارجاع به امور مشتریان:
+                </label>
+                <select
+                  value={crmRequestReasonText}
+                  onChange={(e) => {
+                    setCrmRequestReasonText(e.target.value);
+                    if (e.target.value.includes('شبا')) setCrmRequestReasonType('MISSING_IBAN');
+                    else if (e.target.value.includes('تصاویر') || e.target.value.includes('مدارک')) setCrmRequestReasonType('MISSING_DOCS');
+                    else setCrmRequestReasonType('FOLLOW_UP');
+                  }}
+                  className="w-full p-2.5 rounded-xl border border-slate-300 text-xs font-bold focus:outline-none focus:border-amber-500"
+                >
+                  <option value="نقص تصاویر و بارگذاری عکس واضح از قطعات">نقص تصاویر و بارگذاری عکس واضح از قطعات</option>
+                  <option value="عدم ثبت یا مغایرت شماره شبای زیان‌دیده جهت واریز خسارت">عدم ثبت یا مغایرت شماره شبای زیان‌دیده جهت واریز خسارت</option>
+                  <option value="عدم پاسخ یا تایید مبلغ ارزیابی توسط زیان‌دیده">عدم پاسخ یا تایید مبلغ ارزیابی توسط زیان‌دیده</option>
+                  <option value="نیاز به بارگذاری کروکی پلیس و گزارش حادثه">نیاز به بارگذاری کروکی پلیس و گزارش حادثه</option>
+                  <option value="هماهنگی حضور خودرو در تعمیرگاه / مرکز بازدید">هماهنگی حضور خودرو در تعمیرگاه / مرکز بازدید</option>
+                  <option value="سایر موارد و پیگیری ضروری">سایر موارد و پیگیری ضروری</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-800 mb-1">
+                  سطح اولویت پیگیری:
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['عادی', 'مهم', 'فوری و بحرانی'] as const).map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setCrmRequestPriority(p)}
+                      className={`py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                        crmRequestPriority === p
+                          ? p === 'فوری و بحرانی'
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : p === 'مهم'
+                            ? 'bg-amber-500 text-slate-950 shadow-xs'
+                            : 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-slate-800 mb-1">
+                  توضیحات و نکات کارشناس برای تیم پشتیبانی امور مشتریان:
+                </label>
+                <textarea
+                  rows={3}
+                  value={crmRequestNotes}
+                  onChange={(e) => setCrmRequestNotes(e.target.value)}
+                  placeholder="نکات خاصی که کارشناس امور مشتریان باید هنگام تماس به زیان‌دیده اعلام کند..."
+                  className="w-full p-3 rounded-xl border border-slate-300 text-xs font-medium focus:outline-none focus:border-amber-500 leading-relaxed"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleSubmitCrmContactRequest}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs shadow-md transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+              >
+                <Send className="w-4 h-4" />
+                <span>ارسال درخواست به کارتابل اقدامات معوق CRM</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCrmRequestModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold"
+              >
+                انصراف
               </button>
             </div>
           </div>
@@ -5468,10 +5664,10 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                           <th className="p-3.5">ردیف</th>
                           <th className="p-3.5">نام قطعه / بخش خودرو</th>
                           <th className="p-3.5">نوع اقدام</th>
-                          <th className="p-3.5">قیمت قطعه (ریال)</th>
-                          <th className="p-3.5">اجرت تعمیر / نقاشی (ریال)</th>
-                          <th className="p-3.5">کسر داغی (ریال)</th>
-                          <th className="p-3.5">جمع کل ردیف (ریال)</th>
+                          <th className="p-3.5">قیمت قطعه</th>
+                          <th className="p-3.5">اجرت تعمیر / نقاشی</th>
+                          <th className="p-3.5">کسر داغی</th>
+                          <th className="p-3.5">جمع کل ردیف</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-medium text-slate-800 bg-white">

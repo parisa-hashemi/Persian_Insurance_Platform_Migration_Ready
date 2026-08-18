@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Building2,
   FolderOpen,
@@ -56,6 +56,9 @@ import { findBestMatchingBranch, INSURANCE_BRANCHES, InsuranceBranch } from '../
 import {
   formatCurrency,
   getInsurerPersianName,
+  getInsurerBrandConfig,
+  isCaseBelongingToInsurer,
+  loadInsurersFromStorage,
   loadExpertsFromStorage,
   saveExpertsToStorage,
   loadComplaintsFromStorage,
@@ -96,11 +99,13 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [selectedProvince, setSelectedProvince] = useState('');
 
-  const companyCode = session.company || 'iran';
-  const companyInfo = INSURER_COMPANIES.find((c) => c.code === companyCode) || {
-    code: 'iran',
-    name: 'بیمه ایران'
+  const allInsurers = useMemo(() => loadInsurersFromStorage(), []);
+  const companyCode = session.company || session.id || 'dana';
+  const companyInfo = allInsurers.find((c) => c.code === companyCode) || {
+    code: companyCode,
+    name: session.companyName || session.name || getInsurerPersianName(companyCode)
   };
+  const brand = getInsurerBrandConfig(companyCode, companyInfo.name);
 
   // Experts management state
   const [expertsMap, setExpertsMap] = useState<Record<string, StaffMember[]>>(() => loadExpertsFromStorage());
@@ -342,15 +347,10 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
   };
 
 
-  // Filter cases relevant to this insurer
-  const companyCases = cases.filter(
-    (c) =>
-      c.culpritInsurer === companyCode ||
-      c.victimInsurer === companyCode ||
-      (companyInfo && getInsurerPersianName(c.culpritInsurer) === companyInfo.name) ||
-      (companyInfo && getInsurerPersianName(c.victimInsurer) === companyInfo.name) ||
-      true // Show all cases for full demo completeness
-  );
+  // Strictly filter cases relevant to this insurer ONLY (Multi-tenant company isolation)
+  const companyCases = useMemo(() => {
+    return cases.filter((c) => isCaseBelongingToInsurer(c, companyCode, companyInfo.name));
+  }, [cases, companyCode, companyInfo.name]);
 
   // Status matching helper for cards and filters
   const matchesCardStatus = (caseStatus: string | undefined, cardStatus: string): boolean => {
@@ -454,9 +454,11 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
   const [modalSmsPreviewTab, setModalSmsPreviewTab] = useState<'EXPERT' | 'CUSTOMER'>('EXPERT');
   const [dispatchSuccessToast, setDispatchSuccessToast] = useState<string | null>(null);
 
-  const bodyClaimsList = cases.filter(
-    (c) => c.isBodily || c.isBodyClaim || c.id.startsWith('BD-')
-  );
+  const bodyClaimsList = useMemo(() => {
+    return cases.filter(
+      (c) => (c.isBodily || c.isBodyClaim || c.id.startsWith('BD-')) && isCaseBelongingToInsurer(c, companyCode, companyInfo.name)
+    );
+  }, [cases, companyCode, companyInfo.name]);
 
   const openBodyDispatchModal = (claim: ClaimCase) => {
     setSelectedBodyCaseForDispatch(claim);
@@ -645,20 +647,77 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in" dir="rtl">
       
-      {/* TOP SUB-NAVIGATION HEADER BAR (As shown in reference image) */}
+      {/* DYNAMIC COMPANY BRAND HERO BANNER */}
+      <div className={`rounded-3xl p-5 sm:p-6 bg-gradient-to-l ${brand.headerBgGradient} shadow-lg border ${brand.cardBorder} relative overflow-hidden`}>
+        {/* Subtle background ambient graphic */}
+        <div className="absolute top-0 left-0 -translate-x-12 -translate-y-12 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 right-0 translate-x-12 translate-y-12 w-64 h-64 bg-white/5 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-5">
+          {/* Company Identity */}
+          <div className="flex items-center gap-4">
+            <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl ${brand.badgeBg} border-2 ${brand.badgeBorder} shadow-inner flex items-center justify-center font-black text-xl sm:text-2xl ${brand.badgeText} shrink-0`}>
+              <Building2 className="w-8 h-8" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
+                  پورتال اختصاصی و مجزای {companyInfo.name}
+                </h1>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black ${brand.badgeBg} ${brand.badgeText} border ${brand.badgeBorder}`}>
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  سامانه برخط سنهاب
+                </span>
+              </div>
+              <p className={`text-xs sm:text-sm font-medium ${brand.subtextColor}`}>
+                {brand.tagline}
+              </p>
+              <div className="flex flex-wrap items-center gap-3 pt-1 text-[11px] text-slate-300">
+                <span>شناسه ثبتی / کد شرکت: <strong className="text-white font-mono">{companyCode.toUpperCase()}</strong></span>
+                <span>•</span>
+                <span>تعداد کل پرونده‌های تخصیصی: <strong className="text-white font-mono">{companyCases.length}</strong> پرونده</span>
+                <span>•</span>
+                <span>ارزیابان فعال: <strong className="text-white font-mono">{currentCompanyExperts.filter(e => e.active !== false).length}</strong> کارشناس</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions & Role indicator */}
+          <div className="flex items-center gap-2 shrink-0 self-start md:self-center">
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl px-3.5 py-2 border border-white/15 text-right">
+              <span className="text-[10px] text-slate-300 block font-bold">کاربر وارد شده</span>
+              <span className="text-xs font-black text-white block">
+                {session.name || `مدیر خسارت ${companyInfo.name}`}
+              </span>
+            </div>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="px-3 py-2 rounded-2xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 hover:text-white transition-all border border-rose-400/30 text-xs font-black flex items-center gap-1.5"
+                title="خروج از حساب"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>خروج</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* TOP SUB-NAVIGATION HEADER BAR */}
       <div className="bg-white border-2 border-slate-200 rounded-2xl p-2.5 shadow-sm flex flex-wrap items-center justify-between gap-3">
         
-        {/* Right side: Company Badge & Role */}
+        {/* Right side: Company Mini Badge */}
         <div className="flex items-center gap-3 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-blue-900 text-amber-400 flex items-center justify-center font-bold shadow-sm">
+          <div className={`w-9 h-9 rounded-xl ${brand.badgeBg} ${brand.badgeText} border ${brand.badgeBorder} flex items-center justify-center font-bold shadow-sm`}>
             <Building2 className="w-5 h-5" />
           </div>
           <div>
-            <span className="font-extrabold text-sm text-blue-950 block">
+            <span className="font-extrabold text-sm text-slate-900 block">
               {companyInfo.name}
             </span>
             <span className="text-[11px] text-slate-500 font-bold block">
-              کارشناس {companyInfo.name}
+              کنسول ارزیابی و مدیریت پرونده‌ها
             </span>
           </div>
         </div>
@@ -687,7 +746,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             }`}
           >
             <FolderOpen className="w-4 h-4" />
-            <span>پرونده‌ها</span>
+            <span>پرونده‌ها ({companyCases.length})</span>
           </button>
 
           <button
@@ -747,21 +806,10 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             }`}
           >
             <Car className="w-4 h-4" />
-            <span>ادعای بدنه</span>
+            <span>ادعای بدنه ({bodyClaimsList.length})</span>
           </button>
 
         </div>
-
-        {/* Left side: Exit / Logout */}
-        {onLogout && (
-          <button
-            onClick={onLogout}
-            className="p-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 transition-colors border border-rose-200 shrink-0 font-bold"
-            title="خروج"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-        )}
 
       </div>
 
@@ -771,11 +819,11 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
           
           {/* Header Greeting Title */}
           <div className="space-y-1">
-            <h1 className="text-2xl font-black text-blue-950 tracking-tight">
-              داشبورد مدیریت پرونده‌های بیمه
-            </h1>
-            <p className="text-xs text-slate-600 font-bold">
-              خوش آمدید به درگاه سازمانی {companyInfo.name}
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">
+              میز کار خسارت {companyInfo.name}
+            </h2>
+            <p className="text-xs text-slate-500 font-bold">
+              وضعیت پرونده‌های ارجاع‌شده بر اساس مقصر بودن بیمه‌گذار در حادثه
             </p>
           </div>
 

@@ -40,7 +40,20 @@ import {
   Compass,
   Zap,
   Clock,
-  Server
+  Server,
+  FileText,
+  Calendar,
+  CreditCard,
+  Headphones,
+  Download,
+  Car,
+  AlertCircle,
+  Camera,
+  UserCheck,
+  BarChart3,
+  SlidersHorizontal,
+  ChevronRight,
+  ChevronLeft
 } from 'lucide-react';
 import {
   InsurerInfo,
@@ -62,16 +75,19 @@ import {
   saveFinanceStaffToStorage,
   loadCrmStaffFromStorage,
   saveCrmStaffToStorage,
-  loadCasesFromStorage
+  loadCasesFromStorage,
+  saveCasesToStorage,
+  isCaseBelongingToInsurer,
+  getInsurerPersianName
 } from '../../lib/storage';
 
 interface SeniorAdminPanelProps {
-  session: UserSession;
+  session?: UserSession;
   onLogout: () => void;
   onSwitchPortal?: (targetView: string, targetSession?: UserSession) => void;
 }
 
-type AdminTab = 'companies' | 'staff' | 'overview' | 'settings';
+type AdminTab = 'companies' | 'staff' | 'cases' | 'overview';
 
 const SPECIALTIES_LIST = [
   'خسارت بدنه و صافکاری',
@@ -104,6 +120,13 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
   const [staffSearch, setStaffSearch] = useState('');
   const [selectedCompanyFilter, setSelectedCompanyFilter] = useState<string>('all');
   const [selectedRoleCategory, setSelectedRoleCategory] = useState<string>('all');
+
+  // Cases Tab Filters
+  const [caseSearch, setCaseSearch] = useState('');
+  const [caseCompanyFilter, setCaseCompanyFilter] = useState<string>('all');
+  const [caseStatusFilter, setCaseStatusFilter] = useState<string>('all');
+  const [caseTypeFilter, setCaseTypeFilter] = useState<string>('all');
+  const [inspectingCase, setInspectingCase] = useState<ClaimCase | null>(null);
 
   // Modals state
   const [isAddCompanyModalOpen, setIsAddCompanyModalOpen] = useState(false);
@@ -202,13 +225,18 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
       setFinanceStaff(loadFinanceStaffFromStorage());
       setCrmStaff(loadCrmStaffFromStorage());
     };
+    const handleCaseUpdate = () => {
+      setCases(loadCasesFromStorage());
+    };
 
     window.addEventListener('claimflow_insurers_updated', handleInsurerUpdate);
     window.addEventListener('claimflow_staff_updated', handleStaffUpdate);
+    window.addEventListener('storage', refreshAllData);
 
     return () => {
       window.removeEventListener('claimflow_insurers_updated', handleInsurerUpdate);
       window.removeEventListener('claimflow_staff_updated', handleStaffUpdate);
+      window.removeEventListener('storage', refreshAllData);
     };
   }, []);
 
@@ -317,6 +345,58 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
       );
     });
   }, [insurers, companySearch]);
+
+  // Filtered Cases for Cases Tab
+  const filteredCasesList = useMemo(() => {
+    return cases.filter((c) => {
+      // Company match (Strict Multi-tenant isolation helper)
+      const matchCompany =
+        caseCompanyFilter === 'all' ||
+        isCaseBelongingToInsurer(c, caseCompanyFilter) ||
+        c.insurerId === caseCompanyFilter ||
+        c.thirdPartyInsurerId === caseCompanyFilter ||
+        c.bodyInsuranceCompany === caseCompanyFilter;
+
+      // Status match
+      let matchStatus = true;
+      if (caseStatusFilter !== 'all') {
+        matchStatus = c.status === caseStatusFilter;
+      }
+
+      // Type match (bodily vs third party)
+      let matchType = true;
+      if (caseTypeFilter === 'bodily') {
+        matchType = !!(c.isBodyClaim || c.isBodily || c.id?.startsWith('BD-'));
+      } else if (caseTypeFilter === 'thirdparty') {
+        matchType = !(c.isBodyClaim || c.isBodily || c.id?.startsWith('BD-'));
+      }
+
+      // Query match
+      const q = caseSearch.toLowerCase().trim();
+      const matchQuery =
+        !q ||
+        c.id.toLowerCase().includes(q) ||
+        c.trackingCode?.toLowerCase().includes(q) ||
+        c.claimantNationalId?.includes(q) ||
+        c.claimantPhone?.includes(q) ||
+        c.atFaultNationalId?.includes(q) ||
+        c.policyNumber?.toLowerCase().includes(q) ||
+        c.claimantName?.toLowerCase().includes(q) ||
+        c.atFaultName?.toLowerCase().includes(q) ||
+        c.victimName?.toLowerCase().includes(q) ||
+        c.culpritName?.toLowerCase().includes(q) ||
+        c.claimantPlate?.includes(q) ||
+        c.atFaultPlate?.includes(q) ||
+        c.victimPlate?.includes(q) ||
+        c.culpritPlate?.includes(q) ||
+        c.carModel?.toLowerCase().includes(q) ||
+        c.victimVehicle?.toLowerCase().includes(q) ||
+        c.culpritVehicle?.toLowerCase().includes(q) ||
+        c.insurerName?.toLowerCase().includes(q);
+
+      return matchCompany && matchStatus && matchType && matchQuery;
+    });
+  }, [cases, caseCompanyFilter, caseStatusFilter, caseTypeFilter, caseSearch]);
 
   // Statistics
   const totalCompanies = insurers.length;
@@ -580,7 +660,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
     const mockSession: UserSession = {
       id: targetStaff ? targetStaff.id : `admin-${companyCode}-${roleType}`,
       role: roleType as any,
-      name: targetStaff ? targetStaff.name : `مدیر ارشد ${comp?.name || companyCode}`,
+      name: targetStaff ? targetStaff.name : `مدیر ${comp?.name || companyCode}`,
       company: companyCode,
       companyName: comp?.name || companyCode,
       phone: targetStaff?.phone || '09121112233',
@@ -589,7 +669,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
     };
 
     let targetView = 'insurer';
-    if (roleType === 'expert' || roleType === 'assessor') targetView = 'expert';
+    if (roleType === 'expert' || roleType === 'assessor') targetView = 'assessor';
     else if (roleType === 'reviewer') targetView = 'reviewer';
     else if (roleType === 'fieldexpert') targetView = 'fieldexpert';
     else if (roleType === 'finance') targetView = 'finance';
@@ -598,11 +678,31 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
     onSwitchPortal(targetView, mockSession);
   };
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'PENDING_EXPERT':
+        return <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-full text-[11px] font-bold">در انتظار ارزیابی کارشناس</span>;
+      case 'FIELD_VISIT_REQUIRED':
+        return <span className="bg-orange-500/20 text-orange-300 border border-orange-500/30 px-2.5 py-1 rounded-full text-[11px] font-bold">ارجاع به بازدید میدانی</span>;
+      case 'PENDING_REVIEW':
+        return <span className="bg-blue-500/20 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded-full text-[11px] font-bold">در انتظار تایید بازبین کیفیت</span>;
+      case 'PENDING_PAYOUT':
+        return <span className="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-2.5 py-1 rounded-full text-[11px] font-bold">در صف واریز شبا و صدور حواله</span>;
+      case 'PAID':
+      case 'SETTLED':
+        return <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-1 rounded-full text-[11px] font-bold">تسویه و پرداخت کامل</span>;
+      case 'REJECTED':
+        return <span className="bg-rose-500/20 text-rose-300 border border-rose-500/30 px-2.5 py-1 rounded-full text-[11px] font-bold">مردود شده</span>;
+      default:
+        return <span className="bg-slate-700 text-slate-300 px-2.5 py-1 rounded-full text-[11px] font-bold">{status}</span>;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 font-sans pb-16" dir="rtl">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-indigo-600 text-white px-5 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 border border-indigo-400 animate-bounce">
+        <div className="fixed bottom-6 right-6 z-50 bg-blue-600 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-blue-400 animate-bounce">
           <Sparkles className="w-5 h-5 text-amber-300" />
           <span className="font-semibold text-sm">{toastMessage}</span>
         </div>
@@ -612,7 +712,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
       <header className="bg-slate-950/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-40 px-4 sm:px-8 py-3.5">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20 text-white">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/20 text-white">
               <ShieldCheck className="w-6 h-6" />
             </div>
             <div>
@@ -626,7 +726,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                 </span>
               </div>
               <p className="text-xs text-slate-400 hidden sm:block">
-                مرکز کنترل شرکت‌های بیمه، ارزیابان، بازبینان، کادر میدانی، مالی و CRM سراسر کشور
+                مرکز کنترل شرکت‌های بیمه، ارزیابان، بازبینان، کادر میدانی، مالی، CRM و پرونده‌های خسارت
               </p>
             </div>
           </div>
@@ -638,7 +738,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
               title="به‌روزرسانی داده‌ها"
             >
               <RefreshCw className="w-4 h-4" />
-              <span className="hidden md:inline">همگام‌سازی</span>
+              <span className="hidden md:inline">همگام‌سازی داده‌ها</span>
             </button>
             <button
               onClick={onLogout}
@@ -655,7 +755,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
       <main className="max-w-7xl mx-auto px-4 sm:px-8 mt-6">
         {/* KPI High-Level Stats Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
+          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
             <div className="flex items-center justify-between text-slate-400 mb-2">
               <span className="text-xs font-medium">شرکت‌های بیمه</span>
               <Building2 className="w-4 h-4 text-blue-400" />
@@ -666,29 +766,29 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
             </div>
           </div>
 
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
+          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
             <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-medium">ارزیابان آنلاین</span>
+              <span className="text-xs font-medium">ارزیابان خسارت</span>
               <Users className="w-4 h-4 text-indigo-400" />
             </div>
             <div className="flex items-baseline justify-between">
               <span className="text-2xl font-black text-white">{totalAssessors}</span>
-              <span className="text-[11px] font-medium text-indigo-400">کارشناس</span>
+              <span className="text-[11px] font-medium text-indigo-400">کارشناس آنلاین</span>
             </div>
           </div>
 
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
+          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
             <div className="flex items-center justify-between text-slate-400 mb-2">
               <span className="text-xs font-medium">بازبینان کیفیت</span>
               <FileCheck2 className="w-4 h-4 text-emerald-400" />
             </div>
             <div className="flex items-baseline justify-between">
               <span className="text-2xl font-black text-white">{totalReviewers}</span>
-              <span className="text-[11px] font-medium text-emerald-400">ناظر عالی</span>
+              <span className="text-[11px] font-medium text-emerald-400">ناظر کیفی</span>
             </div>
           </div>
 
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
+          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
             <div className="flex items-center justify-between text-slate-400 mb-2">
               <span className="text-xs font-medium">کارشناسان میدانی</span>
               <MapPin className="w-4 h-4 text-amber-400" />
@@ -699,7 +799,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
             </div>
           </div>
 
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
+          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
             <div className="flex items-center justify-between text-slate-400 mb-2">
               <span className="text-xs font-medium">کادر مالی و پایا</span>
               <DollarSign className="w-4 h-4 text-purple-400" />
@@ -710,24 +810,24 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
             </div>
           </div>
 
-          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between">
+          <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-4 flex flex-col justify-between shadow-sm">
             <div className="flex items-center justify-between text-slate-400 mb-2">
-              <span className="text-xs font-medium">امور مشتریان و CRM</span>
-              <PhoneCall className="w-4 h-4 text-pink-400" />
+              <span className="text-xs font-medium">کل پرونده‌های ثبت‌شده</span>
+              <FileText className="w-4 h-4 text-pink-400" />
             </div>
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl font-black text-white">{totalCrm}</span>
-              <span className="text-[11px] font-medium text-pink-400">رسیدگی شکایات</span>
+              <span className="text-2xl font-black text-white">{cases.length}</span>
+              <span className="text-[11px] font-medium text-pink-400">پرونده فعال</span>
             </div>
           </div>
         </div>
 
         {/* Tab Navigation Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3 mb-6">
-          <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+          <div className="flex items-center gap-1.5 bg-slate-950 p-1.5 rounded-2xl border border-slate-800">
             <button
               onClick={() => setActiveTab('companies')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
                 activeTab === 'companies'
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -739,19 +839,31 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
 
             <button
               onClick={() => setActiveTab('staff')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
                 activeTab === 'staff'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
               }`}
             >
               <Users className="w-4 h-4" />
-              مدیریت جامع کارشناسان و پرسنل ({totalAllStaff})
+              مدیریت کارشناسان و پرسنل ({totalAllStaff})
+            </button>
+
+            <button
+              onClick={() => setActiveTab('cases')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
+                activeTab === 'cases'
+                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              }`}
+            >
+              <FileText className="w-4 h-4" />
+              پرونده‌های خسارت شرکت‌ها ({cases.length})
             </button>
 
             <button
               onClick={() => setActiveTab('overview')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
                 activeTab === 'overview'
                   ? 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
@@ -819,12 +931,12 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                   placeholder="جستجو در نام شرکت، کد یکتا، شماره پروانه..."
                   value={companySearch}
                   onChange={(e) => setCompanySearch(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-10 pl-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-10 pl-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 font-bold"
                 />
               </div>
 
               <div className="text-xs text-slate-400 flex items-center gap-2">
-                <span>تعداد شرکت‌های یافت‌شده:</span>
+                <span>تعداد شرکت‌های ثبت‌شده:</span>
                 <span className="font-bold text-white bg-slate-800 px-2 py-0.5 rounded-md">
                   {filteredCompanies.length}
                 </span>
@@ -841,6 +953,9 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                 const compCrmCount = (crmStaff[company.code] || []).length;
                 const totalCompStaff =
                   compExpertsCount + compReviewersCount + compFieldCount + compFinanceCount + compCrmCount;
+                const compCasesCount = cases.filter(
+                  (c) => c.insurerId === company.code || c.thirdPartyInsurerId === company.code || c.bodyInsuranceCompany === company.code
+                ).length;
 
                 return (
                   <div
@@ -868,9 +983,9 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                               </span>
                             </div>
                             <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5">
-                              <span>شناسه: <code className="text-slate-300 font-mono">{company.code}</code></span>
+                              <span>شناسه: <code className="text-slate-300 font-mono font-bold">{company.code}</code></span>
                               <span>•</span>
-                              <span>پروانه: <code className="text-slate-300">{company.licenseNumber || 'نامشخص'}</code></span>
+                              <span>پرونده‌ها: <strong className="text-amber-400">{compCasesCount}</strong></span>
                             </div>
                           </div>
                         </div>
@@ -881,23 +996,23 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-slate-400 flex items-center gap-1.5">
                             <Server className="w-3.5 h-3.5 text-indigo-400" />
-                            اتصال وب‌سرویس سنهاب:
+                            کد وب‌سرویس سنهاب:
                           </span>
-                          <span className="text-emerald-400 font-bold flex items-center gap-1 text-[11px]">
+                          <span className="text-emerald-400 font-bold flex items-center gap-1 text-[11px] font-mono">
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             {company.sanhabCode || 'SNH-CONN-OK'}
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-400">سقف پرداخت بدون کروکی:</span>
+                          <span className="text-slate-400">سقف بدون کروکی:</span>
                           <span className="text-amber-300 font-bold font-mono">
                             {((company.onlineWithoutCroquiCeiling || 400000000) / 10).toLocaleString('fa-IR')} تومان
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-400">سقف پرداخت با کروکی:</span>
+                          <span className="text-slate-400">سقف با کروکی:</span>
                           <span className="text-slate-200 font-bold font-mono">
                             {((company.onlineWithCroquiCeiling || 1200000000) / 10).toLocaleString('fa-IR')} تومان
                           </span>
@@ -907,7 +1022,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                       {/* Staff breakdown pills */}
                       <div className="mb-4">
                         <div className="text-xs text-slate-400 mb-2 flex items-center justify-between">
-                          <span>پرسنل و کارشناسان ثبت‌شده ({totalCompStaff} نفر):</span>
+                          <span>پرسنل ثبت‌شده ({totalCompStaff} نفر):</span>
                           <button
                             onClick={() => handleOpenAddStaff(company.code)}
                             className="text-[11px] text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1"
@@ -1004,7 +1119,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                     placeholder="جستجوی نام، کدملی، شماره تلفن، کد پروانه یا شرکت..."
                     value={staffSearch}
                     onChange={(e) => setStaffSearch(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-10 pl-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-10 pl-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-bold"
                   />
                 </div>
 
@@ -1014,7 +1129,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                   <select
                     value={selectedCompanyFilter}
                     onChange={(e) => setSelectedCompanyFilter(e.target.value)}
-                    className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500"
+                    className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-bold focus:outline-none focus:border-indigo-500"
                   >
                     <option value="all">همه شرکت‌های بیمه</option>
                     {insurers.map((comp) => (
@@ -1047,7 +1162,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                   }`}
                 >
                   <Users className="w-3.5 h-3.5" />
-                  کارشناسان ارزیاب خسارت آنلاین ({totalAssessors})
+                  ارزیابان خسارت آنلاین ({totalAssessors})
                 </button>
                 <button
                   onClick={() => setSelectedRoleCategory('reviewer')}
@@ -1058,7 +1173,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                   }`}
                 >
                   <FileCheck2 className="w-3.5 h-3.5" />
-                  بازبینان و کنترل کیفیت ({totalReviewers})
+                  بازبینان کیفیت ({totalReviewers})
                 </button>
                 <button
                   onClick={() => setSelectedRoleCategory('fieldexpert')}
@@ -1069,7 +1184,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                   }`}
                 >
                   <MapPin className="w-3.5 h-3.5" />
-                  کارشناسان بازدید میدانی و شعب ({totalField})
+                  کارشناسان میدانی و شعب ({totalField})
                 </button>
                 <button
                   onClick={() => setSelectedRoleCategory('finance')}
@@ -1235,7 +1350,188 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
         )}
 
         {/* ---------------------------------------------------- */}
-        {/* TAB 3: OVERVIEW & SYSTEM HEALTH */}
+        {/* TAB 3: COMPANY CLAIMS & CASES VIEWER */}
+        {/* ---------------------------------------------------- */}
+        {activeTab === 'cases' && (
+          <div className="space-y-6">
+            {/* Filter and Search Bar for Cases */}
+            <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Search */}
+                <div className="relative">
+                  <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
+                  <input
+                    type="text"
+                    placeholder="جستجوی شماره پرونده، پلاک، کدملی، نام زیان‌دیده..."
+                    value={caseSearch}
+                    onChange={(e) => setCaseSearch(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-10 pl-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 font-bold"
+                  />
+                </div>
+
+                {/* Company Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 shrink-0">شرکت بیمه:</span>
+                  <select
+                    value={caseCompanyFilter}
+                    onChange={(e) => setCaseCompanyFilter(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-bold focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="all">همه شرکت‌های بیمه</option>
+                    {insurers.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 shrink-0">وضعیت:</span>
+                  <select
+                    value={caseStatusFilter}
+                    onChange={(e) => setCaseStatusFilter(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-bold focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="all">همه وضعیت‌ها</option>
+                    <option value="PENDING_EXPERT">در انتظار ارزیابی کارشناس</option>
+                    <option value="FIELD_VISIT_REQUIRED">نیازمند بازدید میدانی</option>
+                    <option value="PENDING_REVIEW">در انتظار تایید بازبین</option>
+                    <option value="PENDING_PAYOUT">در صف پرداخت شبا</option>
+                    <option value="SETTLED">تسویه و پرداخت‌شده</option>
+                    <option value="REJECTED">مردود شده</option>
+                  </select>
+                </div>
+
+                {/* Type Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-400 shrink-0">نوع خسارت:</span>
+                  <select
+                    value={caseTypeFilter}
+                    onChange={(e) => setCaseTypeFilter(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-bold focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="all">همه انواع (ثالث و بدنه)</option>
+                    <option value="thirdparty">خسارت مالی شخص ثالث</option>
+                    <option value="bodily">خسارت بیمه بدنه</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-xs text-slate-400">
+                <div className="flex items-center gap-2">
+                  <span>تعداد پرونده‌های یافت‌شده:</span>
+                  <strong className="text-amber-400 font-bold bg-slate-900 px-2.5 py-0.5 rounded-lg border border-slate-800">
+                    {filteredCasesList.length} پرونده
+                  </strong>
+                </div>
+
+                {caseCompanyFilter !== 'all' && (
+                  <div className="text-xs text-blue-400 font-medium">
+                    در حال نمایش پرونده‌های شرکت: {insurers.find((i) => i.code === caseCompanyFilter)?.name}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Cases Table */}
+            <div className="bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-right text-xs">
+                  <thead>
+                    <tr className="bg-slate-900/90 text-slate-400 border-b border-slate-800">
+                      <th className="py-3 px-4">کد رهگیری / تاریخ</th>
+                      <th className="py-3 px-4">شرکت بیمه</th>
+                      <th className="py-3 px-4">زیان‌دیده و خودرو</th>
+                      <th className="py-3 px-4">پلاک و کروکی</th>
+                      <th className="py-3 px-4">برآورد خسارت (تومان)</th>
+                      <th className="py-3 px-4">وضعیت پرونده</th>
+                      <th className="py-3 px-4 text-center">عملیات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-900 text-slate-300">
+                    {filteredCasesList.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-500">
+                          <FileText className="w-8 h-8 mx-auto mb-2 text-slate-600" />
+                          پرونده‌ای با این مشخصات یافت نشد.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredCasesList.map((c) => {
+                        const comp = insurers.find(
+                          (i) => i.code === c.insurerId || i.code === c.thirdPartyInsurerId || i.code === c.bodyInsuranceCompany
+                        );
+                        const isBodily = !!(c.isBodyClaim || c.isBodily || c.id?.startsWith('BD-'));
+                        const totalAmount = c.assessorSummary?.finalNetPayable || c.aiEstimate?.totalEstimate || 0;
+
+                        return (
+                          <tr key={c.id} className="hover:bg-slate-900/60 transition-colors">
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-white font-mono">{c.id}</div>
+                              <div className="text-[11px] text-slate-400">{c.accidentDate || c.incidentDate || 'امروز'}</div>
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-1.5 font-bold text-blue-300">
+                                <Building2 className="w-3.5 h-3.5 text-blue-400" />
+                                <span>{comp?.name || c.insurerName || 'بیمه دانا'}</span>
+                              </div>
+                              <div className="text-[10px] text-slate-500">
+                                {isBodily ? 'بیمه بدنه' : 'شخص ثالث مالی'}
+                              </div>
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-slate-100">{c.claimantName || 'نامشخص'}</div>
+                              <div className="text-[11px] text-slate-400">{c.carModel || 'پژو ۲۰۷'}</div>
+                            </td>
+
+                            <td className="py-3.5 px-4 font-mono">
+                              <div className="text-slate-200 font-bold">{c.claimantPlate || 'ایران ۳۳ - ۱۲۳ب۴۵'}</div>
+                              <div className="text-[10px] text-slate-400">
+                                {c.hasPoliceReport ? 'دارای کروکی پلیس' : 'بدون کروکی'}
+                              </div>
+                            </td>
+
+                            <td className="py-3.5 px-4 font-mono">
+                              <div className="font-black text-amber-300">
+                                {(totalAmount / 10).toLocaleString('fa-IR')} تومان
+                              </div>
+                              {c.assessorSummary?.depreciationAmount ? (
+                                <div className="text-[10px] text-emerald-400">
+                                  + افت: {((c.assessorSummary.depreciationAmount) / 10).toLocaleString('fa-IR')}
+                                </div>
+                              ) : null}
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              {getStatusBadge(c.status)}
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center">
+                              <button
+                                onClick={() => setInspectingCase(c)}
+                                className="px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1 mx-auto"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>مشاهده جزئیات</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ---------------------------------------------------- */}
+        {/* TAB 4: OVERVIEW & SYSTEM HEALTH */}
         {/* ---------------------------------------------------- */}
         {activeTab === 'overview' && (
           <div className="space-y-6">
@@ -1250,7 +1546,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                 <div className="space-y-3 text-xs">
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800">
                     <span className="text-slate-300">وب‌سرویس استعلام بیمه‌نامه سنهاب (مرکزی):</span>
-                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                    <span className="text-emerald-400 font-bold flex items-center gap-1 font-mono">
                       <CheckCircle2 className="w-4 h-4" />
                       پایدار (۹۹.۹٪)
                     </span>
@@ -1274,7 +1570,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
 
                   <div className="flex items-center justify-between p-3 rounded-xl bg-slate-900 border border-slate-800">
                     <span className="text-slate-300">موتور هوش مصنوعی ارزیابی خسارت بدنه:</span>
-                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                    <span className="text-emerald-400 font-bold flex items-center gap-1 font-mono">
                       <CheckCircle2 className="w-4 h-4" />
                       دقت ۹۴.۲٪
                     </span>
@@ -1370,10 +1666,10 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="مثال: بیمه سامان، بیمه رازی..."
+                    placeholder="مثال: بیمه سامان، بیمه رازی، بیمه کوثر..."
                     value={companyForm.name || ''}
                     onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-bold placeholder-slate-600 focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
@@ -1385,10 +1681,10 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                     type="text"
                     required
                     disabled={!!editingCompany}
-                    placeholder="مثال: saman, razi, kowsar"
+                    placeholder="مثال: saman, razi, kowsar, alborz"
                     value={companyForm.code || ''}
                     onChange={(e) => setCompanyForm({ ...companyForm, code: e.target.value })}
-                    className={`w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-blue-500 ${
+                    className={`w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono font-bold placeholder-slate-600 focus:outline-none focus:border-blue-500 ${
                       editingCompany ? 'opacity-60 cursor-not-allowed' : ''
                     }`}
                   />
@@ -1403,7 +1699,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                     placeholder="مثال: LIC-SAM-1383"
                     value={companyForm.licenseNumber || ''}
                     onChange={(e) => setCompanyForm({ ...companyForm, licenseNumber: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-blue-500"
                   />
                 </div>
 
@@ -1430,7 +1726,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                     placeholder="400000000"
                     value={companyForm.onlineWithoutCroquiCeiling || 400000000}
                     onChange={(e) => setCompanyForm({ ...companyForm, onlineWithoutCroquiCeiling: Number(e.target.value) })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-amber-300 font-mono focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-blue-500"
                   />
                   <span className="text-[11px] text-slate-500 mt-1 block">
                     معادل: {(((companyForm.onlineWithoutCroquiCeiling || 0) / 10)).toLocaleString('fa-IR')} تومان
@@ -1447,7 +1743,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                     placeholder="1200000000"
                     value={companyForm.onlineWithCroquiCeiling || 1200000000}
                     onChange={(e) => setCompanyForm({ ...companyForm, onlineWithCroquiCeiling: Number(e.target.value) })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono font-bold focus:outline-none focus:border-blue-500"
                   />
                   <span className="text-[11px] text-slate-500 mt-1 block">
                     معادل: {(((companyForm.onlineWithCroquiCeiling || 0) / 10)).toLocaleString('fa-IR')} تومان
@@ -1474,7 +1770,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                     placeholder="1234"
                     value={companyForm.defaultPassword || '1234'}
                     onChange={(e) => setCompanyForm({ ...companyForm, defaultPassword: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono font-bold placeholder-slate-600 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -1548,7 +1844,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                   <select
                     value={staffForm.companyCode}
                     onChange={(e) => setStaffForm({ ...staffForm, companyCode: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-bold focus:outline-none focus:border-indigo-500"
                   >
                     {insurers.map((comp) => (
                       <option key={comp.code} value={comp.code}>
@@ -1572,7 +1868,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
 
                       setStaffForm({ ...staffForm, category: cat, role: roleTitle });
                     }}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-bold focus:outline-none focus:border-indigo-500"
                   >
                     <option value="assessor">🟢 کارشناس ارزیاب خسارت آنلاین (Assessor)</option>
                     <option value="reviewer">🔵 بازبین و تایید نهایی کیفیت (Reviewer)</option>
@@ -1589,10 +1885,10 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="مثال: دکتر آرش سرمدی"
+                    placeholder="مثال: مهندس سهراب بختیاری"
                     value={staffForm.name}
                     onChange={(e) => setStaffForm({ ...staffForm, name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-bold placeholder-slate-600 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
 
@@ -1603,7 +1899,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                     placeholder="مثال: کارشناس ارشد خسارت بدنه"
                     value={staffForm.role}
                     onChange={(e) => setStaffForm({ ...staffForm, role: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-bold placeholder-slate-600 focus:outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
@@ -1653,7 +1949,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                     step="10000000"
                     value={staffForm.maxApprovalCeiling}
                     onChange={(e) => setStaffForm({ ...staffForm, maxApprovalCeiling: Number(e.target.value) })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-amber-300 font-mono focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-indigo-500"
                   />
                   <span className="text-[10px] text-slate-500 mt-1 block">
                     {((staffForm.maxApprovalCeiling || 0) / 10).toLocaleString('fa-IR')} تومان
@@ -1752,6 +2048,171 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* MODAL 3: CASE DETAILS INSPECTION MODAL */}
+      {/* ==================================================== */}
+      {inspectingCase && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center text-slate-950 font-black">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-lg text-white">
+                      بررسی پرونده شماره {inspectingCase.id}
+                    </h3>
+                    {getStatusBadge(inspectingCase.status)}
+                  </div>
+                  <p className="text-xs text-slate-400">
+                    کد رهگیری: <span className="font-mono text-amber-300">{inspectingCase.trackingCode || 'ندارد'}</span> • تاریخ ثبت: {inspectingCase.accidentDate || inspectingCase.incidentDate || 'امروز'}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setInspectingCase(null)}
+                className="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800"
+              >
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="space-y-6 text-xs">
+              {/* Basic Parties Info */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+                  <span className="font-bold text-blue-400 block border-b border-slate-800 pb-1.5">
+                    مشخصات طرف زیان‌دیده
+                  </span>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">نام و نام خانوادگی:</span>
+                    <span className="font-bold text-white">{inspectingCase.claimantName || 'نامشخص'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">کد ملی:</span>
+                    <span className="font-mono text-slate-200">{inspectingCase.claimantNationalId || '۰۴۹۰۱۲۳۴۵۶'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">شماره تلفن:</span>
+                    <span className="font-mono text-slate-200">{inspectingCase.claimantPhone || '۰۹۱۲۳۴۵۶۷۸۹'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">شماره پلاک:</span>
+                    <span className="font-mono text-amber-300 font-bold">{inspectingCase.claimantPlate || 'ایران ۳۳ - ۱۲۳ب۴۵'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">مدل خودرو:</span>
+                    <span className="text-slate-200">{inspectingCase.carModel || 'پژو ۲۰۷'}</span>
+                  </div>
+                </div>
+
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+                  <span className="font-bold text-amber-400 block border-b border-slate-800 pb-1.5">
+                    مشخصات مقصر حادثه و بیمه‌نامه
+                  </span>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">نام مقصر:</span>
+                    <span className="font-bold text-white">{inspectingCase.atFaultName || 'نامشخص'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">کد ملی مقصر:</span>
+                    <span className="font-mono text-slate-200">{inspectingCase.atFaultNationalId || '۰۴۹۰۱۲۳۴۵۶'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">پلاک مقصر:</span>
+                    <span className="font-mono text-slate-200">{inspectingCase.atFaultPlate || 'ایران ۲۲ - ۷۸۹ج۱۲'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">شرکت بیمه‌گر:</span>
+                    <span className="font-bold text-blue-300">{inspectingCase.insurerName || 'بیمه دانا'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">شماره بیمه‌نامه:</span>
+                    <span className="font-mono text-slate-200">{inspectingCase.policyNumber || 'POL-90801123'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Financial Calculation breakdown */}
+              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
+                <span className="font-bold text-emerald-400 block border-b border-slate-800 pb-1.5">
+                  خلاصه ارزیابی مالی و تعیین خسارت
+                </span>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                  <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-slate-400 text-[11px] block mb-1">خسارت کل قطعات و اجرت</span>
+                    <span className="text-sm font-black text-white font-mono">
+                      {(((inspectingCase.assessorSummary?.totalPartsAndLabor || inspectingCase.aiEstimate?.totalEstimate || 0) / 10)).toLocaleString('fa-IR')} تومان
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-slate-400 text-[11px] block mb-1">کسر ارزش داغی</span>
+                    <span className="text-sm font-black text-rose-400 font-mono">
+                      {(((inspectingCase.assessorSummary?.salvageDeduction || 0) / 10)).toLocaleString('fa-IR')} تومان
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-slate-400 text-[11px] block mb-1">افت قیمت خودرو</span>
+                    <span className="text-sm font-black text-blue-400 font-mono">
+                      {(((inspectingCase.assessorSummary?.depreciationAmount || 0) / 10)).toLocaleString('fa-IR')} تومان
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-900 p-2.5 rounded-xl border border-slate-800">
+                    <span className="text-slate-400 text-[11px] block mb-1">خالص پرداختی نهایی</span>
+                    <span className="text-sm font-black text-amber-300 font-mono">
+                      {(((inspectingCase.assessorSummary?.finalNetPayable || inspectingCase.aiEstimate?.totalEstimate || 0) / 10)).toLocaleString('fa-IR')} تومان
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Photos & Damage parts */}
+              {inspectingCase.damageLines && inspectingCase.damageLines.length > 0 && (
+                <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-2">
+                  <span className="font-bold text-slate-200 block border-b border-slate-800 pb-1.5">
+                    لیست قطعات و تصمیمات کارشناسی
+                  </span>
+                  <div className="divide-y divide-slate-900">
+                    {inspectingCase.damageLines.map((line, idx) => (
+                      <div key={idx} className="py-2 flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-slate-100">{line.partName}</span>
+                          <span className="text-slate-500 mr-2">({line.damageSeverity})</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="px-2 py-0.5 rounded bg-slate-900 text-slate-300 text-[10px]">
+                            {line.action === 'REPLACE' ? 'تعویض' : line.action === 'REPAIR' ? 'تعمیر و صافکاری' : 'رد شده'}
+                          </span>
+                          <span className="font-mono text-amber-300 font-bold">
+                            {((line.expertApprovedPrice || line.estimatedPrice || 0) / 10).toLocaleString('fa-IR')} تومان
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 mt-6">
+              <button
+                type="button"
+                onClick={() => setInspectingCase(null)}
+                className="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition"
+              >
+                بستن پنجره
+              </button>
+            </div>
           </div>
         </div>
       )}

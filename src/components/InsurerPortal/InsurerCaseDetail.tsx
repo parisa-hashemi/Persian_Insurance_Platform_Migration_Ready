@@ -44,7 +44,18 @@ import {
 import { ClaimCase, UserSession, StaffMember, AssessorNotification, CustomerNotification } from '../../types';
 import { INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS } from '../../data/mockData';
 import { findBestMatchingBranch, INSURANCE_BRANCHES, InsuranceBranch, getRankedFieldExpertsForAccidentLocation, RankedFieldExpertItem } from '../../data/bodyInsuranceData';
-import { formatCurrency, getInsurerPersianName, loadExpertsFromStorage, loadFieldExpertsFromStorage, loadAssessorNotifications, saveAssessorNotifications, addCustomerNotification, loadCasesFromStorage } from '../../lib/storage';
+import {
+  formatCurrency,
+  getInsurerPersianName,
+  getInsurerBrandConfig,
+  loadInsurersFromStorage,
+  loadExpertsFromStorage,
+  loadFieldExpertsFromStorage,
+  loadAssessorNotifications,
+  saveAssessorNotifications,
+  addCustomerNotification,
+  loadCasesFromStorage
+} from '../../lib/storage';
 import { calculateClaimDamageWithPolicyLimits, performPolicySanhabInquiry } from '../../lib/policyLimitCalculator';
 import { Car3DViewer } from '../Car3DViewer';
 
@@ -76,7 +87,14 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
   onBack,
   onUpdateCase
 }) => {
-  const companyCode = session.company || 'dana';
+  const allInsurers = useMemo(() => loadInsurersFromStorage(), []);
+  const companyCode = session.company || session.id || 'dana';
+  const companyInfo = allInsurers.find((c) => c.code === companyCode) || {
+    code: companyCode,
+    name: session.companyName || session.name || getInsurerPersianName(companyCode)
+  };
+  const brand = getInsurerBrandConfig(companyCode, companyInfo.name);
+
   const allStoredExperts = loadExpertsFromStorage();
   const allCompanyExperts = allStoredExperts[companyCode] || INITIAL_EXPERTS[companyCode] || [];
   // Filter ONLY active experts (cannot assign cases to inactive assessors)
@@ -954,19 +972,38 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
   return (
     <div className="max-w-6xl mx-auto space-y-5 animate-in fade-in pb-16">
       
-      {/* Navigation Header */}
-      <div className="flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 text-xs font-black text-slate-900 bg-white hover:bg-slate-100 px-4 py-2 rounded-xl border-2 border-slate-300 shadow-xs transition-all active:scale-95"
-        >
-          <ArrowLeft className="w-4 h-4 text-blue-900" />
-          <span>بازگشت به لیست پرونده‌ها</span>
-        </button>
+      {/* Navigation & Insurer Branding Header */}
+      <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-xs font-black text-slate-900 bg-slate-100 hover:bg-slate-200 px-3.5 py-2 rounded-xl border border-slate-300 shadow-xs transition-all active:scale-95"
+          >
+            <ArrowLeft className="w-4 h-4 text-blue-900" />
+            <span>بازگشت به کارتابل</span>
+          </button>
+
+          <div className="h-6 w-px bg-slate-200 hidden sm:block" />
+
+          {/* Company Badge */}
+          <div className="flex items-center gap-2">
+            <div className={`w-8 h-8 rounded-xl ${brand.badgeBg} ${brand.badgeText} border ${brand.badgeBorder} flex items-center justify-center font-bold text-xs shadow-xs`}>
+              <Building2 className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="text-xs font-black text-slate-900 block">
+                {companyInfo.name}
+              </span>
+              <span className="text-[10px] text-slate-500 font-bold block">
+                بیمه‌گر مقصر حادثه (مسئول جبران خسارت)
+              </span>
+            </div>
+          </div>
+        </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 font-bold">کد پرونده:</span>
-          <span className="px-3 py-1 bg-purple-100 text-purple-900 rounded-lg text-xs font-black font-mono">
+          <span className="text-xs text-slate-500 font-bold">شماره پرونده:</span>
+          <span className="px-3 py-1 bg-purple-100 text-purple-900 rounded-lg text-xs font-black font-mono border border-purple-200">
             {claimCase.id}
           </span>
         </div>
@@ -1340,7 +1377,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                         <strong className="text-slate-800">محل حادثه:</strong> {accidentLocationAddress}
                       </span>
                       <span className="font-mono text-[10px] text-blue-800 shrink-0 font-bold mr-2">
-                        📞 {currentSelectedBranch.phone}
+                        تلفن: {currentSelectedBranch.phone}
                       </span>
                     </div>
                   </div>
@@ -1392,11 +1429,11 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                                 {currentExpert?.role}
                               </p>
                               <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
-                                <span>⭐ {currentExpert?.rating || 4.9}</span>
+                                <span>امتیاز: {currentExpert?.rating || 4.9}</span>
                                 <span>•</span>
-                                <span>📍 {rankedInfo?.distanceText || 'نزدیک محل'}</span>
+                                <span>فاصله: {rankedInfo?.distanceText || 'نزدیک محل'}</span>
                                 <span>•</span>
-                                <span className="font-mono text-amber-900 font-bold">📞 {currentExpert?.phone}</span>
+                                <span className="font-mono text-amber-900 font-bold">تلفن: {currentExpert?.phone}</span>
                               </div>
                             </div>
                           </div>
@@ -1429,7 +1466,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                                   onClick={() => setSelectedFieldExpertId(exp.id)}
                                   className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white text-slate-800 hover:bg-amber-100/70 border border-amber-200 transition-all flex items-center gap-1 shadow-2xs"
                                 >
-                                  <span>👤 {exp.name}</span>
+                                  <span>{exp.name}</span>
                                   <span className="text-[9px] text-slate-500 font-normal font-mono">({exp.phone.slice(-4)})</span>
                                 </button>
                               ))}
@@ -1699,12 +1736,12 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                                         <Building2 className="w-3 h-3 text-blue-700 shrink-0" />
                                         <span className="truncate">{item.branch.name}</span>
                                         <span>•</span>
-                                        <span className="font-mono text-slate-500">📞 {item.expert.phone}</span>
+                                        <span className="font-mono text-slate-500">تلفن: {item.expert.phone}</span>
                                       </div>
                                       <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                                        <span>⭐ {item.expert.rating || 4.9}</span>
+                                        <span>امتیاز: {item.expert.rating || 4.9}</span>
                                         <span>•</span>
-                                        <span>📍 فاصله تا حادثه: {item.distanceText}</span>
+                                        <span>فاصله تا حادثه: {item.distanceText}</span>
                                         <span>•</span>
                                         <span>{item.availabilityText}</span>
                                       </div>
@@ -2589,11 +2626,18 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-xs">
+                        <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5 text-xs">
                           <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
-                            <span className="text-slate-400 text-[10px] block mb-1">خسارت فیزیکی و اجرت</span>
+                            <span className="text-slate-400 text-[10px] block mb-1">خسارت کل کارشناسی</span>
                             <span className="font-mono font-bold text-white text-xs">
                               {formatCurrency(calc.directDamageAmount)}
+                            </span>
+                          </div>
+
+                          <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
+                            <span className="text-slate-400 text-[10px] block mb-1">کسر ارزش داغی</span>
+                            <span className="font-mono font-bold text-rose-300 text-xs">
+                              {calc.salvageDeduction > 0 ? `-${formatCurrency(calc.salvageDeduction)}` : '۰ ریال'}
                             </span>
                           </div>
 
@@ -2607,13 +2651,13 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                               )}
                             </div>
                             <span className="font-mono font-bold text-amber-300 text-xs">
-                              {calc.diminutionAmount > 0 ? formatCurrency(calc.diminutionAmount) : 'شامل نمی‌شود'}
+                              {calc.diminutionAmount > 0 ? `+${formatCurrency(calc.diminutionAmount)}` : 'شامل نمی‌شود'}
                             </span>
                           </div>
 
-                          <div className="bg-white/5 border border-white/10 p-3 rounded-xl">
-                            <span className="text-slate-400 text-[10px] block mb-1">مجموع کل خسارت</span>
-                            <span className="font-mono font-extrabold text-blue-200 text-xs">
+                          <div className="bg-white/10 border border-indigo-400/40 p-3 rounded-xl">
+                            <span className="text-indigo-200 text-[10px] block mb-1 font-bold">مجموع کل مطالبه</span>
+                            <span className="font-mono font-extrabold text-white text-xs">
                               {formatCurrency(calc.totalClaimAmount)}
                             </span>
                           </div>
@@ -3024,9 +3068,9 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                         <th className="p-3">ردیف</th>
                         <th className="p-3">قطعه / بخش آسیب‌دیده</th>
                         <th className="p-3">نوع عملیات</th>
-                        <th className="p-3">قیمت قطعه (ریال)</th>
-                        <th className="p-3">اجرت / تعمیر (ریال)</th>
-                        <th className="p-3">ارزش اسقاط (ریال)</th>
+                        <th className="p-3">قیمت قطعه</th>
+                        <th className="p-3">اجرت / تعمیر</th>
+                        <th className="p-3">ارزش اسقاط</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 font-medium">
@@ -3672,8 +3716,15 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                         {/* Calculations Breakdown Grid */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                           <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-0.5">
-                            <span className="text-[10px] text-slate-500 font-bold block">خسارت فیزیکی (قطعه + اجرت):</span>
+                            <span className="text-[10px] text-slate-500 font-bold block">خسارت کل (قطعه + اجرت):</span>
                             <strong className="text-slate-900 text-xs font-black">{formatCurrency(calc.directDamageAmount)}</strong>
+                          </div>
+
+                          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-0.5">
+                            <span className="text-[10px] text-slate-500 font-bold block">کسر ارزش داغی / اسقاط:</span>
+                            <strong className="text-rose-700 text-xs font-black">
+                              {calc.salvageDeduction > 0 ? `-${formatCurrency(calc.salvageDeduction)}` : '۰ ریال'}
+                            </strong>
                           </div>
 
                           <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-0.5">
@@ -3681,18 +3732,13 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                               افت ارزش خودرو ({calc.diminutionPercent}%):
                             </span>
                             <strong className={`text-xs font-black ${calc.diminutionAmount > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
-                              {calc.diminutionAmount > 0 ? formatCurrency(calc.diminutionAmount) : '۰ ریال'}
+                              {calc.diminutionAmount > 0 ? `+${formatCurrency(calc.diminutionAmount)}` : '۰ ریال'}
                             </strong>
                           </div>
 
-                          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-0.5">
-                            <span className="text-[10px] text-slate-500 font-bold block">کسر فرانشیز و استهلاک:</span>
-                            <strong className="text-rose-700 text-xs font-black">{formatCurrency(calc.franchiseAmount)}</strong>
-                          </div>
-
-                          <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-0.5">
-                            <span className="text-[10px] text-slate-500 font-bold block">مجموع خسارت واقعی زیان‌دیده:</span>
-                            <strong className="text-slate-950 text-xs font-black">{formatCurrency(calc.totalClaimAmount)}</strong>
+                          <div className="bg-indigo-50/80 p-2.5 rounded-xl border border-indigo-200 space-y-0.5">
+                            <span className="text-[10px] text-indigo-900 font-bold block">مجموع کل خسارت زیان‌دیده:</span>
+                            <strong className="text-indigo-950 text-xs font-black">{formatCurrency(calc.totalClaimAmount)}</strong>
                           </div>
                         </div>
 

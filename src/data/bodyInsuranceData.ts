@@ -529,13 +529,13 @@ export function getRankedFieldExpertsForAccidentLocation(params: {
     
     // Availability calculation
     let availability: 'AVAILABLE' | 'ON_MISSION' | 'BUSY' = 'AVAILABLE';
-    let availabilityText = '🟢 آماده اعزام فوری (ظرفیت کامل)';
+    let availabilityText = 'آماده اعزام فوری (ظرفیت کامل)';
     if (activeCount >= 3) {
       availability = 'BUSY';
-      availabilityText = `🔴 پرتردد (${activeCount} ماموریت فعال)`;
+      availabilityText = `پرتردد (${activeCount} ماموریت فعال)`;
     } else if (activeCount > 0) {
       availability = 'ON_MISSION';
-      availabilityText = `🟡 در دسترس (${activeCount} ماموریت جاری)`;
+      availabilityText = `در دسترس (${activeCount} ماموریت جاری)`;
     }
 
     // Scoring algorithm (0 - 100)

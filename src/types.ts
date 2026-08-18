@@ -28,7 +28,7 @@ export type CaseStatus =
   | 'تردید در اصالت تصادف'
   | (string & {});
 
-export type PriorityLevel = 'normal' | 'high' | 'urgent';
+export type PriorityLevel = 'normal' | 'high' | 'urgent' | 'عادی' | 'مهم' | 'فوری';
 
 export interface UserSession {
   id: string;
@@ -152,12 +152,12 @@ export interface PayoutInfo {
 }
 
 export interface AssessmentData {
-  version: string;
-  gross: number;
-  deductions: number;
-  salvage: number;
-  payable: number;
-  status: 'DRAFT' | 'REVIEWED' | 'SUBMITTED' | 'PUBLISHED' | 'ACCEPTED' | 'REJECTED' | 'RETURNED';
+  version?: string;
+  gross?: number;
+  deductions?: number;
+  salvage?: number;
+  payable?: number;
+  status?: 'DRAFT' | 'REVIEWED' | 'SUBMITTED' | 'PUBLISHED' | 'ACCEPTED' | 'REJECTED' | 'RETURNED';
   reviewerNote?: string;
   draftSavedAt?: string;
   submittedAt?: string;
@@ -168,9 +168,15 @@ export interface AssessmentData {
   caseId?: string;
   assessorId?: string;
   assessorName?: string;
+  assessedBy?: string;
   assessedAt?: string;
   totalPartsCost?: number;
+  totalPartsPrice?: number;
   totalWageCost?: number;
+  totalWagePrice?: number;
+  totalDepreciation?: number;
+  totalDamage?: number;
+  payableAmount?: number;
   totalScrapValue?: number;
   totalAmount?: number;
   notes?: string;
@@ -220,6 +226,9 @@ export interface ClaimCase {
   culpritPlate: string;
   culpritVin?: string;
   culpritInsurer: string;
+  insurerCode?: string;
+  insurerName?: string;
+  insuranceCompany?: string;
   carType: string;
   culpritCarType?: string;
   plate: string;
@@ -244,6 +253,9 @@ export interface ClaimCase {
   sceneReportCode?: string;
   customerKrokiPhoto?: string | null;
   customerPoliceReportFile?: string | null;
+  iban?: string;
+  ibanConfirmed?: boolean;
+  paymentReceipt?: any;
   croquiData?: CroquiData;
   writtenReport?: string;
   files?: MediaFile[];
@@ -615,25 +627,25 @@ export interface ClaimCase {
       wageCost: number;
       salvageCost: number;
     }>;
-    gross: number;
-    franchise: number;
-    depreciation: number;
-    netPayable: number;
-    submittedAt: string;
-    submittedBy: string;
+    gross?: number;
+    franchise?: number;
+    depreciation?: number;
+    netPayable?: number;
+    submittedAt?: string;
+    submittedBy?: string;
+    salvage?: number;
+    payable?: number;
+    technicalNotes?: string;
+    inspectionPhotos?: (MediaFile | string)[];
+    inspectionDate?: string;
+    visitedAt?: string;
+    expertName?: string;
+    status?: 'SUBMITTED_TO_FINANCE' | 'PAID' | string;
   };
   crmFollowUpRequested?: boolean;
   crmFollowUpReason?: string;
   crmFollowUpRequestedBy?: string;
   crmFollowUpRequestedAt?: string;
-    salvage: number;
-    payable: number;
-    technicalNotes?: string;
-    inspectionPhotos?: MediaFile[];
-    inspectionDate?: string;
-    status: 'SUBMITTED_TO_FINANCE' | 'PAID' | string;
-    submittedAt?: string;
-  };
 }
 
 export type StaffRoleCategory =
@@ -764,6 +776,7 @@ export interface AssessorNotification {
   recipientPhone?: string;
   senderPhone?: string;
   sender?: string;
+  senderRole?: string;
   title: string;
   message: string;
   sentAt: string;
@@ -771,6 +784,8 @@ export interface AssessorNotification {
   time?: string;
   read?: boolean;
   penaltyPoints?: number;
+  actionUrl?: string;
+  requiresReply?: boolean;
 }
 
 export interface CustomerNotification {
@@ -963,7 +978,7 @@ export interface CrmFollowUpTask {
   ticketId?: string;
   callLogId?: string;
   reason: string;
-  targetDepartment: 'ارزیابی خسارت' | 'بازبینی و نظارت' | 'مالی و خزانه‌داری' | 'کارشناسی میدانی' | 'امور حقوقی و سنهاب' | 'شعبه و خسارت';
+  targetDepartment: 'ارزیابی خسارت' | 'بازبینی و نظارت' | 'مالی و خزانه‌داری' | 'کارشناسی میدانی' | 'امور حقوقی و سنهاب' | 'شعبه و خسارت' | 'امور مشتریان';
   assignedAgent: string;
   priority: 'عادی' | 'مهم' | 'فوری و بحرانی';
   dueDate: string;
@@ -972,5 +987,14 @@ export interface CrmFollowUpTask {
   resolution?: string;
   createdAt: string;
   completedAt?: string;
+  // Overdue actions & Expert Contact Request
+  requestedByRole?: 'ASSESSOR' | 'FIELD_EXPERT' | 'REVIEWER' | 'INSURER' | 'FINANCE' | 'SYSTEM' | string;
+  requestedByName?: string;
+  requestedByPhone?: string;
+  requestedReasonType?: 'MISSING_DOCS' | 'MISSING_IBAN' | 'INCOMPLETE_PHOTOS' | 'CROQUI_DISPUTE' | 'COORDINATE_VISIT' | 'DELAY_WARNING' | 'GENERAL' | string;
+  isOverdueAction?: boolean;
+  overdueHours?: number;
+  lastContactAttempt?: string;
+  contactAttemptsCount?: number;
 }
 

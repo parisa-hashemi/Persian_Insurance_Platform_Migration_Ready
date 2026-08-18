@@ -100,26 +100,43 @@ export function calculateClaimDamageWithPolicyLimits(claimCase: ClaimCase): Dama
   const parts = assessmentAny.parts || [];
   let partsCost = 0;
   let wagesCost = 0;
-  let salvageDeduction = Number(assessmentAny.salvage || 0);
+  let partsSalvageSum = 0;
 
   if (parts.length > 0) {
     parts.forEach((p: any) => {
       partsCost += Number(p.partPrice || 0);
       wagesCost += Number(p.repairPrice || 0);
+      if (p.salvageNeeded && p.salvageValue) {
+        partsSalvageSum += Number(p.salvageValue || 0);
+      }
     });
-  } else if (assessmentAny.gross) {
-    const gross = Number(assessmentAny.gross || 0);
-    partsCost = Math.round(gross * 0.7);
-    wagesCost = Math.round(gross * 0.3);
-  } else if (caseAny.fieldInspectionVerdict?.totalAmount || caseAny.fieldInspectionVerdict?.payableAmount) {
-    const verdictGross = Number(caseAny.fieldInspectionVerdict.totalAmount || caseAny.fieldInspectionVerdict.payableAmount);
-    partsCost = Math.round(verdictGross * 0.7);
-    wagesCost = Math.round(verdictGross * 0.3);
   }
 
-  const directDamageGross = partsCost + wagesCost > 0 
-    ? partsCost + wagesCost 
-    : Number(assessmentAny.gross || caseAny.fieldInspectionVerdict?.totalAmount || 0);
+  // ۱. تعیین خسارت کل مستقیم (مستقیماً از پنل کارشناسی)
+  let directDamageGross = 0;
+  if (assessmentAny.gross !== undefined && Number(assessmentAny.gross) > 0) {
+    directDamageGross = Number(assessmentAny.gross);
+    if (partsCost + wagesCost === 0) {
+      partsCost = Math.round(directDamageGross * 0.7);
+      wagesCost = Math.round(directDamageGross * 0.3);
+    }
+  } else if (partsCost + wagesCost > 0) {
+    directDamageGross = partsCost + wagesCost;
+  } else if (caseAny.fieldInspectionVerdict?.totalAmount || caseAny.fieldInspectionVerdict?.payableAmount) {
+    directDamageGross = Number(caseAny.fieldInspectionVerdict.totalAmount || caseAny.fieldInspectionVerdict.payableAmount);
+    partsCost = Math.round(directDamageGross * 0.7);
+    wagesCost = Math.round(directDamageGross * 0.3);
+  }
+
+  // ۲. تعیین داغی (مستقیماً از پنل کارشناسی)
+  let salvageDeduction = 0;
+  if (assessmentAny.salvage !== undefined && Number(assessmentAny.salvage) >= 0) {
+    salvageDeduction = Number(assessmentAny.salvage);
+  } else if (partsSalvageSum > 0) {
+    salvageDeduction = partsSalvageSum;
+  } else if (assessmentAny.deductions !== undefined && Number(assessmentAny.deductions) > 0) {
+    salvageDeduction = Number(assessmentAny.deductions);
+  }
     
   const policyMaxFinancialLimit = Number(claimCase.culpritCoverageFinancial || caseAny.policyCeilingFinancial || 50000000);
 
@@ -148,7 +165,7 @@ export function calculateClaimDamageWithPolicyLimits(claimCase: ClaimCase): Dama
     };
   }
 
-  // محاسبه افت ارزش خودرو (بررسی مقادیر ثبت‌شده توسط کارشناس یا محاسبه هوشمند طبق فرمول کانون کارشناسان)
+  // ۳. محاسبه افت ارزش خودرو (مستقیماً طبق فرمول کانون کارشناسان یا مقدار ثبت‌شده)
   const diminutionCalc = calculateVehicleDiminution(
     claimCase.carType || 'پژو ۲۰۷',
     directDamageGross,
@@ -162,14 +179,11 @@ export function calculateClaimDamageWithPolicyLimits(claimCase: ClaimCase): Dama
   const effectiveDiminutionAmount = explicitDiminution !== undefined ? explicitDiminution : diminutionCalc.amount;
   const effectiveDiminutionPercent = caseAny.diminutionPercent !== undefined ? Number(caseAny.diminutionPercent) : diminutionCalc.percent;
 
-  // فرانشیز (معمولاً ۵ تا ۱۰ درصد در خسارت‌های اول یا کسورات قانونی)
-  const franchisePercent = 5;
-  const franchiseAmount = caseAny.franchiseAmount !== undefined
-    ? Number(caseAny.franchiseAmount)
-    : Math.round((directDamageGross * franchisePercent) / 100);
+  const franchisePercent = 0;
+  const franchiseAmount = 0;
 
-  // مجموع مطالبه کل زیان‌دیده = (خسارت مستقیم + افت ارزش) - (اسقاط + فرانشیز)
-  const totalClaimAmount = Math.max(0, (directDamageGross + effectiveDiminutionAmount) - (salvageDeduction + franchiseAmount));
+  // ۴. فرمول دقیق و نهایی: مجموع مطالبه کل زیان‌دیده = (خسارت کل کارشناسی - کسر داغی) + افت ارزش خودرو
+  const totalClaimAmount = Math.max(0, (directDamageGross - salvageDeduction) + effectiveDiminutionAmount);
 
   const exceedsCeiling = totalClaimAmount > policyMaxFinancialLimit;
   const insurerPayablePortion = Math.min(totalClaimAmount, policyMaxFinancialLimit);
@@ -183,17 +197,17 @@ export function calculateClaimDamageWithPolicyLimits(claimCase: ClaimCase): Dama
   // تولید متن پیامک و ابلاغیه رسمی برای زیان‌دیده
   const victimSmsText = exceedsCeiling
     ? `زیان‌دیده گرامی (${victimName})؛
-ارزیابی پرونده خسارت ${caseId} به مجموع ${formatCurrency(totalClaimAmount)} (شامل خسارت فیزیکی و افت ارزش خودرو پس از کسر فرانشیز قانونی) تایید و مصوب گردید.
+ارزیابی پرونده خسارت ${caseId} به مجموع ${formatCurrency(totalClaimAmount)} (شامل خسارت فیزیکی برآورد شده ${formatCurrency(directDamageGross)} پس از کسر داغی ${formatCurrency(salvageDeduction)} و افزودن افت ارزش خودرو ${formatCurrency(effectiveDiminutionAmount)}) تایید و مصوب گردید.
 با توجه به سقف تعهد مالی بیمه‌نامه شخص ثالث مقصر (${formatCurrency(policyMaxFinancialLimit)})، مبلغ ${formatCurrency(insurerPayablePortion)} توسط شرکت ${insurerName} مستقیماً به شماره شبای شما واریز می‌گردد.
 مبلغ مازاد به میزان ${formatCurrency(culpritExcessDebt)} به عنوان بدهی قانونی و شخصی مقصر حادثه (${culpritName}) تعیین شده و مستقیماً از مقصر حادثه قابل مطالبه و وصول می‌باشد.
 کد پیگیری سنهاب: SNH-${caseId.replace(/[^0-9]/g, '') || '98412'}`
     : `زیان‌دیده گرامی (${victimName})؛
-ارزیابی خسارت پرونده ${caseId} به مبلغ کل ${formatCurrency(totalClaimAmount)} (شامل خسارت و افت ارزش خودرو) تایید شد. با توجه به پوشش کامل در سقف تعهد مالی بیمه‌نامه، کل مبلغ ${formatCurrency(insurerPayablePortion)} توسط ${insurerName} به شماره شبای شما واریز خواهد شد.`;
+ارزیابی خسارت پرونده ${caseId} به مبلغ کل ${formatCurrency(totalClaimAmount)} (شامل خسارت فیزیکی و افت ارزش خودرو پس از کسر داغی) تایید شد. با توجه به پوشش کامل در سقف تعهد مالی بیمه‌نامه، کل مبلغ ${formatCurrency(insurerPayablePortion)} توسط ${insurerName} به شماره شبای شما واریز خواهد شد.`;
 
   // تولید متن پیامک و ابلاغیه رسمی برای مقصر
   const culpritSmsText = exceedsCeiling
     ? `بیمه‌گذار و راننده مقصر گرامی (${culpritName})؛
-خسارت وارده در پرونده تصادف ${caseId} به مبلغ ${formatCurrency(totalClaimAmount)} (شامل خسارت فیزیکی و افت ارزش خودروی زیان‌دیده) ارزیابی و تایید گردید.
+خسارت وارده در پرونده تصادف ${caseId} به مبلغ ${formatCurrency(totalClaimAmount)} (شامل خسارت فیزیکی و افت ارزش خودروی زیان‌دیده پس از کسر داغی) ارزیابی و تایید گردید.
 با توجه به اینکه سقف تعهد مالی بیمه‌نامه شما در شرکت ${insurerName} مبلغ ${formatCurrency(policyMaxFinancialLimit)} می‌باشد، شرکت بیمه حداکثر تا سقف تعهد (${formatCurrency(insurerPayablePortion)}) را به حساب زیان‌دیده پرداخت می‌نماید.
 باقیمانده خسارت به مبلغ ${formatCurrency(culpritExcessDebt)} به عنوان بدهی مستقیم شما به زیان‌دیده (${victimName}) محاسبه شده است. طبق قانون، شما ملزم به پرداخت و تسویه این مبلغ مازاد با زیان‌دیده می‌باشید.
 سامانه نظارت بیمه مرکزی`

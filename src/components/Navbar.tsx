@@ -28,7 +28,8 @@ import {
   markCustomerNotificationAsRead,
   markAllCustomerNotificationsAsRead,
   loadAssessorNotifications,
-  markAssessorNotificationAsRead
+  markAssessorNotificationAsRead,
+  getInsurerPersianName
 } from '../lib/storage';
 
 interface NavbarProps {
@@ -63,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         ? all.filter(n => !n.recipientPhone || n.recipientPhone === currentSession.phone || n.recipientPhone.includes(currentSession.phone.slice(-7)))
         : all;
       setCustomerNotifs(filtered.length > 0 ? filtered : all);
-    } else if (currentSession.role === 'assessor' || currentSession.role === 'fieldexpert') {
+    } else {
       const all = loadAssessorNotifications();
       const filtered = all.filter(n =>
         (n.expertId && n.expertId === currentSession.id) ||
@@ -123,13 +124,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             مشتری
           </span>
         );
-      case 'insurer':
+      case 'insurer': {
+        const companyName = currentSession?.companyName || currentSession?.name || getInsurerPersianName(currentSession?.company);
         return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-blue-900 text-amber-300 border border-blue-950">
-            <Building2 className="w-3 h-3 text-amber-400" />
-            بیمه‌گر
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-blue-900 text-amber-300 border border-blue-950 shadow-xs">
+            <Building2 className="w-3.5 h-3.5 text-amber-400" />
+            <span>پورتال {companyName}</span>
           </span>
         );
+      }
       case 'assessor':
         return (
           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black bg-indigo-100 text-indigo-950 border border-indigo-300">
@@ -207,6 +210,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           {currentSession?.role === 'customer' && (
             <span className="text-xs font-bold text-blue-900 px-3 py-1 bg-amber-50 rounded-lg border border-amber-300">
               پورتال مشتریان
+            </span>
+          )}
+          {currentSession?.role === 'insurer' && (
+            <span className="text-xs font-black text-blue-950 px-3 py-1 bg-blue-50 rounded-lg border border-blue-200 flex items-center gap-1.5 shadow-2xs">
+              <Building2 className="w-3.5 h-3.5 text-blue-800" />
+              <span>پورتال اختصاصی {currentSession.companyName || currentSession.name || getInsurerPersianName(currentSession.company)}</span>
             </span>
           )}
         </div>
@@ -326,18 +335,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                               {n.branchName && (
                                 <div className="p-2 bg-white rounded-lg border border-amber-200 space-y-1 text-[10px]">
                                   <div className="flex items-center justify-between font-bold text-amber-950">
-                                    <span>🏢 شعبه: {n.branchName}</span>
-                                    {n.branchPhone && <span>📞 {n.branchPhone}</span>}
+                                    <span>شعبه: {n.branchName}</span>
+                                    {n.branchPhone && <span>تلفن: {n.branchPhone}</span>}
                                   </div>
                                   {n.branchAddress && (
                                     <div className="text-slate-600 leading-tight">
-                                      📍 نشانی: {n.branchAddress}
+                                      نشانی: {n.branchAddress}
                                     </div>
                                   )}
                                   {n.expertName && (
                                     <div className="text-blue-900 font-bold flex items-center justify-between pt-0.5 border-t border-slate-100">
-                                      <span>👤 کارشناس معتمد: {n.expertName}</span>
-                                      {n.expertPhone && <span>📱 {n.expertPhone}</span>}
+                                      <span>کارشناس معتمد: {n.expertName}</span>
+                                      {n.expertPhone && <span>تلفن: {n.expertPhone}</span>}
                                     </div>
                                   )}
                                 </div>
@@ -355,13 +364,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                       </div>
                     )}
 
-                    {/* Assessor / Field Expert Notifications */}
-                    {(currentSession.role === 'assessor' || currentSession.role === 'fieldexpert') && (
+                    {/* Assessor / Field Expert / Reviewer / Insurer Notifications */}
+                    {currentSession.role !== 'customer' && (
                       <div className="space-y-2.5 text-xs">
                         {assessorNotifs.length === 0 ? (
                           <div className="p-4 text-center text-slate-500 font-medium">
                             <MessageSquare className="w-6 h-6 mx-auto mb-1 text-slate-300" />
-                            پیام مأموریت جدیدی ثبت نشده است.
+                            پیام یا اعلان جدیدی ثبت نشده است.
                           </div>
                         ) : (
                           assessorNotifs.map((n) => (
@@ -369,46 +378,39 @@ export const Navbar: React.FC<NavbarProps> = ({
                               key={n.id}
                               onClick={() => handleMarkAssessorNotifRead(n.id)}
                               className={`p-3 rounded-xl border transition-all cursor-pointer ${
-                                n.read ? 'bg-slate-50 border-slate-200' : 'bg-amber-50 border-amber-300'
+                                n.type === 'CRM_MESSAGE'
+                                  ? n.read ? 'bg-purple-50/50 border-purple-200' : 'bg-purple-50 border-2 border-purple-400 shadow-xs'
+                                  : n.read ? 'bg-slate-50 border-slate-200' : 'bg-amber-50 border-amber-300'
                               }`}
                             >
                               <div className="flex items-center justify-between gap-1 mb-1">
-                                <div className="font-bold text-slate-900 text-[11px] flex items-center gap-1">
-                                  <MapPin className="w-3.5 h-3.5 text-amber-700" />
+                                <div className="font-bold text-slate-900 text-[11px] flex items-center gap-1.5">
+                                  {n.type === 'CRM_MESSAGE' ? (
+                                    <Headphones className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                                  ) : (
+                                    <MapPin className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                                  )}
                                   <span>{n.title}</span>
+                                  {n.type === 'CRM_MESSAGE' && (
+                                    <span className="px-1.5 py-0.2 rounded-md bg-purple-200 text-purple-900 font-black text-[9px]">
+                                      CRM
+                                    </span>
+                                  )}
                                 </div>
                                 {!n.read && (
-                                  <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                                  <span className="w-2 h-2 rounded-full bg-purple-600 shrink-0" />
                                 )}
                               </div>
                               <p className="text-[11px] text-slate-700 leading-relaxed font-medium whitespace-pre-line mb-1.5">
                                 {n.message}
                               </p>
                               <div className="flex items-center justify-between text-[9px] text-slate-500 pt-1 border-t border-slate-200/60">
-                                <span>{n.date} ساعت {n.time}</span>
+                                <span>{n.date} ساعت {n.time} {n.sender ? `• از طرف ${n.sender}` : ''}</span>
                                 {n.caseId && <span className="font-bold text-blue-900">پرونده {n.caseId}</span>}
                               </div>
                             </div>
                           ))
                         )}
-                      </div>
-                    )}
-
-                    {/* Other roles default notifications */}
-                    {currentSession.role !== 'customer' && currentSession.role !== 'assessor' && currentSession.role !== 'fieldexpert' && (
-                      <div className="space-y-2 text-xs">
-                        <div className="p-2.5 rounded-lg bg-blue-50 border border-blue-200">
-                          <p className="font-bold text-blue-950">ورود موفق به سامانه</p>
-                          <p className="text-slate-600 mt-0.5">
-                            خوش آمدید، کلیه سرویس‌ها و وب‌سرویس‌های استعلام سنهاب فعال هستند.
-                          </p>
-                        </div>
-                        <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200">
-                          <p className="font-bold text-amber-950">پیگیری برخط پرونده‌ها</p>
-                          <p className="text-slate-600 mt-0.5">
-                            تغییرات وضعیت پرونده‌ها به صورت زنده همگام‌سازی می‌گردد.
-                          </p>
-                        </div>
                       </div>
                     )}
                   </div>
