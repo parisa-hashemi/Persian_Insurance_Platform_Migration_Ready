@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   ArrowLeft,
   Clock,
@@ -53,6 +53,8 @@ import { Car3DViewer } from '../Car3DViewer';
 import { CustomerTicketModal } from './CustomerTicketModal';
 import { CustomerTicketsSection } from './CustomerTicketsSection';
 import { CustomerExpertCallModal } from './CustomerExpertCallModal';
+import { AIChatCopilotModal } from '../AI/AIChatCopilotModal';
+import { dispatchObjectionStageWithAI } from '../../lib/ai/aiDispatcher';
 
 // Helper to detect Iranian bank name from IBAN (Sheba) code
 export const getBankNameFromIban = (ibanStr: string): string => {
@@ -134,6 +136,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
   // Dispute state
   const [showDisputeModal, setShowDisputeModal] = useState(false);
+  const [showAiCopilotModal, setShowAiCopilotModal] = useState(false);
   const [disputeSubject, setDisputeSubject] = useState('مبلغ ارزیابی نامتناسب');
   const [disputeDesc, setDisputeDesc] = useState('');
 
@@ -304,6 +307,112 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     dataUrl: string;
   } | null>(null);
 
+  // Unified Chat Stream: Merges claimCase.docChat and claimCase.objectionChat into a single chronological stream
+  const unifiedChatMessages = useMemo(() => {
+    const list: Array<{
+      id: string;
+      sender: 'customer' | 'expert' | 'system' | 'ai';
+      senderName: string;
+      senderPartyLabel: string;
+      text: string;
+      time: string;
+      files?: Array<{ name?: string; dataUrl: string; fileType?: string; size?: string }>;
+      isFromExpert: boolean;
+      isSystem: boolean;
+    }> = [];
+
+    const seenKeys = new Set<string>();
+
+    // 1. Process docChat messages
+    (claimCase.docChat || []).forEach((c, idx) => {
+      if (c.targetParty || c.senderParty) {
+        const match = c.targetParty === myPartyKey || c.senderParty === myPartyKey || c.targetParty === 'EVERYONE' || !c.targetParty;
+        if (!match) return;
+      }
+
+      const isFromExpert = c.from === 'expert' || c.senderParty === 'EXPERT';
+      const isSystem = c.from === 'system' || c.senderParty === 'SYSTEM';
+      const senderName = isFromExpert
+        ? (c.by || claimCase.assignedExpert?.name || 'کارشناس ارزیاب خسارت')
+        : isSystem
+        ? 'سامانه هوشمند ارجاع AI'
+        : (c.senderName || c.by || session.name || (isPartyOne ? claimCase.victimName : claimCase.culpritName) || 'شما');
+
+      const roleLabel = isFromExpert ? 'کارشناس ارزیاب خسارت' : isSystem ? 'سیستم هوشمند' : myRoleLabel;
+
+      const files = (c.files || []).map((f: any, fIdx: number) => {
+        if (typeof f === 'string') {
+          return { name: `مدرک #${fIdx + 1}`, dataUrl: f, fileType: 'image', size: '' };
+        }
+        return {
+          name: f.fileName || f.title || `فایل ضمیمه #${fIdx + 1}`,
+          dataUrl: f.dataUrl || '',
+          fileType: f.fileType || 'image',
+          size: f.fileSize || ''
+        };
+      });
+
+      const key = `${c.text?.trim()}_${c.at || c.time}_${c.from || c.senderParty}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        list.push({
+          id: c.id || `doc-chat-${idx}`,
+          sender: isFromExpert ? 'expert' : isSystem ? 'system' : 'customer',
+          senderName,
+          senderPartyLabel: roleLabel,
+          text: c.text,
+          time: c.at || c.time || '',
+          files,
+          isFromExpert,
+          isSystem
+        });
+      }
+    });
+
+    // 2. Process objectionChat messages
+    (claimCase.objectionChat || []).forEach((msg, idx) => {
+      const isFromExpert = msg.sender === 'expert';
+      const isSystem = msg.sender === 'system' || msg.sender === 'ai' || (msg.name && msg.name.includes('سامانه'));
+      const senderName = isFromExpert
+        ? (msg.name || claimCase.assignedExpert?.name || 'کارشناس ارزیاب خسارت')
+        : isSystem
+        ? (msg.name || 'سامانه هوشمند ارجاع AI')
+        : (msg.name || session.name || (isPartyOne ? claimCase.victimName : claimCase.culpritName) || 'شما');
+
+      const roleLabel = isFromExpert ? 'کارشناس ارزیاب خسارت' : isSystem ? 'سیستم هوشمند' : myRoleLabel;
+
+      const files = (msg.files || []).map((f: any, fIdx: number) => {
+        if (typeof f === 'string') {
+          return { name: `تصویر مدرک #${fIdx + 1}`, dataUrl: f, fileType: 'image', size: '' };
+        }
+        return {
+          name: f.fileName || f.title || `فایل ضمیمه #${fIdx + 1}`,
+          dataUrl: f.dataUrl || '',
+          fileType: f.fileType || 'image',
+          size: f.fileSize || ''
+        };
+      });
+
+      const key = `${msg.text?.trim()}_${msg.time}_${msg.sender}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        list.push({
+          id: `obj-chat-${idx}`,
+          sender: isFromExpert ? 'expert' : isSystem ? 'system' : 'customer',
+          senderName,
+          senderPartyLabel: roleLabel,
+          text: msg.text,
+          time: msg.time || '',
+          files,
+          isFromExpert,
+          isSystem
+        });
+      }
+    });
+
+    return list;
+  }, [claimCase.docChat, claimCase.objectionChat, myPartyKey, myRoleLabel, claimCase.assignedExpert?.name, session.name, isPartyOne, claimCase.victimName, claimCase.culpritName]);
+
   const handleCustomerChatFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -333,26 +442,39 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       ? `طرف اول (${claimCase.partyOneRole || 'زیان‌دیده'})`
       : `طرف دوم (${claimCase.partyTwoRole || 'مقصر'})`;
     const uploaderName = session.name || (isPartyOne ? claimCase.victimName : claimCase.culpritName) || 'کاربر';
+    const currentTime = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
 
-    const newChatMsg = {
+    const filePayload = customerChatFile ? [{
+      id: `FILE-${Date.now()}`,
+      title: customerChatFile.name,
+      fileName: customerChatFile.name,
+      fileSize: customerChatFile.size,
+      fileType: customerChatFile.type,
+      dataUrl: customerChatFile.dataUrl,
+      uploadedAt: currentTime,
+      uploadedBy: uploaderName
+    }] : [];
+
+    const messageText = customerChatText.trim() || (customerChatFile ? `ارسال مدرک/تصویر: ${customerChatFile.name}` : '');
+
+    const newDocChatMsg = {
       id: `MSG-${Date.now()}`,
       from: 'customer' as const,
       senderParty: uploaderParty,
       targetParty: 'EXPERT' as const,
       by: uploaderName,
       senderName: uploaderName,
-      text: customerChatText.trim(),
-      files: customerChatFile ? [{
-        id: `FILE-${Date.now()}`,
-        title: customerChatFile.name,
-        fileName: customerChatFile.name,
-        fileSize: customerChatFile.size,
-        fileType: customerChatFile.type,
-        dataUrl: customerChatFile.dataUrl,
-        uploadedAt: new Date().toLocaleDateString('fa-IR'),
-        uploadedBy: uploaderName
-      }] : [],
-      at: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
+      text: messageText,
+      files: filePayload,
+      at: currentTime
+    };
+
+    const newObjChatMsg = {
+      sender: 'customer' as const,
+      name: uploaderName,
+      text: messageText,
+      files: customerChatFile ? [customerChatFile.dataUrl] : [],
+      time: currentTime
     };
 
     let updatedDocs = claimCase.additionalDocs || [];
@@ -360,7 +482,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       const newDocItem: AdditionalDocItem = {
         id: `DOC-${Date.now()}`,
         title: customerChatFile.name,
-        docType: 'مدرک/پاسخ چت اختصاصی',
+        docType: 'مدرک/پاسخ چت با ارزیاب',
         fileType: customerChatFile.type,
         fileName: customerChatFile.name,
         fileSize: customerChatFile.size,
@@ -368,23 +490,29 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
         uploadedBy: uploaderName,
         uploaderRole: uploaderRoleStr,
         uploaderParty: uploaderParty,
-        uploadedAt: new Date().toLocaleString('fa-IR'),
+        uploadedAt: currentTime,
         visibility: 'SHARED'
       };
       updatedDocs = [...updatedDocs, newDocItem];
     }
 
+    // Maintain or update status
+    const shouldReturnToEvaluating = (claimCase.status === 'در انتظار پاسخ به ارزیاب' || claimCase.status === 'درخواست مدارک') && !!claimCase.assignedExpert;
+    const newStatus = shouldReturnToEvaluating ? 'در حال ارزیابی' : claimCase.status;
+
     const updatedCase: ClaimCase = {
       ...claimCase,
+      status: newStatus,
       additionalDocs: updatedDocs,
-      docChat: [...(claimCase.docChat || []), newChatMsg],
+      docChat: [...(claimCase.docChat || []), newDocChatMsg],
+      objectionChat: [...(claimCase.objectionChat || []), newObjChatMsg],
       history: [
         ...(claimCase.history || []),
         {
-          status: claimCase.status,
-          time: new Date().toLocaleString('fa-IR'),
+          status: newStatus,
+          time: currentTime,
           user: uploaderName,
-          note: `ارسال پیام چت به کارشناس توسط ${uploaderRoleStr}`
+          note: `ارسال پیام و مدرک در گفتگوی مستقیم با کارشناس ارزیاب توسط ${uploaderRoleStr}`
         }
       ]
     };
@@ -392,6 +520,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     onUpdateCase(updatedCase);
     setCustomerChatText('');
     setCustomerChatFile(null);
+    setChatSelectedFile(null);
+    setChatMessageInput('');
   };
 
   // Multi-Stage Objection Modals & Form State
@@ -417,68 +547,17 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
   const [chatMessageInput, setChatMessageInput] = useState('');
 
-  // Handle Stage 1 Objection (Forces Insurance to reassign to a DIFFERENT assessor #2)
+  // Handle Stage 1 Objection (AI automatically re-assigns to a DIFFERENT assessor #2 & sends SMS alerts)
   const handleObjectionStage1 = (e: React.FormEvent) => {
     e.preventDefault();
     if (!objection1Reason.trim()) return;
 
-    const currentAssessorId = claimCase.assignedExpert?.id;
-    const currentAssessorName = claimCase.assignedExpert?.name || claimCase.assessment?.submittedBy || 'ارزیاب اول';
-    const updatedPrev = Array.from(new Set([
-      ...(claimCase.previousAssessorIds || []),
-      ...(currentAssessorId ? [currentAssessorId] : []),
-      ...(claimCase.rejectedByAssessorIds || [])
-    ]));
-
-    // Preserve previous assessment in assessments history array
-    const existingAssessments = claimCase.assessments || [];
-    let updatedAssessments = [...existingAssessments];
-    if (claimCase.assessment && !updatedAssessments.some(a => a.gross === claimCase.assessment?.gross && a.payable === claimCase.assessment?.payable)) {
-      updatedAssessments.push({
-        round: 'ارزیابی اول (کارشناس قبلی)',
-        roundIdx: 1,
-        expertName: claimCase.assignedExpert?.name || claimCase.assessment.submittedBy || 'کارشناس ارزیاب اول',
-        submittedAt: claimCase.assessment.submittedAt || new Date().toLocaleString('fa-IR'),
-        gross: claimCase.assessment.gross,
-        deductions: claimCase.assessment.deductions,
-        salvage: claimCase.assessment.salvage,
-        payable: claimCase.assessment.payable,
-        reviewerNote: claimCase.assessment.reviewerNote,
-        parts: claimCase.assessment.parts || [],
-        aiDecisions: claimCase.aiDecisions || [],
-        status: 'مورد اعتراض زیان‌دیده (مرحله اول)',
-      });
-    }
-
-    const updated: ClaimCase = {
-      ...claimCase,
-      objectionStage: 1,
-      status: 'در انتظار ارجاع به ارزیاب مجدد',
-      reassessReason: objection1Reason.trim(),
-      reassessType: 'اعتراض به ارزیابی اولیه',
-      assessments: updatedAssessments,
-      previousAssignedExpert: claimCase.assignedExpert || {
-        id: currentAssessorId || 'prev_exp_1',
-        name: currentAssessorName,
-        role: 'کارشناس خسارت خودرو'
-      },
-      assignedExpert: null, // Force reassignment to expert 2
-      previousAssessorIds: updatedPrev,
-      history: [
-        ...(claimCase.history || []),
-        {
-          status: 'در انتظار ارجاع به ارزیاب مجدد',
-          time: new Date().toLocaleString('fa-IR'),
-          user: session.name || 'زیان‌دیده',
-          note: `ثبت اعتراض اول زیان‌دیده: «${objection1Reason.trim()}». پرونده جهت ارجاع به ارزیاب جدید (غیر از ${currentAssessorName}) به پنل شرکت بیمه ارجاع شد.`
-        }
-      ]
-    };
+    const updated = dispatchObjectionStageWithAI(claimCase, 1, objection1Reason.trim());
 
     onUpdateCase(updated);
     setShowObjection1Modal(false);
     setObjection1Reason('');
-    alert('اعتراض اول شما با موفقیت ثبت شد. پرونده جهت تخصیص به کارشناس ارزیاب جدید به شرکت بیمه ارسال گردید.');
+    alert(`اعتراض مرحله اول شما ثبت شد.\n• پرونده توسط هوش مصنوعی به کارشناس ارزیاب مستقل جدید (${updated.assignedExpert?.name || 'ارزیاب دوم'}) ارجاع گردید.\n• پیامک تایید و جزئیات ارجاع برای شما و کارشناس ارسال شد.`);
   };
 
   // Handle Stage 2 Objection (Keeps Assessor #2, opens chat channel)
@@ -615,29 +694,10 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     e.preventDefault();
     if (isCulprit) return;
 
-    const requestTypeLabel = fieldVisitType === 'FIELD_VISIT'
-      ? 'اعزام کارشناس رسمی میدانی به محل استقرار خودرو'
-      : 'هماهنگی جهت مراجعه حضوری خودرو به شعبه تخصصی خسارت بیمه';
-
     const locationText = fieldVisitAddress.trim() || claimCase.accidentLocation || 'تهران';
-    const phoneText = fieldVisitContactPhone.trim() || claimCase.victimPhone || session.phone || '';
     const noteText = fieldVisitReason.trim();
 
-    const updated: ClaimCase = {
-      ...claimCase,
-      objectionStage: 4,
-      status: 'در انتظار ارجاع به کارشناس میدانی',
-      accidentLocation: locationText,
-      history: [
-        ...(claimCase.history || []),
-        {
-          status: 'در انتظار ارجاع به کارشناس میدانی',
-          time: new Date().toLocaleString('fa-IR'),
-          user: session.name || 'زیان‌دیده',
-          note: `درخواست اعتراض نهایی و ارزیابی میدانی ثبت شد. نوع درخواست: «${requestTypeLabel}» • آدرس استقرار خودرو: «${locationText}» • تلفن هماهنگی: ${phoneText}${noteText ? ` • توضیحات: «${noteText}»` : ''}`
-        }
-      ]
-    };
+    const updated = dispatchObjectionStageWithAI(claimCase, 4, noteText, { address: locationText });
 
     onUpdateCase(updated);
     setShowFieldVisitModal(false);
@@ -1136,6 +1196,17 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* AI Claims Copilot Assistant Button */}
+            <button
+              type="button"
+              onClick={() => setShowAiCopilotModal(true)}
+              className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-black text-xs transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer border border-indigo-400/30"
+              title="گفتگوی هوشمند با دستیار هوش مصنوعی درباره پرونده، مدارک و مراحل"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+              <span>دستیار هوشمند پرونده (AI Copilot)</span>
+            </button>
+
             {/* Direct Expert Call / Inquiry Button */}
             <button
               type="button"
@@ -1373,16 +1444,21 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Automatic Insurance Referral Banner (Shown when not in temporary kroki waiting state) */}
         {claimCase.status !== 'ثبت موقت - در انتظار افزودن کروکی' && (
-          <div className="bg-emerald-50/90 border border-emerald-300 rounded-3xl p-5 flex items-start gap-3.5 shadow-xs animate-in fade-in">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+          <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 flex items-start gap-3.5 shadow-xs animate-in fade-in">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0 shadow-xs font-bold">
               <CheckCircle2 className="w-5 h-5" />
             </div>
-            <div className="space-y-1 text-xs">
-              <h4 className="font-extrabold text-emerald-950 text-sm">
-                استعلام هوشمند انجام شد: ارجاع خودکار پرونده به {getInsurerPersianName(claimCase.culpritInsurer)}
-              </h4>
-              <p className="text-emerald-800 leading-relaxed font-medium">
-                پرونده شما با استعلام هوشمند لحظه‌ای تایید گردید و جهت بررسی و تخصیص ارزیاب خسارت، مستقیماً به **{getInsurerPersianName(claimCase.culpritInsurer)}** ارجاع داده شد. پیامک اطلاع‌رسانی برای زیان‌دیده ({claimCase.victimName} - {claimCase.victimPhone}) و مقصر ({claimCase.culpritName} - {claimCase.culpritPhone}) ارسال شده است.
+            <div className="space-y-1 text-xs flex-1">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h4 className="font-black text-slate-900 text-sm">
+                  استعلام هوشمند انجام شد؛ ارجاع خودکار پرونده به {getInsurerPersianName(claimCase.culpritInsurer)}
+                </h4>
+                <span className="text-[10px] font-black bg-emerald-100/80 text-emerald-900 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                  تایید شده و برخط
+                </span>
+              </div>
+              <p className="text-slate-600 leading-relaxed font-medium">
+                پرونده شما با استعلام هوشمند لحظه‌ای تایید گردید و جهت بررسی و تخصیص ارزیاب خسارت، مستقیماً به <strong className="text-slate-900">{getInsurerPersianName(claimCase.culpritInsurer)}</strong> ارجاع داده شد. پیامک اطلاع‌رسانی برای زیان‌دیده ({claimCase.victimName} - {claimCase.victimPhone}) و مقصر ({claimCase.culpritName} - {claimCase.culpritPhone}) ارسال شده است.
               </p>
             </div>
           </div>
@@ -1390,9 +1466,12 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Address */}
         {claimCase.address && (
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
-            <span className="text-slate-400 block mb-1 font-bold">محل تصادف:</span>
-            <span className="font-semibold text-slate-700">{claimCase.address}</span>
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs flex items-center gap-2 text-slate-700">
+            <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+            <div>
+              <span className="text-slate-400 font-bold block text-[10px]">محل تصادف:</span>
+              <span className="font-bold text-slate-800">{claimCase.address}</span>
+            </div>
           </div>
         )}
 
@@ -1401,24 +1480,24 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           const calc = calculateClaimDamageWithPolicyLimits(claimCase);
           const policyLimit = calc.policyMaxFinancialLimit;
           return (
-            <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-blue-950 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-indigo-500/30 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
+            <div className="bg-slate-950 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-indigo-300 flex items-center justify-center font-bold shadow-xs">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-400 flex items-center justify-center font-bold shadow-xs">
                     <Shield className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
                       اطلاعات بیمه‌نامه و سقف تعهدات مالی
                     </h3>
-                    <p className="text-[11px] text-slate-300">
+                    <p className="text-[11px] text-slate-400 font-medium">
                       استعلام برخط سامانه سنهاب بیمه مرکزی ({getInsurerPersianName(claimCase.culpritInsurer)})
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center gap-1">
+                  <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5" />
                     استعلام معتبر سنهاب
                   </span>
@@ -1426,30 +1505,30 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
-                  <span className="text-slate-400 text-[10px] block mb-1">شماره بیمه‌نامه شخص ثالث</span>
+                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                  <span className="text-slate-400 text-[10px] block mb-1 font-medium">شماره بیمه‌نامه شخص ثالث</span>
                   <span className="font-mono font-bold text-white text-xs" dir="ltr">
                     {claimCase.culpritPolicyNumber || 'DAN-1403-882194'}
                   </span>
                 </div>
 
-                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
-                  <span className="text-slate-400 text-[10px] block mb-1">سقف تعهد مالی بیمه‌نامه</span>
-                  <span className="font-mono font-extrabold text-amber-300 text-xs">
+                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                  <span className="text-slate-400 text-[10px] block mb-1 font-medium">سقف تعهد مالی بیمه‌نامه</span>
+                  <span className="font-mono font-extrabold text-amber-400 text-xs">
                     {formatCurrency(policyLimit)}
                   </span>
                 </div>
 
-                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
-                  <span className="text-slate-400 text-[10px] block mb-1">کد رهگیری سامانه سنهاب</span>
-                  <span className="font-mono font-bold text-blue-200 text-xs" dir="ltr">
+                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                  <span className="text-slate-400 text-[10px] block mb-1 font-medium">کد رهگیری سامانه سنهاب</span>
+                  <span className="font-mono font-bold text-blue-300 text-xs" dir="ltr">
                     {claimCase.sanhabInquiry?.trackingCode || 'SNH-994821'}
                   </span>
                 </div>
 
-                <div className="bg-white/5 border border-white/10 p-3 rounded-2xl">
-                  <span className="text-slate-400 text-[10px] block mb-1">وضعیت شمول خودرو</span>
-                  <span className="font-bold text-emerald-300 text-xs">
+                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                  <span className="text-slate-400 text-[10px] block mb-1 font-medium">وضعیت شمول خودرو</span>
+                  <span className="font-bold text-emerald-400 text-xs">
                     خودروی متعارف (۱۰۰٪ شمول)
                   </span>
                 </div>
@@ -1460,7 +1539,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* PARTY ONE POST-CREATION STATUS BANNER (When no expert requests exist yet) */}
         {isPartyOne && pendingDocRequests.length === 0 && myDocChat.length === 0 && (
-          <div className="p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-3xl space-y-2 text-xs text-blue-950 shadow-xs">
+          <div className="p-5 bg-slate-50 border-2 border-slate-200 rounded-3xl space-y-2 text-xs text-slate-800 shadow-xs">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-extrabold text-sm text-blue-900">
                 <CheckCircle2 className="w-5 h-5 text-blue-600" />
@@ -1470,7 +1549,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                     : 'پرونده اعلام خسارت شما با موفقیت ثبت شد و در انتظار ارجاع به کارشناس ارزیاب است'}
                 </span>
               </div>
-              <span className="px-3 py-1 rounded-full bg-blue-600 text-white font-extrabold text-[10px]">
+              <span className="px-3 py-1 rounded-full bg-blue-900 text-white font-extrabold text-[10px]">
                 {claimCase.status}
               </span>
             </div>
@@ -1484,14 +1563,14 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* PARTY TWO ACTION BANNER */}
         {isPartyTwo && (
-          <div className="p-5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-3xl space-y-3 text-xs text-amber-950 shadow-xs">
+          <div className="p-5 bg-purple-50/70 border-2 border-purple-200 rounded-3xl space-y-3 text-xs text-purple-950 shadow-xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="space-y-1">
-                <div className="flex items-center gap-2 font-black text-sm text-amber-900">
-                  <FilePlus className="w-5 h-5 text-amber-600" />
+                <div className="flex items-center gap-2 font-black text-sm text-purple-900">
+                  <FilePlus className="w-5 h-5 text-purple-700" />
                   <span>بخش بارگذاری مدارک و شواهد توسط طرف دوم ({partyTwoRole} / طرف مقابل)</span>
                 </div>
-                <p className="text-amber-800 font-medium leading-relaxed">
+                <p className="text-purple-800 font-medium leading-relaxed">
                   شما به عنوان طرف دوم پرونده ({partyTwoRole}) می‌توانید عکس‌ها، ویدیوها، تصاویر گواهی‌نامه، بیمه‌نامه و توضیحات خود را برای بررسی یکپارچه کارشناس ارزیاب بارگذاری نمایید.
                 </p>
               </div>
@@ -1499,7 +1578,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAddDocModal(true)}
-                className="px-4 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 shrink-0"
+                className="px-4 py-2.5 rounded-2xl bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 shrink-0"
               >
                 <Plus className="w-4 h-4" />
                 <span>بارگذاری مدارک و شواهد طرف دوم</span>
@@ -1508,68 +1587,110 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
         )}
 
-
-
-        {/* CONTEXTUAL CHAT WITH INSURANCE EXPERT */}
-        {(myDocChat.length > 0 || pendingDocRequests.length > 0) && (
-          <div className="bg-white border-2 border-indigo-200/80 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
+        {/* UNIFIED CHAT WITH INSURANCE EXPERT & SYSTEM */}
+        {(unifiedChatMessages.length > 0 || pendingDocRequests.length > 0 || !!claimCase.assignedExpert || claimCase.status === 'در حال ارزیابی' || claimCase.status === 'درخواست مدارک' || claimCase.status === 'نیازمند اصلاح اطلاعات مشتری') && (
+          <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-indigo-600" />
-                <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                  گفتگو و پیام‌های مستقیم با کارشناس ارزیاب پرونده
-                </h3>
+                <MessageSquare className="w-5 h-5 text-blue-900" />
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                    گفتگو و تبادل مدارک با کارشناس ارزیاب پرونده
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                    کارشناس ارزیاب: {claimCase.assignedExpert?.name || 'فاطمه احمدی (ارزیاب خسارت)'}
+                  </p>
+                </div>
               </div>
-              <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full font-extrabold border border-indigo-200">
-                کانال محرمانه {isPartyOne ? 'طرف اول' : 'طرف دوم'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-extrabold border border-slate-200">
+                  کانال ارتباطی {isPartyOne ? 'طرف اول' : 'طرف دوم'}
+                </span>
+                <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-extrabold border border-emerald-200 hidden sm:inline">
+                  گفتگوی فعال
+                </span>
+              </div>
             </div>
 
-            <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
-              {myDocChat.length === 0 ? (
-                <p className="text-center text-slate-400 text-xs py-4 font-medium">
-                  پیامی بین شما و کارشناس ثبت نشده است.
-                </p>
+            {/* Unified Chat Messages Stream */}
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-1 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200">
+              {unifiedChatMessages.length === 0 ? (
+                <div className="text-center py-6 space-y-2">
+                  <MessageSquare className="w-8 h-8 text-slate-300 mx-auto" />
+                  <p className="text-xs text-slate-500 font-medium">
+                    گفتگو با کارشناس ارزیاب آغاز شده است. می‌توانید سوالات، توضیحات یا مدارک تکمیلی خود را ارسال فرمایید.
+                  </p>
+                </div>
               ) : (
-                myDocChat.map((chat, idx) => {
-                  const isFromExpert = chat.from === 'expert' || chat.senderParty === 'EXPERT';
+                unifiedChatMessages.map((msg, idx) => {
+                  if (msg.isSystem) {
+                    return (
+                      <div key={msg.id || idx} className="p-3 bg-slate-100/90 border border-slate-200 rounded-2xl text-xs space-y-1 text-slate-800">
+                        <div className="flex items-center justify-between font-bold text-[10px] text-slate-700">
+                          <span className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-blue-900" />
+                            <span>{msg.senderName}</span>
+                          </span>
+                          <span className="font-mono text-slate-400">{msg.time}</span>
+                        </div>
+                        <p className="font-medium leading-relaxed">{msg.text}</p>
+                      </div>
+                    );
+                  }
+
+                  const isFromExpert = msg.isFromExpert;
                   return (
                     <div
-                      key={chat.id || idx}
+                      key={msg.id || idx}
                       className={`p-3.5 rounded-2xl text-xs space-y-2 border ${
                         isFromExpert
-                          ? 'bg-purple-50/90 border-purple-200 mr-8 text-purple-950'
-                          : 'bg-blue-50/90 border-blue-200 ml-8 text-blue-950 shadow-2xs'
+                          ? 'bg-purple-50/90 border-purple-200 mr-4 sm:mr-8 text-purple-950 shadow-2xs'
+                          : 'bg-blue-900 border-blue-950 ml-4 sm:ml-8 text-white shadow-sm'
                       }`}
                     >
                       <div className="flex items-center justify-between font-bold text-[10px]">
-                        <span className={isFromExpert ? 'text-purple-700' : 'text-blue-700'}>
-                          {isFromExpert ? `کارشناس ارزیاب (${chat.by || 'پشتیبان'})` : `شما (${myRoleLabel})`}
+                        <span className={isFromExpert ? 'text-purple-800' : 'text-blue-100'}>
+                          {isFromExpert ? `کارشناس ارزیاب: ${msg.senderName}` : `شما (${myRoleLabel})`}
                         </span>
-                        <span className="text-slate-400 font-mono">{chat.at}</span>
+                        <span className={`font-mono ${isFromExpert ? 'text-slate-400' : 'text-blue-200'}`}>
+                          {msg.time}
+                        </span>
                       </div>
-                      <p className="font-medium leading-relaxed">{chat.text}</p>
+                      <p className="font-medium leading-relaxed whitespace-pre-wrap">{msg.text}</p>
 
                       {/* Attached files preview in chat bubble */}
-                      {chat.files && chat.files.length > 0 && (
-                        <div className="pt-1.5 flex flex-wrap gap-2 border-t border-slate-200/60 mt-2">
-                          {chat.files.map((fileItem: any, fi: number) => {
-                            const isObj = typeof fileItem === 'object' && fileItem !== null;
-                            const dUrl = isObj ? fileItem.dataUrl : fileItem;
-                            const fName = isObj ? (fileItem.fileName || fileItem.title || 'فایل ضمیمه') : `فایل ضمیمه #${fi + 1}`;
-                            const fType = isObj ? fileItem.fileType : (typeof dUrl === 'string' && dUrl.startsWith('data:video') ? 'video' : 'image');
+                      {msg.files && msg.files.length > 0 && (
+                        <div className="pt-2 flex flex-wrap gap-2 border-t border-slate-200/50 mt-2">
+                          {msg.files.map((fileItem, fi) => {
+                            const dUrl = fileItem.dataUrl;
+                            const fName = fileItem.name || `فایل ضمیمه #${fi + 1}`;
+                            const fType = fileItem.fileType || (typeof dUrl === 'string' && dUrl.startsWith('data:video') ? 'video' : 'image');
 
                             return (
-                              <div key={fi} className="p-2 bg-white rounded-xl border border-slate-200 text-[11px] space-y-1 max-w-xs">
-                                <span className="font-bold text-slate-800 block truncate">{fName}</span>
+                              <div
+                                key={fi}
+                                className={`p-2 rounded-xl text-[11px] space-y-1.5 max-w-xs ${
+                                  isFromExpert ? 'bg-white border border-slate-200 text-slate-900' : 'bg-blue-800/80 border border-blue-700 text-white'
+                                }`}
+                              >
+                                <span className="font-bold block truncate">{fName}</span>
                                 {dUrl && (fType === 'image' || (!fType && typeof dUrl === 'string' && dUrl.startsWith('data:image'))) && (
-                                  <img src={dUrl} alt={fName} className="w-full h-24 object-cover rounded-lg border border-slate-100" />
+                                  <img
+                                    src={dUrl}
+                                    alt={fName}
+                                    onClick={() => setPreviewImageModal(dUrl)}
+                                    className="w-full h-28 object-cover rounded-lg border border-slate-200/40 cursor-pointer hover:opacity-90 transition-opacity"
+                                  />
                                 )}
                                 {dUrl && fType === 'video' && (
-                                  <video src={dUrl} controls className="w-full max-h-28 rounded-lg border border-slate-100" />
+                                  <video src={dUrl} controls className="w-full max-h-32 rounded-lg border border-slate-200/40" />
                                 )}
                                 {dUrl && (fType === 'pdf' || fType === 'doc') && (
-                                  <a href={dUrl} download={fName} className="text-blue-600 hover:underline font-bold text-[10px] block">
+                                  <a
+                                    href={dUrl}
+                                    download={fName}
+                                    className={`font-bold text-[10px] block underline ${isFromExpert ? 'text-purple-700' : 'text-blue-200'}`}
+                                  >
                                     دانلود فایل ({fType.toUpperCase()})
                                   </a>
                                 )}
@@ -1584,20 +1705,23 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               )}
             </div>
 
-            {/* Direct Message Form for Customer */}
-            <form onSubmit={handleSendCustomerChatMessage} className="pt-2 border-t border-slate-100 space-y-2">
+            {/* Direct Message & Document Composer for Customer */}
+            <form onSubmit={handleSendCustomerChatMessage} className="pt-2 border-t border-slate-100 space-y-2.5">
               {customerChatFile && (
-                <div className="flex items-center justify-between p-2 bg-indigo-50 border border-indigo-200 rounded-xl text-xs font-bold text-indigo-900">
+                <div className="flex items-center justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs font-bold text-blue-900">
                   <div className="flex items-center gap-2 truncate">
-                    <Paperclip className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span className="truncate">فایل انتخاب‌شده: {customerChatFile.name} ({customerChatFile.size})</span>
+                    <Paperclip className="w-4 h-4 text-blue-700 shrink-0" />
+                    <span className="truncate">مدرک انتخاب‌شده: {customerChatFile.name} ({customerChatFile.size})</span>
+                    {customerChatFile.type === 'image' && (
+                      <img src={customerChatFile.dataUrl} className="w-8 h-8 rounded-md object-cover border border-blue-200" alt="پیش‌نمایش" />
+                    )}
                   </div>
                   <button
                     type="button"
                     onClick={() => setCustomerChatFile(null)}
-                    className="text-red-500 hover:text-red-700 text-xs px-2"
+                    className="text-rose-600 hover:text-rose-700 text-xs px-2 py-1 bg-white rounded-lg border border-rose-200 font-bold shrink-0"
                   >
-                    حذف
+                    حذف فایل
                   </button>
                 </div>
               )}
@@ -1607,12 +1731,16 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                   type="text"
                   value={customerChatText}
                   onChange={(e) => setCustomerChatText(e.target.value)}
-                  placeholder="پاسخ یا پیام خود را برای کارشناس بنویسید..."
-                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-indigo-600"
+                  placeholder="پاسخ، پیام یا توضیحات خود را برای کارشناس بنویسید..."
+                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-900 transition-colors"
                 />
 
-                <label className="p-2.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition-all shrink-0" title="افزودن تصویر، ویدیو یا مدرک">
-                  <Upload className="w-4 h-4" />
+                <label
+                  className="p-2.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition-all shrink-0 flex items-center gap-1"
+                  title="افزودن تصویر، ویدیو یا مدرک"
+                >
+                  <Camera className="w-4 h-4 text-slate-700" />
+                  <span className="text-xs font-bold hidden sm:inline">افزودن عکس/مدرک</span>
                   <input
                     type="file"
                     accept="image/*,video/*,.pdf,.doc,.docx"
@@ -1623,7 +1751,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
                 <button
                   type="submit"
-                  className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0"
+                  className="px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0"
                 >
                   <span>ارسال پیام</span>
                   <Send className="w-3.5 h-3.5" />
@@ -1638,7 +1766,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-indigo-600" />
+                <MessageSquare className="w-5 h-5 text-blue-900" />
                 <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
                   اظهارات و یادداشت‌های طرفین حادثه
                 </h3>
@@ -1655,13 +1783,13 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                   className={`p-3.5 rounded-2xl text-xs space-y-1.5 border ${
                     cmt.uploaderParty === 'PARTY_ONE'
                       ? 'bg-blue-50/70 border-blue-200 text-blue-950'
-                      : 'bg-amber-50/70 border-amber-200 text-amber-950'
+                      : 'bg-purple-50/70 border-purple-200 text-purple-950'
                   }`}
                 >
                   <div className="flex items-center justify-between font-bold text-[11px]">
                     <span className="flex items-center gap-1.5">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] ${
-                        cmt.uploaderParty === 'PARTY_ONE' ? 'bg-blue-200 text-blue-900' : 'bg-amber-200 text-amber-900'
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                        cmt.uploaderParty === 'PARTY_ONE' ? 'bg-blue-200/80 text-blue-950' : 'bg-purple-200/80 text-purple-950'
                       }`}>
                         {cmt.role}
                       </span>
@@ -1681,11 +1809,11 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 value={partyCommentInput}
                 onChange={(e) => setPartyCommentInput(e.target.value)}
                 placeholder={`توضیحات و اظهارات خود به‌عنوان ${isPartyOne ? 'طرف اول' : 'طرف دوم'} را ثبت کنید...`}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-indigo-600 bg-slate-50 focus:bg-white"
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-900 bg-slate-50 focus:bg-white transition-colors"
               />
               <button
                 type="submit"
-                className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0"
+                className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0"
               >
                 <span>ثبت اظهارات</span>
                 <Send className="w-3.5 h-3.5" />
@@ -1696,10 +1824,10 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Assigned Expert Info & Customer Complaint Box — ONLY shown after expert evaluation */}
         {claimCase.assessment && (
-          <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 sm:p-6 border border-slate-700 shadow-md space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-700/80 pb-3">
+          <div className="bg-slate-950 text-white rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-md space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center font-bold text-sm shadow-xs">
                   <UserCheck className="w-5 h-5" />
                 </div>
                 <div>
@@ -1715,7 +1843,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
               <button
                 onClick={() => setShowExpertComplaintModal(true)}
-                className="px-3.5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-bold text-xs border border-amber-500/40 transition-all flex items-center gap-1.5 self-start sm:self-auto active:scale-95"
+                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 font-bold text-xs border border-slate-700 transition-all flex items-center gap-1.5 self-start sm:self-auto active:scale-95 cursor-pointer"
               >
                 <AlertTriangle className="w-4 h-4 text-amber-400" />
                 <span>ثبت اعتراض / شکایت از عملکرد کارشناس</span>
@@ -1729,7 +1857,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               </div>
             )}
 
-            <p className="text-[11px] text-slate-400 leading-relaxed">
+            <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
               در صورت وجود هرگونه اعتراض به برآورد خسارت، عدم پاسخگویی یا رفتار نامناسب کارشناس ارزیاب، می‌توانید شکایت خود را ثبت نمایید. این شکایت مستقیماً در پنل مدیریتی شرکت بیمه ثبت شده و نمره عملکرد کارشناس مربوطه را کاهش خواهد داد.
             </p>
           </div>
@@ -1737,17 +1865,17 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Pending Reviewer Approval Banner for Customer */}
         {(claimCase.status === 'در انتظار بررسی بازبین' || claimCase.status === 'در انتظار بازبینی' || claimCase.status === 'نیازمند اصلاح کارشناس' || (claimCase.assessment && !claimCase.reviewerApproval?.approved && claimCase.status !== 'در انتظار تایید کاربر' && claimCase.status !== 'تصمیم نهایی - غیرقابل اعتراض' && !claimCase.isFinalDecision && !claimCase.status.includes('پرداخت'))) && (
-          <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-5 space-y-2 text-amber-950 shadow-sm animate-in fade-in">
+          <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 space-y-2 text-slate-800 shadow-sm animate-in fade-in">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 font-black text-sm text-amber-900">
-                <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+              <div className="flex items-center gap-2 font-black text-sm text-slate-900">
+                <Clock className="w-5 h-5 text-blue-900 shrink-0" />
                 <span>ارزیابی خسارت در مرحله کنترل کیفیت بازبین بیمه</span>
               </div>
-              <span className="px-3 py-1 rounded-full bg-amber-200 text-amber-900 text-[10px] font-extrabold">
+              <span className="px-3 py-1 rounded-full bg-slate-200 text-slate-800 text-[10px] font-extrabold border border-slate-300">
                 در حال بازبینی
               </span>
             </div>
-            <p className="text-xs text-amber-800 leading-relaxed font-medium">
+            <p className="text-xs text-slate-600 leading-relaxed font-medium">
               برآورد خسارت توسط کارشناس ارزیاب انجام پذیرفته و در حال حاضر در مرحله کنترلی و تایید بازبین بیمه‌گر می‌باشد. بلافاصله پس از ابلاغ و تایید بازبین، جزئیات کامل و مبلغ قابل پرداخت جهت مشاهده و تصمیم‌گیری شما فعال خواهد شد.
             </p>
           </div>
@@ -1780,17 +1908,17 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           // If no completed assessments yet, show clear waiting banner and don't render empty assessment cards
           if (!isFieldAssessmentCompleted && !isDeskAssessmentCompleted) {
             return (
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-3xl p-5 space-y-2 text-slate-800 shadow-sm animate-in fade-in">
+              <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 space-y-2 text-slate-800 shadow-sm animate-in fade-in">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 font-black text-sm text-blue-950">
-                    <Clock className="w-5 h-5 text-blue-600 shrink-0" />
+                  <div className="flex items-center gap-2 font-black text-sm text-slate-900">
+                    <Clock className="w-5 h-5 text-blue-900 shrink-0" />
                     <span>پرونده در دست ارزیابی کارشناس بیمه</span>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-blue-100 text-blue-900 text-[10px] font-extrabold border border-blue-200">
+                  <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-950 text-[10px] font-extrabold border border-blue-200">
                     در حال ارزیابی
                   </span>
                 </div>
-                <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                <p className="text-xs text-slate-600 leading-relaxed font-medium">
                   پرونده شما جهت بررسی مستندات و برآورد خسارت به کارشناس ارزیاب تخصیص یافته است. پس از تکمیل ارزیابی، تایید و ارسال رسمی گزارش توسط کارشناس و بیمه‌گر، کارت نتیجه ارزیابی به همراه جزئیات خسارت و مبالغ در این بخش نمایش داده خواهد شد.
                 </p>
               </div>
@@ -3004,124 +3132,6 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             </div>
           );
         })()}
-
-        {/* Interactive Objection Chat Component (Stage 2 Chat with Assessor 2) */}
-        {(claimCase.objectionChat || claimCase.objectionStage === 2) && (
-          <div className="bg-white rounded-2xl border-2 border-blue-900 p-5 space-y-4 shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-blue-900" />
-                <h4 className="font-extrabold text-blue-950 text-xs sm:text-sm">
-                  گفتگو و ارسال مدارک درخواستی با ارزیاب خسارت ({claimCase.assignedExpert?.name || 'ارزیاب پرونده'})
-                </h4>
-              </div>
-              <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 text-[10px] font-black border border-amber-300">
-                گفتگوی فعال ارزیابی
-              </span>
-            </div>
-
-            {/* Chat Message Stream */}
-            <div className="space-y-3 max-h-64 overflow-y-auto pr-1 bg-slate-50 p-3 rounded-xl border border-slate-200">
-              {(!claimCase.objectionChat || claimCase.objectionChat.length === 0) ? (
-                <p className="text-center text-xs text-slate-500 py-4 font-medium">پیامی در کانال چت ثبت نشده است.</p>
-              ) : (
-                claimCase.objectionChat.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex flex-col ${
-                      msg.sender === 'customer' ? 'items-start' : 'items-end'
-                    }`}
-                  >
-                    <div
-                      className={`max-w-[85%] p-3.5 rounded-2xl text-xs leading-relaxed shadow-sm ${
-                        msg.sender === 'customer'
-                          ? 'bg-blue-900 text-white rounded-tl-none border border-blue-950'
-                          : 'bg-white text-slate-900 border-2 border-amber-400 rounded-tr-none'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-3 text-[10px] opacity-80 mb-1 font-bold">
-                        <span>{msg.name}</span>
-                        <span className="font-mono">{msg.time}</span>
-                      </div>
-                      <p className="font-medium">{msg.text}</p>
-                      {msg.files && msg.files.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {msg.files.map((f: any, fileIdx: number) => {
-                            const imgSrc = typeof f === 'string' ? f : (f?.dataUrl || '');
-                            return (
-                              <img
-                                key={fileIdx}
-                                src={imgSrc}
-                                alt="مدرک ارسالی"
-                                className="max-h-48 rounded-lg border-2 border-amber-300 object-cover cursor-pointer hover:opacity-90 shadow-md"
-                                onClick={() => setPreviewImageModal(imgSrc)}
-                              />
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Selected File Preview Badge */}
-            {chatSelectedFile && (
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-amber-50 border-2 border-amber-400 text-xs text-amber-950 font-bold">
-                <div className="flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-amber-600" />
-                  <span>تصویر مدرک انتخاب شده است</span>
-                  <img src={chatSelectedFile} className="w-10 h-10 rounded-lg object-cover border-2 border-amber-400" alt="پیش‌نمایش" />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setChatSelectedFile(null)}
-                  className="text-rose-600 font-black hover:text-rose-700 px-2 py-1 bg-white rounded-lg border border-rose-300 flex items-center gap-1"
-                >
-                  <X className="w-3.5 h-3.5" />
-                  <span>حذف فایل</span>
-                </button>
-              </div>
-            )}
-
-            {/* Send Message Form */}
-            <form onSubmit={handleSendChatMessage} className="flex items-center gap-2">
-              <label className="p-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-blue-950 cursor-pointer border-2 border-amber-300 transition-all shrink-0 font-bold flex items-center gap-1.5 shadow-sm" title="ارسال عکس/مدرک">
-                <Camera className="w-4 h-4 text-blue-950" />
-                <span className="text-xs font-black hidden sm:inline">افزودن عکس</span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      const dataUrl = await compressImageFile(file, 1000, 0.7);
-                      setChatSelectedFile(dataUrl);
-                    }
-                  }}
-                />
-              </label>
-
-              <input
-                type="text"
-                value={chatMessageInput}
-                onChange={(e) => setChatMessageInput(e.target.value)}
-                placeholder="پاسخ خود یا توضیحات مدرک را بنویسید..."
-                className="flex-1 px-4 py-2.5 rounded-xl bg-slate-50 border-2 border-slate-300 text-slate-900 text-xs placeholder:text-slate-400 focus:outline-none focus:border-blue-900 font-medium"
-              />
-
-              <button
-                type="submit"
-                className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs flex items-center gap-1.5 transition-all shrink-0 shadow-md border border-blue-950"
-              >
-                <span>ارسال</span>
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          </div>
-        )}
 
         {/* Bank Account IBAN Input Form Modal/Section */}
         {hasAnyCompletedAssessment && !isCulprit && (showBankForm || claimCase.payoutInfo?.iban || claimCase.status === 'در انتظار پرداخت') && (
@@ -4708,6 +4718,15 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
         onClose={() => setShowExpertCallModal(false)}
         claimCase={claimCase}
         session={session}
+      />
+
+      {/* AI Chat Copilot Assistant Modal for Customer */}
+      <AIChatCopilotModal
+        isOpen={showAiCopilotModal}
+        onClose={() => setShowAiCopilotModal(false)}
+        claim={claimCase}
+        session={session}
+        userRole="customer"
       />
 
       {/* Toast Feedback Notification */}

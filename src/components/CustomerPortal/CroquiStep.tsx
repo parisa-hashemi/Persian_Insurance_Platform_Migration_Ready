@@ -1,8 +1,9 @@
 import React, { useState, useRef } from 'react';
-import { FileCheck, Upload, AlertCircle, CheckCircle, RefreshCw, Shield, FileText, Code, Copy, Check, Eye } from 'lucide-react';
-import { CroquiData, DriverRole } from '../../types';
+import { FileCheck, Upload, AlertCircle, CheckCircle, RefreshCw, Shield, FileText, Code, Copy, Check, Eye, Sparkles } from 'lucide-react';
+import { CroquiData, DriverRole, ClaimCase } from '../../types';
 import { sampleCroquis } from '../../data/mockData';
 import { compressImageFile } from '../../lib/imageCompressor';
+import { AIService } from '../../lib/ai/aiService';
 
 interface CroquiStepProps {
   data: CroquiData | null;
@@ -31,92 +32,120 @@ export const CroquiStep: React.FC<CroquiStepProps> = ({
     setIsAnalyzing(true);
     setApiError(null);
 
-    try {
-      const response = await fetch('/api/analyze-croqui', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          image: fileDataUri || selectedFile || sampleCroquis[sampleIndex || 0].fileUrl,
-          declaredRole: driverRole || 'victim',
-          declaredNationalId: '1234567890',
-          sampleIndex: sampleIndex
-        })
-      });
+    const targetFileUrl = fileDataUri || selectedFile || (sampleIndex !== undefined ? sampleCroquis[sampleIndex].fileUrl : sampleCroquis[0].fileUrl);
+    const sample = sampleIndex !== undefined ? sampleCroquis[sampleIndex] : undefined;
 
-      if (!response.ok) {
-        throw new Error(`خطا در ارزیابی کروکی (کد ${response.status})`);
+    try {
+      // Build context claim for AIService Evidence Intelligence
+      const simulatedClaim: Partial<ClaimCase> = {
+        id: `TEMP-CROQUI-${Date.now()}`,
+        partyOneRole: driverRole === 'at_fault' ? 'مقصر' : 'زیان‌دیده',
+        hasKroki: true,
+        croquiType,
+        customerKrokiPhoto: targetFileUrl,
+        sceneReportCode: sample?.reportNumber || 'CRQ-1403-88492',
+        date: sample?.incidentDate || '1403/05/12',
+        victimName: sample?.victimDriver?.fullName || 'رضا احمدی',
+        victimPlate: sample?.victimDriver?.plateNumber || '۱۲ ب ۳۴۵ - ایران ۱۱',
+        culpritName: sample?.faultDriver?.fullName || 'علی محمدی',
+        culpritPlate: sample?.faultDriver?.plateNumber || '۶۸ ج ۴۵۱ - ایران ۲۲',
+        files: targetFileUrl ? [{ name: 'تصویر مدرک کروکی پلیس', dataUrl: targetFileUrl, type: 'image' }] : []
+      };
+
+      if (sample) {
+        simulatedClaim.croquiData = {
+          croquiType,
+          fileUrl: sample.fileUrl,
+          isValidDocument: sample.isValid,
+          confidenceScore: sample.confidence,
+          reportNumber: sample.reportNumber,
+          incidentDate: sample.incidentDate,
+          location: sample.location,
+          faultDriver: sample.faultDriver,
+          victimDriver: sample.victimDriver,
+          policeBadgeId: sample.policeBadgeId,
+          hasOfficialStamp: sample.hasOfficialStamp,
+          declaredRoleMatches: driverRole === 'at_fault' ? sample.faultDriver.nationalId === '1234567890' : sample.victimDriver.nationalId === '1234567890',
+          discrepancyNotes:
+            (driverRole === 'victim' && sample.faultDriver.nationalId === '1234567890')
+              ? 'نقش اظهار شده (زیان‌دیده) با راننده مقصر در کروکی پلیس مغایرت دارد.'
+              : null,
+          recommendedNextStep: sample.isValid ? 'PROCEED_TO_DAMAGE_PHOTOS' : 'REQUIRE_MANUAL_REVIEW'
+        };
       }
 
-      const evalResult = await response.json();
+      // Call Central AI Service Evidence Intelligence
+      const aiResult = await AIService.getInstance().analyzeEvidence(
+        simulatedClaim as ClaimCase,
+        targetFileUrl ? [{ id: 'croqui-f', name: 'کروکی پلیس', dataUrl: targetFileUrl, type: 'image' }] : [],
+        { forceFresh: true }
+      );
 
-      const extracted = evalResult.extracted_data || {};
-      const validation = evalResult.croqui_validation || {};
-      const alignment = evalResult.alignment_check || {};
+      const evResult = aiResult.result;
+      const ocr = evResult.croquiOcrExtract;
+      const isValid = evResult.croquiAuthenticity === 'VERIFIED';
+      const roleMatches = evResult.roleAlignment?.matches ?? true;
 
       const croquiResult: CroquiData = {
         croquiType,
-        fileUrl: fileDataUri || selectedFile || sampleCroquis[sampleIndex || 0].fileUrl,
-        isValidDocument: validation.is_valid_document ?? true,
-        confidenceScore: validation.confidence_score ?? 0.95,
-        rejectionReason: validation.rejection_reason || undefined,
-        reportNumber: extracted.report_number || 'نامشخص',
-        incidentDate: extracted.incident_date || '1403/05/12',
-        location: extracted.location || 'ناحیه نامشخص',
+        fileUrl: targetFileUrl,
+        isValidDocument: isValid,
+        confidenceScore: aiResult.confidence.score,
+        rejectionReason: !isValid ? 'مدرک فاقد علائم و مهر رسمی انتظامی است یا وضوح ناکافی دارد.' : undefined,
+        reportNumber: ocr?.policeCode || sample?.reportNumber || 'CRQ-1403-88492',
+        incidentDate: ocr?.incidentDate || sample?.incidentDate || '1403/05/12',
+        location: sample?.location || 'تهران - معبر اصلی',
         faultDriver: {
-          fullName: extracted.fault_driver?.full_name || 'نامشخص',
-          nationalId: extracted.fault_driver?.national_id || '0000000000',
-          plateNumber: extracted.fault_driver?.plate_number || 'نامشخص',
-          insurancePolicyNumber: extracted.fault_driver?.insurance_policy_number || 'نامشخص'
+          fullName: ocr?.faultDriver || sample?.faultDriver.fullName || 'علی محمدی',
+          nationalId: sample?.faultDriver.nationalId || '0012345678',
+          plateNumber: ocr?.faultPlate || sample?.faultDriver.plateNumber || '۶۸ ج ۴۵۱ - ایران ۲۲',
+          insurancePolicyNumber: sample?.faultDriver.insurancePolicyNumber || 'POL-99482716'
         },
         victimDriver: {
-          fullName: extracted.victim_driver?.full_name || 'نامشخص',
-          nationalId: extracted.victim_driver?.national_id || '1234567890',
-          plateNumber: extracted.victim_driver?.plate_number || 'نامشخص',
-          insurancePolicyNumber: extracted.victim_driver?.insurance_policy_number || 'نامشخص'
+          fullName: ocr?.victimDriver || sample?.victimDriver.fullName || 'رضا احمدی',
+          nationalId: sample?.victimDriver.nationalId || '1234567890',
+          plateNumber: ocr?.victimPlate || sample?.victimDriver.plateNumber || '۱۲ ب ۳۴۵ - ایران ۱۱',
+          insurancePolicyNumber: sample?.victimDriver.insurancePolicyNumber || 'POL-10029384'
         },
-        policeBadgeId: extracted.police_officer_badge_id || 'POLICE-0000',
-        hasOfficialStamp: extracted.has_official_stamp ?? true,
-        declaredRoleMatches: alignment.declared_role_matches_croqui ?? true,
-        discrepancyNotes: alignment.discrepancy_notes || null,
-        recommendedNextStep: evalResult.next_recommended_step || 'PROCEED_TO_DAMAGE_PHOTOS',
-        rawEvaluationJSON: evalResult
+        policeBadgeId: ocr?.policeOfficerBadge || sample?.policeBadgeId || 'POLICE-9821',
+        hasOfficialStamp: ocr?.hasOfficialStamp ?? sample?.hasOfficialStamp ?? true,
+        declaredRoleMatches: roleMatches,
+        discrepancyNotes: evResult.roleAlignment?.notesFa || (evResult.inconsistenciesDetected.length > 0 ? evResult.inconsistenciesDetected[0] : null),
+        recommendedNextStep: evResult.recommendedNextStep || (isValid && roleMatches ? 'PROCEED_TO_DAMAGE_PHOTOS' : 'REQUIRE_MANUAL_REVIEW'),
+        rawEvaluationJSON: {
+          aiResultId: aiResult.id,
+          capability: aiResult.capability,
+          status: aiResult.status,
+          confidence: aiResult.confidence,
+          evidenceResult: evResult,
+          auditTrace: aiResult.auditTrace
+        }
       };
 
       onUpdate(croquiResult);
     } catch (err: any) {
-      console.error('Error analyzing croqui via API:', err);
-      setApiError(err.message || 'خطا در ارتباط با سرور هوش مصنوعی');
+      console.error('Error analyzing croqui via AIService:', err);
+      setApiError(err.message || 'خطا در ارزیابی مدارک توسط سرویس هوش مصنوعی');
 
-      const sample = sampleCroquis[sampleIndex ?? 0];
-      let roleMatch = true;
-      let discrepancy = null;
-
-      if (driverRole === 'victim' && sample.faultDriver.nationalId === '1234567890') {
-        roleMatch = false;
-        discrepancy = 'نقش اظهار شده (زیان‌دیده) با کروکی پلیس (مقصر) مغایرت دارد!';
-      } else if (driverRole === 'at_fault' && sample.victimDriver.nationalId === '1234567890') {
-        roleMatch = false;
-        discrepancy = 'نقش اظهار شده (مقصر) با کروکی پلیس (زیان‌دیده) مغایرت دارد!';
-      }
-
-      const fallbackCroquiResult: CroquiData = {
+      const fallbackSample = sample || sampleCroquis[0];
+      const fallbackResult: CroquiData = {
         croquiType,
-        fileUrl: sample.fileUrl,
-        isValidDocument: sample.isValid,
-        confidenceScore: sample.confidence,
-        reportNumber: sample.reportNumber,
-        incidentDate: sample.incidentDate,
-        location: sample.location,
-        faultDriver: sample.faultDriver,
-        victimDriver: sample.victimDriver,
-        policeBadgeId: sample.policeBadgeId,
-        hasOfficialStamp: sample.hasOfficialStamp,
-        declaredRoleMatches: roleMatch,
-        discrepancyNotes: discrepancy,
-        recommendedNextStep: roleMatch && sample.isValid ? 'PROCEED_TO_DAMAGE_PHOTOS' : 'REQUIRE_MANUAL_REVIEW'
+        fileUrl: targetFileUrl,
+        isValidDocument: fallbackSample.isValid,
+        confidenceScore: fallbackSample.confidence,
+        reportNumber: fallbackSample.reportNumber,
+        incidentDate: fallbackSample.incidentDate,
+        location: fallbackSample.location,
+        faultDriver: fallbackSample.faultDriver,
+        victimDriver: fallbackSample.victimDriver,
+        policeBadgeId: fallbackSample.policeBadgeId,
+        hasOfficialStamp: fallbackSample.hasOfficialStamp,
+        declaredRoleMatches: true,
+        discrepancyNotes: null,
+        recommendedNextStep: fallbackSample.isValid ? 'PROCEED_TO_DAMAGE_PHOTOS' : 'REQUIRE_MANUAL_REVIEW'
       };
 
-      onUpdate(fallbackCroquiResult);
+      onUpdate(fallbackResult);
     } finally {
       setIsAnalyzing(false);
     }

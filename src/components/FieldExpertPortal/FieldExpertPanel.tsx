@@ -43,10 +43,13 @@ import {
   Mic,
   Video
 } from 'lucide-react';
-import { ClaimCase, UserSession, AssessmentData, AssessorNotification, AdditionalDocItem, CarDamageSpot } from '../../types';
+import { ClaimCase, UserSession, AssessmentData, AssessorNotification, AdditionalDocItem, CarDamageSpot, PartItem } from '../../types';
 import { formatCurrency, getInsurerPersianName, loadAssessorNotifications, markAssessorNotificationAsRead } from '../../lib/storage';
 import { compressImageFile } from '../../lib/imageCompressor';
 import { Car3DViewer, ALL_INSPECTION_PARTS } from '../Car3DViewer';
+import { AIAssessmentDraftCard } from '../AI/AIAssessmentDraftCard';
+import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
+import { handleExpertRejectionWithAI } from '../../lib/ai/aiDispatcher';
 
 interface FieldExpertPanelProps {
   session: UserSession;
@@ -616,28 +619,50 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
     e.preventDefault();
     if (!caseToReject) return;
 
-    const nowTimeStr = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
-    const updated: ClaimCase = {
-      ...caseToReject,
-      status: 'در انتظار ارجاع به ارزیاب',
-      rejectedByAssessorIds: [...(caseToReject.rejectedByAssessorIds || []), session.id],
-      history: [
-        ...(caseToReject.history || []),
-        {
-          status: 'در انتظار ارجاع به ارزیاب',
-          time: nowTimeStr,
-          user: session.name,
-          userRole: 'کارشناس میدانی',
-          note: `رد مأموریت ارجاع‌شده توسط کارشناس میدانی «${session.name}». علت رد: «${rejectReason}» - توضیحات: ${rejectDescription || 'بدون توضیحات'}. پرونده جهت ارجاع به کارشناس دیگر به بیمه‌گر بازگردانده شد.`
-        }
-      ]
-    };
+    const finalRejectReason = `${rejectReason} ${rejectDescription ? `- ${rejectDescription}` : ''}`.trim();
+    
+    // Auto re-dispatch via AI + apply -0.2 penalty to rejecting expert
+    const updatedCase = handleExpertRejectionWithAI(
+      caseToReject,
+      {
+        id: session.id,
+        name: session.name
+      },
+      finalRejectReason
+    );
 
-    onUpdateCase(updated);
+    onUpdateCase(updatedCase);
     setShowRejectModal(false);
     setCaseToReject(null);
-    setActionSuccessMsg('ماموریت رد گردید و پرونده جهت تخصیص مجدد به کارشناس دیگر به شرکت بیمه‌گر بازگردانده شد.');
-    setTimeout(() => setActionSuccessMsg(null), 5000);
+    const newAssignedName = updatedCase.assignedFieldExpert?.name || updatedCase.assignedExpert?.name || 'کارشناس جایگزین منتخب';
+    setActionSuccessMsg(`ماموریت رد گردید (کسر ۰.۲ امتیاز کارشناس). پرونده توسط هوش مصنوعی بلافاصله به کارشناس جایگزین (${newAssignedName}) تخصیص داده شد.`);
+    setTimeout(() => setActionSuccessMsg(null), 7000);
+  };
+
+  // Handler for applying AI draft assessment parts and notes into Field Form
+  const handleApplyAIPartsToField = (parts: PartItem[], gross: number, salvage: number, note?: string) => {
+    if (isCaseReadOnly) return;
+    const newItems = parts.map((p, idx) => {
+      const isReplace = String(p.type).toLowerCase() === 'replace';
+      return {
+        id: `ai-part-${idx}-${Date.now()}`,
+        partName: p.name,
+        partKey: (p as any).partKey || '',
+        operationType: (isReplace ? 'تعویض کامل' : 'صافکاری و نقاشی') as any,
+        partPrice: Number(p.partPrice) || 0,
+        wagePrice: Number(p.repairPrice) || 0,
+        scrapPrice: Number(p.salvageValue) || 0,
+        damageSeverity: (isReplace ? 'major' : 'moderate') as any,
+        note: `محاسبه‌شده بر مبنای تحلیل هوش مصنوعی${(p as any).depreciation ? ` (استهلاک: ${(p as any).depreciation}%)` : ''}`
+      };
+    });
+
+    setFieldParts(newItems);
+    if (note && note.trim()) {
+      setFieldReportText(prev => prev ? `${prev}\n\n[تحلیل فنی و هوشمند خسارت]:\n${note}` : `[تحلیل فنی و هوشمند خسارت]:\n${note}`);
+    }
+    setActionSuccessMsg('برآورد هوشمند قطعات و اجرت‌ها با موفقیت در فرم ارزیابی میدانی درج شد.');
+    setTimeout(() => setActionSuccessMsg(null), 4000);
   };
 
   // Sync damage spots change from 2D Car Viewer
@@ -1649,6 +1674,25 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 </p>
               </div>
 
+              {/* AI Evidence Intelligence & Authenticity Evaluation */}
+              <EvidenceIntelligenceCard
+                claimId={selectedCase.id}
+                userRole="FIELD_EXPERT"
+                showHitlControls={!isCaseReadOnly}
+                onReviewSubmitted={(status, note) => {
+                  if (status === 'CONFIRMED') {
+                    setAuthVerdict('CONFIRMED');
+                  } else if (status === 'REJECTED') {
+                    setAuthVerdict('FRAUD_REJECTED');
+                  } else if (status === 'FLAGGED') {
+                    setAuthVerdict('PARTIAL_MISMATCH');
+                  }
+                  if (note && note.trim()) {
+                    setFieldReportText(prev => prev ? `${prev}\n\n[بازبینی کارشناس میدانی]: ${note}` : `[بازبینی کارشناس میدانی]: ${note}`);
+                  }
+                }}
+              />
+
               {/* Verdict Selector */}
               <div className="space-y-3">
                 <label className="block text-xs font-black text-slate-900">
@@ -1865,6 +1909,20 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   </span>
                 </div>
               </div>
+
+              {/* AI Damage & Pricing Intelligence Card (with customer messages suppressed for field inspections) */}
+              <AIAssessmentDraftCard
+                claim={selectedCase}
+                isFieldExpert={true}
+                hideCustomerMessages={true}
+                readOnly={isCaseReadOnly}
+                onApplyParts={handleApplyAIPartsToField}
+                onAppendNote={(note) => {
+                  setFieldReportText(prev => prev ? `${prev}\n\n${note}` : note);
+                  setActionSuccessMsg('یادداشت تحلیلی هوش مصنوعی در متن گزارش درج گردید.');
+                  setTimeout(() => setActionSuccessMsg(null), 3000);
+                }}
+              />
 
               {/* 2D Blueprint & 3D Interactive Model Viewer */}
               <Car3DViewer

@@ -181,7 +181,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white/95 text-slate-900 border-b-2 border-amber-400 shadow-sm backdrop-blur-md" dir="rtl">
+    <header className="sticky top-0 z-40 w-full bg-white/95 text-slate-900 border-b border-slate-200 shadow-2xs backdrop-blur-md" dir="rtl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
         
         {/* RIGHT SIDE (Start in RTL): Brand Logo */}
@@ -191,12 +191,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             onClick={onGoHome}
             className="flex items-center gap-2.5 text-right group focus:outline-none"
           >
-            <div className="w-10 h-10 rounded-xl bg-blue-900 text-amber-400 flex items-center justify-center font-bold shadow-md group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-blue-900 text-white flex items-center justify-center font-bold shadow-sm group-hover:scale-105 transition-transform">
               <ShieldCheck className="w-6 h-6 stroke-[2.5]" />
             </div>
             <div>
               <span className="font-black text-base sm:text-lg tracking-tight flex items-center gap-1 text-blue-950">
-                سامانه خسارت <span className="text-amber-500 font-extrabold">بیمه</span>
+                سامانه خسارت <span className="text-blue-700 font-extrabold">بیمه</span>
               </span>
               <span className="hidden sm:block text-[10px] text-slate-500 font-bold">
                 سامانه ملی ارزیابی و تسویه هوشمند خسارت خودرو
@@ -208,13 +208,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         {/* CENTER: Navigation Breadcrumb or Quick Title */}
         <div className="hidden lg:flex items-center gap-2">
           {currentSession?.role === 'customer' && (
-            <span className="text-xs font-bold text-blue-900 px-3 py-1 bg-amber-50 rounded-lg border border-amber-300">
+            <span className="text-xs font-bold text-blue-950 px-3 py-1 bg-slate-100 rounded-lg border border-slate-200">
               پورتال مشتریان
             </span>
           )}
           {currentSession?.role === 'insurer' && (
-            <span className="text-xs font-black text-blue-950 px-3 py-1 bg-blue-50 rounded-lg border border-blue-200 flex items-center gap-1.5 shadow-2xs">
-              <Building2 className="w-3.5 h-3.5 text-blue-800" />
+            <span className="text-xs font-black text-blue-950 px-3 py-1 bg-slate-100 rounded-lg border border-slate-200 flex items-center gap-1.5 shadow-2xs">
+              <Building2 className="w-3.5 h-3.5 text-blue-900" />
               <span>پورتال اختصاصی {currentSession.companyName || currentSession.name || getInsurerPersianName(currentSession.company)}</span>
             </span>
           )}
@@ -225,17 +225,17 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Quick Track Button */}
           <button
             onClick={onOpenPublicTrack}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-blue-950 text-xs font-black transition-all shadow-sm active:scale-95 border border-amber-300"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold transition-all shadow-2xs active:scale-95 border border-blue-950"
             title="پیگیری بدون ورود"
           >
-            <Search className="w-4 h-4 text-blue-950" />
+            <Search className="w-4 h-4 text-white" />
             <span className="hidden md:inline">پیگیری پرونده</span>
           </button>
 
           {/* Home Portal Button */}
           <button
             onClick={onGoHome}
-            className="hidden sm:flex items-center gap-1 px-3 py-2 rounded-lg text-slate-700 hover:text-blue-950 hover:bg-blue-50 text-xs font-bold transition-colors border border-slate-200"
+            className="hidden sm:flex items-center gap-1 px-3 py-2 rounded-lg text-slate-700 hover:text-blue-950 hover:bg-slate-100 text-xs font-bold transition-colors border border-slate-200"
             title="بازگشت به درگاه اصلی"
           >
             <Home className="w-4 h-4 text-blue-900" />

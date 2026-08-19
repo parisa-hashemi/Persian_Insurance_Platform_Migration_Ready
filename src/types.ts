@@ -313,6 +313,7 @@ export interface ClaimCase {
   assessment?: AssessmentData;
   carDamageSpots?: Record<string, CarDamageSpot>;
   aiDecisions?: AIDecisionLine[];
+  aiIntelligence?: Record<string, any>;
   aiAnalysis?: {
     difficulty: 'ساده' | 'متوسط' | 'پیچیده';
     docs: string;

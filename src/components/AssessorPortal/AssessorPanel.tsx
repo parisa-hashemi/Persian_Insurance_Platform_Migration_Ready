@@ -75,6 +75,13 @@ import {
 import { rialToPersianToman } from '../../lib/numberToPersianWords';
 import { INITIAL_REVIEWERS } from '../../data/mockData';
 import { Car3DViewer } from '../Car3DViewer';
+import { AIService } from '../../lib/ai/aiService';
+import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
+import { UnifiedDocumentsCard } from './UnifiedDocumentsCard';
+import { handleExpertRejectionWithAI } from '../../lib/ai/aiDispatcher';
+import { AIAssessmentDraftCard } from '../AI/AIAssessmentDraftCard';
+import { AIChatCopilotModal } from '../AI/AIChatCopilotModal';
+import { AIResult, EvidenceIntelligenceResult } from '../../lib/ai/types';
 
 interface AssessorPanelProps {
   session: UserSession;
@@ -146,6 +153,11 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 }) => {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'summary' | 'parts' | 'money'>('parts');
+
+  // Evidence Intelligence AI State
+  const [evidenceAiMap, setEvidenceAiMap] = useState<Record<string, AIResult<EvidenceIntelligenceResult>>>({});
+  const [isEvidenceAiLoading, setIsEvidenceAiLoading] = useState(false);
+  const [showAiCopilotModal, setShowAiCopilotModal] = useState(false);
 
   // Modals according to user images:
   // Image 2: "قبول ارزیابی پرونده"
@@ -511,6 +523,35 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
   const activeCase = cases.find((c) => c.id === selectedCaseId);
 
+  // Load Evidence Intelligence for activeCase
+  useEffect(() => {
+    if (!activeCase) return;
+    if (evidenceAiMap[activeCase.id]) return;
+
+    let isMounted = true;
+    setIsEvidenceAiLoading(true);
+
+    AIService.getInstance()
+      .analyzeEvidence(activeCase, activeCase.files || [])
+      .then((res) => {
+        if (isMounted) {
+          setEvidenceAiMap((prev) => ({ ...prev, [activeCase.id]: res }));
+        }
+      })
+      .catch((err) => {
+        console.error('Evidence intelligence load error:', err);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsEvidenceAiLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeCase?.id]);
+
   // Previous Assessments List (For reassigned / objected cases to view previous expert findings)
   const previousAssessmentsList = useMemo(() => {
     if (!activeCase) return [];
@@ -611,25 +652,38 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       return;
     }
 
-    const newMsg = {
+    const expertName = session.name || activeCase.assignedExpert?.name || 'کارشناس ارزیاب';
+    const currentTime = new Date().toLocaleString('fa-IR');
+
+    const newObjMsg = {
       sender: 'expert' as const,
-      name: session.name || activeCase.assignedExpert?.name || 'کارشناس ارزیاب',
+      name: expertName,
       text: assessorChatMsg.trim(),
-      time: new Date().toLocaleString('fa-IR')
+      time: currentTime
     };
 
-    const updatedChat = [...(activeCase.objectionChat || []), newMsg];
+    const newDocMsg = {
+      id: `MSG-${Date.now()}`,
+      from: 'expert' as const,
+      senderParty: 'EXPERT' as const,
+      targetParty: 'PARTY_ONE' as const,
+      by: expertName,
+      senderName: expertName,
+      text: assessorChatMsg.trim(),
+      at: currentTime
+    };
 
     const updatedCase: ClaimCase = {
       ...activeCase,
-      objectionChat: updatedChat,
+      objectionChat: [...(activeCase.objectionChat || []), newObjMsg],
+      docChat: [...(activeCase.docChat || []), newDocMsg],
       history: [
         ...(activeCase.history || []),
         {
           status: activeCase.status,
-          time: new Date().toLocaleString('fa-IR'),
-          user: session.name || 'کارشناس ارزیاب',
-          note: `پاسخ ارزیاب در چت پرونده: «${assessorChatMsg.trim()}»`
+          time: currentTime,
+          user: expertName,
+          note: `پاسخ کارشناس در چت پرونده: «${assessorChatMsg.trim()}»`
         }
       ]
     };
@@ -775,6 +829,58 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       const salvage = p.salvageNeeded ? parseMoneyNumber(p.salvageValue) : 0;
       return sum + Math.max(0, partCost + repairCost - salvage);
     }, 0);
+  };
+
+  const handleApplyAiDraftParts = (draftParts: PartItem[], gross: number, salvage: number, technicalNote?: string) => {
+    if (!activeCase || isCaseRejected(activeCase)) return;
+    setParts(draftParts);
+    setGrossInput(String(gross));
+    setSalvageInput(String(salvage));
+    if (technicalNote) {
+      setNoteInput(technicalNote);
+    }
+  };
+
+  const handleSendAiDraftMessageToCustomer = (msg: { target: string; targetParty: 'PARTY_ONE' | 'PARTY_TWO'; text: string; docType?: string }) => {
+    if (!activeCase || isCaseRejected(activeCase)) return;
+    const nowShamsi = new Date().toLocaleString('fa-IR');
+    
+    const newDocChat = [
+      ...(activeCase.docChat || []),
+      {
+        id: `ai-draft-msg-${Date.now()}`,
+        by: session.name || 'کارشناس ارزیاب',
+        at: nowShamsi,
+        text: msg.text,
+        from: 'expert' as const,
+        target: msg.target,
+        targetParty: msg.targetParty,
+        senderParty: 'EXPERT' as const
+      }
+    ];
+
+    const newHistory = [
+      ...(activeCase.history || []),
+      {
+        status: activeCase.status,
+        time: nowShamsi,
+        user: session.name || 'کارشناس ارزیاب',
+        note: `ارسال پیام هماهنگی و درخواست مستندات به ${msg.target}: «${msg.text}»`
+      }
+    ];
+
+    const updatedCase: ClaimCase = {
+      ...activeCase,
+      docChat: newDocChat,
+      history: newHistory
+    };
+
+    onUpdateCase(updatedCase);
+    alert(`پیام با موفقیت برای ${msg.target} ارسال شد و در تاریخچه پرونده ثبت گردید.`);
+  };
+
+  const handleAppendAiNote = (noteText: string) => {
+    setNoteInput((prev) => (prev ? `${prev}\n\n${noteText}` : noteText));
   };
 
   const handleSaveDraft = () => {
@@ -1055,26 +1161,38 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
     const targetLabel = recipientParty === 'PARTY_ONE' ? (activeCase.partyOneRole || 'زیان‌دیده') : (activeCase.partyTwoRole || 'مقصر');
 
+    const expertName = session.name || activeCase.assignedExpert?.name || 'کارشناس خسارت';
+    const currentTime = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+
     const newMsg = {
       id: `MSG-${Date.now()}`,
       from: 'expert' as const,
       senderParty: 'EXPERT' as const,
       targetParty: recipientParty,
-      by: session.name || 'کارشناس خسارت',
+      by: expertName,
+      senderName: expertName,
       target: targetLabel,
       text: expertChatInput.trim(),
-      at: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
+      at: currentTime
+    };
+
+    const newObjMsg = {
+      sender: 'expert' as const,
+      name: expertName,
+      text: expertChatInput.trim(),
+      time: currentTime
     };
 
     const updatedCase: ClaimCase = {
       ...activeCase,
       docChat: [...(activeCase.docChat || []), newMsg],
+      objectionChat: [...(activeCase.objectionChat || []), newObjMsg],
       history: [
         ...(activeCase.history || []),
         {
           status: activeCase.status,
           time: new Date().toLocaleString('fa-IR'),
-          user: session.name || 'کارشناس خسارت',
+          user: expertName,
           note: `ارسال پیام مستقیم کارشناس به ${targetLabel}`
         }
       ]
@@ -1116,31 +1234,16 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     setRejectReasonInput('');
   };
 
-  // Confirm rejection with reason (Bug 3)
+  // Confirm rejection with reason (Penalizes expert rating & auto re-dispatches with AI)
   const handleConfirmRejectCase = () => {
     if (!rejectModalCase) return;
     const reasonText = rejectReasonInput.trim() || 'عدم امکان انجام ارزیابی توسط کارشناس';
 
-    const updated: ClaimCase = {
-      ...rejectModalCase,
-      status: 'رد شده',
-      assignedExpert: undefined,
-      rejectedByAssessorIds: [...(rejectModalCase.rejectedByAssessorIds || []), session.id],
-      expertRejected: {
-        by: session.name || 'کارشناس ارزیاب',
-        at: new Date().toISOString(),
-        reason: reasonText
-      },
-      history: [
-        ...(rejectModalCase.history || []),
-        {
-          status: 'رد شده',
-          time: new Date().toLocaleString('fa-IR'),
-          user: session.name || 'کارشناس ارزیاب',
-          note: `پرونده توسط کارشناس (${session.name}) نپذیرفته و رد شد. علت: ${reasonText}`
-        }
-      ]
-    };
+    const updated = handleExpertRejectionWithAI(
+      rejectModalCase,
+      { id: session.id, name: session.name || 'کارشناس ارزیاب' },
+      reasonText
+    );
 
     onUpdateCase(updated);
     if (preliminaryCheckCase && preliminaryCheckCase.id === rejectModalCase.id) {
@@ -1151,7 +1254,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     }
     setRejectModalCase(null);
     setRejectReasonInput('');
-    alert(`پرونده ${updated.id} با وضعیت «رد شده» ثبت شد و از پنل شما حذف گردید. شرکت بیمه می‌تواند آن را به کارشناس دیگری محول نماید.`);
+    alert(`پرونده ${updated.id} با علت «${reasonText}» رد شد.\n• کسر ۰.۲ امتیاز از عملکرد کارشناس در سامانه اعمال گردید.\n• پرونده به‌صورت خودکار توسط هوش مصنوعی به کارشناس جایگزین ارجاع و پیامک‌های اطلاع‌رسانی ارسال شدند.`);
   };
 
   // Handler for Police Inquiry in Image 3 (Second Police Inquiry in Adjuster Workflow)
@@ -1303,8 +1406,19 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
           </p>
         </div>
 
-        {/* SMS / Notifications Inbox Button */}
+        {/* Action Buttons */}
         <div className="flex items-center gap-3">
+          {activeCase && (
+            <button
+              type="button"
+              onClick={() => setShowAiCopilotModal(true)}
+              className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white text-xs font-black flex items-center gap-2 transition-all shadow-md active:scale-95 cursor-pointer border border-indigo-400/40"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>دستیار هوشمند پرونده (AI Copilot)</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setShowSmsInboxModal(true)}
@@ -2470,261 +2584,30 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   </div>
 
                   {/* Unified Documents & Media Section for Assessor */}
-                  <div className="p-5 bg-white rounded-2xl border border-slate-200 space-y-4 shadow-2xs">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                      <div className="flex items-center gap-2">
-                        <FileText className="w-5 h-5 text-purple-600" />
-                        <h4 className="font-extrabold text-slate-900 text-sm">
-                          مستندات و فایل‌های ارسالی طرفین (مخزن یکپارچه)
-                        </h4>
-                      </div>
-                      <span className="text-xs font-bold text-slate-500">
-                        مجموع: {(activeCase.additionalDocs?.length || 0) + (activeCase.files?.length || 0)} فایل
-                      </span>
-                    </div>
-
-                    {((activeCase.additionalDocs && activeCase.additionalDocs.length > 0) || (activeCase.files && activeCase.files.length > 0) || activeCase.audioExplanation || activeCase.videoExplanation || activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl) ? (
-                      <div className="space-y-4">
-                        {/* Audio & Video Explanations */}
-                        {(activeCase.audioExplanation || activeCase.videoExplanation) && (
-                          <div className="space-y-2">
-                            <h5 className="text-xs font-bold text-slate-700">شرح صوتی و فیلم ارسالی راننده:</h5>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {activeCase.audioExplanation && (
-                                <div className="p-3.5 bg-gradient-to-br from-emerald-950 to-slate-900 text-white rounded-xl space-y-2 border border-emerald-800/60">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
-                                        <Mic className="w-3.5 h-3.5 animate-pulse" />
-                                      </div>
-                                      <span className="font-bold text-xs">توضیحات صوتی راننده</span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => setPreviewMediaModal({
-                                        url: activeCase.audioExplanation!,
-                                        name: 'توضیحات صوتی راننده',
-                                        type: 'audio',
-                                        category: 'شرح صوتی حادثه',
-                                        uploader: 'زیان‌دیده / راننده'
-                                      })}
-                                      className="p-1 bg-emerald-800/80 hover:bg-emerald-700 rounded text-white cursor-pointer"
-                                      title="نمای بزرگ"
-                                    >
-                                      <Maximize2 className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                  <audio controls src={activeCase.audioExplanation} className="w-full h-8 rounded-lg" />
-                                </div>
-                              )}
-                              {activeCase.videoExplanation && (
-                                <div className="p-3 bg-slate-900 text-white rounded-xl space-y-2 border border-slate-800">
-                                  <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center">
-                                        <Film className="w-3.5 h-3.5" />
-                                      </div>
-                                      <span className="font-bold text-xs">فیلم صحنه تصادف</span>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => setPreviewMediaModal({
-                                        url: activeCase.videoExplanation!,
-                                        name: 'فیلم صحنه تصادف',
-                                        type: 'video',
-                                        category: 'فیلم حادثه',
-                                        uploader: 'زیان‌دیده / راننده'
-                                      })}
-                                      className="p-1 bg-slate-800 hover:bg-slate-700 rounded text-white cursor-pointer"
-                                      title="نمای بزرگ"
-                                    >
-                                      <Maximize2 className="w-3 h-3" />
-                                    </button>
-                                  </div>
-                                  <div className="rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
-                                    <video controls src={activeCase.videoExplanation} className="w-full h-full object-contain" />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Additional Documents Uploaded by Parties */}
-                        {activeCase.additionalDocs && activeCase.additionalDocs.length > 0 && (
-                          <div className="space-y-2">
-                            <h5 className="text-xs font-bold text-slate-700">مدارک و شواهد ثبت‌شده توسط طرفین حادثه:</h5>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              {activeCase.additionalDocs.map((doc) => {
-                                const isAudio = doc.fileType === 'audio' || doc.type === 'audio' || doc.title?.includes('صوت') || doc.title?.includes('voice');
-                                const isVideo = doc.fileType === 'video' || doc.type === 'video' || doc.title?.includes('ویدیو');
-
-                                return (
-                                  <div key={doc.id} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="font-extrabold text-slate-900 truncate">{doc.title}</span>
-                                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${
-                                        doc.uploaderParty === 'PARTY_ONE' || doc.uploaderRole?.includes('اول') || doc.uploaderRole?.includes('زیان‌دیده')
-                                          ? 'bg-blue-100 text-blue-900 border-blue-300'
-                                          : 'bg-amber-100 text-amber-900 border-amber-300'
-                                      }`}>
-                                        {doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول' : 'طرف دوم')}
-                                      </span>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-1 text-[10px] text-slate-600 bg-white p-2 rounded-lg border border-slate-200/80">
-                                      <div><span className="font-bold text-slate-500">ارسال‌کننده:</span> {doc.uploadedBy || 'کاربر'}</div>
-                                      <div><span className="font-bold text-slate-500">نوع مدرک:</span> {doc.docType || 'مستند تکمیلی'}</div>
-                                    </div>
-
-                                    {doc.note && (
-                                      <p className="text-[11px] text-slate-700 bg-white p-2 rounded-lg border border-slate-100 leading-relaxed font-medium">
-                                        {doc.note}
-                                      </p>
-                                    )}
-
-                                    {doc.dataUrl && (
-                                      <div className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
-                                        {isAudio ? (
-                                          <div className="p-2 bg-emerald-950 rounded-lg">
-                                            <audio src={doc.dataUrl} controls className="w-full h-8" />
-                                          </div>
-                                        ) : isVideo ? (
-                                          <video src={doc.dataUrl} controls className="w-full max-h-36 rounded-lg" />
-                                        ) : (
-                                          <div
-                                            onClick={() => setPreviewMediaModal({
-                                              url: doc.dataUrl!,
-                                              name: doc.title,
-                                              type: 'image',
-                                              category: doc.docType || 'مستند تکمیلی',
-                                              uploader: doc.uploadedBy || 'طرفین',
-                                              note: doc.note
-                                            })}
-                                            className="cursor-pointer group relative"
-                                          >
-                                            <img src={doc.dataUrl} alt={doc.title} className="w-full h-36 object-cover rounded-lg group-hover:scale-105 transition-transform" />
-                                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
-                                              <Maximize2 className="w-3.5 h-3.5" />
-                                              <span>بزرگ‌نمایی</span>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono pt-1">
-                                      <span>تاریخ: {doc.uploadedAt}</span>
-                                      <span className="bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded">{doc.fileSize || '1.5 MB'}</span>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Initial Wizard Files & Damage Photos */}
-                        {activeCase.files && activeCase.files.length > 0 && (
-                          <div className="space-y-2 pt-2 border-t border-slate-100">
-                            <h5 className="text-xs font-bold text-slate-700">عکس‌ها و مستندات ثبت اولیه پرونده:</h5>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                              {activeCase.files.map((f: any, i: number) => {
-                                const fileName = typeof f === 'string' ? f : (f?.name || f?.fileName || `تصویر ${i + 1}`);
-                                const dataUrl = typeof f === 'object' ? f?.dataUrl : undefined;
-                                const isAudio = fileName?.includes('صوت') || fileName?.includes('voice') || f?.type === 'audio';
-                                const isVideo = fileName?.includes('ویدیو') || fileName?.includes('video') || f?.type === 'video';
-
-                                return (
-                                  <div key={i} className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-2">
-                                    <div className="flex items-center justify-between gap-1">
-                                      <span className="font-bold text-slate-800 truncate">{fileName}</span>
-                                      <span className="text-[10px] px-1.5 py-0.5 bg-purple-100 text-purple-800 rounded font-mono">ثبت اولیه</span>
-                                    </div>
-
-                                    {dataUrl && !isAudio && !isVideo && (
-                                      <div
-                                        onClick={() => setPreviewMediaModal({
-                                          url: dataUrl,
-                                          name: fileName,
-                                          type: 'image',
-                                          category: 'عکس خسارت ثبت اولیه',
-                                          uploader: 'زیان‌دیده'
-                                        })}
-                                        className="relative rounded-lg overflow-hidden border border-slate-200 bg-white cursor-pointer group"
-                                      >
-                                        <img src={dataUrl} alt={fileName} className="w-full h-28 object-cover rounded-lg group-hover:scale-105 transition-transform" />
-                                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
-                                          <Maximize2 className="w-3.5 h-3.5" />
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {dataUrl && isAudio && (
-                                      <div className="p-2 bg-emerald-950 rounded-lg">
-                                        <audio src={dataUrl} controls className="w-full h-8" />
-                                      </div>
-                                    )}
-
-                                    {dataUrl && isVideo && (
-                                      <div className="rounded-lg overflow-hidden bg-black aspect-video">
-                                        <video src={dataUrl} controls className="w-full h-full object-contain" />
-                                      </div>
-                                    )}
-
-                                    {!dataUrl && (
-                                      <div className="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 text-slate-600">
-                                        <FileText className="w-4 h-4 text-purple-600 shrink-0" />
-                                        <span className="text-[11px] truncate">فایل پیوست</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Official Croqui Preview */}
-                        {(activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl) && (
-                          <div className="space-y-2 pt-2 border-t border-slate-100">
-                            <h5 className="text-xs font-bold text-slate-700">تصویر کروکی رسمی راهور:</h5>
-                            <div className="p-3 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
-                              <div className="flex items-center justify-between text-xs text-amber-900 font-bold">
-                                <span>برگه کروکی رسمی پلیس</span>
-                                {activeCase.sceneReportCode && <span className="font-mono">کد: {activeCase.sceneReportCode}</span>}
-                              </div>
-                              <div
-                                onClick={() => setPreviewMediaModal({
-                                  url: activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl || '',
-                                  name: 'برگه رسمی کروکی راهور',
-                                  type: 'kroki',
-                                  category: 'کروکی پلیس راهور',
-                                  uploader: 'پلیس / راننده'
-                                })}
-                                className="cursor-pointer group relative rounded-lg overflow-hidden"
-                              >
-                                <img
-                                  src={activeCase.customerKrokiPhoto || activeCase.croquiData?.fileUrl || ''}
-                                  alt="Official Croqui"
-                                  className="w-full max-h-56 object-contain rounded-lg bg-white border border-amber-300 group-hover:scale-101 transition-transform"
-                                />
-                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold gap-1">
-                                  <Maximize2 className="w-4 h-4" />
-                                  <span>بزرگ‌نمایی کروکی</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="p-6 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
-                        <ImageOff className="w-6 h-6 text-slate-400 mx-auto mb-1" />
-                        <p className="text-xs text-slate-500 font-bold">مستندی برای این پرونده ثبت نشده است.</p>
-                      </div>
-                    )}
-                  </div>
+                  <UnifiedDocumentsCard
+                    claim={activeCase}
+                    aiResult={evidenceAiMap[activeCase.id]}
+                    isAiLoading={isEvidenceAiLoading}
+                    onRefreshAi={() => {
+                      setIsEvidenceAiLoading(true);
+                      AIService.getInstance()
+                        .analyzeEvidence(activeCase, activeCase.files || [], { forceFresh: true })
+                        .then((res) => {
+                          setEvidenceAiMap((prev) => ({ ...prev, [activeCase.id]: res }));
+                        })
+                        .finally(() => setIsEvidenceAiLoading(false));
+                    }}
+                    onPreviewMedia={(media) => {
+                      setPreviewMediaModal({
+                        url: media.url,
+                        name: media.name,
+                        type: media.type,
+                        category: media.category || 'مستند پرونده',
+                        uploader: media.uploader || 'کاربر',
+                        note: media.note,
+                      });
+                    }}
+                  />
 
                   {/* Party Comments Section for Assessor */}
                   {activeCase.partyComments && activeCase.partyComments.length > 0 && (
@@ -2964,6 +2847,15 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
               {/* UNIFIED TAB 2: AI Analysis, 3D Model & Parts Selection Combined */}
               {activeTab === 'parts' && (
                 <div className="space-y-6 animate-in fade-in">
+
+                  {/* AI Comprehensive Assessment Draft & Smart Copilot Card */}
+                  <AIAssessmentDraftCard
+                    claim={activeCase}
+                    onApplyParts={handleApplyAiDraftParts}
+                    onSendMessageToCustomer={handleSendAiDraftMessageToCustomer}
+                    onAppendNote={handleAppendAiNote}
+                    readOnly={isCaseRejected(activeCase)}
+                  />
                   
                   {/* AI Analysis & Decision Table (Integrated directly into evaluation) */}
                   <div className="bg-purple-50/70 border border-purple-200 rounded-3xl p-5 space-y-4 shadow-xs">
@@ -5766,6 +5658,17 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
           </div>
         </div>
+      )}
+
+      {/* AI Chat Copilot Assistant Modal */}
+      {activeCase && (
+        <AIChatCopilotModal
+          isOpen={showAiCopilotModal}
+          onClose={() => setShowAiCopilotModal(false)}
+          claim={activeCase}
+          session={session}
+          userRole="assessor"
+        />
       )}
 
     </div>

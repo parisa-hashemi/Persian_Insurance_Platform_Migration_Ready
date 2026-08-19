@@ -43,6 +43,10 @@ import { compressImageFile } from '../../lib/imageCompressor';
 import { sampleCroquis } from '../../data/mockData';
 import { ShamsiDateTimePicker, toFaDigits } from '../ShamsiDateTimePicker';
 import { IranianPlateInput } from './IranianPlateInput';
+import { AIService } from '../../lib/ai/aiService';
+import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
+import { AIResult, EvidenceIntelligenceResult } from '../../lib/ai/types';
+import { autoDispatchClaimWithAI } from '../../lib/ai/aiDispatcher';
 
 interface AccidentWizardProps {
   session: UserSession;
@@ -126,38 +130,94 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   const [showChassisGuideModal, setShowChassisGuideModal] = useState(false);
   const [isAnalyzingCroqui, setIsAnalyzingCroqui] = useState(false);
   const [selectedCroquiSampleIdx, setSelectedCroquiSampleIdx] = useState<number | null>(null);
+  const [evidenceAiResult, setEvidenceAiResult] = useState<AIResult<EvidenceIntelligenceResult> | null>(null);
 
   const handleAnalyzeCroquiSample = async (sampleIdx: number) => {
     setIsAnalyzingCroqui(true);
     setSelectedCroquiSampleIdx(sampleIdx);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
       const sample = sampleCroquis[sampleIdx];
 
-      let declaredMatch = true;
-      let discrepancyNotes: string | null = null;
+      const simClaim: Partial<ClaimCase> = {
+        id: `WIZ-CROQUI-${Date.now()}`,
+        partyOneRole: wizardRole === 'culprit' ? 'مقصر' : 'زیان‌دیده',
+        hasKroki: true,
+        croquiType,
+        customerKrokiPhoto: sample.fileUrl,
+        sceneReportCode: sample.reportNumber,
+        date: sample.incidentDate,
+        victimName: sample.victimDriver.fullName,
+        victimPlate: sample.victimDriver.plateNumber,
+        culpritName: sample.faultDriver.fullName,
+        culpritPlate: sample.faultDriver.plateNumber,
+        files: [
+          { id: 'croqui-f', name: 'تصویر مدرک کروکی پلیس', dataUrl: sample.fileUrl, type: 'image' },
+          ...files
+        ],
+        croquiData: {
+          croquiType,
+          fileUrl: sample.fileUrl,
+          isValidDocument: sample.isValid,
+          confidenceScore: sample.confidence,
+          reportNumber: sample.reportNumber,
+          incidentDate: sample.incidentDate,
+          location: sample.location,
+          faultDriver: sample.faultDriver,
+          victimDriver: sample.victimDriver,
+          policeBadgeId: sample.policeBadgeId,
+          hasOfficialStamp: sample.hasOfficialStamp,
+          declaredRoleMatches: wizardRole === 'culprit' ? sample.faultDriver.nationalId === '1234567890' : sample.victimDriver.nationalId === '1234567890',
+          discrepancyNotes: null,
+          recommendedNextStep: sample.isValid ? 'PROCEED_TO_DAMAGE_PHOTOS' : 'REQUIRE_MANUAL_REVIEW'
+        }
+      };
 
-      if (wizardRole === 'victim' && sample.faultDriver.fullName.includes('پریسا')) {
-        declaredMatch = false;
-        discrepancyNotes = 'نقش شما به عنوان زیان‌دیده با راننده مقصر درج‌شده در این کروکی مغایرت دارد.';
-      }
+      const aiResult = await AIService.getInstance().analyzeEvidence(
+        simClaim as ClaimCase,
+        simClaim.files || [],
+        { forceFresh: true }
+      );
+
+      setEvidenceAiResult(aiResult);
+
+      const ev = aiResult.result;
+      const ocr = ev.croquiOcrExtract;
+      const isValid = ev.croquiAuthenticity === 'VERIFIED';
+      const roleMatches = ev.roleAlignment?.matches ?? true;
 
       const resData: CroquiData = {
         croquiType,
         fileUrl: sample.fileUrl,
-        isValidDocument: sample.isValid,
-        confidenceScore: sample.confidence,
-        reportNumber: sample.reportNumber,
-        incidentDate: sample.incidentDate,
+        isValidDocument: isValid,
+        confidenceScore: aiResult.confidence.score,
+        rejectionReason: !isValid ? 'مدرک فاقد علائم و مهر رسمی انتظامی است.' : undefined,
+        reportNumber: ocr?.policeCode || sample.reportNumber,
+        incidentDate: ocr?.incidentDate || sample.incidentDate,
         location: sample.location,
-        faultDriver: sample.faultDriver,
-        victimDriver: sample.victimDriver,
-        policeBadgeId: sample.policeBadgeId,
-        hasOfficialStamp: sample.hasOfficialStamp,
-        declaredRoleMatches: declaredMatch,
-        discrepancyNotes: discrepancyNotes,
-        recommendedNextStep: sample.isValid ? 'PROCEED_TO_DAMAGE_PHOTOS' : 'REQUIRE_MANUAL_REVIEW'
+        faultDriver: {
+          fullName: ocr?.faultDriver || sample.faultDriver.fullName,
+          nationalId: sample.faultDriver.nationalId,
+          plateNumber: ocr?.faultPlate || sample.faultDriver.plateNumber,
+          insurancePolicyNumber: sample.faultDriver.insurancePolicyNumber
+        },
+        victimDriver: {
+          fullName: ocr?.victimDriver || sample.victimDriver.fullName,
+          nationalId: sample.victimDriver.nationalId,
+          plateNumber: ocr?.victimPlate || sample.victimDriver.plateNumber,
+          insurancePolicyNumber: sample.victimDriver.insurancePolicyNumber
+        },
+        policeBadgeId: ocr?.policeOfficerBadge || sample.policeBadgeId,
+        hasOfficialStamp: ocr?.hasOfficialStamp ?? sample.hasOfficialStamp,
+        declaredRoleMatches: roleMatches,
+        discrepancyNotes: ev.roleAlignment?.notesFa || (ev.inconsistenciesDetected.length > 0 ? ev.inconsistenciesDetected[0] : null),
+        recommendedNextStep: ev.recommendedNextStep || (isValid && roleMatches ? 'PROCEED_TO_DAMAGE_PHOTOS' : 'REQUIRE_MANUAL_REVIEW'),
+        rawEvaluationJSON: {
+          aiResultId: aiResult.id,
+          capability: aiResult.capability,
+          confidence: aiResult.confidence,
+          evidenceResult: ev
+        }
       };
 
       setCroquiData(resData);
@@ -733,7 +793,9 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       ]
     };
 
-    onComplete(newCase);
+    // Trigger AI Auto-Dispatcher to assign optimal expert and branch based on location and kroki
+    const { updatedCase } = autoDispatchClaimWithAI(newCase);
+    onComplete(updatedCase);
   };
 
   return (
@@ -806,13 +868,13 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             {/* 2. Croqui Section - Shown after accepting terms */}
             {agreePolicy ? (
               <div className="space-y-5 pt-4 border-t-2 border-slate-200 animate-in fade-in">
-                <div className="bg-amber-50 p-5 rounded-2xl border-2 border-amber-300 space-y-4">
+                <div className="bg-purple-50/70 p-5 rounded-2xl border-2 border-purple-200 space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-black text-amber-950 flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-amber-800" />
+                    <label className="text-xs font-black text-purple-950 flex items-center gap-2">
+                      <FileText className="w-5 h-5 text-purple-800" />
                       وضعیت و ارزیابی کروکی پلیس راهور <span className="text-rose-600">*</span>
                     </label>
-                    <span className="text-[10px] bg-amber-200 text-amber-950 font-black px-2.5 py-0.5 rounded-md border border-amber-400">
+                    <span className="text-[10px] bg-purple-100 text-purple-900 font-black px-2.5 py-0.5 rounded-md border border-purple-300">
                       مرحله ۱: کروکی
                     </span>
                   </div>
@@ -830,11 +892,11 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                       }}
                       className={`p-3.5 rounded-xl text-xs font-black border-2 transition-all flex items-center justify-center gap-2 ${
                         hasKroki === true
-                          ? 'bg-amber-500 border-amber-600 text-slate-950 shadow-sm scale-[1.01]'
-                          : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100 font-bold'
+                          ? 'bg-purple-700 border-purple-800 text-white shadow-sm scale-[1.01]'
+                          : 'bg-white border-slate-200 text-slate-800 hover:bg-purple-50/60 font-bold'
                       }`}
                     >
-                      <CheckCircle2 className="w-4 h-4 text-amber-950" />
+                      <CheckCircle2 className={`w-4 h-4 ${hasKroki === true ? 'text-white' : 'text-purple-700'}`} />
                       بله، کروکی کشیده شد
                     </button>
                     <button
@@ -846,27 +908,27 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                       }}
                       className={`p-3.5 rounded-xl text-xs font-black border-2 transition-all flex items-center justify-center gap-2 ${
                         hasKroki === false
-                          ? 'bg-amber-500 border-amber-600 text-slate-950 shadow-sm scale-[1.01]'
-                          : 'bg-white border-slate-300 text-slate-800 hover:bg-slate-100 font-bold'
+                          ? 'bg-purple-700 border-purple-800 text-white shadow-sm scale-[1.01]'
+                          : 'bg-white border-slate-200 text-slate-800 hover:bg-purple-50/60 font-bold'
                       }`}
                     >
-                      <X className="w-4 h-4 text-amber-950" />
+                      <X className={`w-4 h-4 ${hasKroki === false ? 'text-white' : 'text-purple-700'}`} />
                       خیر، کروکی کشیده نشد
                     </button>
                   </div>
 
                   {/* If Kroki was drawn */}
                   {hasKroki === true && (
-                    <div className="space-y-4 pt-3 border-t border-amber-300 animate-in fade-in">
+                    <div className="space-y-4 pt-3 border-t border-purple-200 animate-in fade-in">
                       {/* Kroki Type */}
-                      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-amber-300">
-                        <span className="text-xs font-black text-amber-950">نوع کروکی:</span>
+                      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-purple-200">
+                        <span className="text-xs font-black text-purple-950">نوع کروکی:</span>
                         <button
                           type="button"
                           onClick={() => setCroquiType('paper')}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             croquiType === 'paper'
-                              ? 'bg-amber-600 text-white shadow-xs'
+                              ? 'bg-purple-700 text-white shadow-xs'
                               : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                           }`}
                         >
@@ -877,7 +939,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           onClick={() => setCroquiType('electronic')}
                           className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
                             croquiType === 'electronic'
-                              ? 'bg-amber-600 text-white shadow-xs'
+                              ? 'bg-purple-700 text-white shadow-xs'
                               : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                           }`}
                         >
@@ -887,7 +949,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
                       {/* Kroki Code Input */}
                       <div>
-                        <label className="block text-xs font-black text-amber-950 mb-1">
+                        <label className="block text-xs font-black text-purple-950 mb-1">
                           کد یا شماره گزارش کروکی پلیس <span className="text-rose-600">*</span>
                         </label>
                         <input
@@ -895,16 +957,16 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           value={krokiCode}
                           onChange={(e) => setKrokiCode(e.target.value)}
                           placeholder="مثال: CRQ-1403-88492"
-                          className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-300 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 uppercase tracking-wider focus:outline-none focus:border-amber-600"
+                          className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-300 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 uppercase tracking-wider focus:outline-none focus:border-purple-700 focus:ring-1 focus:ring-purple-700"
                           dir="ltr"
                         />
                       </div>
 
                       {/* AI Croqui Sample Evaluation Option */}
-                      <div className="bg-white p-4 rounded-xl border-2 border-amber-200 space-y-3">
+                      <div className="bg-white p-4 rounded-xl border-2 border-purple-200 space-y-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-amber-950 flex items-center gap-1.5">
-                            <Sparkles className="w-4 h-4 text-amber-600" />
+                          <span className="text-xs font-black text-purple-950 flex items-center gap-1.5">
+                            <Sparkles className="w-4 h-4 text-purple-700" />
                             ارزیابی و پردازش تصویر کروکی با هوش مصنوعی (AI OCR):
                           </span>
                         </div>
@@ -922,12 +984,12 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                               onClick={() => handleAnalyzeCroquiSample(idx)}
                               className={`p-2.5 rounded-xl border-2 text-right transition-all text-xs font-extrabold flex flex-col justify-between h-20 ${
                                 selectedCroquiSampleIdx === idx && croquiData
-                                  ? 'border-amber-600 bg-amber-100 text-amber-950 shadow-xs'
-                                  : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-800'
+                                  ? 'border-purple-700 bg-purple-100/70 text-purple-950 shadow-xs'
+                                  : 'border-slate-200 bg-slate-50 hover:bg-purple-50/50 text-slate-800'
                               }`}
                             >
                               <span className="line-clamp-2 text-[11px]">{sample.title}</span>
-                              <span className="text-[10px] font-mono font-bold text-amber-800">
+                              <span className="text-[10px] font-mono font-bold text-purple-700">
                                 {sample.reportNumber}
                               </span>
                             </button>
@@ -958,12 +1020,12 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                                     </button>
                                   </div>
                                 ) : (
-                                  <label className="border-2 border-dashed border-amber-400 bg-white rounded-xl p-3 flex items-center justify-between cursor-pointer hover:border-amber-600 hover:bg-amber-100/50 transition-all">
+                                  <label className="border-2 border-dashed border-purple-300 bg-purple-50/30 rounded-xl p-3 flex items-center justify-between cursor-pointer hover:border-purple-600 hover:bg-purple-100/50 transition-all">
                                     <div className="flex items-center gap-2">
-                                      <item.icon className="w-4 h-4 text-amber-800" />
-                                      <span className="text-xs font-black text-amber-950">{item.label}</span>
+                                      <item.icon className="w-4 h-4 text-purple-800" />
+                                      <span className="text-xs font-black text-purple-950">{item.label}</span>
                                     </div>
-                                    <Upload className="w-4 h-4 text-amber-800" />
+                                    <Upload className="w-4 h-4 text-purple-800" />
                                     <input
                                       type="file"
                                       accept="image/*"
@@ -980,8 +1042,8 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
                       {/* Display Analysis Results if available */}
                       {isAnalyzingCroqui && (
-                        <div className="p-4 bg-amber-100 border border-amber-300 rounded-2xl flex items-center justify-center gap-2 text-amber-950 text-xs font-black animate-pulse">
-                          <Sparkles className="w-4 h-4 text-amber-700 animate-spin" />
+                        <div className="p-4 bg-purple-100/80 border border-purple-300 rounded-2xl flex items-center justify-center gap-2 text-purple-950 text-xs font-black animate-pulse">
+                          <Sparkles className="w-4 h-4 text-purple-700 animate-spin" />
                           <span>در حال پردازش هوشمند تصویر کروکی، استخراج شماره گزارش و رانندگان...</span>
                         </div>
                       )}
@@ -1025,7 +1087,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
                   {/* If Kroki was NOT drawn: ONLY display clean Result Summary box after prompt decision */}
                   {hasKroki === false && (
-                    <div className="space-y-3 pt-3 border-t border-amber-300 animate-in fade-in">
+                    <div className="space-y-3 pt-3 border-t border-purple-200 animate-in fade-in">
                       {futurePolice === true ? (
                         <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-2xl text-blue-950 text-xs font-bold flex items-center justify-between gap-3 shadow-xs">
                           <div className="flex items-center gap-2.5">
@@ -1046,11 +1108,11 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           </button>
                         </div>
                       ) : (
-                        <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl text-amber-950 text-xs font-bold flex items-center justify-between gap-3 shadow-xs">
+                        <div className="p-4 bg-purple-50/80 border-2 border-purple-200 rounded-2xl text-purple-950 text-xs font-bold flex items-center justify-between gap-3 shadow-xs">
                           <div className="flex items-center gap-2.5">
-                            <CheckCircle2 className="w-5 h-5 text-amber-700 shrink-0" />
+                            <CheckCircle2 className="w-5 h-5 text-purple-700 shrink-0" />
                             <div>
-                              <span className="font-black block text-amber-950 text-xs">نتیجه ثبت: خسارت بدون کروکی - ارجاع مستقیم به بیمه‌گر</span>
+                              <span className="font-black block text-purple-950 text-xs">نتیجه ثبت: خسارت بدون کروکی - ارجاع مستقیم به بیمه‌گر</span>
                               <span className="text-[11px] text-slate-700 font-medium block">
                                 پرونده شما بدون نیاز به کروکی جهت برآورد خسارت به شرکت بیمه‌گر ارجاع می‌گردد.
                               </span>
@@ -1059,7 +1121,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           <button
                             type="button"
                             onClick={() => setShowFuturePoliceModal(true)}
-                            className="px-3 py-1.5 bg-white border border-amber-300 hover:bg-amber-100 text-amber-900 font-black rounded-xl text-[11px] shrink-0 transition-all shadow-2xs"
+                            className="px-3 py-1.5 bg-white border border-purple-200 hover:bg-purple-100 text-purple-900 font-black rounded-xl text-[11px] shrink-0 transition-all shadow-2xs"
                           >
                             تغییر پاسخ
                           </button>
@@ -1547,6 +1609,18 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 />
               </div>
             </div>
+
+            {/* Evidence Intelligence AI Overview Card */}
+            {evidenceAiResult && (
+              <div className="pt-2">
+                <EvidenceIntelligenceCard
+                  claimId="WIZ-ACTIVE"
+                  aiResult={evidenceAiResult}
+                  showHitlControls={false}
+                  compact={false}
+                />
+              </div>
+            )}
 
             <div className="flex justify-between pt-2 border-t border-slate-200">
               <button
@@ -2387,7 +2461,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 border border-slate-200 text-slate-900 animate-in zoom-in-95 dir-rtl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                <Clock className="w-5 h-5 text-amber-600" />
+                <Clock className="w-5 h-5 text-purple-700" />
                 استعلام وضعیت کروکی پلیس راهور
               </h3>
               <button
@@ -2411,7 +2485,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     setFuturePolice(true);
                     setShowFuturePoliceModal(false);
                   }}
-                  className="p-4 rounded-2xl bg-blue-50 hover:bg-blue-100 border-2 border-blue-600 text-blue-950 text-right transition-all flex items-center justify-between group shadow-xs"
+                  className="p-4 rounded-2xl bg-blue-50 hover:bg-blue-100/80 border-2 border-blue-600 text-blue-950 text-right transition-all flex items-center justify-between group shadow-xs"
                 >
                   <div className="space-y-1 pl-2">
                     <span className="font-black text-xs block text-blue-900 flex items-center gap-1.5">
@@ -2431,18 +2505,18 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     setFuturePolice(false);
                     setShowFuturePoliceModal(false);
                   }}
-                  className="p-4 rounded-2xl bg-amber-50 hover:bg-amber-100 border-2 border-amber-500 text-amber-950 text-right transition-all flex items-center justify-between group shadow-xs"
+                  className="p-4 rounded-2xl bg-purple-50/80 hover:bg-purple-100 border-2 border-purple-300 text-purple-950 text-right transition-all flex items-center justify-between group shadow-xs"
                 >
                   <div className="space-y-1 pl-2">
-                    <span className="font-black text-xs block text-amber-900 flex items-center gap-1.5">
-                      <AlertCircle className="w-4 h-4 text-amber-600" />
+                    <span className="font-black text-xs block text-purple-900 flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-purple-700" />
                       خیر، کلاً کروکی ندارد (خسارت بدون کروکی)
                     </span>
                     <span className="text-[11px] text-slate-600 font-bold block leading-normal">
                       نیازی به ثبت موقت نیست؛ پرونده مستقیماً و بدون کروکی جهت ارزیابی به بیمه‌گر ارجاع می‌گردد.
                     </span>
                   </div>
-                  <X className="w-5 h-5 text-amber-600 shrink-0" />
+                  <X className="w-5 h-5 text-purple-700 shrink-0" />
                 </button>
               </div>
             </div>

@@ -116,12 +116,12 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
     switch (status) {
       case 'پاسخ داده شده':
       case 'بسته شده و حل گردید':
-        return 'bg-emerald-100 text-emerald-950 border-emerald-300';
+        return 'bg-emerald-50 text-emerald-900 border-emerald-300';
       case 'در حال پیگیری':
       case 'ارجاع به ارزیاب ارشد':
-        return 'bg-indigo-100 text-indigo-950 border-indigo-300';
+        return 'bg-purple-50 text-purple-950 border-purple-200';
       default:
-        return 'bg-amber-100 text-amber-950 border-amber-300';
+        return 'bg-blue-50 text-blue-950 border-blue-200';
     }
   };
 
@@ -131,19 +131,19 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-900 border border-amber-300 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-900 border border-blue-200 flex items-center justify-center font-bold shadow-xs">
             <MessageSquare className="w-5 h-5" />
           </div>
           <div>
             <h3 className="font-black text-slate-900 text-sm sm:text-base flex items-center gap-2">
               <span>ارتباطات و پشتیبانی CRM پرونده</span>
               {(tickets.length > 0 || callLogs.length > 0) && (
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
                   {tickets.length} تیکت • {callLogs.length} تماس
                 </span>
               )}
             </h3>
-            <p className="text-[11px] text-slate-500">
+            <p className="text-[11px] text-slate-500 font-medium">
               پیگیری مکاتبات با کارشناس ارزیاب و واحد رسیدگی به شکایات و مرکز تماس CRM
             </p>
           </div>
@@ -153,7 +153,7 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
           <button
             type="button"
             onClick={onOpenCreateTicket}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs shadow-md shadow-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-md shadow-blue-900/10 active:scale-95 transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>ثبت تیکت / شکایت جدید</span>
@@ -162,17 +162,17 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-2xl border border-slate-200 text-xs font-bold">
+      <div className="flex items-center gap-2 bg-slate-100/80 p-1 rounded-2xl border border-slate-200 text-xs font-bold">
         <button
           type="button"
           onClick={() => setActiveSectionTab('tickets')}
           className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
             activeSectionTab === 'tickets'
-              ? 'bg-white text-slate-900 font-black shadow-xs'
+              ? 'bg-white text-blue-950 font-black shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <MessageSquare className="w-4 h-4 text-amber-600" />
+          <MessageSquare className="w-4 h-4 text-blue-900" />
           <span>تیکت‌ها و مکاتبات CRM ({tickets.length})</span>
         </button>
 
@@ -181,11 +181,11 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
           onClick={() => setActiveSectionTab('calls')}
           className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
             activeSectionTab === 'calls'
-              ? 'bg-white text-slate-900 font-black shadow-xs'
+              ? 'bg-white text-blue-950 font-black shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <PhoneCall className="w-4 h-4 text-sky-600" />
+          <PhoneCall className="w-4 h-4 text-slate-600" />
           <span>تماس‌های ثبت‌شده مرکز تماس ({callLogs.length})</span>
         </button>
       </div>

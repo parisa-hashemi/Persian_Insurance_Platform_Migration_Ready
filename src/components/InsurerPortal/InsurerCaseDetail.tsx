@@ -39,7 +39,8 @@ import {
   Send,
   Navigation,
   MessageSquare,
-  PhoneCall
+  PhoneCall,
+  Bot
 } from 'lucide-react';
 import { ClaimCase, UserSession, StaffMember, AssessorNotification, CustomerNotification } from '../../types';
 import { INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS } from '../../data/mockData';
@@ -56,6 +57,7 @@ import {
   addCustomerNotification,
   loadCasesFromStorage
 } from '../../lib/storage';
+import { autoDispatchClaimWithAI } from '../../lib/ai/aiDispatcher';
 import { calculateClaimDamageWithPolicyLimits, performPolicySanhabInquiry } from '../../lib/policyLimitCalculator';
 import { Car3DViewer } from '../Car3DViewer';
 
@@ -834,6 +836,88 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
     setTimeout(() => setAssignmentFeedback(null), 5000);
   };
 
+  const [insurerSupplementalNote, setInsurerSupplementalNote] = useState('');
+  const [noteSentFeedback, setNoteSentFeedback] = useState<string | null>(null);
+
+  const handleSendInsurerInstruction = (customText?: string) => {
+    const textToSend = (customText || insurerSupplementalNote).trim();
+    if (!textToSend) return;
+
+    const nowFa = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+    const authorName = session.name || companyInfo.name || 'ناظر پورتال بیمه‌گر';
+    const targetExpert = claimCase.assignedFieldExpert || claimCase.assignedExpert;
+
+    if (targetExpert?.id) {
+      try {
+        const existingNotifs = loadAssessorNotifications();
+        const newNotif: AssessorNotification = {
+          id: `NOTIF-SUPP-${Date.now()}`,
+          type: 'WARNING',
+          caseId: claimCase.id,
+          expertId: targetExpert.id,
+          recipientPhone: targetExpert.phone,
+          sender: authorName,
+          senderRole: 'ناظر و کارشناس ارشد شرکت بیمه',
+          title: `دستورالعمل نظارتی بیمه‌گر برای پرونده ${claimCase.id}`,
+          message: `دستورالعمل تکمیلی جدید ثبت شده توسط بیمه‌گر:\n«${textToSend}»\nلطفاً در ارزیابی و تطبیق خسارت لحاظ فرمایید.`,
+          sentAt: new Date().toISOString(),
+          date: new Date().toLocaleDateString('fa-IR'),
+          time: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+          read: false,
+          requiresReply: true
+        };
+        saveAssessorNotifications([newNotif, ...existingNotifs]);
+      } catch (e) {
+        console.error('Error saving assessor notification:', e);
+      }
+    }
+
+    const updated: ClaimCase = {
+      ...claimCase,
+      insurerInstruction: textToSend,
+      insurerAssignmentNote: textToSend,
+      insurerNoteAuthor: authorName,
+      insurerNoteDate: nowFa,
+      docChat: [
+        ...(claimCase.docChat || []),
+        {
+          id: `MSG-INS-${Date.now()}`,
+          from: 'expert' as const,
+          senderParty: 'EXPERT' as const,
+          targetParty: 'PARTY_ONE' as const,
+          by: authorName,
+          senderName: `${authorName} (نظارت بیمه)`,
+          text: `📌 [دستورالعمل نظارتی بیمه‌گر]: ${textToSend}`,
+          at: nowFa
+        }
+      ],
+      history: [
+        ...(claimCase.history || []),
+        {
+          status: claimCase.status,
+          time: nowFa,
+          user: authorName,
+          userRole: 'ناظر شرکت بیمه‌گر',
+          note: `ثبت و ابلاغ دستورالعمل تکمیلی نظارتی به کارشناس پرونده: «${textToSend}»`
+        }
+      ]
+    };
+
+    onUpdateCase(updated);
+    setInsurerSupplementalNote('');
+    setNoteSentFeedback('دستورالعمل و نکات تکمیلی با موفقیت برای کارشناس ارزیاب ارسال شد و نوتیفیکیشن صادر گردید.');
+    setTimeout(() => setNoteSentFeedback(null), 5000);
+  };
+
+  const handleTriggerAiReassign = () => {
+    const result = autoDispatchClaimWithAI(claimCase, {
+      reason: 'بازارجاع هوشمند به دلیل رد پرونده توسط کارشناس قبلی (تخصیص به کارشناس جایگزین واجد صلاحیت توسط هوش مصنوعی)'
+    });
+    onUpdateCase(result.updatedCase);
+    setAssignmentFeedback(`پرونده با موفقیت توسط هوش مصنوعی به کارشناس جدید «${result.assignedExpertName}» ارجاع گردید و پیامک اطلاع‌رسانی ارسال شد.`);
+    setTimeout(() => setAssignmentFeedback(null), 5000);
+  };
+
   const handleStatusChange = (newStatus: any) => {
     const updated: ClaimCase = {
       ...claimCase,
@@ -1003,7 +1087,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
 
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500 font-bold">شماره پرونده:</span>
-          <span className="px-3 py-1 bg-purple-100 text-purple-900 rounded-lg text-xs font-black font-mono border border-purple-200">
+          <span className="px-3 py-1 bg-slate-100 text-slate-900 rounded-lg text-xs font-black font-mono border border-slate-200">
             {claimCase.id}
           </span>
         </div>
@@ -1068,1017 +1152,265 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
               </div>
             </div>
           ) : (
-            /* Card: Assessor or Field Expert Assignment */
-            <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-                  {isFieldExpertRequired ? (
-                    <>
-                      <AlertTriangle className="w-4.5 h-4.5 text-amber-600" />
-                      <span>تخصیص کارشناس رسمی میدانی</span>
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus className="w-4.5 h-4.5 text-purple-600" />
-                      <span>جستجوی ارزیاب و ارجاع</span>
-                    </>
-                  )}
-                </h3>
-                {isNoCroquiCase ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
-                    بدون کروکی
+            /* Viewer-Only / Supervisory Insurer Panel Column */
+            <div className="space-y-4">
+              
+              {/* 1. Supervisory Mode Badge / Info */}
+              <div className="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-5 shadow-sm space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-400/30 flex items-center justify-center">
+                      <Bot className="w-4.5 h-4.5" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-sm text-white">پورتال نظارتی بیمه‌گر</h3>
+                      <p className="text-[10px] text-slate-300">مدیریت هوشمند تخصیص با AI</p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-black bg-blue-500/20 text-blue-300 border border-blue-400/30">
+                    مشاهده‌گر نظارتی
                   </span>
-                ) : (claimCase.objectionStage === 4 || claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' || claimCase.status === 'در انتظار بازدید کارشناس میدانی') ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-100 text-purple-900 border border-purple-300">
-                    اعتراض نهایی (مرحله ۴ - میدانی)
-                  </span>
-                ) : null}
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed font-normal">
+                  تخصیص ارزیاب، مراحل ۴ گانه اعتراضات و بازارجاع خودکار پرونده‌ها تماماً توسط موتور هوش مصنوعی AI با ارسال SMS دوطرفه به مشتری و کارشناس انجام می‌پذیرد.
+                </p>
               </div>
 
-            {/* Mandatory Notice for Stage 4 Objection / Field Inspector Request */}
-            {(claimCase.objectionStage === 4 || claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' || claimCase.status === 'در انتظار بازدید کارشناس میدانی') && !claimCase.assignedFieldExpert && (
-              <div className="p-3.5 bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-100 border-2 border-purple-300 rounded-2xl text-xs space-y-2 animate-in fade-in">
-                <div className="flex items-center gap-1.5 font-extrabold text-purple-950">
-                  <UserCheck className="w-4 h-4 text-purple-600 shrink-0" />
-                  <span>درخواست اعتراض نهایی و ارزیابی میدانی توسط زیان‌دیده:</span>
+              {/* 2. Rejection & Penalty Alert (if expert rejected or status is 'رد شده') */}
+              {(claimCase.expertRejected || claimCase.status === 'رد شده' || claimCase.autoReturnedDueToTimeout) && (
+                <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-3xl space-y-3 animate-in fade-in">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-black text-rose-950 text-xs">
+                      <AlertTriangle className="w-4.5 h-4.5 text-rose-600 shrink-0" />
+                      <span>عدم پذیرش پرونده توسط کارشناس:</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-200 text-rose-900 border border-rose-300">
+                      ثبت جریمه منفی
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-white/90 rounded-2xl border border-rose-200 text-xs space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-600 font-bold">کارشناس ردکننده:</span>
+                      <span className="font-black text-rose-950">{claimCase.expertRejected?.by || 'کارشناس پرونده'}</span>
+                    </div>
+                    {claimCase.expertRejected?.reason && (
+                      <div className="text-[11px] text-rose-900 leading-relaxed font-medium">
+                        علت رد: «{claimCase.expertRejected.reason}»
+                      </div>
+                    )}
+                    {claimCase.expertRejected?.at && (
+                      <div className="text-[10px] text-slate-500 font-mono">
+                        زمان ثبت: {claimCase.expertRejected.at}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-2.5 bg-rose-100/80 rounded-xl border border-rose-200 text-[10px] text-rose-950 font-bold flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-rose-700 shrink-0" />
+                    <span>اثر بر عملکرد: کسر ۰.۲ از امتیاز شایستگی کارشناس و درج در کارنامه SLA</span>
+                  </div>
+
+                  {(!claimCase.assignedExpert && !claimCase.assignedFieldExpert) && (
+                    <button
+                      type="button"
+                      onClick={handleTriggerAiReassign}
+                      className="w-full py-2.5 px-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-md shadow-purple-600/20 transition-all active:scale-95"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+                      <span>تخصیص فوری به کارشناس جایگزین توسط هوش مصنوعی</span>
+                    </button>
+                  )}
                 </div>
-                <p className="text-[11px] text-purple-900 leading-relaxed font-bold">
-                  زیان‌دیده در مرحله چهارم اعتراض، درخواست اعزام کارشناس رسمی میدانی / ارجاع به شعبه را ثبت نموده است. لطفاً نزدیک‌ترین کارشناس رسمی میدانی را بر اساس موقعیت ثبت‌شده خودرو و شعبه مربوطه تعیین و مأموریت را ابلاغ نمایید.
-                </p>
-                {accidentLocationAddress && (
-                  <div className="p-2 bg-white/90 rounded-xl border border-purple-200 text-[11px] text-purple-950 font-bold flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                    <span>موقعیت استقرار خودرو جهت بازدید: {accidentLocationAddress}</span>
+              )}
+
+              {/* 3. Current Assigned Expert Details Card */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <UserCheck className="w-4.5 h-4.5 text-blue-600" />
+                    <h4 className="font-black text-slate-900 text-sm">کارشناس منتخب پرونده</h4>
+                  </div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-100 text-blue-900 border border-blue-200 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-blue-700" />
+                    <span>تخصیص هوشمند AI</span>
+                  </span>
+                </div>
+
+                {claimCase.assignedFieldExpert || claimCase.assignedExpert ? (
+                  (() => {
+                    const exp = claimCase.assignedFieldExpert || claimCase.assignedExpert;
+                    return (
+                      <div className="space-y-3">
+                        <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center gap-3">
+                          <div className="relative shrink-0">
+                            {exp?.avatarUrl ? (
+                              <img
+                                src={exp.avatarUrl}
+                                alt={exp?.name || ''}
+                                className="w-12 h-12 rounded-2xl object-cover border-2 border-blue-300"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white font-black flex items-center justify-center text-sm shadow-xs">
+                                {exp?.name?.slice(0, 1) || 'ک'}
+                              </div>
+                            )}
+                            <span className="absolute -bottom-1 -left-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white" />
+                          </div>
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <h5 className="font-black text-slate-900 text-sm truncate">{exp?.name}</h5>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            </div>
+                            <p className="text-[11px] text-slate-600 font-bold truncate">
+                              {exp?.role || 'کارشناس ارزیاب رسمی خسارت'}
+                            </p>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+                              <span>امتیاز: {exp?.rating || 4.9} ⭐</span>
+                              <span>•</span>
+                              <span className="font-mono text-slate-700 font-bold">تلفن: {exp?.phone || '۰۹۱۲۰۰۰۰۰۰۰'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Nearest Branch Card */}
+                        {(claimCase.assignedBranch || currentSelectedBranch) && (
+                          <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200 space-y-1 text-right">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-black text-blue-950 flex items-center gap-1">
+                                <Building2 className="w-3.5 h-3.5 text-blue-700" />
+                                <span>مرکز پرداخت و کارشناسی خسارت:</span>
+                              </span>
+                              <span className="px-1.5 py-0.5 bg-blue-100 text-blue-900 text-[9px] rounded font-bold">
+                                {claimCase.assignedBranch?.city || currentSelectedBranch.city}
+                              </span>
+                            </div>
+                            <p className="font-black text-xs text-slate-900">
+                              {claimCase.assignedBranch?.name || currentSelectedBranch.name}
+                            </p>
+                            <p className="text-[10px] text-slate-600 font-medium leading-relaxed">
+                              {claimCase.assignedBranch?.address || currentSelectedBranch.address}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Two-Way SMS Status Indicator */}
+                        <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-950 text-[11px] font-bold flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>پیامک مشخصات پرونده و نشانی به کارشناس و مشتری ابلاغ گردید.</span>
+                        </div>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-center space-y-2">
+                    <Clock className="w-6 h-6 text-amber-600 mx-auto" />
+                    <p className="text-xs font-bold text-amber-900">در انتظار تخصیص کارشناس توسط هوش مصنوعی</p>
+                    <button
+                      type="button"
+                      onClick={handleTriggerAiReassign}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all"
+                    >
+                      ارجاع خودکار توسط هوش مصنوعی AI
+                    </button>
                   </div>
                 )}
               </div>
-            )}
 
-            {/* Mandatory Regulatory Warning for No-Croqui Cases */}
-            {isNoCroquiCase && !claimCase.objectionStage && (
-              <div className="p-3 bg-amber-50/90 border-2 border-amber-300 rounded-2xl text-xs space-y-1.5 animate-in fade-in">
-                <div className="flex items-center gap-1.5 font-extrabold text-amber-950">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <span>الزام ارجاع به کارشناس میدانی:</span>
-                </div>
-                <p className="text-[11px] text-amber-900 leading-relaxed font-bold">
-                  این پرونده چون بدون کروکی است، باید شما به یک کارشناس میدانی جهت بازدید حضوری و احراز اصالت ارجاع دهید.
-                </p>
-              </div>
-            )}
-
-            {/* Alert: Case Returned Due to 72h Timeout or Rejected by Assessor */}
-            {(claimCase.status === 'رد شده' || claimCase.expertRejected || claimCase.autoReturnedDueToTimeout) && !claimCase.assignedExpert && (
-              <div className={`p-4 border-2 rounded-2xl text-xs space-y-2 animate-in fade-in ${
-                claimCase.autoReturnedDueToTimeout
-                  ? 'bg-rose-100/90 border-rose-400 text-rose-950 shadow-sm'
-                  : 'bg-rose-50 border-rose-300 text-rose-950'
-              }`}>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 font-black text-rose-950 text-xs">
-                    <AlertTriangle className="w-4.5 h-4.5 text-rose-700 shrink-0" />
-                    <span>
-                      {claimCase.autoReturnedDueToTimeout
-                        ? 'عودت خودکار سیستمی به دلیل انقضای مهلت ۷۲ ساعته:'
-                        : 'عدم پذیرش پرونده توسط کارشناس ارزیاب:'}
-                    </span>
+              {/* 4. Supplemental Notes & Supervisory Instructions Card */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4.5 h-4.5 text-blue-900" />
+                    <h4 className="font-black text-slate-900 text-sm">نکات تکمیلی و دستورالعمل نظارتی</h4>
                   </div>
-                  {claimCase.autoReturnedDueToTimeout && (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-700 text-white shadow-2xs">
-                      سلب صلاحیت کارشناس
-                    </span>
-                  )}
+                  <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] rounded-full font-bold border border-slate-200">
+                    ابلاغ به کارشناس
+                  </span>
                 </div>
 
-                <p className="text-[11px] text-rose-900 leading-relaxed font-bold">
-                  {claimCase.autoReturnedDueToTimeout
-                    ? `این پرونده پس از تخصیص به کارشناس (${claimCase.timedOutExpert?.name || claimCase.expertRejected?.by || 'کارشناس قبلی'})، به مدت ۷۲ ساعت (۴۳۲۰ دقیقه) بلاتکلیف ماند و بدون ثبت تایید یا رد ارزیابی، توسط سامانه هوشمند سلب صلاحیت و به شرکت بیمه عودت داده شد. پیامک اطلاع‌رسانی سلب صلاحیت برای کارشناس ارسال و جریمه منفی در شایستگی ایشان اعمال گردید.`
-                    : claimCase.expertRejected?.reason
-                    ? `دلیل عدم پذیرش: «${claimCase.expertRejected.reason}» (${claimCase.expertRejected.by || 'کارشناس قبلی'})`
-                    : 'کارشناس قبلی این پرونده را نپذیرفته و رد کرده است.'}
+                <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                  می‌توانید نکات فنی، دستور کنترل شاسی، داغی قطعات یا تطبیق با کروکی را برای کارشناس پرونده ارسال نمایید.
                 </p>
 
-                <div className="p-2.5 bg-white/80 rounded-xl border border-rose-300/80 text-[11px] text-rose-950 font-bold flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-rose-700 shrink-0" />
-                  <span>اقدام مورد نیاز: لطفاً از فرم زیر، پرونده را به کارشناس فعال دیگری محول نمایید.</span>
-                </div>
-              </div>
-            )}
-
-            {assignmentFeedback && (
-              <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl text-emerald-900 text-xs font-bold flex items-center gap-2 animate-in zoom-in-95">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{assignmentFeedback}</span>
-              </div>
-            )}
-
-            {fieldAssignmentFeedback && (
-              <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl text-emerald-900 text-xs font-bold flex items-center gap-2 animate-in zoom-in-95">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{fieldAssignmentFeedback}</span>
-              </div>
-            )}
-
-            {/* Authenticity Dispute Alert Banner */}
-            {claimCase.authenticityDispute && (
-              <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl space-y-2 animate-in fade-in">
-                <div className="flex items-center gap-2 text-rose-900 font-extrabold text-xs">
-                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>اعلام تردید در اصالت تصادف توسط مشتری ({claimCase.authenticityDispute.disputedBy} - {claimCase.authenticityDispute.role})</span>
-                </div>
-                <p className="text-[11px] text-rose-950 font-bold bg-white p-2.5 rounded-xl border border-rose-200 leading-relaxed">
-                  «{claimCase.authenticityDispute.reason}»: {claimCase.authenticityDispute.description}
-                </p>
-                <p className="text-[10px] text-rose-800 font-bold">
-                  دستور اقدام: لطفاً یک کارشناس میدانی مجرب انتخاب کرده و جهت بازرسی فیزیکی خودروها و صحنه تصادف به محل اعزام نمایید.
-                </p>
-              </div>
-            )}
-
-            {isFieldExpertRequired ? (
-              /* NO CROQUI OR AUTHENTICITY DISPUTE: FIELD EXPERT ASSIGNMENT FLOW */
-              (claimCase.assignedFieldExpert || (claimCase.assignedExpert && claimCase.assignedExpert.role?.includes('میدانی'))) && !isChangingFieldExpert ? (
-                <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-amber-800 font-extrabold block">کارشناس میدانی پرونده:</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 border border-amber-300">
-                      محول شده به میدانی
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                      <UserCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h5 className="font-black text-slate-900 text-sm">
-                        {claimCase.assignedFieldExpert?.name || claimCase.assignedExpert?.name}
-                      </h5>
-                      <p className="text-[11px] text-slate-600 font-medium">
-                        {claimCase.assignedFieldExpert?.role || claimCase.assignedExpert?.role} ({claimCase.assignedFieldExpert?.phone || claimCase.assignedExpert?.phone || 'بدون همراه'})
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Nearest Branch Card for already assigned cases */}
-                  {(claimCase.assignedBranch || currentSelectedBranch) && (
-                    <div className="p-3 bg-white/95 rounded-xl border border-blue-200 space-y-1.5 text-right">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-black text-blue-900 flex items-center gap-1">
-                          <Building2 className="w-3.5 h-3.5 text-blue-700" />
-                          <span>شعبه تخصصی بیمه جهت مراجعه و هماهنگی:</span>
-                        </span>
-                        <span className="px-1.5 py-0.5 bg-blue-50 text-blue-800 text-[9px] rounded font-bold">
-                          {claimCase.assignedBranch?.city || currentSelectedBranch.city}
-                        </span>
-                      </div>
-                      <p className="font-black text-xs text-slate-900">
-                        {claimCase.assignedBranch?.name || currentSelectedBranch.name}
-                      </p>
-                      <p className="text-[11px] text-slate-600 font-medium leading-relaxed">
-                        نشانی: {claimCase.assignedBranch?.address || currentSelectedBranch.address}
-                      </p>
-                      <div className="text-[10px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
-                        <span>تلفن: {claimCase.assignedBranch?.phone || currentSelectedBranch.phone}</span>
-                        <span className="text-emerald-700 font-bold flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3" />
-                          <span>آدرس پیامک شد</span>
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  <p className="text-[11px] text-slate-700 leading-relaxed bg-white/90 p-2.5 rounded-xl border border-amber-100">
-                    پرونده جهت بررسی میدانی، احراز اصالت و رویت فیزیکی به این کارشناس میدانی ارجاع داده شده و آدرس نزدیک‌ترین شعبه بیمه به همراه مشخصات پرونده به کارشناس و مشتری پیامک شده است.
-                  </p>
-
-                  {(claimCase.insurerFieldExpertNote || claimCase.insurerAssignmentNote || claimCase.insurerInstruction) && (
-                    <div className="p-2.5 bg-amber-100/90 border border-amber-300 rounded-xl space-y-1 text-right">
-                      <div className="flex items-center gap-1.5 text-amber-900 font-extrabold text-[10px]">
-                        <FileText className="w-3 h-3 text-amber-700" />
-                        <span>دستور و توضیحات ابلاغی به کارشناس میدانی:</span>
-                      </div>
-                      <p className="text-[11px] text-amber-950 font-bold leading-relaxed">
-                        «{claimCase.insurerFieldExpertNote || claimCase.insurerAssignmentNote || claimCase.insurerInstruction}»
-                      </p>
+                {/* Existing Note Display if present */}
+                {(claimCase.insurerInstruction || claimCase.insurerAssignmentNote) && (
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5 text-right">
+                    <div className="flex items-center justify-between text-[10px] text-slate-700 font-black">
+                      <span className="flex items-center gap-1">
+                        <FileText className="w-3.5 h-3.5 text-blue-900" />
+                        <span>آخرین دستورالعمل ثبت‌شده بیمه‌گر:</span>
+                      </span>
                       {claimCase.insurerNoteDate && (
-                        <span className="text-[9px] text-amber-700 block text-left font-mono">
-                          ثبت: {claimCase.insurerNoteDate}
-                        </span>
+                        <span className="text-slate-500 font-mono">{claimCase.insurerNoteDate}</span>
                       )}
                     </div>
-                  )}
-
-                  {(() => {
-                    // Expert assignment is locked unless rejected by expert or customer has raised an objection
-                    const isUnlockedByRejectionOrObjection = Boolean(
-                      claimCase.expertRejected ||
-                      claimCase.autoReturnedDueToTimeout ||
-                      claimCase.status === 'رد شده' ||
-                      (claimCase.objectionStage && claimCase.objectionStage > 0) ||
-                      claimCase.objectionChat ||
-                      claimCase.status?.includes('اعتراض') ||
-                      claimCase.complaintStatus === 'SUBMITTED' ||
-                      claimCase.authenticityDispute
-                    );
-
-                    if (isUnlockedByRejectionOrObjection) {
-                      return (
-                        <div className="space-y-2">
-                          <div className="p-2 bg-amber-100/80 border border-amber-300 rounded-xl text-[10px] text-amber-950 font-bold flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                            <span>امکان تغییر کارشناس به دلیل رد توسط کارشناس یا اعتراض مشتری فعال گردید.</span>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setIsChangingFieldExpert(true);
-                              setIsFieldExpertDropdownOpen(true);
-                            }}
-                            className="w-full py-2.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-amber-600/20 active:scale-95"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            <span>تغییر یا ارجاع به کارشناس میدانی دیگر (رفع اعتراض / عدم پذیرش)</span>
-                          </button>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="p-3 bg-slate-100 border border-slate-300/80 rounded-xl text-[11px] text-slate-700 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 font-bold text-slate-800">
-                          <Lock className="w-4 h-4 text-slate-500 shrink-0" />
-                          <span>تخصیص کارشناس نهایی و قفل است</span>
-                        </div>
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          (فقط در صورت رد کارشناس یا ثبت اعتراض مشتری باز می‌شود)
-                        </span>
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : (
-                /* Ultra-Clean, High-Visibility Field Expert Assignment UX */
-                <div className="space-y-3 animate-in fade-in">
-                  {(claimCase.assignedFieldExpert || claimCase.assignedExpert) && (
-                    <div className="p-2 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-950 font-bold flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Info className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                        <span className="truncate">کارشناس قبلی: {claimCase.assignedFieldExpert?.name || claimCase.assignedExpert?.name}</span>
-                      </div>
-                      <span className="text-[10px] text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded font-bold shrink-0">
-                        در حال تغییر
+                    <p className="text-xs text-slate-900 font-bold leading-relaxed">
+                      «{claimCase.insurerInstruction || claimCase.insurerAssignmentNote}»
+                    </p>
+                    {claimCase.insurerNoteAuthor && (
+                      <span className="text-[10px] text-slate-500 block text-left font-medium">
+                        ثبت‌کننده: {claimCase.insurerNoteAuthor}
                       </span>
-                    </div>
-                  )}
-
-                  {/* 1. Location & Branch Selector (Compact & High Legibility) */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2 text-xs">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-slate-700 font-extrabold text-xs">
-                        <Building2 className="w-4 h-4 text-blue-700 shrink-0" />
-                        <span>شعبه معین ارزیابی و خسارت:</span>
-                      </div>
-                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200 shrink-0">
-                        {branchMatch.matchReason}
-                      </span>
-                    </div>
-
-                    <select
-                      value={selectedBranchId}
-                      onChange={(e) => {
-                        const newBranchId = e.target.value;
-                        setSelectedBranchId(newBranchId);
-                        const branchExperts = activeCompanyFieldExperts.filter((fe) => fe.branchId === newBranchId);
-                        if (branchExperts.length > 0) {
-                          setSelectedFieldExpertId(branchExperts[0].id);
-                        }
-                      }}
-                      className="w-full py-2 px-3 bg-white rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-2xs"
-                    >
-                      <optgroup label={`شعب تخصصی ${getInsurerPersianName(caseInsurerCode)}`}>
-                        {INSURANCE_BRANCHES.filter(b => b.insurerCode === caseInsurerCode).map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name} ({b.city})
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="سایر مراکز و شعب استانی">
-                        {INSURANCE_BRANCHES.filter(b => b.insurerCode !== caseInsurerCode).map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name} ({b.city})
-                          </option>
-                        ))}
-                      </optgroup>
-                    </select>
-
-                    <div className="flex items-center justify-between text-[11px] text-slate-600 px-0.5 pt-0.5">
-                      <span className="flex items-center gap-1 truncate text-slate-500 font-medium">
-                        <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
-                        <strong className="text-slate-800">محل حادثه:</strong> {accidentLocationAddress}
-                      </span>
-                      <span className="font-mono text-[10px] text-blue-800 shrink-0 font-bold mr-2">
-                        تلفن: {currentSelectedBranch.phone}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 2. Featured Selected Field Expert (Hero Card) */}
-                  {(() => {
-                    const currentExpert = activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId) || activeCompanyFieldExperts[0];
-                    const rankedInfo = rankedRecommendation.rankedExperts.find(r => r.expert.id === currentExpert?.id) || rankedRecommendation.rankedExperts[0];
-                    const otherBranchExperts = activeCompanyFieldExperts.filter(fe => fe.branchId === selectedBranchId && fe.id !== currentExpert?.id);
-
-                    return (
-                      <div className="bg-gradient-to-br from-amber-50/90 via-amber-50/40 to-white border-2 border-amber-300/90 rounded-2xl p-3.5 space-y-3 shadow-xs">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 text-xs font-black text-amber-950">
-                            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
-                            <span>کارشناس رسمی منتخب:</span>
-                          </div>
-                          {rankedInfo?.matchScore && (
-                            <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
-                              {rankedInfo.matchScore}٪ انطباق هوشمند
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Expert Detail Block */}
-                        <div className="bg-white p-3 rounded-xl border border-amber-200/80 flex items-center justify-between gap-3 shadow-2xs">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="relative shrink-0">
-                              {currentExpert?.avatarUrl ? (
-                                <img
-                                  src={currentExpert.avatarUrl}
-                                  alt={currentExpert.name}
-                                  className="w-12 h-12 rounded-2xl object-cover border-2 border-amber-300"
-                                  referrerPolicy="no-referrer"
-                                />
-                              ) : (
-                                <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-base shadow-2xs">
-                                  {currentExpert?.name.slice(0, 1) || 'ک'}
-                                </div>
-                              )}
-                              <span className="absolute -bottom-1 -left-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white" />
-                            </div>
-                            <div className="min-w-0 space-y-1">
-                              <div className="flex items-center gap-1.5">
-                                <h4 className="font-black text-slate-950 text-sm truncate">{currentExpert?.name}</h4>
-                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                              </div>
-                              <p className="text-[11px] text-slate-600 font-bold truncate">
-                                {currentExpert?.role}
-                              </p>
-                              <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
-                                <span>امتیاز: {currentExpert?.rating || 4.9}</span>
-                                <span>•</span>
-                                <span>فاصله: {rankedInfo?.distanceText || 'نزدیک محل'}</span>
-                                <span>•</span>
-                                <span className="font-mono text-amber-900 font-bold">تلفن: {currentExpert?.phone}</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Switch / Change Expert Button */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFieldExpertSearchTerm('');
-                            setIsExpertPickerModalOpen(true);
-                          }}
-                          className="w-full py-2 px-3 rounded-xl bg-amber-100/90 hover:bg-amber-200/90 text-amber-950 text-xs font-extrabold flex items-center justify-center gap-2 transition-all border border-amber-300 shadow-2xs active:scale-98"
-                        >
-                          <Search className="w-3.5 h-3.5 text-amber-800" />
-                          <span>انتخاب یا تغییر کارشناس از بین تمام شعب ({rankedRecommendation.rankedExperts.length} کارشناس)</span>
-                        </button>
-
-                        {/* Quick 1-Click Alternate Chips from the same branch */}
-                        {otherBranchExperts.length > 0 && (
-                          <div className="pt-1 border-t border-amber-200/60 space-y-1">
-                            <span className="text-[10px] text-slate-500 font-bold block">
-                              سایر کارشناسان مستقر در «{currentSelectedBranch.name.replace('مرکز پرداخت خسارت و کارشناسی خودرو ', '').replace('مجتمع خسارت و کارشناسی خودرو ', '')}»:
-                            </span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {otherBranchExperts.map((exp) => (
-                                <button
-                                  key={exp.id}
-                                  type="button"
-                                  onClick={() => setSelectedFieldExpertId(exp.id)}
-                                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white text-slate-800 hover:bg-amber-100/70 border border-amber-200 transition-all flex items-center gap-1 shadow-2xs"
-                                >
-                                  <span>{exp.name}</span>
-                                  <span className="text-[9px] text-slate-500 font-normal font-mono">({exp.phone.slice(-4)})</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* 3. Collapsible Instruction Note */}
-                  <div className="space-y-1.5">
-                    {!showNoteInput && !fieldExpertAssignmentNote ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowNoteInput(true)}
-                        className="w-full py-1.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200/80 text-slate-700 text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all border border-slate-200"
-                      >
-                        <FileText className="w-3.5 h-3.5 text-slate-500" />
-                        <span>+ افزودن دستور یا یادداشت برای کارشناس میدانی (اختیاری)</span>
-                      </button>
-                    ) : (
-                      <div className="space-y-1 animate-in fade-in">
-                        <div className="flex items-center justify-between text-xs font-bold text-slate-700">
-                          <span>دستور کار و توضیحات تکمیلی به کارشناس:</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!fieldExpertAssignmentNote) setShowNoteInput(false);
-                            }}
-                            className="text-[10px] text-slate-400 hover:text-slate-600"
-                          >
-                            بستن
-                          </button>
-                        </div>
-                        <textarea
-                          rows={2}
-                          value={fieldExpertAssignmentNote}
-                          onChange={(e) => setFieldExpertAssignmentNote(e.target.value)}
-                          placeholder="مثال: رویت اصالت قطعات تعویضی و تطابق زاویه برخورد دو خودرو در صحنه..."
-                          className="w-full p-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 font-medium text-xs focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-100 transition-all placeholder:text-slate-400"
-                        />
-                      </div>
                     )}
                   </div>
+                )}
 
-                  {/* 4. Streamlined SMS Notice Pill with Preview Modal Trigger */}
-                  <div className="p-2.5 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-1.5 min-w-0 text-emerald-950 font-bold text-[11px]">
-                      <MessageSquare className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                      <span className="truncate">پیامک نشانی شعبه و پرونده به کارشناس و مشتری</span>
+                {/* Textarea for new instructions */}
+                <div className="space-y-2">
+                  <textarea
+                    rows={3}
+                    value={insurerSupplementalNote}
+                    onChange={(e) => setInsurerSupplementalNote(e.target.value)}
+                    placeholder="نکات تکمیلی، دستور بررسی داغی قطعات، کنترل شاسی و انطباق با کروکی را اینجا تایپ کنید..."
+                    className="w-full p-3 rounded-2xl border border-slate-200 bg-slate-50/50 text-slate-900 text-xs font-bold focus:outline-none focus:border-blue-900 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-400"
+                  />
+
+                  {/* Quick Suggestion Chips */}
+                  <div className="space-y-1">
+                    <span className="text-[10px] text-slate-500 font-bold block">پیشنهادهای سریع:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        'بررسی انطباق دقیق با کروکی راهور و زاویه برخورد',
+                        'بررسی سلامت شاسی و هم‌پوشانی رنگ قطعات',
+                        'استعلام قیمت روز از نمایندگی مجاز و رویت داغی',
+                        'محاسبه دقیق افت قیمت بر اساس مدل و سوابق'
+                      ].map((chip, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setInsurerSupplementalNote(prev => prev ? `${prev} - ${chip}` : chip);
+                          }}
+                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-[10px] font-bold transition-all border border-slate-200"
+                        >
+                          + {chip}
+                        </button>
+                      ))}
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowSmsPreview(!showSmsPreview)}
-                      className="px-2 py-0.5 rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-900 text-[10px] font-black shrink-0 transition-colors"
-                    >
-                      {showSmsPreview ? 'پنهان‌سازی' : 'پیش‌نمایش متن'}
-                    </button>
                   </div>
 
-                  {/* SMS Preview Drawer if expanded */}
-                  {showSmsPreview && (
-                    <div className="p-3 bg-white border border-emerald-200 rounded-xl space-y-2 animate-in fade-in text-xs shadow-xs">
-                      <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
-                        <button
-                          type="button"
-                          onClick={() => setSmsPreviewTab('EXPERT')}
-                          className={`flex-1 py-1 text-[11px] font-extrabold rounded-lg transition-all ${
-                            smsPreviewTab === 'EXPERT'
-                              ? 'bg-white text-blue-950 shadow-2xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          ۱. پیامک به کارشناس
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSmsPreviewTab('CUSTOMER')}
-                          className={`flex-1 py-1 text-[11px] font-extrabold rounded-lg transition-all ${
-                            smsPreviewTab === 'CUSTOMER'
-                              ? 'bg-white text-emerald-950 shadow-2xs'
-                              : 'text-slate-600 hover:text-slate-900'
-                          }`}
-                        >
-                          ۲. پیامک به مشتری
-                        </button>
-                      </div>
-
-                      <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[11px] text-slate-800 leading-relaxed font-sans font-medium whitespace-pre-line max-h-40 overflow-y-auto">
-                        {smsPreviewTab === 'EXPERT' ? (
-                          <>
-                            <div className="text-[10px] text-blue-700 font-bold mb-1 border-b border-slate-200 pb-1">
-                              گیرنده: {activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.name || 'کارشناس'} ({activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.phone || '09129001001'})
-                            </div>
-                            {`کارشناس گرامی ${activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.name || 'کارشناس'}،
-ماموریت ارزیابی میدانی پرونده ${claimCase.id} (${vehicleName} - پلاک ${plateText}) به شما محول گردید.
-📍 محل حادثه: ${accidentLocationAddress}
-🏢 شعبه هماهنگی: ${currentSelectedBranch.name} (${currentSelectedBranch.phone})
-📌 نشانی: ${currentSelectedBranch.address}
-👤 مشتری: ${customerName} (${customerPhone})
-${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldExpertAssignmentNote.trim()}` : ''}`}
-                          </>
-                        ) : (
-                          <>
-                            <div className="text-[10px] text-emerald-700 font-bold mb-1 border-b border-slate-200 pb-1">
-                              گیرنده: {customerName} ({customerPhone})
-                            </div>
-                            {`مشتری گرامی ${customerName}،
-پرونده خسارت ${claimCase.id} به کارشناس رسمی میدانی جناب آقای/سرکار خانم ${activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.name || 'کارشناس'} (${activeCompanyFieldExperts.find(fe => fe.id === selectedFieldExpertId)?.phone || '—'}) محول گردید.
-🏢 نزدیک‌ترین شعبه تخصصی خسارت: ${currentSelectedBranch.name}
-📌 نشانی: ${currentSelectedBranch.address}
-📞 تلفن: ${currentSelectedBranch.phone}
-شرکت ${getInsurerPersianName(caseInsurerCode)}`}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 5. Primary Action Button */}
                   <button
-                    onClick={handleAssignFieldExpert}
-                    disabled={!selectedFieldExpertId}
-                    className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl font-extrabold text-xs shadow-md shadow-amber-600/30 transition-all active:scale-98 flex items-center justify-center gap-2"
+                    type="button"
+                    onClick={() => handleSendInsurerInstruction()}
+                    disabled={!insurerSupplementalNote.trim()}
+                    className="w-full py-3 bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white rounded-2xl font-black text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
                     <Send className="w-4 h-4" />
-                    <span>تأیید و ابلاغ مأموریت به کارشناس میدانی</span>
+                    <span>ارسال نکات تکمیلی به کارشناس ارزیاب</span>
                   </button>
-
-                  {(claimCase.assignedFieldExpert || claimCase.assignedExpert) && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsChangingFieldExpert(false);
-                        setIsFieldExpertDropdownOpen(false);
-                      }}
-                      className="w-full py-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
-                    >
-                      انصراف از تغییر
-                    </button>
-                  )}
-
-                  {/* 6. Comprehensive Expert Picker Modal (Spacious & Clean UX) */}
-                  {isExpertPickerModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in">
-                      <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95">
-                        {/* Modal Header */}
-                        <div className="p-4 bg-slate-900 text-white flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
-                              <Sparkles className="w-5 h-5" />
-                            </div>
-                            <div>
-                              <h3 className="font-black text-sm">انتخاب کارشناس رسمی میدانی</h3>
-                              <p className="text-[11px] text-slate-300">
-                                شرکت {getInsurerPersianName(caseInsurerCode)} • شعبه معین: {currentSelectedBranch.name}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setIsExpertPickerModalOpen(false)}
-                            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        {/* Search & Tabs */}
-                        <div className="p-3.5 bg-slate-50 border-b border-slate-200 space-y-2.5">
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setExpertFilterTab('BRANCH')}
-                              className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all ${
-                                expertFilterTab === 'BRANCH'
-                                  ? 'bg-amber-600 text-white shadow-xs'
-                                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                              }`}
-                            >
-                              کارشناسان شعبه منتخب ({rankedRecommendation.selectedBranchExperts.length})
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setExpertFilterTab('ALL')}
-                              className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all ${
-                                expertFilterTab === 'ALL'
-                                  ? 'bg-amber-600 text-white shadow-xs'
-                                  : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                              }`}
-                            >
-                              تمام کارشناسان استانی ({rankedRecommendation.rankedExperts.length})
-                            </button>
-                          </div>
-
-                          <div className="relative">
-                            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
-                            <input
-                              type="text"
-                              value={fieldExpertSearchTerm}
-                              onChange={(e) => setFieldExpertSearchTerm(e.target.value)}
-                              placeholder="جستجوی نام کارشناس، تخصص، شعبه یا تلفن..."
-                              className="w-full pr-10 pl-8 py-2.5 bg-white rounded-xl border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-600 focus:ring-2 focus:ring-amber-100"
-                            />
-                            {fieldExpertSearchTerm && (
-                              <button
-                                type="button"
-                                onClick={() => setFieldExpertSearchTerm('')}
-                                className="absolute left-3 top-2.5 text-slate-400 hover:text-slate-700"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Expert Cards Grid List */}
-                        <div className="p-4 overflow-y-auto space-y-2 flex-1 divide-y divide-slate-100">
-                          {displayedFieldExpertsList.length === 0 ? (
-                            <div className="p-8 text-center text-xs text-slate-500 font-bold">
-                              کارشناسی با این مشخصات یافت نشد
-                            </div>
-                          ) : (
-                            displayedFieldExpertsList.map((item) => {
-                              const isSelected = selectedFieldExpertId === item.expert.id;
-                              return (
-                                <div
-                                  key={item.expert.id}
-                                  onClick={() => {
-                                    setSelectedFieldExpertId(item.expert.id);
-                                    if (item.branch?.id && item.branch.id !== selectedBranchId) {
-                                      setSelectedBranchId(item.branch.id);
-                                    }
-                                    setIsExpertPickerModalOpen(false);
-                                  }}
-                                  className={`pt-2 first:pt-0 p-3 rounded-2xl border-2 transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                                    isSelected
-                                      ? 'bg-amber-50 border-amber-600 shadow-sm ring-2 ring-amber-300/40'
-                                      : 'bg-white border-slate-200 hover:border-amber-400 hover:bg-amber-50/30'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3 min-w-0">
-                                    <div className="relative shrink-0">
-                                      {item.expert.avatarUrl ? (
-                                        <img
-                                          src={item.expert.avatarUrl}
-                                          alt={item.expert.name}
-                                          className="w-11 h-11 rounded-2xl object-cover border border-slate-300"
-                                          referrerPolicy="no-referrer"
-                                        />
-                                      ) : (
-                                        <div className="w-11 h-11 rounded-2xl bg-amber-500 text-slate-950 font-black flex items-center justify-center text-sm">
-                                          {item.expert.name.slice(0, 1)}
-                                        </div>
-                                      )}
-                                      <span className="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white" />
-                                    </div>
-                                    <div className="min-w-0 space-y-1">
-                                      <div className="flex items-center gap-2">
-                                        <h4 className="font-black text-slate-900 text-xs truncate">{item.expert.name}</h4>
-                                        <span className="text-[10px] text-amber-900 bg-amber-100 px-2 py-0.5 rounded-md font-bold shrink-0">
-                                          {item.expert.role}
-                                        </span>
-                                      </div>
-                                      <div className="text-[11px] text-slate-600 font-medium flex items-center gap-2">
-                                        <Building2 className="w-3 h-3 text-blue-700 shrink-0" />
-                                        <span className="truncate">{item.branch.name}</span>
-                                        <span>•</span>
-                                        <span className="font-mono text-slate-500">تلفن: {item.expert.phone}</span>
-                                      </div>
-                                      <div className="text-[10px] text-slate-500 flex items-center gap-2">
-                                        <span>امتیاز: {item.expert.rating || 4.9}</span>
-                                        <span>•</span>
-                                        <span>فاصله تا حادثه: {item.distanceText}</span>
-                                        <span>•</span>
-                                        <span>{item.availabilityText}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="shrink-0 flex items-center gap-3">
-                                    <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
-                                      item.matchScore >= 90
-                                        ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                                        : 'bg-amber-100 text-amber-900 border border-amber-300'
-                                    }`}>
-                                      {item.matchScore}٪ انطباق
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
-                                        isSelected
-                                          ? 'bg-amber-600 text-white shadow-xs'
-                                          : 'bg-slate-100 text-slate-800 hover:bg-amber-100'
-                                      }`}
-                                    >
-                                      {isSelected ? 'منتخب' : 'انتخاب'}
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => setIsExpertPickerModalOpen(false)}
-                            className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-extrabold hover:bg-slate-800 transition-colors"
-                          >
-                            بستن
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
                 </div>
-              )
-            ) : (
-              /* REGULAR CROQUI CASE: ASSESSOR ASSIGNMENT FLOW */
-              claimCase.assignedExpert && !isChangingExpert ? (
-                <div className="p-4 bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 rounded-2xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] text-purple-700 font-extrabold block">ارزیاب فعلی پرونده:</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      محول شده
-                    </span>
+
+                {noteSentFeedback && (
+                  <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl text-emerald-950 text-xs font-bold flex items-center gap-2 animate-in zoom-in-95">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{noteSentFeedback}</span>
                   </div>
+                )}
+              </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                      <UserCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h5 className="font-black text-slate-900 text-sm">
-                        {claimCase.assignedExpert.name}
-                      </h5>
-                      <p className="text-[11px] text-slate-600 font-medium">
-                        {claimCase.assignedExpert.role} ({claimCase.assignedExpert.phone || 'بدون همراه'})
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="text-[11px] text-slate-600 leading-relaxed bg-white/90 p-2.5 rounded-xl border border-purple-100/80">
-                    پرونده به این ارزیاب محول گردیده و در صف بررسی کارشناسی قرار دارد.
-                  </p>
-
-                  {(claimCase.insurerAssignmentNote || claimCase.insurerInstruction) && (
-                    <div className="p-2.5 bg-purple-100/90 border border-purple-300 rounded-xl space-y-1 text-right">
-                      <div className="flex items-center gap-1.5 text-purple-900 font-extrabold text-[10px]">
-                        <FileText className="w-3 h-3 text-purple-700" />
-                        <span>دستور و توضیحات ابلاغی بیمه‌گر:</span>
-                      </div>
-                      <p className="text-[11px] text-purple-950 font-bold leading-relaxed">
-                        «{claimCase.insurerAssignmentNote || claimCase.insurerInstruction}»
-                      </p>
-                      {claimCase.insurerNoteDate && (
-                        <span className="text-[9px] text-purple-700 block text-left font-mono">
-                          ثبت: {claimCase.insurerNoteDate}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {(() => {
-                    // Expert assignment is locked unless rejected by expert or customer has raised an objection
-                    const isUnlockedByRejectionOrObjection = Boolean(
-                      claimCase.expertRejected ||
-                      claimCase.autoReturnedDueToTimeout ||
-                      claimCase.status === 'رد شده' ||
-                      (claimCase.objectionStage && claimCase.objectionStage > 0) ||
-                      claimCase.objectionChat ||
-                      claimCase.status?.includes('اعتراض') ||
-                      claimCase.complaintStatus === 'SUBMITTED' ||
-                      claimCase.authenticityDispute
-                    );
-
-                    if (isUnlockedByRejectionOrObjection) {
-                      return (
-                        <div className="space-y-2">
-                          <div className="p-2 bg-purple-100/80 border border-purple-300 rounded-xl text-[10px] text-purple-950 font-bold flex items-center gap-1.5">
-                            <AlertTriangle className="w-3.5 h-3.5 text-purple-700 shrink-0" />
-                            <span>امکان تغییر ارزیاب به دلیل رد توسط کارشناس یا اعتراض مشتری فعال گردید.</span>
-                          </div>
-                          <button
-                            onClick={() => {
-                              setIsChangingExpert(true);
-                              setIsExpertDropdownOpen(true);
-                            }}
-                            className="w-full py-2.5 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shadow-md shadow-purple-600/20 active:scale-95"
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            <span>تغییر یا ارجاع به ارزیاب دیگر (رفع اعتراض / عدم پذیرش)</span>
-                          </button>
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <div className="p-3 bg-slate-100 border border-slate-300/80 rounded-xl text-[11px] text-slate-700 flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 font-bold text-slate-800">
-                          <Lock className="w-4 h-4 text-slate-500 shrink-0" />
-                          <span>تخصیص ارزیاب نهایی و قفل است</span>
-                        </div>
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          (فقط در صورت رد کارشناس یا ثبت اعتراض مشتری باز می‌شود)
-                        </span>
-                      </div>
-                    );
-                  })()}
-                </div>
-              ) : (
-                /* Unified Single Search & Select Combobox for Regular Assessor */
-                <div className="space-y-3.5 animate-in fade-in">
-                  {claimCase.assignedExpert && (
-                    <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-900 font-bold flex items-center gap-1.5">
-                      <Info className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>ارزیاب کنونی: {claimCase.assignedExpert.name}</span>
-                    </div>
-                  )}
-
-                  {(claimCase.previousAssessorIds && claimCase.previousAssessorIds.length > 0) && (
-                    <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-950 font-bold space-y-1">
-                      <div className="flex items-center gap-1 text-rose-700">
-                        <AlertTriangle className="w-4 h-4 shrink-0" />
-                        <span>هشدار عدم ارجاع مجدد:</span>
-                      </div>
-                      <p className="text-[10px] text-rose-800 leading-relaxed font-normal">
-                        طبق آئین‌نامه، امکان ارجاع پرونده به کارشناس اول/قبلی وجود ندارد. لطفاً ارزیاب دیگری انتخاب فرمایید.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Combobox Container */}
-                  <div className="space-y-1.5 relative">
-                    <label className="block text-xs font-bold text-slate-800">
-                      انتخاب و جستجوی ارزیاب خسارت:
-                    </label>
-
-                    {/* Integrated Search & Dropdown Input */}
-                    <div className="relative">
-                      <Search className="w-4 h-4 text-purple-700 absolute right-3.5 top-3.5 pointer-events-none" />
-                      <input
-                        type="text"
-                        value={expertSearchTerm}
-                        onChange={(e) => {
-                          setExpertSearchTerm(e.target.value);
-                          setIsExpertDropdownOpen(true);
-                        }}
-                        onFocus={() => setIsExpertDropdownOpen(true)}
-                        placeholder="نام ارزیاب، تخصص، تلفن یا کد ملی..."
-                        className="w-full pr-10 pl-9 py-2.5 rounded-xl border-2 border-purple-300 bg-purple-50/40 text-slate-900 font-bold text-xs focus:outline-none focus:border-purple-600 focus:bg-white focus:ring-2 focus:ring-purple-200 transition-all placeholder:text-slate-400"
-                      />
-                      {expertSearchTerm ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setExpertSearchTerm('');
-                            setIsExpertDropdownOpen(true);
-                          }}
-                          className="absolute left-3 top-3 text-slate-400 hover:text-slate-700"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
-                      )}
-                    </div>
-
-                    {/* Combobox Dropdown Results List */}
-                    {isExpertDropdownOpen && (
-                      <div className="absolute z-30 w-full mt-1 bg-white rounded-2xl border-2 border-purple-300 shadow-xl overflow-hidden animate-in fade-in max-h-56 overflow-y-auto divide-y divide-slate-100">
-                        {filteredExperts.length === 0 ? (
-                          <div className="p-4 text-center text-xs text-slate-500 font-bold">
-                            ارزیابی با مشخصات جستجو شده یافت نشد
-                          </div>
-                        ) : (
-                          filteredExperts.map((exp) => {
-                            const disabled = isPreviousAssessor(exp.id);
-                            const isSelected = selectedExpertId === exp.id;
-                            return (
-                              <div
-                                key={exp.id}
-                                onClick={() => {
-                                  if (disabled) {
-                                    alert('امکان ارجاع پرونده به ارزیاب قبلی وجود ندارد.');
-                                    return;
-                                  }
-                                  setSelectedExpertId(exp.id);
-                                  setExpertSearchTerm(exp.name);
-                                  setIsExpertDropdownOpen(false);
-                                }}
-                                className={`p-3 transition-all flex items-center justify-between text-xs ${
-                                  disabled
-                                    ? 'bg-slate-50/70 text-slate-400 cursor-not-allowed opacity-60'
-                                    : isSelected
-                                    ? 'bg-purple-50 text-purple-950 font-black cursor-pointer'
-                                    : 'hover:bg-slate-50 text-slate-800 font-bold cursor-pointer'
-                                }`}
-                              >
-                                <div className="space-y-0.5 min-w-0 pr-1">
-                                  <div className="flex items-center gap-2">
-                                    <span className="truncate">{exp.name}</span>
-                                    <span className="px-2 py-0.5 bg-purple-100 text-purple-900 text-[10px] rounded-md font-bold shrink-0">
-                                      {exp.role}
-                                    </span>
-                                  </div>
-                                  <div className="text-[11px] text-slate-500 font-normal">
-                                    تلفن: {exp.phone || 'ثبت نشده'} {disabled ? '• (ارزیاب قبلی - غیرمجاز)' : ''}
-                                  </div>
-                                </div>
-                                {isSelected ? (
-                                  <span className="px-2 py-1 bg-purple-600 text-white text-[10px] rounded-lg font-bold shrink-0 flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3" />
-                                    <span>انتخاب شده</span>
-                                  </span>
-                                ) : disabled ? (
-                                  <span className="text-[10px] text-rose-600 font-bold shrink-0">
-                                    غیرمجاز
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] text-purple-700 font-bold shrink-0">
-                                    انتخاب
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Selected Assessor Display Badge */}
-                  {selectedExpertId && (
-                    <div className="p-3 bg-purple-50/80 rounded-xl border border-purple-200 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <UserCheck className="w-4 h-4 text-purple-700 shrink-0" />
-                        <div className="truncate">
-                          <span className="text-slate-600 font-medium">ارزیاب انتخاب‌شده: </span>
-                          <span className="font-black text-purple-950">
-                            {activeCompanyExperts.find(e => e.id === selectedExpertId)?.name || 'انتخاب نشده'}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-[10px] font-bold text-purple-800 shrink-0">
-                        {activeCompanyExperts.find(e => e.id === selectedExpertId)?.phone}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Optional Note / Instruction for Assessor */}
-                  <div className="space-y-1">
-                    <label className="block text-xs font-bold text-slate-700">
-                      توضیحات یا یادداشت برای کارشناس ارزیاب (اختیاری):
-                    </label>
-                    <textarea
-                      rows={2}
-                      value={expertAssignmentNote}
-                      onChange={(e) => setExpertAssignmentNote(e.target.value)}
-                      placeholder="مثال: لطفاً برآورد قطعات تعویضی با دقت بالا و قیمت‌های استعلامی قطعه‌فروشان رسمی ثبت شود..."
-                      className="w-full p-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-900 font-medium text-xs focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-100 transition-all placeholder:text-slate-400"
-                    />
-                  </div>
-
-                  <button
-                    onClick={handleAssignExpert}
-                    disabled={!selectedExpertId || isPreviousAssessor(selectedExpertId)}
-                    className="w-full py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl font-extrabold text-xs shadow-md shadow-purple-600/30 transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>ارجاع پرونده به ارزیاب خسارت</span>
-                  </button>
-
-                  {claimCase.assignedExpert && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsChangingExpert(false);
-                        setIsExpertDropdownOpen(false);
-                      }}
-                      className="w-full py-2 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors"
-                    >
-                      انصراف از تغییر
-                    </button>
-                  )}
-                </div>
-              )
-            )}
-
-            {/* Quick Actions Panel */}
-            <div className="pt-4 border-t border-slate-100 space-y-2">
-              <span className="text-xs font-extrabold text-slate-700 block mb-2">تغییر سریع وضعیت پرونده</span>
-              <button
-                onClick={() => handleStatusChange('در انتظار پرداخت')}
-                className="w-full py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-900 text-xs font-extrabold transition-all active:scale-95 flex items-center justify-center gap-1.5"
-              >
-                <CreditCard className="w-4 h-4 text-indigo-600" />
-                <span>انتقال به صف پرداخت</span>
-              </button>
-              <button
-                onClick={() => handleStatusChange('پرداخت شده')}
-                className="w-full py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-900 text-xs font-extrabold transition-all active:scale-95 flex items-center justify-center gap-1.5"
-              >
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>ثبت پرداخت موفق</span>
-              </button>
             </div>
-          </div>
           )}
         </div>
 
@@ -2096,7 +1428,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                     type="button"
                     onClick={handleQueryCroqui}
                     disabled={isQueryingCroqui}
-                    className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md shadow-amber-600/20 transition-all active:scale-95"
+                    className="px-4 py-2.5 bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs transition-all active:scale-95"
                   >
                     {isQueryingCroqui ? (
                       <Sparkles className="w-4 h-4 text-white animate-spin" />
@@ -2109,9 +1441,9 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
 
                 <button
                   onClick={() => setActiveModalTab('time_location')}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all active:scale-95"
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-2 border border-slate-300 shadow-2xs transition-all active:scale-95"
                 >
-                  <FileText className="w-4 h-4" />
+                  <FileText className="w-4 h-4 text-blue-900" />
                   <span>نمایش فرم کامل</span>
                 </button>
               </div>
@@ -2121,25 +1453,25 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                   پرونده {claimCase.id}
                 </h2>
                 {isPaidCase ? (
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-50 text-emerald-900 border border-emerald-200 flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
                     <span>پرداخت شده (مختومه)</span>
                   </span>
                 ) : (
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-extrabold bg-amber-100 text-amber-800 border border-amber-200">
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-900 border border-blue-200">
                     {claimCase.status}
                   </span>
                 )}
                 {isNoCroquiCase ? (
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-rose-100 text-rose-900 border border-rose-200">
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
                     بدون کروکی
                   </span>
                 ) : (
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-200">
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">
                     دارای کروکی پلیس
                   </span>
                 )}
-                <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
                   {incidentPhotos.length + (claimCase.additionalDocs?.length || 0)} مستند
                 </span>
               </div>
@@ -2147,10 +1479,10 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
 
             {/* MANDATORY REGULATORY NOTICE FOR NO-CROQUI CASES (CLEAN & COMPACT NOTICE ONLY) */}
             {isNoCroquiCase && (
-              <div className="bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-amber-500/5 border-2 border-amber-400 rounded-3xl p-5 space-y-3 shadow-sm animate-in fade-in">
+              <div className="bg-amber-50/60 border border-amber-300/80 rounded-3xl p-5 space-y-3 shadow-2xs animate-in fade-in">
                 <div className="flex items-start justify-between gap-3.5">
                   <div className="flex items-start gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-md font-black">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm font-black">
                       <AlertTriangle className="w-5 h-5" />
                     </div>
                     <div className="space-y-1">
@@ -2158,11 +1490,11 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                         <h3 className="text-sm sm:text-base font-black text-amber-950">
                           دستورالعمل نظارتی: این پرونده چون بدون کروکی است، باید به یک کارشناس میدانی ارجاع داده شود
                         </h3>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 border border-amber-400">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-200/80 text-amber-950 border border-amber-300">
                           پرونده بدون کروکی پلیس
                         </span>
                       </div>
-                      <p className="text-xs text-amber-900 leading-relaxed font-bold">
+                      <p className="text-xs text-amber-900 leading-relaxed font-medium">
                         طبق آئین‌نامه نظارتی بیمه مرکزی ایران، ارزیابی خسارت تصادفات فاقد کروکی بدون بازدید حضوری صحنه یا وسیله نقلیه مجاز نمی‌باشد. لطفاً از طریق کادر تخصیص در پنل کناری، کارشناس میدانی مربوطه را تعیین و پرونده را ارجاع فرمایید.
                       </p>
                     </div>
@@ -2170,9 +1502,9 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                 </div>
 
                 {claimCase.assignedFieldExpert && (
-                  <div className="bg-white/90 p-3.5 rounded-2xl border border-amber-300 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="bg-white p-3.5 rounded-2xl border border-amber-200 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <div className="w-8 h-8 rounded-xl bg-blue-900 text-white flex items-center justify-center shrink-0 shadow-xs">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <div>
@@ -2184,7 +1516,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                         </span>
                       </div>
                     </div>
-                    <span className="px-2.5 py-1 bg-amber-100 text-amber-900 text-[11px] rounded-lg font-bold">
+                    <span className="px-2.5 py-1 bg-slate-100 text-slate-800 text-[11px] rounded-lg font-bold border border-slate-200">
                       ارجاع شده
                     </span>
                   </div>
@@ -2194,31 +1526,31 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
 
             {/* POLICE ACCIDENT SKETCH INQUIRY SECTION & RESULT ACCORDION (ONLY DISPLAYED IF CASE HAS CROQUI - POSITIONED ABOVE CARDS) */}
             {hasCroqui && (
-              <div className="bg-amber-50/70 border-2 border-amber-300 rounded-3xl p-4 sm:p-5 space-y-4 shadow-sm animate-in fade-in transition-all">
+              <div className="bg-slate-50/80 border border-slate-200 rounded-3xl p-4 sm:p-5 space-y-4 shadow-2xs animate-in fade-in transition-all">
                 {/* Accordion / Tab Header */}
                 <div
                   onClick={() => setIsCroquiExpanded(!isCroquiExpanded)}
                   className="flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-900 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
                       <FileText className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-black text-slate-950 text-sm sm:text-base">
+                        <h3 className="font-black text-slate-900 text-sm sm:text-base">
                           استعلام کروکی و گزارش پلیس راهور
                         </h3>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-900 border border-emerald-300">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-800 border border-slate-200">
                           سامانه فاوا ناجا
                         </span>
                         {hasQueriedCroqui && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-200/80 text-amber-950 border border-amber-400">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-200/80 text-slate-900 border border-slate-300 font-mono">
                             کد: {claimCase.croquiData?.reportNumber || claimCase.sceneReportCode || 'CRQ-1403-88492'}
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-600 font-medium mt-0.5">
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
                         استعلام آنلاین پرونده و رسم کروکی از بانک اطلاعاتی راهنمایی و رانندگی
                       </p>
                     </div>
@@ -2232,7 +1564,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                         handleQueryCroqui();
                       }}
                       disabled={isQueryingCroqui}
-                      className="px-3.5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-xs transition-all active:scale-95 flex items-center gap-1.5"
+                      className="px-3.5 py-2 bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-95 flex items-center gap-1.5"
                     >
                       {isQueryingCroqui ? (
                         <Sparkles className="w-3.5 h-3.5 text-white animate-spin" />
@@ -2248,7 +1580,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                         e.stopPropagation();
                         setIsCroquiExpanded(!isCroquiExpanded);
                       }}
-                      className="p-2 rounded-xl bg-white hover:bg-amber-100 border border-amber-300 text-slate-700 hover:text-slate-900 transition-all flex items-center gap-1 text-xs font-bold"
+                      className="p-2 rounded-xl bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-900 transition-all flex items-center gap-1 text-xs font-bold"
                     >
                       <span className="hidden sm:inline text-[11px]">
                         {isCroquiExpanded ? 'بستن تب' : 'مشاهده جزئیات'}
@@ -2264,8 +1596,8 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
 
                 {/* Loading State during Inquiry */}
                 {isQueryingCroqui && (
-                  <div className="p-6 bg-white rounded-2xl border border-amber-300 flex flex-col items-center justify-center gap-3 text-amber-950 text-xs font-black animate-pulse">
-                    <Sparkles className="w-6 h-6 text-amber-600 animate-spin" />
+                  <div className="p-6 bg-white rounded-2xl border border-slate-200 flex flex-col items-center justify-center gap-3 text-slate-900 text-xs font-bold animate-pulse">
+                    <Sparkles className="w-6 h-6 text-blue-900 animate-spin" />
                     <span>در حال استعلام آنلاین و دریافت رسم کروکی از سامانه فاوا ناجا...</span>
                   </div>
                 )}
@@ -2274,24 +1606,24 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                 {isCroquiExpanded && hasQueriedCroqui && !isQueryingCroqui && (
                   <div className="space-y-4 pt-1 animate-in fade-in">
                     {/* 1. Status & Reference Header */}
-                    <div className="bg-white p-4 rounded-2xl border border-amber-300 space-y-3 shadow-2xs">
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-3 shadow-2xs">
                       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                          <span className="text-xs font-black text-emerald-950">
+                          <span className="text-xs font-black text-slate-900">
                             وضعیت استعلام: معتبر و تاییدشده در سامانه یکپارچه پلیس راهور
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className={`px-2.5 py-1 rounded-lg text-xs font-black border ${
+                          <span className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
                             (claimCase.croquiType === 'paper' || claimCase.croquiData?.croquiType === 'paper')
-                              ? 'bg-amber-50 text-amber-950 border-amber-300'
-                              : 'bg-blue-50 text-blue-900 border-blue-300'
+                              ? 'bg-slate-100 text-slate-800 border-slate-200'
+                              : 'bg-blue-50 text-blue-900 border-blue-200'
                           }`}>
                             {(claimCase.croquiType === 'paper' || claimCase.croquiData?.croquiType === 'paper') ? 'کروکی کاغذی (ثبت مشتری)' : 'کروکی الکترونیکی فراجا'}
                           </span>
                           <span className="text-[11px] text-slate-500 font-bold">کد/شماره گزارش:</span>
-                          <span className="px-3 py-1 bg-amber-100 text-amber-950 font-mono font-black rounded-lg text-xs">
+                          <span className="px-3 py-1 bg-slate-100 text-slate-900 font-mono font-black rounded-lg text-xs border border-slate-200">
                             {claimCase.croquiData?.reportNumber || claimCase.sceneReportCode || 'CRQ-1403-88492'}
                           </span>
                         </div>
@@ -2300,63 +1632,63 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                       {/* 2. Key Grid Information */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
                         {/* Incident Date & Time */}
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                        <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200 space-y-1">
                           <span className="text-slate-500 font-bold block text-[11px]">تاریخ و ساعت دقیق تصادف:</span>
                           <span className="font-extrabold text-slate-900 font-mono">{claimCase.croquiData?.incidentDate || claimCase.date || '۱۴۰۵/۰۵/۱۴ - ۱۰:۴۵'}</span>
                         </div>
 
                         {/* Location & GPS */}
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                        <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200 space-y-1">
                           <span className="text-slate-500 font-bold block text-[11px]">محل دقیق وقوع حادثه:</span>
                           <span className="font-bold text-slate-900 block truncate" title={claimCase.croquiData?.location || claimCase.incidentAddress || claimCase.address}>{claimCase.croquiData?.location || claimCase.incidentAddress || claimCase.address || 'تهران - بزرگراه همت غرب'}</span>
                         </div>
 
                         {/* Accident Type */}
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                        <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200 space-y-1">
                           <span className="text-slate-500 font-bold block text-[11px]">نوع تصادف:</span>
                           <span className="font-bold text-slate-900 block truncate">{claimCase.croquiData?.accidentType || 'تصادف خسارتی دو خودرو (عدم رعایت فاصله طولی)'}</span>
                         </div>
 
                         {/* Road Condition */}
-                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1">
+                        <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200 space-y-1">
                           <span className="text-slate-500 font-bold block text-[11px]">وضعیت جاده و جوی:</span>
                           <span className="font-bold text-slate-900 block truncate">{claimCase.croquiData?.roadCondition || 'آسفالت خشک، هوا صاف، دید کافی'}</span>
                         </div>
 
                         {/* Fault Determination & Percentage */}
-                        <div className="bg-rose-50 p-3 rounded-xl border border-rose-200 space-y-1 sm:col-span-2">
-                          <span className="text-rose-800 font-bold block text-[11px]">تعیین مقصر قانونی و علت تامه:</span>
+                        <div className="bg-rose-50/50 p-3 rounded-xl border border-rose-200 space-y-1 sm:col-span-2">
+                          <span className="text-rose-900 font-bold block text-[11px]">تعیین مقصر قانونی و علت تامه:</span>
                           <span className="font-black text-rose-950 text-xs">
                             {claimCase.croquiData?.faultDetermination || `۱۰۰٪ مقصر: راننده خودرو ${claimCase.culpritCarType || 'مقصر'} (${claimCase.culpritName}) به علت عدم توجه به جلو`}
                           </span>
                         </div>
 
                         {/* Claimant Info */}
-                        <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-200 space-y-1">
-                          <span className="text-emerald-800 font-bold block text-[11px]">زیان‌دیده (طرف اول):</span>
-                          <span className="font-black text-emerald-950 block">
+                        <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200 space-y-1">
+                          <span className="text-slate-500 font-bold block text-[11px]">زیان‌دیده (طرف اول):</span>
+                          <span className="font-black text-slate-900 block">
                             {claimCase.croquiData?.victimDriver?.fullName || claimCase.victimName || 'پریسا'}
                           </span>
-                          <span className="text-[10px] text-emerald-800 font-mono block">
+                          <span className="text-[10px] text-slate-600 font-mono block">
                             {claimCase.victimPlate || '۴۴ ج ۷۸۹ ایران ۲۲'}
                           </span>
                         </div>
 
                         {/* Police Badge & Official Stamp */}
-                        <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 space-y-1">
-                          <span className="text-blue-900 font-bold block text-[11px]">افسر کاردان فنی و یگان:</span>
-                          <span className="font-bold text-blue-950 text-xs block">
+                        <div className="bg-slate-50/70 p-3 rounded-xl border border-slate-200 space-y-1">
+                          <span className="text-slate-500 font-bold block text-[11px]">افسر کاردان فنی و یگان:</span>
+                          <span className="font-bold text-slate-900 text-xs block">
                             {claimCase.croquiData?.officerName || 'سروان صادقی (پلیس راهور فراجا)'}
                           </span>
-                          <span className="text-[10px] text-blue-800 font-extrabold flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3 text-blue-700" />
+                          <span className="text-[10px] text-blue-900 font-extrabold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3 text-blue-800" />
                             مهر رسمی پلیس تایید گردید
                           </span>
                         </div>
                       </div>
 
                       {/* Vehicles Involved */}
-                      <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                      <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200 text-xs space-y-1.5">
                         <span className="font-black text-slate-800 block text-[11px]">خودروهای درگیر در حادثه:</span>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-bold text-slate-700">
                           <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200">
@@ -2372,14 +1704,14 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
 
                       {/* Accident Description & Reported Damages */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200 space-y-1">
                           <span className="font-black text-slate-800 text-[11px] block">شرح حادثه و چگونگی برخورد طبق گزارش پلیس:</span>
                           <p className="text-slate-700 leading-relaxed font-medium">
                             {claimCase.writtenReport || 'عدم رعایت فاصله طولی و بی احتیاطی راننده خودروی مقصر منجر به برخورد از عقب با خودروی زیان‌دیده متوقف در ترافیک گردیده است.'}
                           </p>
                         </div>
 
-                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+                        <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200 space-y-1">
                           <span className="font-black text-slate-800 text-[11px] block">قطعات و خسارات گزارش‌شده در برگه کروکی:</span>
                           <p className="text-slate-700 leading-relaxed font-medium">
                             آسیب‌دیدگی سپر عقب، درب صندوق عقب، سنسورهای دنده عقب و چراغ خطر سمت راست خودروی زیان‌دیده.
@@ -2395,7 +1727,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                             {(claimCase.customerKrokiPhoto || claimCase.croquiData?.fileUrl) && (
                               <div
                                 onClick={() => setPreviewImage(claimCase.customerKrokiPhoto || claimCase.croquiData?.fileUrl || '')}
-                                className="relative w-36 h-24 rounded-xl border-2 border-amber-400 bg-amber-50 overflow-hidden shrink-0 cursor-pointer group shadow-2xs"
+                                className="relative w-36 h-24 rounded-xl border border-slate-300 bg-slate-100 overflow-hidden shrink-0 cursor-pointer group shadow-2xs hover:border-blue-900"
                               >
                                 <img
                                   src={claimCase.customerKrokiPhoto || claimCase.croquiData?.fileUrl || ''}
@@ -2412,7 +1744,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                               <div
                                 key={idx}
                                 onClick={() => setPreviewImage(img.url)}
-                                className="relative w-36 h-24 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden shrink-0 cursor-pointer group shadow-2xs"
+                                className="relative w-36 h-24 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden shrink-0 cursor-pointer group shadow-2xs hover:border-blue-900"
                               >
                                 <img src={img.url} alt={img.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                                 <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold p-1 text-center truncate">
@@ -2442,7 +1774,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                               el.scrollIntoView({ behavior: 'smooth' });
                             }
                           }}
-                          className="px-4 py-2 bg-purple-700 hover:bg-purple-800 text-white rounded-xl text-xs font-black shadow-xs transition-all flex items-center gap-2 active:scale-95"
+                          className="px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-2xs transition-all flex items-center gap-2 active:scale-95"
                         >
                           <UserPlus className="w-4 h-4" />
                           <span>تایید و ارجاع پرونده به ارزیاب خسارت</span>
@@ -2460,17 +1792,17 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
               {/* CARD 1: زمان و مکان خسارت */}
               <div
                 onClick={() => setActiveModalTab('time_location')}
-                className="bg-slate-50 hover:bg-blue-50/80 border-2 border-slate-200 hover:border-blue-400 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs space-y-2.5 group relative active:scale-98"
+                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-900 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-900 group-hover:text-white transition-colors">
                     <MapPin className="w-4 h-4" />
                   </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-600 transition-colors" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-900 transition-colors" />
                 </div>
 
                 <div>
-                  <h4 className="font-extrabold text-slate-900 text-xs group-hover:text-blue-700 transition-colors">
+                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-950 transition-colors">
                     زمان، مکان و مستندات
                   </h4>
                   <p className="text-[11px] text-slate-500 font-medium truncate mt-1">
@@ -2482,17 +1814,17 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
               {/* CARD 2: اطلاعات زیان‌دیده */}
               <div
                 onClick={() => setActiveModalTab('victim_info')}
-                className="bg-slate-50 hover:bg-emerald-50/80 border-2 border-slate-200 hover:border-emerald-400 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs space-y-2.5 group relative active:scale-98"
+                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-900 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-900 group-hover:text-white transition-colors">
                     <User className="w-4 h-4" />
                   </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-900 transition-colors" />
                 </div>
 
                 <div>
-                  <h4 className="font-extrabold text-slate-900 text-xs group-hover:text-emerald-700 transition-colors">
+                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-950 transition-colors">
                     اطلاعات زیان‌دیده
                   </h4>
                   <p className="text-[11px] text-slate-500 font-medium truncate mt-1">
@@ -2508,17 +1840,17 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
               {/* CARD 3: اطلاعات مقصر */}
               <div
                 onClick={() => setActiveModalTab('culprit_info')}
-                className="bg-slate-50 hover:bg-amber-50/80 border-2 border-slate-200 hover:border-amber-400 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs space-y-2.5 group relative active:scale-98"
+                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-900 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-900 group-hover:text-white transition-colors">
                     <AlertTriangle className="w-4 h-4" />
                   </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-colors" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-900 transition-colors" />
                 </div>
 
                 <div>
-                  <h4 className="font-extrabold text-slate-900 text-xs group-hover:text-amber-700 transition-colors">
+                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-950 transition-colors">
                     اطلاعات مقصر
                   </h4>
                   <p className="text-[11px] text-slate-500 font-medium truncate mt-1">
@@ -2534,17 +1866,17 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
               {/* CARD 4: بیمه‌نامه و سقف تعهدات */}
               <div
                 onClick={() => setActiveModalTab('policy_info')}
-                className="bg-slate-50 hover:bg-purple-50/80 border-2 border-slate-200 hover:border-purple-400 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs space-y-2.5 group relative active:scale-98"
+                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-900 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-900 group-hover:text-white transition-colors">
                     <ShieldCheck className="w-4 h-4" />
                   </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-600 transition-colors" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-900 transition-colors" />
                 </div>
 
                 <div>
-                  <h4 className="font-extrabold text-slate-900 text-xs group-hover:text-purple-700 transition-colors">
+                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-950 transition-colors">
                     بیمه‌نامه و سقف تعهدات
                   </h4>
                   <p className="text-[11px] text-slate-500 font-medium truncate mt-1">
@@ -2554,7 +1886,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
 
                 <div className="pt-1 flex items-center justify-between text-[11px]">
                   <span className="text-slate-500 font-bold">سقف مالی:</span>
-                  <span className="font-black text-emerald-700 font-mono">
+                  <span className="font-black text-slate-900 font-mono">
                     {formatCurrency(claimCase.culpritCoverageFinancial || 50000000)}
                   </span>
                 </div>
@@ -2563,21 +1895,21 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
             </div>
 
             {/* COMPACT EXPERT ASSESSMENT CARDS GRID (SPACE-SAVING ACCORDION / CARDS VIEW) */}
-            <div className="bg-white rounded-3xl border-2 border-slate-200 p-4 sm:p-6 shadow-sm space-y-4 animate-in fade-in transition-all">
+            <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4 animate-in fade-in transition-all">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-900 text-white flex items-center justify-center font-black shadow-sm shrink-0">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-900 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
                     <ClipboardCheck className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm sm:text-base font-black text-blue-950 flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
                       <span>گزارش‌ها و ارزیابی‌های کارشناسی</span>
                       {hasCompletedAssessment ? (
-                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 text-[11px] font-black border border-emerald-300">
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[11px] font-bold border border-slate-200">
                           {allAssessments.length} گزارش کارشناسی ثبت‌شده
                         </span>
                       ) : (
-                        <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[11px] font-black border border-amber-300">
+                        <span className="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-900 text-[11px] font-bold border border-amber-200">
                           در انتظار ارزیابی کارشناس
                         </span>
                       )}
@@ -2595,10 +1927,10 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                   {(() => {
                     const calc = calculateClaimDamageWithPolicyLimits(claimCase);
                     return (
-                      <div className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl p-4 sm:p-5 border border-indigo-500/30 space-y-4">
+                      <div className="bg-slate-900 text-white rounded-2xl p-4 sm:p-5 border border-slate-800 space-y-4">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold">
+                            <div className="w-8 h-8 rounded-xl bg-white/10 text-white flex items-center justify-center font-bold">
                               <DollarSign className="w-4 h-4" />
                             </div>
                             <div>
@@ -2613,12 +1945,12 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
 
                           <div className="flex items-center gap-2">
                             {calc.culpritExcessDebt > 0 ? (
-                              <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-500/20 text-rose-300 border border-rose-400/40 flex items-center gap-1">
+                              <span className="px-3 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-400/40 flex items-center gap-1">
                                 <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
                                 <span>مازاد بر سقف ({formatCurrency(calc.culpritExcessDebt)} بدهی مقصر)</span>
                               </span>
                             ) : (
-                              <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center gap-1">
+                              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 flex items-center gap-1">
                                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                                 <span>پوشش ۱۰۰٪ در سقف بیمه‌نامه</span>
                               </span>
@@ -2655,8 +1987,8 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                             </span>
                           </div>
 
-                          <div className="bg-white/10 border border-indigo-400/40 p-3 rounded-xl">
-                            <span className="text-indigo-200 text-[10px] block mb-1 font-bold">مجموع کل مطالبه</span>
+                          <div className="bg-white/10 border border-white/20 p-3 rounded-xl">
+                            <span className="text-slate-300 text-[10px] block mb-1 font-bold">مجموع کل مطالبه</span>
                             <span className="font-mono font-extrabold text-white text-xs">
                               {formatCurrency(calc.totalClaimAmount)}
                             </span>
@@ -2698,29 +2030,23 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                     return (
                       <div
                         key={item.id || idx}
-                        className={`rounded-2xl border-2 p-4 flex flex-col justify-between transition-all shadow-2xs hover:shadow-md ${
-                          isField
-                            ? 'bg-emerald-50/40 border-emerald-200 hover:border-emerald-400'
-                            : 'bg-blue-50/40 border-blue-200 hover:border-blue-400'
-                        }`}
+                        className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 flex flex-col justify-between transition-all shadow-2xs hover:shadow-xs hover:border-blue-900"
                       >
                         <div className="space-y-3">
                           {/* Card Header Tag */}
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <span className={`px-2.5 py-1 rounded-xl text-[11px] font-black flex items-center gap-1.5 ${
-                                isField ? 'bg-emerald-700 text-white' : 'bg-blue-900 text-white'
-                              }`}>
+                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1.5 bg-blue-900 text-white">
                                 {isField ? <Compass className="w-3.5 h-3.5" /> : <FileBadge className="w-3.5 h-3.5" />}
                                 <span>{isField ? 'بازدید و اصالت‌سنجی میدانی' : 'ارزیابی خسارت خودرو'}</span>
                               </span>
-                              <span className="text-[11px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-lg border border-slate-200">
+                              <span className="text-[11px] font-bold text-slate-600 bg-white px-2 py-0.5 rounded-lg border border-slate-200">
                                 {item.round}
                               </span>
                             </div>
 
                             {verdictInfo && (
-                              <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black flex items-center gap-1 ${verdictInfo.badgeClass}`}>
+                              <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 ${verdictInfo.badgeClass}`}>
                                 <ShieldCheck className="w-3 h-3" />
                                 <span>{verdictInfo.shortLabel}</span>
                               </span>
@@ -2730,7 +2056,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                           {/* Expert Info */}
                           <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-1">
                             <div className="flex items-center justify-between">
-                              <strong className="text-slate-900 font-black text-xs sm:text-sm">
+                              <strong className="text-slate-900 font-bold text-xs sm:text-sm">
                                 {item.expertName}
                               </strong>
                               <span className="text-[10px] text-slate-400 font-mono">
@@ -2757,21 +2083,21 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                           <div className="grid grid-cols-2 gap-2 bg-white p-2.5 rounded-xl border border-slate-200 text-xs">
                             <div>
                               <span className="text-slate-400 block text-[10px] font-bold">خسارت ناخالص:</span>
-                              <strong className="text-slate-800 font-black text-xs font-mono">{formatCurrency(item.gross)}</strong>
+                              <strong className="text-slate-800 font-bold text-xs font-mono">{formatCurrency(item.gross)}</strong>
                             </div>
                             <div>
                               <span className="text-slate-400 block text-[10px] font-bold">قابل پرداخت نهایی:</span>
-                              <strong className="text-emerald-700 font-black text-xs font-mono">{formatCurrency(item.payable)}</strong>
+                              <strong className="text-slate-900 font-bold text-xs font-mono">{formatCurrency(item.payable)}</strong>
                             </div>
                           </div>
 
                           {/* Summary metrics pills */}
                           <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-600 font-medium">
-                            <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200">
+                            <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200">
                               تعداد قطعات: <strong className="text-slate-900">{item.parts.length}</strong>
                             </span>
                             {item.photos && item.photos.length > 0 && (
-                              <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200">
+                              <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200">
                                 تصاویر بازدید: <strong className="text-slate-900">{item.photos.length}</strong>
                               </span>
                             )}
@@ -2786,15 +2112,11 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                         </div>
 
                         {/* Open Modal Button */}
-                        <div className="pt-3 mt-3 border-t border-slate-200/80">
+                        <div className="pt-3 mt-3 border-t border-slate-200">
                           <button
                             type="button"
                             onClick={() => setSelectedAssessmentForModal(item)}
-                            className={`w-full py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 shadow-xs transition-all active:scale-98 ${
-                              isField
-                                ? 'bg-emerald-700 hover:bg-emerald-800 text-white shadow-emerald-700/20'
-                                : 'bg-blue-900 hover:bg-blue-950 text-white shadow-blue-900/20'
-                            }`}
+                            className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 text-white shadow-2xs transition-all active:scale-98"
                           >
                             <Maximize2 className="w-3.5 h-3.5" />
                             <span>مشاهده جزئیات کامل، فاکتور و مدل ۲بعدی</span>
@@ -2808,7 +2130,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
               ) : (
                 /* Clean Pending/Waiting State when no assessment has been conducted yet */
                 <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
-                  <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto shadow-2xs">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-200 text-slate-600 flex items-center justify-center mx-auto shadow-2xs">
                     <Clock className="w-6 h-6" />
                   </div>
                   <div className="space-y-1">
@@ -2831,16 +2153,16 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
             </div>
 
             {/* CASE TIMELINE & HISTORY (PERMANENTLY VISIBLE AT THE BOTTOM OF THE PAGE) */}
-            <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-4 sm:p-6 space-y-4 transition-all">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+            <div className="bg-white border border-slate-200 rounded-3xl p-4 sm:p-6 space-y-4 transition-all shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold shrink-0">
+                  <div className="w-9 h-9 rounded-2xl bg-slate-100 text-blue-900 flex items-center justify-center font-bold shrink-0">
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
                       <span>گذر وضعیت پرونده (تاریخچه و گردش کار)</span>
-                      <span className="px-2.5 py-0.5 bg-purple-100 text-purple-800 rounded-full text-[10px] font-black border border-purple-200">
+                      <span className="px-2.5 py-0.5 bg-slate-100 text-slate-800 rounded-full text-[10px] font-bold border border-slate-200">
                         {timelineHistory.length} رویداد ثبت‌شده
                       </span>
                     </h3>
@@ -2852,7 +2174,7 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
               </div>
 
               {/* Permanent Timeline Stream */}
-              <div className="space-y-4 relative pr-3 pt-2 before:absolute before:right-6 before:top-3 before:bottom-3 before:w-0.5 before:bg-purple-200 animate-in fade-in">
+              <div className="space-y-4 relative pr-3 pt-2 before:absolute before:right-6 before:top-3 before:bottom-3 before:w-0.5 before:bg-slate-200 animate-in fade-in">
                 {timelineHistory.map((item, idx) => {
                   const isLast = idx === timelineHistory.length - 1;
                   return (
@@ -2860,8 +2182,8 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                       {/* Timeline Node Icon */}
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 z-10 transition-all ${
                         isLast
-                          ? 'bg-purple-600 text-white ring-4 ring-purple-100 shadow-md'
-                          : 'bg-emerald-500 text-white shadow-xs'
+                          ? 'bg-blue-900 text-white ring-4 ring-blue-100 shadow-sm'
+                          : 'bg-slate-300 text-white shadow-2xs'
                       }`}>
                         {isLast ? (
                           <span className="w-2.5 h-2.5 bg-white rounded-full animate-ping" />
@@ -2871,9 +2193,9 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
                       </div>
 
                       {/* Content Card */}
-                      <div className="flex-1 bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
+                      <div className="flex-1 bg-slate-50/70 rounded-2xl p-4 border border-slate-200 shadow-2xs space-y-1">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <h4 className="font-black text-slate-900 text-xs sm:text-sm">
+                          <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
                             {item.status}
                           </h4>
                           <span className="text-[11px] font-mono font-semibold text-slate-400">
@@ -2895,32 +2217,32 @@ ${fieldExpertAssignmentNote.trim() ? `📝 دستور بیمه‌گر: ${fieldEx
             </div>
 
             {/* PAYMENT & FINANCIAL SETTLEMENT SECTION (ALWAYS AT THE VERY BOTTOM OF THE PAGE) */}
-            <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-5 space-y-3">
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="font-extrabold text-emerald-950 text-xs flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-emerald-700" />
+                <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-blue-900" />
                   <span>وضعیت پرداخت و صدور حواله مالی خسارت</span>
                 </h4>
 
-                <span className="px-2.5 py-1 bg-emerald-600 text-white font-bold text-[11px] rounded-lg">
+                <span className="px-2.5 py-1 bg-blue-900 text-white font-bold text-[11px] rounded-lg">
                   مدیریت واریز
                 </span>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div className="bg-white p-3 rounded-xl border border-emerald-100">
+                <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <span className="text-slate-500 block mb-1">قابل پرداخت</span>
-                  <span className="font-black text-emerald-700 text-sm">
+                  <span className="font-black text-slate-900 text-sm">
                     {hasCompletedAssessment && activeAssessment ? formatCurrency(activeAssessment.payable) : 'در انتظار تایید ارزیابی'}
                   </span>
                 </div>
-                <div className="bg-white p-3 rounded-xl border border-emerald-100">
+                <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <span className="text-slate-500 block mb-1">تصمیم زیان‌دیده</span>
                   <span className="font-bold text-slate-800">
                     {hasCompletedAssessment ? 'تایید اولیه' : 'ثبت نشده'}
                   </span>
                 </div>
-                <div className="bg-white p-3 rounded-xl border border-emerald-100">
+                <div className="bg-white p-3 rounded-xl border border-slate-200">
                   <span className="text-slate-500 block mb-1">وضعیت واریز</span>
                   <span className="font-bold text-slate-800">
                     {hasCompletedAssessment ? 'در انتظار شبا و حواله' : 'در انتظار ارزیابی'}
