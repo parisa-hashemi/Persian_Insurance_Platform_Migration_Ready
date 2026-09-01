@@ -252,6 +252,7 @@ export default function App() {
             }}
             onStartWizard={() => setActiveView('customerWizard')}
             onUpdateSession={(updatedSession) => setSession(updatedSession)}
+            onUpdateCase={handleUpdateCase}
           />
         )}
 
@@ -324,20 +325,20 @@ export default function App() {
         {/* View 9: Insurer Payout Queue */}
         {activeView === 'insurerPayoutQueue' && session && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between bg-slate-800/80 p-3 rounded-2xl border border-slate-700 text-xs">
-              <span className="font-bold text-slate-300">
+            <div className="flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200 text-xs shadow-sm">
+              <span className="font-bold text-slate-800">
                 پورتال بیمه‌گر ({session.name})
               </span>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setActiveView('insurerDashboard')}
-                  className="px-3 py-1.5 rounded-xl font-bold bg-slate-700 text-slate-300 hover:text-white"
+                  className="px-3 py-1.5 rounded-xl font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
                 >
                   پرونده‌های ارجاعی
                 </button>
                 <button
                   onClick={() => setActiveView('insurerPayoutQueue')}
-                  className="px-3 py-1.5 rounded-xl font-bold bg-emerald-600 text-white"
+                  className="px-3 py-1.5 rounded-xl font-bold bg-emerald-600 text-white shadow-sm"
                 >
                   صف واریز بانک (شبا)
                 </button>

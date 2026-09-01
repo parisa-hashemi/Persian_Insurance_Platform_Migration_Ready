@@ -48,9 +48,16 @@ import {
   ShieldPlus,
   ShieldAlert,
   Play,
-  Pause
+  Pause,
+  Trash2,
+  Copy,
+  Mail,
+  MessageSquare,
+  Share2,
+  FileSignature,
+  Key
 } from 'lucide-react';
-import { ClaimCase, UserSession, StaffMember, ExpertComplaint, AssessorNotification } from '../../types';
+import { ClaimCase, UserSession, StaffMember, ExpertComplaint, AssessorNotification, StaffRoleCategory } from '../../types';
 import { INSURER_COMPANIES, INITIAL_EXPERTS, INITIAL_REVIEWERS, INITIAL_FIELD_EXPERTS } from '../../data/mockData';
 import { findBestMatchingBranch, INSURANCE_BRANCHES, InsuranceBranch } from '../../data/bodyInsuranceData';
 import {
@@ -61,6 +68,17 @@ import {
   loadInsurersFromStorage,
   loadExpertsFromStorage,
   saveExpertsToStorage,
+  loadReviewersFromStorage,
+  saveReviewersToStorage,
+  loadFieldExpertsFromStorage,
+  saveFieldExpertsToStorage,
+  loadFinanceStaffFromStorage,
+  saveFinanceStaffToStorage,
+  loadCrmStaffFromStorage,
+  saveCrmStaffToStorage,
+  inviteNewStaffMember,
+  toggleStaffActiveStatus,
+  deleteStaffMember,
   loadComplaintsFromStorage,
   saveComplaintsToStorage,
   loadAssessorNotifications,
@@ -107,67 +125,157 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
   };
   const brand = getInsurerBrandConfig(companyCode, companyInfo.name);
 
-  // Experts management state
+  // Staff & Experts multi-category management state
   const [expertsMap, setExpertsMap] = useState<Record<string, StaffMember[]>>(() => loadExpertsFromStorage());
-  const [assessorSearch, setAssessorSearch] = useState('');
-  const [showAddAssessorModal, setShowAddAssessorModal] = useState(false);
-  const [newAssessorName, setNewAssessorName] = useState('');
-  const [newAssessorRole, setNewAssessorRole] = useState('کارشناس ارزیاب خسارت');
-  const [newAssessorNationalId, setNewAssessorNationalId] = useState('');
-  const [newAssessorPhone, setNewAssessorPhone] = useState('');
-  const [assessorActionMsg, setAssessorActionMsg] = useState<string | null>(null);
+  const [reviewersMap, setReviewersMap] = useState<Record<string, StaffMember[]>>(() => loadReviewersFromStorage());
+  const [fieldExpertsMap, setFieldExpertsMap] = useState<Record<string, StaffMember[]>>(() => loadFieldExpertsFromStorage());
+  const [financeStaffMap, setFinanceStaffMap] = useState<Record<string, StaffMember[]>>(() => loadFinanceStaffFromStorage());
+  const [crmStaffMap, setCrmStaffMap] = useState<Record<string, StaffMember[]>>(() => loadCrmStaffFromStorage());
 
-  const currentCompanyExperts = expertsMap[companyCode] || expertsMap['iran'] || INITIAL_EXPERTS[companyCode] || [];
+  const [staffCategoryFilter, setStaffCategoryFilter] = useState<'ALL' | StaffRoleCategory>('ALL');
+  const [staffSearch, setStaffSearch] = useState('');
+  const [showInviteStaffModal, setShowInviteStaffModal] = useState(false);
+  const [staffActionMsg, setStaffActionMsg] = useState<string | null>(null);
+  const [copiedLinkNotice, setCopiedLinkNotice] = useState(false);
 
-  const handleToggleAssessorStatus = (expertId: string) => {
-    const list = expertsMap[companyCode] || currentCompanyExperts;
-    const target = list.find((e) => e.id === expertId);
-    if (!target) return;
+  // Invite Form State
+  const [newStaffName, setNewStaffName] = useState('');
+  const [newStaffCategory, setNewStaffCategory] = useState<StaffRoleCategory>('assessor');
+  const [newStaffRole, setNewStaffRole] = useState('کارشناس ارزیاب آنلاین خسارت');
+  const [newStaffNationalId, setNewStaffNationalId] = useState('');
+  const [newStaffPhone, setNewStaffPhone] = useState('');
+  const [newStaffLicenseCode, setNewStaffLicenseCode] = useState('');
+  const [newStaffBranch, setNewStaffBranch] = useState('شعبه مرکزی');
+  const [newStaffCity, setNewStaffCity] = useState('تهران');
+  const [lastInviteResult, setLastInviteResult] = useState<{
+    newStaff: StaffMember;
+    smsText: string;
+    inviteLink: string;
+  } | null>(null);
 
-    const newStatus = target.active === false ? true : false;
-    const updatedList = list.map((e) => {
-      if (e.id === expertId) {
-        return { ...e, active: newStatus };
-      }
-      return e;
-    });
+  const [staffToDelete, setStaffToDelete] = useState<{
+    id: string;
+    name: string;
+    category: StaffRoleCategory;
+  } | null>(null);
 
-    const updatedMap = { ...expertsMap, [companyCode]: updatedList };
-    setExpertsMap(updatedMap);
-    saveExpertsToStorage(updatedMap);
-
-    const statusLabel = newStatus ? 'فعال' : 'غیرفعال';
-    setAssessorActionMsg(`وضعیت کارشناس «${target.name}» به «${statusLabel}» تغییر یافت.`);
-    setTimeout(() => setAssessorActionMsg(null), 4000);
-  };
-
-  const handleCreateAssessor = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newAssessorName.trim() || !newAssessorPhone.trim()) return;
-
-    const newExp: StaffMember = {
-      id: `EXP-${Date.now()}`,
-      name: newAssessorName.trim(),
-      role: newAssessorRole.trim() || 'کارشناس ارزیاب خسارت',
-      phone: newAssessorPhone.trim(),
-      nationalId: newAssessorNationalId.trim() || '---',
-      active: true,
-      company: companyCode
+  // Auto reload on custom storage events
+  React.useEffect(() => {
+    const handleSync = () => {
+      setExpertsMap(loadExpertsFromStorage());
+      setReviewersMap(loadReviewersFromStorage());
+      setFieldExpertsMap(loadFieldExpertsFromStorage());
+      setFinanceStaffMap(loadFinanceStaffFromStorage());
+      setCrmStaffMap(loadCrmStaffFromStorage());
     };
 
-    const list = expertsMap[companyCode] || currentCompanyExperts;
-    const updatedList = [newExp, ...list];
-    const updatedMap = { ...expertsMap, [companyCode]: updatedList };
+    window.addEventListener('claimflow_staff_updated', handleSync);
+    return () => {
+      window.removeEventListener('claimflow_staff_updated', handleSync);
+    };
+  }, []);
 
-    setExpertsMap(updatedMap);
-    saveExpertsToStorage(updatedMap);
+  // Aggregated staff for this company
+  const allCompanyStaff = useMemo(() => {
+    const clean = companyCode.toLowerCase();
+    const listAssessor = (expertsMap[clean] || INITIAL_EXPERTS[clean] || []).map((s) => ({
+      ...s,
+      category: (s.category || 'assessor') as StaffRoleCategory
+    }));
+    const listReviewer = (reviewersMap[clean] || INITIAL_REVIEWERS[clean] || []).map((s) => ({
+      ...s,
+      category: (s.category || 'reviewer') as StaffRoleCategory
+    }));
+    const listField = (fieldExpertsMap[clean] || INITIAL_FIELD_EXPERTS[clean] || []).map((s) => ({
+      ...s,
+      category: (s.category || 'fieldexpert') as StaffRoleCategory
+    }));
+    const listFinance = (financeStaffMap[clean] || []).map((s) => ({
+      ...s,
+      category: (s.category || 'finance') as StaffRoleCategory
+    }));
+    const listCrm = (crmStaffMap[clean] || []).map((s) => ({
+      ...s,
+      category: (s.category || 'crm') as StaffRoleCategory
+    }));
 
-    setNewAssessorName('');
-    setNewAssessorPhone('');
-    setNewAssessorNationalId('');
-    setShowAddAssessorModal(false);
-    setAssessorActionMsg(`ارزیاب جدید «${newExp.name}» با موفقیت افزوده شد.`);
-    setTimeout(() => setAssessorActionMsg(null), 4000);
+    return [...listAssessor, ...listReviewer, ...listField, ...listFinance, ...listCrm];
+  }, [companyCode, expertsMap, reviewersMap, fieldExpertsMap, financeStaffMap, crmStaffMap]);
+
+  // Current company assessors for performance metrics
+  const currentCompanyExperts = useMemo(() => {
+    const clean = companyCode.toLowerCase();
+    return expertsMap[clean] || expertsMap['iran'] || INITIAL_EXPERTS[clean] || [];
+  }, [companyCode, expertsMap]);
+
+  const [assessorActionMsg, setAssessorActionMsg] = useState<string | null>(null);
+
+  const handleToggleStaffStatus = (staffId: string, category: StaffRoleCategory) => {
+    const result = toggleStaffActiveStatus(companyCode, staffId, category);
+    if (result.success) {
+      setExpertsMap(loadExpertsFromStorage());
+      setReviewersMap(loadReviewersFromStorage());
+      setFieldExpertsMap(loadFieldExpertsFromStorage());
+      setFinanceStaffMap(loadFinanceStaffFromStorage());
+      setCrmStaffMap(loadCrmStaffFromStorage());
+      setStaffActionMsg(result.message);
+      setTimeout(() => setStaffActionMsg(null), 4000);
+    }
+  };
+
+  const handleDeleteStaffConfirm = () => {
+    if (!staffToDelete) return;
+    const result = deleteStaffMember(companyCode, staffToDelete.id, staffToDelete.category);
+    if (result.success) {
+      setExpertsMap(loadExpertsFromStorage());
+      setReviewersMap(loadReviewersFromStorage());
+      setFieldExpertsMap(loadFieldExpertsFromStorage());
+      setFinanceStaffMap(loadFinanceStaffFromStorage());
+      setCrmStaffMap(loadCrmStaffFromStorage());
+      setStaffActionMsg(result.message);
+      setStaffToDelete(null);
+      setTimeout(() => setStaffActionMsg(null), 4000);
+    }
+  };
+
+  const handleInviteStaffSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStaffName.trim() || !newStaffPhone.trim() || !newStaffNationalId.trim()) return;
+
+    const result = inviteNewStaffMember(
+      companyCode,
+      {
+        name: newStaffName.trim(),
+        nationalId: newStaffNationalId.trim(),
+        phone: newStaffPhone.trim(),
+        role: newStaffRole.trim() || 'کارشناس ارزیاب خسارت',
+        category: newStaffCategory,
+        licenseCode: newStaffLicenseCode.trim() || undefined,
+        branchName: newStaffBranch.trim() || 'شعبه مرکزی',
+        city: newStaffCity.trim() || 'تهران'
+      },
+      session.name || 'مدیر ارشد شرکت بیمه'
+    );
+
+    if (result.success) {
+      setExpertsMap(loadExpertsFromStorage());
+      setReviewersMap(loadReviewersFromStorage());
+      setFieldExpertsMap(loadFieldExpertsFromStorage());
+      setFinanceStaffMap(loadFinanceStaffFromStorage());
+      setCrmStaffMap(loadCrmStaffFromStorage());
+
+      setLastInviteResult({
+        newStaff: result.newStaff,
+        smsText: result.smsText,
+        inviteLink: result.inviteLink
+      });
+
+      setStaffActionMsg(result.message);
+      setNewStaffName('');
+      setNewStaffPhone('');
+      setNewStaffNationalId('');
+      setNewStaffLicenseCode('');
+    }
   };
 
   // Expert Complaints & Individual Performance Evaluation State
@@ -776,25 +884,13 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
           <button
             onClick={() => setActiveTab('assessors')}
             className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
-              activeTab === 'assessors'
+              activeTab === 'assessors' || activeTab === 'reviewers'
                 ? 'bg-blue-900 text-white shadow-md border border-blue-950'
                 : 'text-slate-700 hover:text-blue-950 hover:bg-blue-50 font-bold'
             }`}
           >
-            <Users className="w-4 h-4" />
-            <span>مدیریت ارزیاب‌ها</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('reviewers')}
-            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
-              activeTab === 'reviewers'
-                ? 'bg-blue-900 text-white shadow-md border border-blue-950'
-                : 'text-slate-700 hover:text-blue-950 hover:bg-blue-50 font-bold'
-            }`}
-          >
-            <UserCheck className="w-4 h-4" />
-            <span>مدیریت کارشناسان/بازبین‌ها</span>
+            <Users className="w-4 h-4 text-amber-300" />
+            <span>پرسنل و کارشناسان ({allCompanyStaff.length})</span>
           </button>
 
           <button
@@ -1759,37 +1855,114 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
         </div>
       )}
 
-      {/* VIEW 5: ASSESSORS (مدیریت ارزیاب‌ها) */}
-      {activeTab === 'assessors' && (
+      {/* VIEW 5: STAFF & EXPERTS RBAC MANAGEMENT (مدیریت پرسنل و سطوح دسترسی شرکت بیمه) */}
+      {(activeTab === 'assessors' || activeTab === 'reviewers') && (
         <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
             <div>
-              <h2 className="text-lg font-black text-blue-950 flex items-center gap-2">
-                <Users className="w-5 h-5 text-blue-900" />
-                مدیریت ارزیابان و کارشناسان خسارت {companyInfo.name}
-              </h2>
-              <p className="text-xs text-slate-600 mt-1 font-medium">
-                مشاهده کد ملی، شماره تماس، مدیریت وضعیت فعالیت (فعال/غیرفعال) و عدم امکان ارجاع پرونده به کارشناسان غیرفعال
-              </p>
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-2xl bg-blue-900 text-amber-300 flex items-center justify-center font-black shadow-sm">
+                  <Users className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-blue-950 flex items-center gap-2">
+                    مدیریت پرسنل و کارشناسان {companyInfo.name}
+                    <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold text-xs">
+                      سطح دسترسی: مدیر ارشد شرکت (Company Admin)
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                    تعریف، دعوت، ویرایش، حذف و کنترل وضعیت فعالیت (فعال/غیرفعال) کارشناسان ارزیاب، بازبین، میدانی، مالی و CRM
+                  </p>
+                </div>
+              </div>
             </div>
 
             <button
-              onClick={() => setShowAddAssessorModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto active:scale-95"
+              onClick={() => setShowInviteStaffModal(true)}
+              className="px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto active:scale-95 cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
-              <span>افزودن ارزیاب جدید</span>
+              <span>دعوت و افزودن پرسنل جدید</span>
             </button>
           </div>
 
           {/* Action Message Notification */}
-          {assessorActionMsg && (
+          {staffActionMsg && (
             <div className="p-3.5 bg-blue-50 border border-blue-300 rounded-2xl text-blue-950 text-xs font-bold flex items-center gap-2 animate-in fade-in">
               <CheckCircle2 className="w-5 h-5 text-blue-900 shrink-0" />
-              <span>{assessorActionMsg}</span>
+              <span>{staffActionMsg}</span>
             </div>
           )}
+
+          {/* Stats & Category Filter Tabs */}
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-2.5">
+            {[
+              { key: 'ALL', label: 'همه پرسنل', count: allCompanyStaff.length, icon: Users, color: 'border-slate-300' },
+              {
+                key: 'assessor',
+                label: 'ارزیاب آنلاین',
+                count: allCompanyStaff.filter((s) => s.category === 'assessor').length,
+                icon: ShieldCheck,
+                color: 'border-emerald-300 text-emerald-900'
+              },
+              {
+                key: 'reviewer',
+                label: 'بازبین کیفیت',
+                count: allCompanyStaff.filter((s) => s.category === 'reviewer').length,
+                icon: UserCheck,
+                color: 'border-blue-300 text-blue-900'
+              },
+              {
+                key: 'fieldexpert',
+                label: 'کارشناس میدانی/شعبه',
+                count: allCompanyStaff.filter((s) => s.category === 'fieldexpert').length,
+                icon: Car,
+                color: 'border-amber-300 text-amber-900'
+              },
+              {
+                key: 'finance',
+                label: 'امور مالی و تسویه',
+                count: allCompanyStaff.filter((s) => s.category === 'finance').length,
+                icon: Wallet,
+                color: 'border-purple-300 text-purple-900'
+              },
+              {
+                key: 'crm',
+                label: 'امور مشتریان و CRM',
+                count: allCompanyStaff.filter((s) => s.category === 'crm').length,
+                icon: MessageSquare,
+                color: 'border-rose-300 text-rose-900'
+              }
+            ].map((tab) => {
+              const isSelected = staffCategoryFilter === tab.key;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.key}
+                  onClick={() => setStaffCategoryFilter(tab.key as any)}
+                  className={`p-3 rounded-2xl border-2 transition-all text-right flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-blue-900 text-white border-blue-950 shadow-sm'
+                      : 'bg-slate-50 hover:bg-white text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <Icon className={`w-4 h-4 ${isSelected ? 'text-amber-300' : 'text-slate-500'}`} />
+                    <span
+                      className={`text-xs font-black font-mono px-2 py-0.5 rounded-full ${
+                        isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-800'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  </div>
+                  <span className="text-[11px] font-bold mt-2 truncate block">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
 
           {/* Search bar */}
           <div className="flex items-center gap-3">
@@ -1797,15 +1970,15 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                value={assessorSearch}
-                onChange={(e) => setAssessorSearch(e.target.value)}
-                placeholder="جستجو بر اساس نام، شماره تلفن، کد ملی یا نقش ارزیاب..."
+                value={staffSearch}
+                onChange={(e) => setStaffSearch(e.target.value)}
+                placeholder="جستجو بر اساس نام پرسنل، شماره همراه، کد ملی، شماره پروانه یا سمت..."
                 className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-xs text-slate-900 placeholder-slate-400 font-bold focus:outline-none focus:border-blue-900"
               />
             </div>
-            {assessorSearch && (
+            {staffSearch && (
               <button
-                onClick={() => setAssessorSearch('')}
+                onClick={() => setStaffSearch('')}
                 className="px-3 py-2.5 rounded-xl bg-slate-100 border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-200"
               >
                 پاکسازی
@@ -1813,210 +1986,442 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             )}
           </div>
 
-          {/* Assessors Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {currentCompanyExperts
-              .filter((exp) => {
-                if (!assessorSearch.trim()) return true;
-                const q = assessorSearch.trim().toLowerCase();
-                return (
-                  exp.name.toLowerCase().includes(q) ||
-                  exp.role.toLowerCase().includes(q) ||
-                  exp.phone?.toLowerCase().includes(q) ||
-                  exp.nationalId?.toLowerCase().includes(q)
-                );
-              })
-              .map((exp) => {
-                const isActive = exp.active !== false;
+          {/* Staff Cards Grid */}
+          {allCompanyStaff.length === 0 ? (
+            <div className="p-12 text-center text-slate-500 space-y-2 border-2 border-dashed border-slate-200 rounded-3xl">
+              <Users className="w-10 h-10 mx-auto text-slate-300" />
+              <p className="text-xs font-bold">هیچ پرسنلی در این دسته‌بندی تعریف نشده است.</p>
+              <button
+                onClick={() => setShowInviteStaffModal(true)}
+                className="px-4 py-2 rounded-xl bg-blue-900 text-white text-xs font-bold mt-2"
+              >
+                افزودن اولین کارشناس
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {allCompanyStaff
+                .filter((s) => {
+                  if (staffCategoryFilter !== 'ALL' && s.category !== staffCategoryFilter) {
+                    return false;
+                  }
+                  if (!staffSearch.trim()) return true;
+                  const q = staffSearch.trim().toLowerCase();
+                  return (
+                    s.name.toLowerCase().includes(q) ||
+                    s.role?.toLowerCase().includes(q) ||
+                    s.phone?.toLowerCase().includes(q) ||
+                    s.nationalId?.toLowerCase().includes(q) ||
+                    s.licenseCode?.toLowerCase().includes(q) ||
+                    s.branchName?.toLowerCase().includes(q)
+                  );
+                })
+                .map((staff) => {
+                  const isActive = staff.active !== false;
+                  const categoryLabels: Record<StaffRoleCategory, { title: string; color: string }> = {
+                    assessor: { title: 'ارزیاب آنلاین خسارت', color: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
+                    reviewer: { title: 'بازبین رسمی کیفیت', color: 'bg-blue-50 text-blue-900 border-blue-300' },
+                    fieldexpert: { title: 'کارشناس بازدید میدانی/شعبه', color: 'bg-amber-50 text-amber-900 border-amber-300' },
+                    finance: { title: 'مدیر مالی و تسویه', color: 'bg-purple-50 text-purple-900 border-purple-300' },
+                    crm: { title: 'امور مشتریان و پیگیری', color: 'bg-rose-50 text-rose-900 border-rose-300' },
+                    insurer: { title: 'مدیر ارشد شرکت', color: 'bg-slate-50 text-slate-900 border-slate-300' }
+                  };
 
-                return (
-                  <div
-                    key={exp.id}
-                    className={`p-5 rounded-2xl border-2 transition-all space-y-3 relative overflow-hidden ${
-                      isActive
-                        ? 'bg-white border-slate-200 hover:border-blue-900'
-                        : 'bg-slate-50 border-slate-300 opacity-75'
-                    }`}
-                  >
-                    {/* Top row: Name, Role & Active Toggle */}
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-blue-950 text-base">{exp.name}</span>
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
+                  const catInfo = categoryLabels[staff.category || 'assessor'] || categoryLabels.assessor;
+
+                  return (
+                    <div
+                      key={staff.id}
+                      className={`p-5 rounded-3xl border-2 transition-all space-y-3 relative overflow-hidden ${
+                        isActive
+                          ? 'bg-white border-slate-200 hover:border-blue-900 shadow-xs'
+                          : 'bg-slate-50 border-slate-300 opacity-80'
+                      }`}
+                    >
+                      {/* Top row: Name, Category badge & Actions */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-extrabold text-blue-950 text-base">{staff.name}</span>
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${catInfo.color}`}>
+                              {catInfo.title}
+                            </span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                                isActive
+                                  ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                                  : 'bg-rose-100 text-rose-900 border-rose-300'
+                              }`}
+                            >
+                              {isActive ? 'فعال و مجاز به ورود' : 'غیرفعال و مسدود'}
+                            </span>
+                          </div>
+                          <span className="text-xs text-blue-900 font-bold block">{staff.role}</span>
+                        </div>
+
+                        {/* Actions group */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Toggle status */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStaffStatus(staff.id, staff.category || 'assessor')}
+                            title={isActive ? 'غیرفعال‌سازی دسترسی کارشناس' : 'فعال‌سازی دسترسی کارشناس'}
+                            className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                               isActive
-                                ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                                : 'bg-rose-100 text-rose-900 border-rose-300'
+                                ? 'bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300'
+                                : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300'
                             }`}
                           >
-                            {isActive ? 'فعال (آماده ارجاع)' : 'غیرفعال (عدم امکان ارجاع)'}
+                            <Power className="w-3.5 h-3.5" />
+                            <span className="hidden sm:inline">{isActive ? 'غیرفعال‌سازی' : 'فعال‌سازی'}</span>
+                          </button>
+
+                          {/* Delete button */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setStaffToDelete({
+                                id: staff.id,
+                                name: staff.name,
+                                category: staff.category || 'assessor'
+                              })
+                            }
+                            title="حذف همکار از سیستم شرکت"
+                            className="p-1.5 rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-700 border border-slate-200 hover:border-rose-300 transition-all cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Staff Attributes */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs pt-2 border-t border-slate-200">
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                          <span className="text-[10px] text-slate-500 font-bold block">کد ملی (نام کاربری ورود):</span>
+                          <span className="font-bold text-slate-900 font-mono text-xs">{staff.nationalId || '---'}</span>
+                        </div>
+
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-200">
+                          <span className="text-[10px] text-slate-500 font-bold block">شماره همراه (رمز OTP):</span>
+                          <span className="font-bold text-slate-900 font-mono text-xs">{staff.phone || '---'}</span>
+                        </div>
+
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-200 col-span-2 sm:col-span-1">
+                          <span className="text-[10px] text-slate-500 font-bold block">کد پروانه / شعبه:</span>
+                          <span className="font-bold text-slate-900 text-xs truncate block">
+                            {staff.licenseCode || staff.branchName || 'شعبه مرکزی'}
                           </span>
                         </div>
-                        <span className="text-xs text-blue-900 font-bold block">{exp.role}</span>
                       </div>
 
-                      {/* Active/Inactive Toggle Button */}
-                      <button
-                        type="button"
-                        onClick={() => handleToggleAssessorStatus(exp.id)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 ${
-                          isActive
-                            ? 'bg-rose-100 hover:bg-rose-200 text-rose-900 border border-rose-300'
-                            : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border border-emerald-300'
-                        }`}
-                      >
-                        <Power className="w-3.5 h-3.5" />
-                        <span>{isActive ? 'غیرفعال‌سازی' : 'فعال‌سازی'}</span>
-                      </button>
+                      {/* Invitation and activity banner */}
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[11px] text-slate-500">
+                        <span className="flex items-center gap-1 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          دعوت شده توسط: {staff.invitedBy || 'مدیر ارشد شرکت'} {staff.invitedAt ? `(${staff.invitedAt})` : ''}
+                        </span>
+
+                        {staff.smsInviteText && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setLastInviteResult({
+                                newStaff: staff,
+                                smsText: staff.smsInviteText || '',
+                                inviteLink: `https://claimflow.ir/login?invite=${staff.id}&org=${companyCode}`
+                              })
+                            }
+                            className="text-blue-900 hover:text-blue-950 font-bold flex items-center gap-1 text-[11px] underline cursor-pointer"
+                          >
+                            <Mail className="w-3 h-3" />
+                            <span>مشاهده پیامک و لینک ورود</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {!isActive && (
+                        <p className="text-[11px] text-rose-950 bg-rose-50 p-2 rounded-xl border border-rose-300 font-bold">
+                          این کاربر غیرفعال شده و امکان ورود به سیستم یا دریافت و ارزیابی پرونده‌ها را ندارد.
+                        </p>
+                      )}
                     </div>
+                  );
+                })}
+            </div>
+          )}
 
-                    {/* Details: National ID & Phone */}
-                    <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-200">
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center gap-2">
-                        <ShieldCheck className="w-4 h-4 text-blue-900 shrink-0" />
-                        <div>
-                          <span className="text-[10px] text-slate-500 font-bold block">کد ملی کارشناس:</span>
-                          <span className="font-bold text-slate-900 font-mono text-xs">{exp.nationalId || 'ثبت نشده'}</span>
-                        </div>
-                      </div>
-
-                      <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center gap-2">
-                        <Phone className="w-4 h-4 text-emerald-700 shrink-0" />
-                        <div>
-                          <span className="text-[10px] text-slate-500 font-bold block">شماره تلفن همراه:</span>
-                          <span className="font-bold text-slate-900 font-mono text-xs">{exp.phone || 'ثبت نشده'}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {!isActive && (
-                      <p className="text-[11px] text-amber-950 bg-amber-50 p-2 rounded-xl border border-amber-300 font-bold">
-                        این کارشناس غیرفعال است و سیستم اجازه ارجاع یا تخصیص پرونده‌های جدید به وی را نخواهد داد.
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-
-          {/* Add New Assessor Modal */}
-          {showAddAssessorModal && (
+          {/* Delete Confirmation Modal */}
+          {staffToDelete && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-              <div className="bg-white border-2 border-slate-200 p-6 rounded-3xl max-w-md w-full space-y-5 shadow-xl animate-in zoom-in-95">
-                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                  <h3 className="font-extrabold text-blue-950 text-sm flex items-center gap-2">
-                    <UserPlus className="w-5 h-5 text-blue-900" />
-                    <span>افزودن کارشناس / ارزیاب جدید ({companyInfo.name})</span>
-                  </h3>
+              <div className="bg-white border-2 border-rose-300 p-6 rounded-3xl max-w-sm w-full space-y-4 shadow-2xl animate-in zoom-in-95">
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div className="text-center space-y-1.5">
+                  <h3 className="font-extrabold text-blue-950 text-base">حذف همکار از سیستم</h3>
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    آیا از حذف دسترسی «<strong className="text-slate-900">{staffToDelete.name}</strong>» اطمینان دارید؟
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-2">
                   <button
-                    onClick={() => setShowAddAssessorModal(false)}
-                    className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold text-xs"
+                    type="button"
+                    onClick={() => setStaffToDelete(null)}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                  >
+                    انصراف
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteStaffConfirm}
+                    className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-sm cursor-pointer"
+                  >
+                    بله، حذف شود
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Add / Invite New Staff Modal */}
+          {showInviteStaffModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+              <div className="bg-white border-2 border-slate-200 p-6 rounded-3xl max-w-lg w-full space-y-5 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-blue-900 text-white flex items-center justify-center font-bold">
+                      <UserPlus className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-blue-950 text-sm">
+                        دعوت و تعریف پرسنل / کارشناس جدید
+                      </h3>
+                      <p className="text-[11px] text-slate-500 font-medium">شرکت {companyInfo.name}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowInviteStaffModal(false)}
+                    className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer"
                   >
                     ✕
                   </button>
                 </div>
 
-                <form onSubmit={handleCreateAssessor} className="space-y-4 text-xs">
+                <form onSubmit={handleInviteStaffSubmit} className="space-y-4 text-xs">
+                  {/* Category Selection */}
                   <div>
-                    <label className="block font-bold text-slate-800 mb-1">
-                      نام و نام خانوادگی <span className="text-rose-600">*</span>
+                    <label className="block font-bold text-slate-800 mb-1.5">
+                      سطح و نقش دسترسی سازمانی <span className="text-rose-600">*</span>
                     </label>
-                    <input
-                      type="text"
-                      required
-                      value={newAssessorName}
-                      onChange={(e) => setNewAssessorName(e.target.value)}
-                      placeholder="مثلاً: علیرضا قربانی"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                    />
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[
+                        { key: 'assessor', label: 'ارزیاب آنلاین خسارت', defRole: 'کارشناس ارزیاب آنلاین خسارت' },
+                        { key: 'reviewer', label: 'بازبین رسمی کیفیت', defRole: 'بازبین ارشد و کنترل کیفیت' },
+                        { key: 'fieldexpert', label: 'کارشناس بازدید میدانی', defRole: 'کارشناس بازدید میدانی و شعبه' },
+                        { key: 'finance', label: 'مدیر مالی و تسویه', defRole: 'کارشناس پرداخت و امور مالی' },
+                        { key: 'crm', label: 'امور مشتریان و CRM', defRole: 'کارشناس پشتیبانی و رضایت‌سنجی' }
+                      ].map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => {
+                            setNewStaffCategory(item.key as StaffRoleCategory);
+                            setNewStaffRole(item.defRole);
+                          }}
+                          className={`p-2.5 rounded-xl border-2 text-right transition-all font-bold text-[11px] cursor-pointer ${
+                            newStaffCategory === item.key
+                              ? 'bg-blue-900 text-white border-blue-950 shadow-xs'
+                              : 'bg-slate-50 hover:bg-white text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block font-bold text-slate-800 mb-1">
-                      سمت / مسئولیت ارزیاب
-                    </label>
-                    <input
-                      type="text"
-                      value={newAssessorRole}
-                      onChange={(e) => setNewAssessorRole(e.target.value)}
-                      placeholder="مثلاً: ارزیاب ارشد خسارت بدنه خودرو"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                    />
+                  {/* Name and Role */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-800 mb-1">
+                        نام و نام خانوادگی <span className="text-rose-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newStaffName}
+                        onChange={(e) => setNewStaffName(e.target.value)}
+                        placeholder="مثلاً: دکتر مهدی کاظمی"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-800 mb-1">
+                        سمت سازمانی
+                      </label>
+                      <input
+                        type="text"
+                        value={newStaffRole}
+                        onChange={(e) => setNewStaffRole(e.target.value)}
+                        placeholder="مثلاً: کارشناس ارشد خسارت اتومبیل"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-900"
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block font-bold text-slate-800 mb-1">
-                      کد ملی
-                    </label>
-                    <input
-                      type="text"
-                      value={newAssessorNationalId}
-                      onChange={(e) => setNewAssessorNationalId(e.target.value)}
-                      placeholder="مثلاً: ۰۰۱۲۳۴۵۶۷۸"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-900"
-                    />
+                  {/* National ID & Phone */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-800 mb-1">
+                        کد ملی (جهت ورود به پرتال) <span className="text-rose-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newStaffNationalId}
+                        onChange={(e) => setNewStaffNationalId(e.target.value)}
+                        placeholder="مثلاً: ۰۰۱۲۳۴۵۶۷۸"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-800 mb-1">
+                        شماره همراه (جهت ارسال پیامک دعوت و OTP) <span className="text-rose-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={newStaffPhone}
+                        onChange={(e) => setNewStaffPhone(e.target.value)}
+                        placeholder="مثلاً: ۰۹۱۲۳۴۵۶۷۸۹"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-900"
+                      />
+                    </div>
                   </div>
 
-                  <div>
-                    <label className="block font-bold text-slate-800 mb-1">
-                      شماره تلفن همراه <span className="text-rose-600">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={newAssessorPhone}
-                      onChange={(e) => setNewAssessorPhone(e.target.value)}
-                      placeholder="مثلاً: ۰۹۱۲۳۴۵۶۷۸۹"
-                      className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-900"
-                    />
+                  {/* License Code & Branch */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-bold text-slate-800 mb-1">
+                        شماره پروانه رسمی کارشناسی (اختیاری)
+                      </label>
+                      <input
+                        type="text"
+                        value={newStaffLicenseCode}
+                        onChange={(e) => setNewStaffLicenseCode(e.target.value)}
+                        placeholder="مثلاً: EXP-98421"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-900"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-800 mb-1">
+                        شعبه / شهر خدمت
+                      </label>
+                      <input
+                        type="text"
+                        value={newStaffBranch}
+                        onChange={(e) => setNewStaffBranch(e.target.value)}
+                        placeholder="مثلاً: شعبه مرکزی ونک"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-900"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-[11px] text-blue-950 space-y-1">
+                    <span className="font-black block">نحوه ورود پرسنل:</span>
+                    <p className="text-slate-600 font-medium">
+                      پس از ثبت، حساب کاربری فوراً فعال شده و کارشناس می‌تواند در صفحه ورود (Portal Gateway) با انتخاب نقش مربوطه، درج کد ملی و شماره موبایل وارد سیستم شود.
+                    </p>
                   </div>
 
                   <div className="pt-2 flex items-center justify-end gap-2">
                     <button
                       type="button"
-                      onClick={() => setShowAddAssessorModal(false)}
-                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold"
+                      onClick={() => setShowInviteStaffModal(false)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold cursor-pointer"
                     >
                       انصراف
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold shadow-sm"
+                      className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold shadow-sm flex items-center gap-1.5 cursor-pointer"
                     >
-                      ثبت و فعال‌سازی ارزیاب
+                      <UserPlus className="w-4 h-4" />
+                      <span>ثبت و صدور دعوت‌نامه</span>
                     </button>
                   </div>
                 </form>
               </div>
             </div>
           )}
-        </div>
-      )}
 
-      {/* VIEW 6: REVIEWERS (مدیریت کارشناسان/بازبین‌ها) */}
-      {activeTab === 'reviewers' && (
-        <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <h2 className="text-lg font-black text-blue-950 flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-blue-900" />
-              مدیریت بازبین‌ها و کنترل کیفیت {companyInfo.name}
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {(INITIAL_REVIEWERS[companyCode] || INITIAL_REVIEWERS['iran'] || []).map((rv) => (
-              <div key={rv.id} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-slate-900 block text-sm">{rv.name}</span>
-                  <span className="text-xs text-slate-600 font-medium">{rv.role}</span>
+          {/* SMS & Invitation Result Modal */}
+          {lastInviteResult && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+              <div className="bg-white border-2 border-emerald-300 p-6 rounded-3xl max-w-lg w-full space-y-4 shadow-2xl animate-in zoom-in-95">
+                <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-blue-950 text-base">
+                      کارشناس «{lastInviteResult.newStaff.name}» با موفقیت فعال شد
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium">
+                      پیامک دعوت و فعال‌سازی آماده ارسال به شماره {lastInviteResult.newStaff.phone}
+                    </p>
+                  </div>
                 </div>
-                <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-900 border border-blue-200">
-                  بازبین رسمی
-                </span>
+
+                <div className="space-y-2">
+                  <span className="text-xs font-bold text-slate-800 block">متن پیامک ارسالی به کارشناس:</span>
+                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-xs leading-relaxed text-slate-800 whitespace-pre-line">
+                    {lastInviteResult.smsText}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-xs font-bold text-slate-800 block">لینک اختصاصی ورود همکار:</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={lastInviteResult.inviteLink}
+                      className="flex-1 px-3 py-2 rounded-xl bg-slate-100 border border-slate-300 text-xs font-mono text-slate-700"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(lastInviteResult.inviteLink);
+                        setCopiedLinkNotice(true);
+                        setTimeout(() => setCopiedLinkNotice(false), 3000);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-blue-900 text-white font-bold text-xs flex items-center gap-1 hover:bg-blue-800 cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>{copiedLinkNotice ? 'کپی شد!' : 'کپی لینک'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="pt-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLastInviteResult(null);
+                      setShowInviteStaffModal(false);
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs cursor-pointer"
+                  >
+                    بستن و ادامه
+                  </button>
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

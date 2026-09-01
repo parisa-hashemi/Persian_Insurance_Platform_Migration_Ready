@@ -1,5 +1,5 @@
-import { ClaimCase, UserSession, ThresholdProfile, DepreciationConfig, StaffMember, ExpertComplaint, AssessorNotification, CustomerNotification, PaymentOrder, PaymentBatch, CustomerCallLog, CustomerTicket, CrmSatisfactionSurvey, CrmFollowUpTask, InsurerInfo } from '../types';
-import { INITIAL_CASES, DEFAULT_THRESHOLDS, DEFAULT_DEPRECIATION_TABLES, INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS, INITIAL_EXPERT_COMPLAINTS, INITIAL_FINANCE_STAFF, INITIAL_CRM_STAFF, INITIAL_REVIEWERS, INSURER_COMPANIES } from '../data/mockData';
+import { ClaimCase, UserSession, ThresholdProfile, DepreciationConfig, StaffMember, ExpertComplaint, AssessorNotification, CustomerNotification, PaymentOrder, PaymentBatch, CustomerCallLog, CustomerTicket, CrmSatisfactionSurvey, CrmFollowUpTask, InsurerInfo, CompanyRegistrationRequest, StaffRoleCategory } from '../types';
+import { INITIAL_CASES, DEFAULT_THRESHOLDS, DEFAULT_DEPRECIATION_TABLES, INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS, INITIAL_EXPERT_COMPLAINTS, INITIAL_FINANCE_STAFF, INITIAL_CRM_STAFF, INITIAL_REVIEWERS, INSURER_COMPANIES, INITIAL_COMPANY_REQUESTS } from '../data/mockData';
 import { sanitizeMediaForStorage } from './imageCompressor';
 
 const STORAGE_KEYS = {
@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
   USER_SESSION: 'currentUser',
   CUSTOMERS: 'claimflow_customers',
   INSURERS: 'claimflow_insurers',
+  COMPANY_REQUESTS: 'claimflow_company_requests',
   THRESHOLDS: 'claimflow_ai_threshold_profiles',
   DEPRECIATION: 'claimflow_depreciation_tables',
   EXPERTS: 'claimflow_experts',
@@ -1315,6 +1316,429 @@ export function saveCrmFollowUpsToStorage(tasks: CrmFollowUpTask[]): void {
     console.error('Error saving CRM follow-ups', e);
   }
 }
+
+// ----------------------------------------------------
+// COMPANY REGISTRATION REQUESTS & APPROVAL FLOW
+// ----------------------------------------------------
+export function loadCompanyRequestsFromStorage(): CompanyRegistrationRequest[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.COMPANY_REQUESTS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Error loading company registration requests:', e);
+  }
+
+  saveCompanyRequestsToStorage(INITIAL_COMPANY_REQUESTS);
+  return INITIAL_COMPANY_REQUESTS;
+}
+
+export function saveCompanyRequestsToStorage(requests: CompanyRegistrationRequest[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.COMPANY_REQUESTS, JSON.stringify(requests));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('claimflow_company_requests_updated'));
+    }
+  } catch (e) {
+    console.error('Error saving company registration requests:', e);
+  }
+}
+
+export function submitCompanyRegistrationRequest(
+  data: Omit<CompanyRegistrationRequest, 'id' | 'submittedAt' | 'status'>
+): { success: boolean; message: string; requestId: string } {
+  const requests = loadCompanyRequestsFromStorage();
+  const existingInsurers = loadInsurersFromStorage();
+
+  // Check if company code or economic code is already registered
+  const duplicateActive = existingInsurers.find(
+    (i) => i.code.toLowerCase() === data.companyCode.toLowerCase() ||
+           (data.economicCode && i.economicCode === data.economicCode)
+  );
+  if (duplicateActive) {
+    return {
+      success: false,
+      message: `این شرکت بیمه قبلاً در سامانه تایید و فعال شده است. مدیر ارشد شرکت با شماره تماس ${duplicateActive.adminPhone || 'ثبت شده'} می‌تواند وارد شود.`,
+      requestId: ''
+    };
+  }
+
+  const newId = `REQ-${new Date().getFullYear()}-${Math.floor(100 + Math.random() * 900)}`;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fa-IR') + ' ' + now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+
+  const newReq: CompanyRegistrationRequest = {
+    ...data,
+    id: newId,
+    submittedAt: dateStr,
+    status: 'PENDING'
+  };
+
+  const updated = [newReq, ...requests];
+  saveCompanyRequestsToStorage(updated);
+
+  return {
+    success: true,
+    message: `درخواست ثبت شرکت «${data.companyName}» با شماره رهگیری ${newId} با موفقیت در سامانه ثبت شد و در صف بررسی مدیر کل پلتفرم قرار گرفت.`,
+    requestId: newId
+  };
+}
+
+export function approveCompanyRegistrationRequest(
+  requestId: string,
+  reviewerAdminName: string = 'مدیر کل سامانه (Super Admin)'
+): { success: boolean; message: string; newCompany?: InsurerInfo } {
+  const requests = loadCompanyRequestsFromStorage();
+  const targetIdx = requests.findIndex((r) => r.id === requestId);
+  if (targetIdx === -1) {
+    return { success: false, message: 'درخواست مورد نظر یافت نشد.' };
+  }
+
+  const req = requests[targetIdx];
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fa-IR') + ' ' + now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+
+  // 1. Update request status to APPROVED
+  requests[targetIdx] = {
+    ...req,
+    status: 'APPROVED',
+    reviewedAt: dateStr,
+    reviewedBy: reviewerAdminName
+  };
+  saveCompanyRequestsToStorage(requests);
+
+  // 2. Add or update in Insurers list
+  const insurers = loadInsurersFromStorage();
+  let brandColor = 'blue';
+  const colorOptions = ['indigo', 'emerald', 'teal', 'violet', 'cyan', 'amber', 'rose', 'sky'];
+  brandColor = colorOptions[Math.floor(Math.random() * colorOptions.length)];
+
+  const newCompany: InsurerInfo = {
+    code: req.companyCode.toLowerCase().trim(),
+    name: req.companyName.trim(),
+    defaultPassword: '1234',
+    brandColor: brandColor,
+    licenseNumber: req.licenseNumber || `LIC-${req.companyCode.toUpperCase()}-1403`,
+    sanhabCode: `SNH-${req.companyCode.toUpperCase()}-5050`,
+    economicCode: req.economicCode,
+    registrationNumber: req.registrationNumber,
+    adminName: req.adminName,
+    adminNationalId: req.adminNationalId,
+    adminPhone: req.adminPhone,
+    adminEmail: req.adminEmail,
+    phone: req.companyPhone,
+    email: req.companyEmail,
+    address: req.address,
+    province: req.province || 'تهران',
+    city: req.city || 'تهران',
+    onlineWithoutCroquiCeiling: 400000000,
+    onlineWithCroquiCeiling: 1500000000,
+    status: 'ACTIVE',
+    sanhabConnected: true,
+    activeBranchesCount: 15,
+    establishedYear: '۱۴۰۳',
+    approvedAt: dateStr,
+    description: `شرکت بیمه ${req.companyName} تایید شده توسط مدیر ارشد پلتفرم با مجوز رسمی بیمه مرکزی`
+  };
+
+  const existingCompanyIdx = insurers.findIndex((i) => i.code.toLowerCase() === newCompany.code);
+  if (existingCompanyIdx !== -1) {
+    insurers[existingCompanyIdx] = { ...insurers[existingCompanyIdx], ...newCompany };
+  } else {
+    insurers.push(newCompany);
+  }
+  saveInsurersToStorage(insurers);
+
+  return {
+    success: true,
+    message: `شرکت «${req.companyName}» تایید و به سامانه اضافه شد. پیامک فعال‌سازی حساب کاربری مدیر ارشد به شماره ${req.adminPhone} ارسال گردید.`,
+    newCompany
+  };
+}
+
+export function rejectCompanyRegistrationRequest(
+  requestId: string,
+  rejectionReason: string,
+  reviewerAdminName: string = 'مدیر کل سامانه (Super Admin)'
+): { success: boolean; message: string } {
+  const requests = loadCompanyRequestsFromStorage();
+  const targetIdx = requests.findIndex((r) => r.id === requestId);
+  if (targetIdx === -1) {
+    return { success: false, message: 'درخواست مورد نظر یافت نشد.' };
+  }
+
+  const req = requests[targetIdx];
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fa-IR') + ' ' + now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+
+  requests[targetIdx] = {
+    ...req,
+    status: 'REJECTED',
+    rejectionReason: rejectionReason || 'عدم تطابق مدارک ثبتی یا پروانه فعالیت',
+    reviewedAt: dateStr,
+    reviewedBy: reviewerAdminName
+  };
+  saveCompanyRequestsToStorage(requests);
+
+  return {
+    success: true,
+    message: `درخواست شرکت «${req.companyName}» رد شد و پیامک اعلام دلیل رد به متقاضی (${req.adminPhone}) ارسال گردید.`
+  };
+}
+
+// ----------------------------------------------------
+// SMART RBAC STAFF LOOKUP & INVITATION SYSTEM
+// ----------------------------------------------------
+export interface StaffLookupResult {
+  found: boolean;
+  staff?: StaffMember;
+  companyCode?: string;
+  companyName?: string;
+  category?: StaffRoleCategory;
+  isActive: boolean;
+  message?: string;
+}
+
+export function lookupStaffByCredentials(nationalId: string, phone?: string): StaffLookupResult {
+  const cleanNatId = (nationalId || '').trim();
+  const cleanPhone = (phone || '').trim();
+  if (!cleanNatId && !cleanPhone) {
+    return { found: false, isActive: false, message: 'کد ملی یا شماره موبایل وارد نشده است.' };
+  }
+
+  const insurers = loadInsurersFromStorage();
+  const experts = loadExpertsFromStorage();
+  const reviewers = loadReviewersFromStorage();
+  const fieldExperts = loadFieldExpertsFromStorage();
+  const financeStaff = loadFinanceStaffFromStorage();
+  const crmStaff = loadCrmStaffFromStorage();
+
+  const allMaps: Array<{ category: StaffRoleCategory; map: Record<string, StaffMember[]> }> = [
+    { category: 'assessor', map: experts },
+    { category: 'reviewer', map: reviewers },
+    { category: 'fieldexpert', map: fieldExperts },
+    { category: 'finance', map: financeStaff },
+    { category: 'crm', map: crmStaff }
+  ];
+
+  for (const item of allMaps) {
+    for (const companyCode of Object.keys(item.map)) {
+      const list = item.map[companyCode] || [];
+      const match = list.find((s) => {
+        const matchNatId = cleanNatId && s.nationalId && s.nationalId.trim() === cleanNatId;
+        const matchPhone = cleanPhone && s.phone && s.phone.trim() === cleanPhone;
+        if (cleanNatId && cleanPhone) {
+          return matchNatId || matchPhone;
+        }
+        return matchNatId || matchPhone;
+      });
+
+      if (match) {
+        const companyInfo = insurers.find((c) => c.code.toLowerCase() === companyCode.toLowerCase());
+        const companyName = companyInfo?.name || getInsurerPersianName(companyCode);
+        const isActive = match.active !== false;
+
+        return {
+          found: true,
+          staff: match,
+          companyCode: companyCode,
+          companyName: companyName,
+          category: item.category,
+          isActive: isActive,
+          message: isActive
+            ? `احراز هویت موفق: ${match.name} (${match.role || 'کارشناس خسارت'} - ${companyName})`
+            : `دسترسی کاربری «${match.name}» توسط مدیر ارشد شرکت ${companyName} به حالت غیرفعال درآمده است.`
+        };
+      }
+    }
+  }
+
+  return {
+    found: false,
+    isActive: false,
+    message: 'کد ملی یا شماره موبایل در فهرست کارشناسان و پرسنل هیچ‌یک از شرکت‌های بیمه ثبت نشده است.'
+  };
+}
+
+export function inviteNewStaffMember(
+  companyCode: string,
+  staffData: {
+    name: string;
+    nationalId: string;
+    phone: string;
+    role?: string;
+    category?: StaffRoleCategory;
+    licenseCode?: string;
+    branchName?: string;
+    province?: string;
+    city?: string;
+  },
+  invitedByName: string = 'مدیر ارشد شرکت بیمه'
+): { success: boolean; message: string; newStaff: StaffMember; inviteLink: string; smsText: string } {
+  const cleanCode = (companyCode || 'dana').toLowerCase().trim();
+  const category = staffData.category || 'assessor';
+  const insurers = loadInsurersFromStorage();
+  const comp = insurers.find((c) => c.code === cleanCode);
+  const compName = comp?.name || getInsurerPersianName(cleanCode);
+
+  const staffId = `STF-${cleanCode.toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('fa-IR');
+  const inviteLink = `https://claimflow.ir/login?invite=${staffId}&org=${cleanCode}`;
+  const smsText = `همکار گرامی ${staffData.name}، شما توسط ${invitedByName} به عنوان ${staffData.role || 'کارشناس ارزیاب'} در پرتال خسارت «${compName}» عضو شدید. جهت ورود و فعال‌سازی از لینک زیر با کد ملی ${staffData.nationalId} استفاده کنید:\n${inviteLink}`;
+
+  const newStaff: StaffMember = {
+    id: staffId,
+    name: staffData.name.trim(),
+    role: staffData.role?.trim() || 'کارشناس ارزیاب خسارت',
+    category: category,
+    phone: staffData.phone.trim(),
+    nationalId: staffData.nationalId.trim(),
+    active: true,
+    company: cleanCode,
+    companyName: compName,
+    licenseCode: staffData.licenseCode || `EXP-${Math.floor(10000 + Math.random() * 90000)}`,
+    branchName: staffData.branchName || 'شعبه مرکزی',
+    province: staffData.province || comp?.province || 'تهران',
+    city: staffData.city || comp?.city || 'تهران',
+    status: 'AVAILABLE',
+    rating: 5.0,
+    registeredAt: dateStr,
+    invitedBy: invitedByName,
+    invitedAt: dateStr,
+    invitationStatus: 'ACTIVATED',
+    smsInviteSent: true,
+    smsInviteText: smsText
+  };
+
+  // Add to the appropriate category storage
+  if (category === 'assessor') {
+    const experts = loadExpertsFromStorage();
+    const list = experts[cleanCode] || [];
+    experts[cleanCode] = [newStaff, ...list];
+    saveExpertsToStorage(experts);
+  } else if (category === 'reviewer') {
+    const reviewers = loadReviewersFromStorage();
+    const list = reviewers[cleanCode] || [];
+    reviewers[cleanCode] = [newStaff, ...list];
+    saveReviewersToStorage(reviewers);
+  } else if (category === 'fieldexpert') {
+    const fieldExperts = loadFieldExpertsFromStorage();
+    const list = fieldExperts[cleanCode] || [];
+    fieldExperts[cleanCode] = [newStaff, ...list];
+    saveFieldExpertsToStorage(fieldExperts);
+  } else if (category === 'finance') {
+    const finance = loadFinanceStaffFromStorage();
+    const list = finance[cleanCode] || [];
+    finance[cleanCode] = [newStaff, ...list];
+    saveFinanceStaffToStorage(finance);
+  } else if (category === 'crm') {
+    const crm = loadCrmStaffFromStorage();
+    const list = crm[cleanCode] || [];
+    crm[cleanCode] = [newStaff, ...list];
+    saveCrmStaffToStorage(crm);
+  }
+
+  return {
+    success: true,
+    message: `کارشناس «${staffData.name}» با موفقیت تعریف شد و پیامک دعوت و فعال‌سازی به شماره ${staffData.phone} ارسال گردید.`,
+    newStaff,
+    inviteLink,
+    smsText
+  };
+}
+
+export function toggleStaffActiveStatus(
+  companyCode: string,
+  staffId: string,
+  category: StaffRoleCategory = 'assessor'
+): { success: boolean; newStatus: boolean; message: string } {
+  const cleanCode = (companyCode || 'dana').toLowerCase().trim();
+
+  let targetList: StaffMember[] = [];
+  let saveFn: (data: Record<string, StaffMember[]>) => void;
+  let allData: Record<string, StaffMember[]> = {};
+
+  if (category === 'assessor') {
+    allData = loadExpertsFromStorage();
+    saveFn = saveExpertsToStorage;
+  } else if (category === 'reviewer') {
+    allData = loadReviewersFromStorage();
+    saveFn = saveReviewersToStorage;
+  } else if (category === 'fieldexpert') {
+    allData = loadFieldExpertsFromStorage();
+    saveFn = saveFieldExpertsToStorage;
+  } else if (category === 'finance') {
+    allData = loadFinanceStaffFromStorage();
+    saveFn = saveFinanceStaffToStorage;
+  } else {
+    allData = loadCrmStaffFromStorage();
+    saveFn = saveCrmStaffToStorage;
+  }
+
+  targetList = allData[cleanCode] || [];
+  const staffIdx = targetList.findIndex((s) => s.id === staffId);
+  if (staffIdx === -1) {
+    return { success: false, newStatus: false, message: 'کارشناس مورد نظر پیدا نشد.' };
+  }
+
+  const current = targetList[staffIdx];
+  const newStatus = current.active === false ? true : false;
+  targetList[staffIdx] = { ...current, active: newStatus };
+  allData[cleanCode] = targetList;
+  saveFn(allData);
+
+  const statusLabel = newStatus ? 'فعال و مجاز به دسترسی' : 'غیرفعال و مسدود';
+  return {
+    success: true,
+    newStatus,
+    message: `وضعیت دسترسی کارشناس «${current.name}» به حالت «${statusLabel}» تغییر یافت.`
+  };
+}
+
+export function deleteStaffMember(
+  companyCode: string,
+  staffId: string,
+  category: StaffRoleCategory = 'assessor'
+): { success: boolean; message: string } {
+  const cleanCode = (companyCode || 'dana').toLowerCase().trim();
+
+  let saveFn: (data: Record<string, StaffMember[]>) => void;
+  let allData: Record<string, StaffMember[]> = {};
+
+  if (category === 'assessor') {
+    allData = loadExpertsFromStorage();
+    saveFn = saveExpertsToStorage;
+  } else if (category === 'reviewer') {
+    allData = loadReviewersFromStorage();
+    saveFn = saveReviewersToStorage;
+  } else if (category === 'fieldexpert') {
+    allData = loadFieldExpertsFromStorage();
+    saveFn = saveFieldExpertsToStorage;
+  } else if (category === 'finance') {
+    allData = loadFinanceStaffFromStorage();
+    saveFn = saveFinanceStaffToStorage;
+  } else {
+    allData = loadCrmStaffFromStorage();
+    saveFn = saveCrmStaffToStorage;
+  }
+
+  const targetList = allData[cleanCode] || [];
+  const targetStaff = targetList.find((s) => s.id === staffId);
+  const updatedList = targetList.filter((s) => s.id !== staffId);
+  allData[cleanCode] = updatedList;
+  saveFn(allData);
+
+  return {
+    success: true,
+    message: `کارشناس «${targetStaff?.name || staffId}» با موفقیت از سیستم این شرکت حذف شد.`
+  };
+}
+
 
 
 

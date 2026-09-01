@@ -657,6 +657,35 @@ export type StaffRoleCategory =
   | 'crm' // کارشناس امور مشتریان و شکایات
   | 'insurer'; // مدیر ارشد شرکت بیمه
 
+export interface CompanyRegistrationRequest {
+  id: string; // REQ-1001
+  companyName: string;
+  companyCode: string;
+  economicCode: string;
+  registrationNumber: string;
+  licenseNumber?: string;
+  province: string;
+  city: string;
+  address: string;
+  companyPhone: string;
+  companyEmail: string;
+  adminName: string;
+  adminNationalId: string;
+  adminPhone: string;
+  adminEmail: string;
+  officialGazetteFile?: string;
+  officialGazetteFileName?: string;
+  introLetterFile?: string;
+  introLetterFileName?: string;
+  licenseDocFile?: string;
+  licenseDocFileName?: string;
+  submittedAt: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reviewedAt?: string;
+  reviewedBy?: string;
+  rejectionReason?: string;
+}
+
 export interface InsurerInfo {
   code: string;
   name: string;
@@ -669,6 +698,14 @@ export interface InsurerInfo {
   email?: string;
   address?: string;
   province?: string;
+  city?: string;
+  economicCode?: string;
+  registrationNumber?: string;
+  adminName?: string;
+  adminNationalId?: string;
+  adminPhone?: string;
+  adminEmail?: string;
+  officialGazetteDoc?: string;
   onlineWithoutCroquiCeiling?: number; // سقف پرداخت آنلاین بدون کروکی ریال
   onlineWithCroquiCeiling?: number; // سقف پرداخت آنلاین با کروکی ریال
   status?: 'ACTIVE' | 'SUSPENDED' | 'DEVELOPMENT';
@@ -676,6 +713,7 @@ export interface InsurerInfo {
   activeBranchesCount?: number;
   establishedYear?: string;
   description?: string;
+  approvedAt?: string;
 }
 
 export interface StaffMember {
@@ -704,6 +742,11 @@ export interface StaffMember {
   password?: string;
   registeredAt?: string;
   lastLoginAt?: string;
+  invitedBy?: string;
+  invitedAt?: string;
+  invitationStatus?: 'INVITED' | 'ACTIVATED' | 'DISABLED';
+  smsInviteSent?: boolean;
+  smsInviteText?: string;
 }
 
 export interface ThresholdProfile {

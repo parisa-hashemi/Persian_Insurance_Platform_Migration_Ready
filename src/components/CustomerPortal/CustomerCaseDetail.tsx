@@ -43,7 +43,8 @@ import {
   Info,
   PhoneCall,
   MessageSquarePlus,
-  Headphones
+  Headphones,
+  Scale
 } from 'lucide-react';
 import { ClaimCase, UserSession, CaseStatus, AdditionalDocItem, ExpertComplaint, CustomerTicket, PaymentOrder } from '../../types';
 import { formatCurrency, parseMoneyNumber, getInsurerPersianName, loadComplaintsFromStorage, saveComplaintsToStorage, loadCrmTicketsFromStorage, saveCrmTicketsToStorage, loadPaymentOrdersFromStorage, savePaymentOrdersToStorage } from '../../lib/storage';
@@ -54,6 +55,7 @@ import { CustomerTicketModal } from './CustomerTicketModal';
 import { CustomerTicketsSection } from './CustomerTicketsSection';
 import { CustomerExpertCallModal } from './CustomerExpertCallModal';
 import { AIChatCopilotModal } from '../AI/AIChatCopilotModal';
+import { CustomerDebtModal } from './CustomerDebtModal';
 import { dispatchObjectionStageWithAI } from '../../lib/ai/aiDispatcher';
 
 // Helper to detect Iranian bank name from IBAN (Sheba) code
@@ -544,6 +546,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   const [fieldVisitContactPhone, setFieldVisitContactPhone] = useState(claimCase.victimPhone || session.phone || '');
   const [fieldVisitReason, setFieldVisitReason] = useState('');
   const [fieldVisitSuccessToast, setFieldVisitSuccessToast] = useState(false);
+  const [showDebtModal, setShowDebtModal] = useState(false);
 
   const [chatMessageInput, setChatMessageInput] = useState('');
 
@@ -1196,6 +1199,17 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Debt / Credit & Culprit Contact Button */}
+            <button
+              type="button"
+              onClick={() => setShowDebtModal(true)}
+              className="px-3.5 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-black text-xs transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
+              title="مشاهده تراز بدهی و طلب، مشخصات و شماره تماس مقصر و ثبت تسویه"
+            >
+              <Scale className="w-4 h-4 text-emerald-700" />
+              <span>وضعیت بدهی و طلب مقصر</span>
+            </button>
+
             {/* AI Claims Copilot Assistant Button */}
             <button
               type="button"
@@ -2411,11 +2425,21 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                                 ? 'border-rose-400 bg-rose-50 text-rose-950' 
                                 : 'border-slate-200 bg-slate-50 text-slate-700'
                             }`}>
-                              <span className={`block mb-1 font-bold text-[11px] ${
-                                culpritDebt > 0 ? 'text-rose-800' : 'text-slate-500'
-                              }`}>
-                                بدهی مازاد مقصر
-                              </span>
+                              <div className="flex items-center justify-between">
+                                <span className={`block mb-1 font-bold text-[11px] ${
+                                  culpritDebt > 0 ? 'text-rose-800' : 'text-slate-500'
+                                }`}>
+                                  بدهی مازاد مقصر
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowDebtModal(true)}
+                                  className="text-[10px] text-blue-900 hover:underline font-bold flex items-center gap-0.5 cursor-pointer"
+                                >
+                                  <Scale className="w-3 h-3 text-emerald-700" />
+                                  <span>ریز و تماس</span>
+                                </button>
+                              </div>
                               <span className={`font-black text-xs sm:text-sm font-mono ${
                                 culpritDebt > 0 ? 'text-rose-700' : 'text-slate-500'
                               }`}>
@@ -2423,7 +2447,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                               </span>
                               {culpritDebt > 0 && (
                                 <span className="text-[9px] text-rose-600 font-bold block mt-0.5">
-                                  پرداخت مستقیم توسط مقصر
+                                  پرداخت مستقیم توسط مقصر ({claimCase.culpritName || 'مقصر'})
                                 </span>
                               )}
                             </div>
@@ -4697,6 +4721,16 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             <img src={previewImageModal} alt="Document Preview" className="w-full h-auto max-h-[80vh] object-contain mx-auto rounded-2xl" />
           </div>
         </div>
+      )}
+
+      {/* Customer Debt & Credit Details Modal */}
+      {showDebtModal && (
+        <CustomerDebtModal
+          claimCase={claimCase}
+          session={session}
+          onClose={() => setShowDebtModal(false)}
+          onUpdateCase={onUpdateCase}
+        />
       )}
 
       {/* Customer CRM Ticket / Complaint Creation Modal */}

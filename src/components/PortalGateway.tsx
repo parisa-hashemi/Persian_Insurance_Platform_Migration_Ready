@@ -22,9 +22,13 @@ import {
   AlertCircle,
   CheckCircle2,
   CreditCard,
-  Headphones
+  Headphones,
+  FileCheck,
+  BadgeCheck
 } from 'lucide-react';
 import { RoleType, UserSession, InsurerInfo, StaffMember } from '../types';
+import { CompanyRegistrationModal } from './CompanyRegistrationModal';
+import { ExpertOtpLoginForm } from './ExpertOtpLoginForm';
 import {
   INSURER_COMPANIES,
   INITIAL_EXPERTS,
@@ -90,6 +94,9 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
   // Organizational Role selected from Dropdown
   const [orgRole, setOrgRole] = useState<RoleType>('insurer');
+
+  // Company Registration Modal State
+  const [isCompanyRegModalOpen, setIsCompanyRegModalOpen] = useState(false);
 
   // Form states for Customer
   const [isCustomerRegistering, setIsCustomerRegistering] = useState(false);
@@ -724,7 +731,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                   <form onSubmit={handleInsurerLogin} className="space-y-4 animate-in fade-in">
                     <div>
                       <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        شرکت بیمه‌گر
+                        شرکت بیمه‌گر (مدیر ارشد شرکت)
                       </label>
                       <select
                         value={insurerCompany}
@@ -733,7 +740,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                       >
                         {insurersList.map((c) => (
                           <option key={c.code} value={c.code}>
-                            {c.name}
+                            {c.name} {c.adminName ? `— مدیر ارشد: ${c.adminName}` : ''}
                           </option>
                         ))}
                       </select>
@@ -741,7 +748,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <div>
                       <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        رمز عبور
+                        رمز عبور مدیر ارشد
                       </label>
                       <input
                         type="password"
@@ -757,223 +764,57 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                       type="submit"
                       className="w-full py-3 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
-                      <span>ورود به پنل بیمه‌گر</span>
+                      <span>ورود به پنل مدیریت شرکت بیمه</span>
                       <ArrowLeft className="w-4 h-4" />
                     </button>
+
+                    <div className="pt-2 border-t border-slate-200 text-center">
+                      <p className="text-[11px] text-slate-600 mb-2">
+                        شرکت بیمه شما هنوز در سامانه ثبت نشده است؟
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsCompanyRegModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 text-xs font-bold border border-blue-200 transition active:scale-95"
+                      >
+                        <Building2 className="w-4 h-4 text-blue-700" />
+                        <span>ثبت‌نام شرکت بیمه جدید و درخواست صدور پنل</span>
+                      </button>
+                    </div>
                   </form>
                 )}
 
-                {/* 2. Assessor */}
+                {/* 2. Assessor (Claims Expert) with Company + Name + Phone + OTP */}
                 {orgRole === 'assessor' && (
-                  <form onSubmit={handleAssessorLogin} className="space-y-4 animate-in fade-in">
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        شرکت بیمه‌گر
-                      </label>
-                      <select
-                        value={assessorCompany}
-                        onChange={(e) => {
-                          setAssessorCompany(e.target.value);
-                          const exps = expertsMap[e.target.value] || [];
-                          if (exps.length) setAssessorId(exps[0].id);
-                        }}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                      >
-                        {insurersList.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        انتخاب کارشناس ارزیاب
-                      </label>
-                      <select
-                        value={assessorId}
-                        onChange={(e) => setAssessorId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                      >
-                        {(expertsMap[assessorCompany] || []).length > 0 ? (
-                          (expertsMap[assessorCompany] || []).map((e) => (
-                            <option key={e.id} value={e.id}>
-                              {e.name} — {e.role}
-                            </option>
-                          ))
-                        ) : (
-                          <option value={`exp-${assessorCompany}-default`}>
-                            کارشناس ارزیاب پیش‌فرض ({insurersList.find((c) => c.code === assessorCompany)?.name || assessorCompany})
-                          </option>
-                        )}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        رمز عبور
-                      </label>
-                      <input
-                        type="password"
-                        value={assessorPass}
-                        onChange={(e) => setAssessorPass(e.target.value)}
-                        placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                        dir="ltr"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-3 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
-                    >
-                      <span>ورود به پنل ارزیاب</span>
-                      <ArrowLeft className="w-4 h-4" />
-                    </button>
-                  </form>
+                  <ExpertOtpLoginForm
+                    role="assessor"
+                    insurersList={insurersList}
+                    staffMap={expertsMap}
+                    onLoginSuccess={onSelectPortal}
+                    onRefreshData={refreshDynamicData}
+                  />
                 )}
 
-                {/* 3. Field Expert */}
+                {/* 3. Field Expert with Company + Name + Phone + OTP */}
                 {orgRole === 'fieldexpert' && (
-                  <form onSubmit={handleFieldExpertLogin} className="space-y-4 animate-in fade-in">
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        شرکت بیمه‌گر
-                      </label>
-                      <select
-                        value={fieldCompany}
-                        onChange={(e) => {
-                          setFieldCompany(e.target.value);
-                          const list = fieldExpertsMap[e.target.value] || [];
-                          if (list.length) setFieldId(list[0].id);
-                        }}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                      >
-                        {insurersList.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        انتخاب کارشناس میدانی
-                      </label>
-                      <select
-                        value={fieldId}
-                        onChange={(e) => setFieldId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                      >
-                        {(fieldExpertsMap[fieldCompany] || []).length > 0 ? (
-                          (fieldExpertsMap[fieldCompany] || []).map((fe) => (
-                            <option key={fe.id} value={fe.id}>
-                              {fe.name} — {fe.role}
-                            </option>
-                          ))
-                        ) : (
-                          <option value={`fe-${fieldCompany}-default`}>
-                            کارشناس میدانی پیش‌فرض ({insurersList.find((c) => c.code === fieldCompany)?.name || fieldCompany})
-                          </option>
-                        )}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        رمز عبور
-                      </label>
-                      <input
-                        type="password"
-                        value={fieldPass}
-                        onChange={(e) => setFieldPass(e.target.value)}
-                        placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                        dir="ltr"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-3 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
-                    >
-                      <span>ورود به پنل کارشناس میدانی</span>
-                      <ArrowLeft className="w-4 h-4" />
-                    </button>
-                  </form>
+                  <ExpertOtpLoginForm
+                    role="fieldexpert"
+                    insurersList={insurersList}
+                    staffMap={fieldExpertsMap}
+                    onLoginSuccess={onSelectPortal}
+                    onRefreshData={refreshDynamicData}
+                  />
                 )}
 
-                {/* 4. Reviewer */}
+                {/* 4. Reviewer with Company + Name + Phone + OTP */}
                 {orgRole === 'reviewer' && (
-                  <form onSubmit={handleReviewerLogin} className="space-y-4 animate-in fade-in">
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        شرکت بیمه‌گر
-                      </label>
-                      <select
-                        value={reviewerCompany}
-                        onChange={(e) => {
-                          setReviewerCompany(e.target.value);
-                          const list = reviewersMap[e.target.value] || [];
-                          if (list.length) setReviewerId(list[0].id);
-                        }}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                      >
-                        {insurersList.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        انتخاب بازبین
-                      </label>
-                      <select
-                        value={reviewerId}
-                        onChange={(e) => setReviewerId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                      >
-                        {(reviewersMap[reviewerCompany] || []).length > 0 ? (
-                          (reviewersMap[reviewerCompany] || []).map((rv) => (
-                            <option key={rv.id} value={rv.id}>
-                              {rv.name} — {rv.role}
-                            </option>
-                          ))
-                        ) : (
-                          <option value={`rv-${reviewerCompany}-default`}>
-                            بازبین کیفی پیش‌فرض ({insurersList.find((c) => c.code === reviewerCompany)?.name || reviewerCompany})
-                          </option>
-                        )}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        رمز عبور
-                      </label>
-                      <input
-                        type="password"
-                        value={reviewerPass}
-                        onChange={(e) => setReviewerPass(e.target.value)}
-                        placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                        dir="ltr"
-                      />
-                    </div>
-
-                    <button
-                      type="submit"
-                      className="w-full py-3 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
-                    >
-                      <span>ورود به پنل بازبین</span>
-                      <ArrowLeft className="w-4 h-4" />
-                    </button>
-                  </form>
+                  <ExpertOtpLoginForm
+                    role="reviewer"
+                    insurersList={insurersList}
+                    staffMap={reviewersMap}
+                    onLoginSuccess={onSelectPortal}
+                    onRefreshData={refreshDynamicData}
+                  />
                 )}
 
                 {/* 5. Finance */}
@@ -1213,6 +1054,16 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
           </p>
         </div>
       </footer>
+
+      {/* Insurance Company Registration Modal */}
+      <CompanyRegistrationModal
+        isOpen={isCompanyRegModalOpen}
+        onClose={() => setIsCompanyRegModalOpen(false)}
+        onSuccess={() => {
+          refreshDynamicData();
+          setIsCompanyRegModalOpen(false);
+        }}
+      />
     </div>
   );
 };
