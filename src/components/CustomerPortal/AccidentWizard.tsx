@@ -600,6 +600,24 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   };
 
   const handleFinishWizard = () => {
+    // Validate driver license photos for both parties (mandatory)
+    const vicFrontLicense = getFileForLabel(`عکس روی گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('روی گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
+    const vicBackLicense = getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('پشت گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
+    
+    const fltFrontLicense = getFileForLabel(`عکس روی گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`) || files.find(f => f.name?.includes('روی گواهینامه') && (f.name?.includes('طرف مقابل') || f.name?.includes('مقصر')));
+    const fltBackLicense = getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`) || files.find(f => f.name?.includes('پشت گواهینامه') && (f.name?.includes('طرف مقابل') || f.name?.includes('مقصر')));
+
+    if (!vicFrontLicense || !vicBackLicense) {
+      alert('لطفاً در مرحله ۴، عکس پشت و رو گواهینامه راننده (شما) را بارگذاری نمایید.');
+      setCurrentStep(4);
+      return;
+    }
+
+    if (!fltFrontLicense || !fltBackLicense) {
+      alert('لطفاً عکس پشت و رو گواهینامه راننده طرف مقابل را بارگذاری نمایید.');
+      return;
+    }
+
     const trackingCode = generateTrackingCode();
     const vicPlateStr = `${vicP1}-${vicPLetter}-${vicP2}-ایران-${vicP3}`;
     const fltPlateStr = `${fltP1}-${fltPLetter}-${fltP2}-ایران-${fltP3}`;
@@ -758,6 +776,10 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       audioExplanation: files.find(f => f.type === 'audio' || f.name?.includes('صوتی')) || (audioUrl ? { name: 'توضیحات صوتی', type: 'audio', dataUrl: audioUrl, fileName: 'voice_description.webm' } : undefined),
       videoExplanation: files.find(f => f.type === 'video' || f.name?.includes('ویدیو')),
       customerKrokiPhoto: croquiData?.fileUrl || files.find(f => f.name?.includes('کروکی'))?.dataUrl || undefined,
+      victimLicenseFrontPhoto: isCulprit ? fltFrontLicense?.dataUrl : vicFrontLicense?.dataUrl,
+      victimLicenseBackPhoto: isCulprit ? fltBackLicense?.dataUrl : vicBackLicense?.dataUrl,
+      culpritLicenseFrontPhoto: isCulprit ? vicFrontLicense?.dataUrl : fltFrontLicense?.dataUrl,
+      culpritLicenseBackPhoto: isCulprit ? vicBackLicense?.dataUrl : fltBackLicense?.dataUrl,
       additionalDocs: [
         ...files.map((f, idx) => ({
           id: `wiz-doc-${idx}-${Date.now()}`,
@@ -1750,6 +1772,78 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               )}
             </div>
 
+            {/* Driver's License Photos (Front & Back) - Mandatory */}
+            <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-blue-600" />
+                  تصاویر گواهینامه راننده {wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'} <span className="text-rose-500 font-bold">* الزامی</span>
+                </label>
+                <span className="text-[10px] font-bold text-slate-500">
+                  پشت و رو الزامی است
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { label: `عکس روی گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`, shortLabel: 'روی گواهینامه راننده (شما)' },
+                  { label: `عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`, shortLabel: 'پشت گواهینامه راننده (شما)' }
+                ].map((item, idx) => {
+                  const uploaded = getFileForLabel(item.label);
+                  return (
+                    <div key={idx} className="relative group">
+                      {uploaded ? (
+                        <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-2xl flex items-center justify-between shadow-xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {uploaded.dataUrl && uploaded.type === 'image' ? (
+                              <img src={uploaded.dataUrl} alt={item.shortLabel} className="w-11 h-11 rounded-xl object-cover border border-emerald-400 shrink-0" />
+                            ) : (
+                              <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                                <CheckCircle2 className="w-6 h-6" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <span className="text-xs font-extrabold text-emerald-950 block">{item.shortLabel}</span>
+                              <span className="text-[10px] text-emerald-700 truncate block font-mono font-bold">{uploaded.fileName}</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeFileForLabel(item.label)}
+                            className="p-1.5 bg-rose-100 text-rose-700 border border-rose-300 rounded-lg hover:bg-rose-200 transition-colors shrink-0"
+                            title="حذف فایل"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="border-2 border-dashed border-slate-300 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer hover:border-blue-600 hover:bg-blue-50/70 transition-all bg-white group/license">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 group-hover/license:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors shrink-0">
+                              <CreditCard className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-extrabold text-slate-800 block group-hover/license:text-blue-900 transition-colors">
+                                {item.shortLabel} <span className="text-rose-500">*</span>
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-bold block">برای بارگذاری کلیک کنید</span>
+                            </div>
+                          </div>
+                          <Upload className="w-4 h-4 text-slate-400 group-hover/license:text-blue-600 shrink-0" />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleFileUploadForLabel(e, item.label)}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Iranian Plate Input */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700 text-center mb-1">
@@ -1825,7 +1919,15 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setCurrentStep(5)}
+                onClick={() => {
+                  const vicFrontLicense = getFileForLabel(`عکس روی گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('روی گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
+                  const vicBackLicense = getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('پشت گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
+                  if (!vicFrontLicense || !vicBackLicense) {
+                    alert('بارگذاری هر دو تصویر (روی گواهینامه و پشت گواهینامه) برای راننده الزامی است.');
+                    return;
+                  }
+                  setCurrentStep(5);
+                }}
                 className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/10 transition-all flex items-center gap-2"
               >
                 ثبت اطلاعات و رفتن به مرحله بعد <ArrowLeft className="w-4 h-4" />
@@ -1946,6 +2048,78 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   </div>
                 </>
               )}
+            </div>
+
+            {/* Driver's License Photos of Other Party (Front & Back) - Mandatory */}
+            <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-blue-600" />
+                  تصاویر گواهینامه راننده {wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'} <span className="text-rose-500 font-bold">* الزامی</span>
+                </label>
+                <span className="text-[10px] font-bold text-slate-500">
+                  پشت و رو الزامی است
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {[
+                  { label: `عکس روی گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`, shortLabel: 'روی گواهینامه راننده (طرف مقابل)' },
+                  { label: `عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`, shortLabel: 'پشت گواهینامه راننده (طرف مقابل)' }
+                ].map((item, idx) => {
+                  const uploaded = getFileForLabel(item.label);
+                  return (
+                    <div key={idx} className="relative group">
+                      {uploaded ? (
+                        <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-2xl flex items-center justify-between shadow-xs">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {uploaded.dataUrl && uploaded.type === 'image' ? (
+                              <img src={uploaded.dataUrl} alt={item.shortLabel} className="w-11 h-11 rounded-xl object-cover border border-emerald-400 shrink-0" />
+                            ) : (
+                              <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                                <CheckCircle2 className="w-6 h-6" />
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <span className="text-xs font-extrabold text-emerald-950 block">{item.shortLabel}</span>
+                              <span className="text-[10px] text-emerald-700 truncate block font-mono font-bold">{uploaded.fileName}</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeFileForLabel(item.label)}
+                            className="p-1.5 bg-rose-100 text-rose-700 border border-rose-300 rounded-lg hover:bg-rose-200 transition-colors shrink-0"
+                            title="حذف فایل"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="border-2 border-dashed border-slate-300 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer hover:border-blue-600 hover:bg-blue-50/70 transition-all bg-white group/license">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-50 group-hover/license:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors shrink-0">
+                              <CreditCard className="w-5 h-5" />
+                            </div>
+                            <div>
+                              <span className="text-xs font-extrabold text-slate-800 block group-hover/license:text-blue-900 transition-colors">
+                                {item.shortLabel} <span className="text-rose-500">*</span>
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-bold block">برای بارگذاری کلیک کنید</span>
+                            </div>
+                          </div>
+                          <Upload className="w-4 h-4 text-slate-400 group-hover/license:text-blue-600 shrink-0" />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleFileUploadForLabel(e, item.label)}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Iranian Plate Input */}

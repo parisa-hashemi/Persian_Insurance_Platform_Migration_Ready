@@ -295,24 +295,26 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
 
                         {/* Reply Input Form */}
                         <div className="flex gap-2 pt-2 border-t border-slate-100">
-                          <input
-                            type="text"
-                            value={replyText}
-                            onChange={(e) => setReplyText(e.target.value)}
-                            placeholder="پاسخ یا توضیحات تکمیلی خود را برای کارشناس بنویسید..."
-                            className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-indigo-600"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                handleSendReply(t.id);
-                              }
-                            }}
-                          />
+                          <div className="purple-field-beam flex-1">
+                            <input
+                              type="text"
+                              value={replyText}
+                              onChange={(e) => setReplyText(e.target.value)}
+                              placeholder="پاسخ یا توضیحات تکمیلی خود را برای کارشناس بنویسید..."
+                              className="w-full px-4 py-2.5 text-xs font-medium text-slate-900 bg-white focus:outline-none"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleSendReply(t.id);
+                                }
+                              }}
+                            />
+                          </div>
                           <button
                             type="button"
                             onClick={() => handleSendReply(t.id)}
                             disabled={!replyText.trim()}
-                            className="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+                            className="px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
                           >
                             <span>ارسال</span>
                             <Send className="w-3.5 h-3.5" />

@@ -29,6 +29,9 @@ import {
 import { RoleType, UserSession, InsurerInfo, StaffMember } from '../types';
 import { CompanyRegistrationModal } from './CompanyRegistrationModal';
 import { ExpertOtpLoginForm } from './ExpertOtpLoginForm';
+import { CustomerOtpLoginForm } from './CustomerOtpLoginForm';
+import { SearchableCompanySelect } from './common/SearchableCompanySelect';
+import { KarinshoHero } from './KarinshoHero';
 import {
   INSURER_COMPANIES,
   INITIAL_EXPERTS,
@@ -43,10 +46,7 @@ import {
   loadFieldExpertsFromStorage,
   loadReviewersFromStorage,
   loadFinanceStaffFromStorage,
-  loadCrmStaffFromStorage,
-  loadCustomersFromStorage,
-  registerCustomer,
-  RegisteredCustomer
+  loadCrmStaffFromStorage
 } from '../lib/storage';
 
 interface PortalGatewayProps {
@@ -98,22 +98,6 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
   // Company Registration Modal State
   const [isCompanyRegModalOpen, setIsCompanyRegModalOpen] = useState(false);
 
-  // Form states for Customer
-  const [isCustomerRegistering, setIsCustomerRegistering] = useState(false);
-  const [customerPhone, setCustPhone] = useState('');
-  const [customerPass, setCustPass] = useState('');
-
-  // Customer Registration Fields
-  const [regName, setRegName] = useState('');
-  const [regPhone, setRegPhone] = useState('');
-  const [regNationalId, setRegNationalId] = useState('');
-  const [regPassword, setRegPassword] = useState('');
-  const [regConfirmPassword, setRegConfirmPassword] = useState('');
-
-  // Customer Feedback Banners
-  const [customerError, setCustomerError] = useState<string | null>(null);
-  const [customerSuccess, setCustomerSuccess] = useState<string | null>(null);
-
   // Form states for Insurer
   const [insurerCompany, setInsCompany] = useState('dana');
   const [insurerPass, setInsPass] = useState('1234');
@@ -146,87 +130,6 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
   // Form states for Admin
   const [adminUser, setAdminUser] = useState('admin');
   const [adminPass, setAdminPass] = useState('admin123');
-
-  // Customer Login Handler
-  const handleCustomerLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCustomerError(null);
-    setCustomerSuccess(null);
-
-    const customers = loadCustomersFromStorage();
-    const found = customers.find((c) => c.phone.trim() === customerPhone.trim());
-
-    if (!found) {
-      setCustomerError('حساب کاربری با این شماره پیدا نشد! برای استفاده از خدمات ابتدا باید ثبت‌نام کنید.');
-      return;
-    }
-
-    if (found.password && found.password !== customerPass) {
-      setCustomerError('کلمه عبور وارد شده نادرست است.');
-      return;
-    }
-
-    onSelectPortal('customer', {
-      id: found.phone,
-      role: 'customer',
-      name: found.name,
-      phone: found.phone,
-      nationalId: found.nationalId
-    });
-  };
-
-  // Customer Registration Handler
-  const handleCustomerRegister = (e: React.FormEvent) => {
-    e.preventDefault();
-    setCustomerError(null);
-    setCustomerSuccess(null);
-
-    if (!regName.trim()) {
-      setCustomerError('لطفاً نام و نام خانوادگی را وارد نمایید.');
-      return;
-    }
-    if (!regPhone.trim() || regPhone.trim().length < 11) {
-      setCustomerError('لطفاً شماره موبایل معتبر (۱۱ رقمی) وارد نمایید.');
-      return;
-    }
-    if (!regNationalId.trim() || regNationalId.trim().length !== 10) {
-      setCustomerError('کد ملی باید ۱۰ رقم کامل باشد.');
-      return;
-    }
-    if (!regPassword || regPassword.length < 4) {
-      setCustomerError('رمز عبور باید حداقل ۴ کاراکتر باشد.');
-      return;
-    }
-    if (regPassword !== regConfirmPassword) {
-      setCustomerError('رمز عبور و تکرار آن مطابقت ندارند.');
-      return;
-    }
-
-    const res = registerCustomer({
-      phone: regPhone.trim(),
-      name: regName.trim(),
-      nationalId: regNationalId.trim(),
-      password: regPassword,
-      registeredAt: new Date().toLocaleDateString('fa-IR')
-    });
-
-    if (!res.success) {
-      setCustomerError(res.message);
-      return;
-    }
-
-    setCustomerSuccess('ثبت‌نام شما با موفقیت انجام شد! در حال انتقال به پورتال...');
-    
-    setTimeout(() => {
-      onSelectPortal('customer', {
-        id: regPhone.trim(),
-        role: 'customer',
-        name: regName.trim(),
-        phone: regPhone.trim(),
-        nationalId: regNationalId.trim()
-      });
-    }, 1000);
-  };
 
   const handleInsurerLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -365,386 +268,110 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
     });
   };
 
+
   return (
-    <div className="w-full min-h-screen bg-slate-100 text-slate-900 flex flex-col justify-between selection:bg-blue-900 selection:text-amber-300" dir="rtl">
-      {/* Hero Header */}
-      <div className="relative overflow-hidden pt-8 pb-10 px-4 sm:px-6 lg:px-8 border-b-4 border-amber-400 bg-gradient-to-b from-blue-100 via-sky-50 to-white text-slate-900 shadow-sm">
-        <div className="max-w-5xl mx-auto text-center space-y-4 relative z-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white border border-blue-200 text-blue-900 text-xs font-black shadow-sm">
-            <Sparkles className="w-4 h-4 text-amber-500" />
-            <span>سامانه ملی و هوشمند ارزیابی و تسویه خسارت بیمه خودرو</span>
-          </div>
+    <div className="w-full min-h-screen bg-[#f4f7fc] text-slate-900 flex flex-col selection:bg-blue-700 selection:text-white" dir="rtl">
 
-          <h1 className="text-3xl sm:text-4xl font-black text-blue-950 leading-tight tracking-tight">
-            درگاه ورودی سامانه یکپارچه پرداخت و ارزیابی خسارت
-          </h1>
-          <p className="max-w-2xl mx-auto text-xs sm:text-sm text-slate-700 leading-relaxed font-bold">
-            جهت ورود یا ثبت‌نام، یکی از گزینه‌های ورود مشتری یا ورود سازمانی (کارشناسان و مدیران) را انتخاب نمایید.
-          </p>
+      {/* ================= HERO: کاراینشو — خودروی متحرک با ردِ نور ================= */}
+      <KarinshoHero />
 
-          {/* Quick Public Track Button */}
-          <div className="pt-2 flex justify-center">
-            <button
-              onClick={onOpenPublicTrack}
-              className="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-blue-950 font-black text-xs shadow-md border-2 border-amber-300 transition-all flex items-center gap-2.5 active:scale-95"
-            >
-              <Search className="w-4 h-4 stroke-[2.5]" />
-              <span>استعلام و پیگیری پرونده با کد رهگیری (بدون نیاز به ورود)</span>
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* ================= کارت ورود شناور روی هیرو ================= */}
+      <main className="relative z-10 -mt-16 sm:-mt-24 px-4 sm:px-6 lg:px-8 flex-1 w-full">
+        <div className="max-w-3xl mx-auto space-y-8">
 
-      {/* Main Portal Container */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full flex-1 space-y-8">
-        
-        {/* TWO PRIMARY LOGIN TABS: Customer vs Organizational */}
-        <div className="grid grid-cols-2 gap-3 max-w-2xl mx-auto bg-white p-2 rounded-2xl border-2 border-blue-900 shadow-md">
-          <button
-            type="button"
-            onClick={() => setMainMode('customer')}
-            className={`py-3 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2.5 ${
-              mainMode === 'customer'
-                ? 'bg-blue-900 text-white shadow-md border-2 border-blue-900'
-                : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50'
-            }`}
-          >
-            <User className="w-4 h-4" />
-            <span>ورود مشتری (زیان‌دیده/مقصر)</span>
-          </button>
+          {/* کارت اصلی ورود */}
+          <div className="bg-white/90 backdrop-blur-xl rounded-[2rem] border border-slate-200/80 shadow-[0_24px_70px_-24px_rgba(29,78,216,0.28)] p-5 sm:p-8">
 
-          <button
-            type="button"
-            onClick={() => setMainMode('org')}
-            className={`py-3 px-4 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-2.5 ${
-              mainMode === 'org'
-                ? 'bg-amber-500 text-blue-950 shadow-md border-2 border-amber-400'
-                : 'text-slate-700 hover:text-blue-900 hover:bg-amber-50'
-            }`}
-          >
-            <Briefcase className="w-4 h-4" />
-            <span>ورود سازمانی (ارزیابان و مدیران)</span>
-          </button>
-        </div>
+            {/* دو تب اصلی: مشتری / سازمانی */}
+            <div className="grid grid-cols-2 gap-2 bg-slate-100/80 p-1.5 rounded-2xl mb-7 max-w-xl mx-auto">
+              <button
+                type="button"
+                onClick={() => setMainMode('customer')}
+                className={`py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
+                  mainMode === 'customer'
+                    ? 'bg-gradient-to-l from-blue-700 to-indigo-600 text-white shadow-lg shadow-blue-600/30'
+                    : 'text-slate-600 hover:text-blue-800'
+                }`}
+              >
+                <User className="w-4 h-4" />
+                <span>ورود مشتری</span>
+              </button>
 
-        {/* Dynamic Login Panel - Clean, Spacious & Focused */}
-        <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 sm:p-10 shadow-lg relative overflow-hidden">
-          
-          {/* OPTION 1: Customer Login & Register (Decluttered, Centered, Minimalist) */}
-          {mainMode === 'customer' && (
-            <div className="max-w-md mx-auto space-y-6 animate-in fade-in">
-              <div className="text-center space-y-2">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-50 text-blue-900 border border-blue-200 text-xs font-bold">
-                  <User className="w-4 h-4 text-blue-900" />
-                  <span>پورتال زیان‌دیدگان و مقصران حادثه</span>
-                </div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-                  {isCustomerRegistering ? 'ثبت‌نام و عضویت در سامانه' : 'ورود زیان‌دیده و مقصر'}
-                </h2>
-                <p className="text-xs text-slate-500 font-medium">
-                  {isCustomerRegistering
-                    ? 'جهت ثبت پرونده خسارت و پیگیری آنلاین اطلاعات خود را تکمیل فرمایید'
-                    : 'جهت پیگیری آنلاین پرونده، ثبت شواهد و دریافت خسارت وارد شوید'}
-                </p>
-              </div>
-
-              {/* Mode Selector Toggle: Login vs Register */}
-              <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCustomerRegistering(false);
-                    setCustomerError(null);
-                    setCustomerSuccess(null);
-                  }}
-                  className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                    !isCustomerRegistering
-                      ? 'bg-blue-900 text-white shadow-md'
-                      : 'text-slate-600 hover:text-blue-900'
-                  }`}
-                >
-                  <LogIn className="w-3.5 h-3.5" />
-                  <span>ورود به حساب</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCustomerRegistering(true);
-                    setCustomerError(null);
-                    setCustomerSuccess(null);
-                  }}
-                  className={`flex-1 py-2.5 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 ${
-                    isCustomerRegistering
-                      ? 'bg-blue-900 text-white shadow-md'
-                      : 'text-slate-600 hover:text-blue-900'
-                  }`}
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>ثبت‌نام جدید</span>
-                </button>
-              </div>
-
-              {/* Feedback Banners */}
-              {customerError && (
-                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2 animate-in fade-in font-bold">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">{customerError}</span>
-                </div>
-              )}
-
-              {customerSuccess && (
-                <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-start gap-2 animate-in fade-in font-bold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <span className="leading-relaxed">{customerSuccess}</span>
-                </div>
-              )}
-
-              {/* LOGIN FORM */}
-              {!isCustomerRegistering ? (
-                <form onSubmit={handleCustomerLogin} className="space-y-4 animate-in fade-in">
-                  <div>
-                    <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                      شماره موبایل
-                    </label>
-                    <input
-                      type="tel"
-                      value={customerPhone}
-                      onChange={(e) => setCustPhone(e.target.value)}
-                      placeholder="۰۹۱۲۳۴۵۶۷۸۹"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white transition-all font-bold"
-                      dir="ltr"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                      رمز عبور
-                    </label>
-                    <input
-                      type="password"
-                      value={customerPass}
-                      onChange={(e) => setCustPass(e.target.value)}
-                      placeholder="••••"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white transition-all font-bold"
-                      dir="ltr"
-                      required
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-3.5 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
-                  >
-                    <span>ورود به حساب کاربری</span>
-                    <ArrowLeft className="w-4 h-4" />
-                  </button>
-
-                  {/* Quick Demo Fill Buttons */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500">ورود سریع تستی:</span>
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCustPhone('09121112233');
-                          setCustPass('1234');
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-900 font-bold border border-slate-200 transition-colors"
-                      >
-                        زیان‌دیده
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCustPhone('09128881122');
-                          setCustPass('1234');
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-900 font-bold border border-slate-200 transition-colors"
-                      >
-                        مقصر
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="pt-2 text-center text-xs text-slate-600">
-                    <span>حساب کاربری ندارید؟ </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomerRegistering(true);
-                        setCustomerError(null);
-                      }}
-                      className="text-blue-900 font-black hover:underline"
-                    >
-                      همین حالا ثبت‌نام کنید
-                    </button>
-                  </div>
-                </form>
-              ) : (
-                /* REGISTER FORM */
-                <form onSubmit={handleCustomerRegister} className="space-y-3.5 animate-in fade-in">
-                  <div>
-                    <label className="block text-xs text-slate-800 mb-1 font-bold">
-                      نام و نام خانوادگی
-                    </label>
-                    <input
-                      type="text"
-                      value={regName}
-                      onChange={(e) => setRegName(e.target.value)}
-                      placeholder="مثال: مهدی کشاورز"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white font-bold transition-all"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-800 mb-1 font-bold">
-                      شماره موبایل
-                    </label>
-                    <input
-                      type="tel"
-                      value={regPhone}
-                      onChange={(e) => setRegPhone(e.target.value)}
-                      placeholder="09121234567"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white font-bold transition-all"
-                      dir="ltr"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-slate-800 mb-1 font-bold">
-                      کد ملی (۱۰ رقمی)
-                    </label>
-                    <input
-                      type="text"
-                      maxLength={10}
-                      value={regNationalId}
-                      onChange={(e) => setRegNationalId(e.target.value)}
-                      placeholder="0012345678"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white font-bold transition-all"
-                      dir="ltr"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1 font-bold">
-                        رمز عبور
-                      </label>
-                      <input
-                        type="password"
-                        value={regPassword}
-                        onChange={(e) => setRegPassword(e.target.value)}
-                        placeholder="••••"
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white font-bold transition-all"
-                        dir="ltr"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1 font-bold">
-                        تکرار رمز عبور
-                      </label>
-                      <input
-                        type="password"
-                        value={regConfirmPassword}
-                        onChange={(e) => setRegConfirmPassword(e.target.value)}
-                        placeholder="••••"
-                        className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white font-bold transition-all"
-                        dir="ltr"
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-blue-950 font-black rounded-xl text-xs shadow-md border border-amber-300 transition-all flex items-center justify-center gap-2 active:scale-95 mt-2"
-                  >
-                    <UserPlus className="w-4 h-4" />
-                    <span>تکمیل ثبت‌نام و ورود</span>
-                  </button>
-
-                  <div className="pt-2 text-center text-xs text-slate-600">
-                    <span>قبلاً ثبت‌نام کرده‌اید؟ </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsCustomerRegistering(false);
-                        setCustomerError(null);
-                      }}
-                      className="text-blue-900 font-black hover:underline"
-                    >
-                      وارد حساب شوید
-                    </button>
-                  </div>
-                </form>
-              )}
+              <button
+                type="button"
+                onClick={() => setMainMode('org')}
+                className={`py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
+                  mainMode === 'org'
+                    ? 'bg-gradient-to-l from-blue-700 to-indigo-600 text-white shadow-lg shadow-blue-600/30'
+                    : 'text-slate-600 hover:text-blue-800'
+                }`}
+              >
+                <Briefcase className="w-4 h-4" />
+                <span>ورود سازمانی</span>
+              </button>
             </div>
-          )}
 
-          {/* OPTION 2: Organizational Login (Clean, Centered, Dynamic Role Selector) */}
-          {mainMode === 'org' && (
-            <div className="max-w-lg mx-auto space-y-6 animate-in fade-in">
-              <div className="text-center space-y-2">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold">
-                  <Briefcase className="w-4 h-4 text-amber-600" />
-                  <span>درگاه ورود پرسنل و مدیران سازمانی</span>
+            {/* ---------- ورود مشتری ---------- */}
+            {mainMode === 'customer' && (
+              <div className="max-w-md mx-auto space-y-6 animate-in fade-in">
+                <div className="text-center space-y-2">
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                    ورود بیمه‌گذار و زیان‌دیده
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                    ورود سریع با پیامک یکبار مصرف (OTP)، رمز عبور یا ثبت‌نام آنلاین
+                  </p>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-                  ورود به پنل تخصصی سازمانی
-                </h2>
-                <p className="text-xs text-slate-500 font-medium">
-                  نقش سازمانی، شرکت بیمه‌گر و حساب کاربری خود را انتخاب نمایید
-                </p>
-              </div>
 
-              {/* ROLE DROPDOWN SELECTOR */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <ChevronDown className="w-3.5 h-3.5 text-blue-900" />
-                  نقش و سطح دسترسی
-                </label>
-                <select
-                  value={orgRole}
-                  onChange={(e) => setOrgRole(e.target.value as RoleType)}
-                  className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-300 rounded-xl text-xs sm:text-sm font-black text-blue-950 focus:outline-none focus:border-blue-900 focus:bg-white transition-all cursor-pointer shadow-sm"
-                >
-                  <option value="insurer">شرکت بیمه‌گر (مدیریت پرونده‌ها و ارجاع خسارت)</option>
-                  <option value="assessor">کارشناس ارزیابی خسارت (برآورد هوشمند و مدل ۳D)</option>
-                  <option value="fieldexpert">کارشناس میدانی (بازدید صحنه و ارزیابی حضوری)</option>
-                  <option value="reviewer">بازبین کیفیت و ریسک (Audit & Reviewer)</option>
-                  <option value="finance">مدیریت مالی و خزانه‌داری (دستور پرداخت، حواله پایا و اسناد)</option>
-                  <option value="crm">امور مشتریان و CRM (کال‌سنتر و پیگیری شکایات)</option>
-                  <option value="admin">مدیر ارشد سامانه (System Administrator)</option>
-                </select>
+                <CustomerOtpLoginForm
+                  onSuccess={(session) => onSelectPortal('customer', session)}
+                />
               </div>
+            )}
 
-              {/* ROLE FORMS */}
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4">
-                
+            {/* ---------- ورود سازمانی ---------- */}
+            {mainMode === 'org' && (
+              <div className="max-w-lg mx-auto space-y-6 animate-in fade-in">
+                <div className="text-center space-y-2">
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                    ورود به پنل تخصصی سازمانی
+                  </h2>
+                  <p className="text-xs text-slate-500 font-medium">
+                    نقش سازمانی، شرکت بیمه‌گر و حساب کاربری خود را انتخاب نمایید
+                  </p>
+                </div>
+
+                {/* انتخاب نقش */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <ChevronDown className="w-3.5 h-3.5 text-blue-700" />
+                    نقش و سطح دسترسی
+                  </label>
+                  <select
+                    value={orgRole}
+                    onChange={(e) => setOrgRole(e.target.value as RoleType)}
+                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs sm:text-sm font-black text-blue-950 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer shadow-sm"
+                  >
+                    <option value="insurer">شرکت بیمه‌گر (مدیریت پرونده‌ها و ارجاع خسارت)</option>
+                    <option value="assessor">کارشناس ارزیابی خسارت (برآورد هوشمند و مدل ۳D)</option>
+                    <option value="fieldexpert">کارشناس میدانی (بازدید صحنه و ارزیابی حضوری)</option>
+                    <option value="reviewer">بازبین کیفیت و ریسک (Audit & Reviewer)</option>
+                    <option value="finance">مدیریت مالی و خزانه‌داری (دستور پرداخت، حواله پایا و اسناد)</option>
+                    <option value="crm">امور مشتریان و CRM (کال‌سنتر و پیگیری شکایات)</option>
+                    <option value="admin">مدیر ارشد سامانه (System Administrator)</option>
+                  </select>
+                </div>
+
+                {/* فرم نقش انتخاب‌شده */}
+                <div className="bg-slate-50/80 p-6 rounded-2xl border border-slate-200 space-y-4">
                 {/* 1. Insurer */}
                 {orgRole === 'insurer' && (
                   <form onSubmit={handleInsurerLogin} className="space-y-4 animate-in fade-in">
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        شرکت بیمه‌گر (مدیر ارشد شرکت)
-                      </label>
-                      <select
-                        value={insurerCompany}
-                        onChange={(e) => setInsCompany(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
-                      >
-                        {insurersList.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.name} {c.adminName ? `— مدیر ارشد: ${c.adminName}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <SearchableCompanySelect
+                      insurersList={insurersList}
+                      selectedCompanyCode={insurerCompany}
+                      onSelectCompany={(code) => setInsCompany(code)}
+                    />
 
                     <div>
                       <label className="block text-xs text-slate-800 mb-1.5 font-bold">
@@ -762,7 +389,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full py-3 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                     >
                       <span>ورود به پنل مدیریت شرکت بیمه</span>
                       <ArrowLeft className="w-4 h-4" />
@@ -775,7 +402,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                       <button
                         type="button"
                         onClick={() => setIsCompanyRegModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 text-xs font-bold border border-blue-200 transition active:scale-95"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 text-xs font-bold border border-blue-200 transition active:scale-95 cursor-pointer"
                       >
                         <Building2 className="w-4 h-4 text-blue-700" />
                         <span>ثبت‌نام شرکت بیمه جدید و درخواست صدور پنل</span>
@@ -820,26 +447,15 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                 {/* 5. Finance */}
                 {orgRole === 'finance' && (
                   <form onSubmit={handleFinanceLogin} className="space-y-4 animate-in fade-in">
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        شرکت بیمه‌گر
-                      </label>
-                      <select
-                        value={financeCompany}
-                        onChange={(e) => {
-                          setFinanceCompany(e.target.value);
-                          const list = financeStaffMap[e.target.value] || [];
-                          if (list.length > 0) setFinanceId(list[0].id);
-                        }}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-emerald-600"
-                      >
-                        {insurersList.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <SearchableCompanySelect
+                      insurersList={insurersList}
+                      selectedCompanyCode={financeCompany}
+                      onSelectCompany={(code) => {
+                        setFinanceCompany(code);
+                        const list = financeStaffMap[code] || [];
+                        if (list.length > 0) setFinanceId(list[0].id);
+                      }}
+                    />
 
                     <div>
                       <label className="block text-xs text-slate-800 mb-1.5 font-bold">
@@ -848,7 +464,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                       <select
                         value={financeId}
                         onChange={(e) => setFinanceId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-emerald-600"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-emerald-600 shadow-sm"
                       >
                         {(financeStaffMap[financeCompany] || []).length > 0 ? (
                           (financeStaffMap[financeCompany] || []).map((s) => (
@@ -873,7 +489,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         value={financePass}
                         onChange={(e) => setFinancePass(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-emerald-600"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-emerald-600 shadow-sm"
                         dir="ltr"
                         required
                       />
@@ -881,7 +497,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                     >
                       <span>ورود به پنل مالی و خزانه‌داری</span>
                       <ArrowLeft className="w-4 h-4" />
@@ -892,26 +508,15 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                 {/* 6. CRM */}
                 {orgRole === 'crm' && (
                   <form onSubmit={handleCrmLogin} className="space-y-4 animate-in fade-in">
-                    <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
-                        شرکت بیمه‌گر
-                      </label>
-                      <select
-                        value={crmCompany}
-                        onChange={(e) => {
-                          setCrmCompany(e.target.value);
-                          const list = crmStaffMap[e.target.value] || [];
-                          if (list.length > 0) setCrmId(list[0].id);
-                        }}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-purple-600"
-                      >
-                        {insurersList.map((c) => (
-                          <option key={c.code} value={c.code}>
-                            {c.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                    <SearchableCompanySelect
+                      insurersList={insurersList}
+                      selectedCompanyCode={crmCompany}
+                      onSelectCompany={(code) => {
+                        setCrmCompany(code);
+                        const list = crmStaffMap[code] || [];
+                        if (list.length > 0) setCrmId(list[0].id);
+                      }}
+                    />
 
                     <div>
                       <label className="block text-xs text-slate-800 mb-1.5 font-bold">
@@ -920,7 +525,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                       <select
                         value={crmId}
                         onChange={(e) => setCrmId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-purple-600"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-purple-600 shadow-sm"
                       >
                         {(crmStaffMap[crmCompany] || []).length > 0 ? (
                           (crmStaffMap[crmCompany] || []).map((s) => (
@@ -945,7 +550,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         value={crmPass}
                         onChange={(e) => setCrmPass(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-purple-600"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-purple-600 shadow-sm"
                         dir="ltr"
                         required
                       />
@@ -953,7 +558,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                     >
                       <span>ورود به پنل امور مشتریان و CRM</span>
                       <ArrowLeft className="w-4 h-4" />
@@ -1002,55 +607,77 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                     </button>
                   </form>
                 )}
-
+                </div>
               </div>
+            )}
+          </div>
+
+          {/* استعلام سریع بدون ورود */}
+          <div className="flex justify-center">
+            <button
+              onClick={onOpenPublicTrack}
+              className="group inline-flex items-center gap-2.5 px-6 py-3 rounded-2xl bg-white border border-blue-200 text-blue-800 font-black text-xs shadow-sm hover:shadow-lg hover:border-blue-400 hover:-translate-y-0.5 transition-all cursor-pointer"
+            >
+              <span className="w-7 h-7 rounded-xl bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                <Search className="w-3.5 h-3.5 stroke-[2.5]" />
+              </span>
+              <span>استعلام و پیگیری پرونده با کد رهگیری — بدون نیاز به ورود</span>
+              <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+            </button>
+          </div>
+
+          {/* ================= کارت‌های ویژگی (مثل رفرنس) ================= */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pb-12">
+            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-violet-50 flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6 text-violet-500" />
+              </div>
+              <h4 className="font-black text-sm text-slate-900">امن و مطمئن</h4>
+              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                حفاظت از اطلاعات شما با بالاترین استانداردهای امنیتی
+              </p>
             </div>
-          )}
+
+            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 flex items-center justify-center">
+                <Zap className="w-6 h-6 text-amber-500" />
+              </div>
+              <h4 className="font-black text-sm text-slate-900">سریع و هوشمند</h4>
+              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                استعلام و پرداخت خسارت در کوتاه‌ترین زمان ممکن
+              </p>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-50 flex items-center justify-center">
+                <FileCheck className="w-6 h-6 text-emerald-500" />
+              </div>
+              <h4 className="font-black text-sm text-slate-900">شفاف و دقیق</h4>
+              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                اطلاعات جامع و به‌روز خسارت‌ها در هر لحظه
+              </p>
+            </div>
+
+            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-50 flex items-center justify-center">
+                <Headphones className="w-6 h-6 text-blue-500" />
+              </div>
+              <h4 className="font-black text-sm text-slate-900">پشتیبانی ۲۴/۷</h4>
+              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
+                پاسخگویی در تمام ساعات شبانه‌روز در کنار شما هستیم
+              </p>
+            </div>
+          </div>
+
         </div>
-
-        {/* System Highlights Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-slate-800 pt-2">
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1.5">
-            <ShieldCheck className="w-5 h-5 text-emerald-600" />
-            <h4 className="font-extrabold text-xs text-slate-900">انطباق با قوانین بیمه</h4>
-            <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-              پشتیبانی از قوانین کروکی، فرانشیز، افت ارزش و مراحل اعتراض.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1.5">
-            <Zap className="w-5 h-5 text-amber-600" />
-            <h4 className="font-extrabold text-xs text-slate-900">پردازش هوشمند شواهد</h4>
-            <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-              شناسایی آسیب‌های بدنه، پیشنهاد قطعات و مدل‌سازی سه‌بعدی خودرو.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1.5">
-            <DollarSign className="w-5 h-5 text-blue-600" />
-            <h4 className="font-extrabold text-xs text-slate-900">تسویه مستقیم به شبا</h4>
-            <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-              اعتبارسنجی کد ملی و شماره شبا و صدور دستور پرداخت آنلاین.
-            </p>
-          </div>
-
-          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm space-y-1.5">
-            <Sliders className="w-5 h-5 text-indigo-600" />
-            <h4 className="font-extrabold text-xs text-slate-900">تفکیک شفاف وظایف</h4>
-            <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-              دسترسی مجزا برای مشتری، بیمه‌گر، ارزیاب، میدانی، بازبین و مدیر.
-            </p>
-          </div>
-        </div>
-
-      </div>
+      </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-5 text-center text-xs text-slate-600 font-bold">
+      <footer className="border-t border-slate-200 bg-white py-5 text-center text-xs text-slate-500 font-bold">
         <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p>© ۱۴۰۵ سامانه ملی ارزیابی و تسویه خسارت بیمه خودرو. تمام حقوق محفوظ است.</p>
-          <p className="text-blue-900 font-black">
-            سامانه هوشمند مدیریت و تسویه خسارت
+          <p>© ۱۴۰۵ کاراینـشو — تمام حقوق محفوظ است.</p>
+          <p className="text-blue-800 font-black">
+            سامانه هوشمند پرداخت و ارزیابی خسارت بیمه خودرو
           </p>
         </div>
       </footer>

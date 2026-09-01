@@ -37,6 +37,20 @@ export interface RegisteredCustomer {
 
 const INITIAL_CUSTOMERS: RegisteredCustomer[] = [
   {
+    phone: '09121112233',
+    name: 'رضا صادقی',
+    nationalId: '0012345678',
+    password: '1234',
+    registeredAt: '1403/01/15'
+  },
+  {
+    phone: '09128881122',
+    name: 'مهرداد کاظمی',
+    nationalId: '0023456789',
+    password: '1234',
+    registeredAt: '1403/02/10'
+  },
+  {
     phone: '09123456789',
     name: 'مهدی کشاورز',
     nationalId: '0012345678',

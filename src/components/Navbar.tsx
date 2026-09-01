@@ -196,10 +196,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
             <div>
               <span className="font-black text-base sm:text-lg tracking-tight flex items-center gap-1 text-blue-950">
-                سامانه خسارت <span className="text-blue-700 font-extrabold">بیمه</span>
+                کاراینـ<span className="text-blue-700 font-black">شو</span>
               </span>
               <span className="hidden sm:block text-[10px] text-slate-500 font-bold">
-                سامانه ملی ارزیابی و تسویه هوشمند خسارت خودرو
+                سامانه هوشمند پرداخت و ارزیابی خسارت خودرو
               </span>
             </div>
           </button>

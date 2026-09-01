@@ -40,5 +40,209 @@ option {
   }
 }
 
+@keyframes rotate-border {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes purple-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Animated rotating purple border container for cards and panels */
+.purple-rotating-border {
+  position: relative;
+  overflow: hidden;
+  padding: 2.5px;
+  border-radius: 1.5rem;
+  background: #e2e8f0;
+}
+
+.purple-rotating-border::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 240deg,
+    #c084fc 290deg,
+    #a855f7 325deg,
+    #7c3aed 350deg,
+    #4c1d95 360deg
+  );
+  animation: rotate-border 4s linear infinite;
+  z-index: 0;
+}
+
+.purple-rotating-border > * {
+  position: relative;
+  z-index: 1;
+  border-radius: calc(1.5rem - 2.5px);
+}
+
+/* Animated rotating blue border container for expert cards and highlights */
+.blue-rotating-border {
+  position: relative;
+  overflow: hidden;
+  padding: 2.5px;
+  border-radius: 1.5rem;
+  background: #e2e8f0;
+}
+
+.blue-rotating-border::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 230deg,
+    #38bdf8 275deg,
+    #0284c7 315deg,
+    #2563eb 345deg,
+    #1e3a8a 360deg
+  );
+  animation: rotate-border 3.5s linear infinite;
+  z-index: 0;
+}
+
+.blue-rotating-border > * {
+  position: relative;
+  z-index: 1;
+  border-radius: calc(1.5rem - 2.5px);
+}
+
+/* Animated rotating green border container for success banners */
+.green-rotating-border {
+  position: relative;
+  overflow: hidden;
+  padding: 2.5px;
+  border-radius: 1.5rem;
+  background: #e2e8f0;
+}
+
+.green-rotating-border::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 230deg,
+    #86efac 275deg,
+    #22c55e 315deg,
+    #16a34a 345deg,
+    #14532d 360deg
+  );
+  animation: rotate-border 3.5s linear infinite;
+  z-index: 0;
+}
+
+.green-rotating-border > * {
+  position: relative;
+  z-index: 1;
+  border-radius: calc(1.5rem - 2.5px);
+}
+
+/* Rotating purple beam around input fields and action boxes */
+.purple-field-beam {
+  position: relative;
+  border-radius: 1rem;
+  padding: 2px;
+  overflow: hidden;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+
+.purple-field-beam::before {
+  content: '';
+  position: absolute;
+  top: -150%;
+  left: -150%;
+  width: 400%;
+  height: 400%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 200deg,
+    #e9d5ff 250deg,
+    #c084fc 290deg,
+    #9333ea 330deg,
+    #6b21a8 360deg
+  );
+  animation: rotate-border 3s linear infinite;
+  z-index: 0;
+}
+
+.purple-field-beam > * {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  border-radius: calc(1rem - 2px);
+}
+
+/* Subtle glowing input focus */
+.purple-input-glow {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1.5px solid #e2e8f0;
+}
+
+.purple-input-glow:focus,
+.purple-input-glow:focus-within {
+  border-color: #a855f7 !important;
+  box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.22), 0 0 15px rgba(147, 51, 234, 0.2) !important;
+  background-color: #ffffff !important;
+}
+
+/* Active purple tab rotating border */
+.purple-tab-active {
+  position: relative;
+  overflow: hidden;
+  padding: 2px;
+  border-radius: 0.85rem;
+}
+
+.purple-tab-active::before {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: -100%;
+  width: 300%;
+  height: 300%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 220deg,
+    #d8b4fe 270deg,
+    #9333ea 320deg,
+    #7c3aed 360deg
+  );
+  animation: rotate-border 2.5s linear infinite;
+  z-index: 0;
+}
+
+.purple-tab-active > * {
+  position: relative;
+  z-index: 1;
+  background: #ffffff;
+  border-radius: calc(0.85rem - 2px);
+}
+
 
 

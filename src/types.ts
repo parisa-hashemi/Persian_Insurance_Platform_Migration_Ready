@@ -253,6 +253,10 @@ export interface ClaimCase {
   sceneReportCode?: string;
   customerKrokiPhoto?: string | null;
   customerPoliceReportFile?: string | null;
+  victimLicenseFrontPhoto?: string | null;
+  victimLicenseBackPhoto?: string | null;
+  culpritLicenseFrontPhoto?: string | null;
+  culpritLicenseBackPhoto?: string | null;
   iban?: string;
   ibanConfirmed?: boolean;
   paymentReceipt?: any;

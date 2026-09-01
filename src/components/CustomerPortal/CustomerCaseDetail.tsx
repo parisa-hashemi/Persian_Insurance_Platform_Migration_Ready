@@ -44,7 +44,14 @@ import {
   PhoneCall,
   MessageSquarePlus,
   Headphones,
-  Scale
+  Scale,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  Layers,
+  LifeBuoy,
+  Copy,
+  Check
 } from 'lucide-react';
 import { ClaimCase, UserSession, CaseStatus, AdditionalDocItem, ExpertComplaint, CustomerTicket, PaymentOrder } from '../../types';
 import { formatCurrency, parseMoneyNumber, getInsurerPersianName, loadComplaintsFromStorage, saveComplaintsToStorage, loadCrmTicketsFromStorage, saveCrmTicketsToStorage, loadPaymentOrdersFromStorage, savePaymentOrdersToStorage } from '../../lib/storage';
@@ -117,6 +124,9 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     claimCase.payoutInfo?.beneficiary || claimCase.victimName || ''
   );
   const [showBankForm, setShowForm] = useState(false);
+  const [mainActiveTab, setMainActiveTab] = useState<'assessment' | 'chat' | 'support' | 'timeline'>('assessment');
+  const [isPolicyExpanded, setIsPolicyExpanded] = useState(false);
+  const [expandedAssessmentCardId, setExpandedAssessmentCardId] = useState<string | null>(null);
   const [selectedAssessmentModal, setSelectedAssessmentModal] = useState<any | null>(null);
   const [modalActiveTab, setModalActiveTab] = useState<'2d_model' | 'report_technical' | 'parts_table' | 'photos_gallery' | 'financial'>('2d_model');
   const [showCard2DModel, setShowCard2DModel] = useState(false);
@@ -136,15 +146,34 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     insurerName?: string;
   } | null>(null);
 
-  // Dispute state
+  // Dispute / Sanhab Referral Guide state
   const [showDisputeModal, setShowDisputeModal] = useState(false);
   const [showAiCopilotModal, setShowAiCopilotModal] = useState(false);
+  const [copiedSanhabField, setCopiedSanhabField] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, fieldId: string) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text);
+    }
+    setCopiedSanhabField(fieldId);
+    setTimeout(() => setCopiedSanhabField(null), 2500);
+  };
   const [disputeSubject, setDisputeSubject] = useState('مبلغ ارزیابی نامتناسب');
   const [disputeDesc, setDisputeDesc] = useState('');
 
   // Rating state
   const [ratingStars, setRatingStars] = useState<number>(0);
   const [ratingComment, setRatingComment] = useState('');
+
+  // CRM tickets count for badges
+  const caseTicketsCount = useMemo(() => {
+    try {
+      const all = loadCrmTicketsFromStorage() || [];
+      return all.filter((t: any) => t.caseId === claimCase.id).length;
+    } catch {
+      return 0;
+    }
+  }, [claimCase.id]);
 
   // Kroki submission state for temporary cases
   const [krokiInputCode, setKrokiInputCode] = useState(claimCase.sceneReportCode || '');
@@ -1224,24 +1253,18 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             {/* Direct Expert Call / Inquiry Button */}
             <button
               type="button"
-              onClick={() => setShowExpertCallModal(true)}
+              onClick={() => {
+                setMainActiveTab('chat');
+                setShowExpertCallModal(true);
+              }}
               className="px-3.5 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 font-black text-xs transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
               title="تماس مستقیم یا ارسال پیام اضطراری به کارشناس ارزیاب"
             >
               <PhoneCall className="w-4 h-4 text-sky-600" />
-              <span>تماس با کارشناس</span>
+              <span>ارتباط با کارشناس</span>
             </button>
 
-            {/* Submit Ticket / CRM Complaint Button */}
-            <button
-              type="button"
-              onClick={() => setShowCrmTicketModal(true)}
-              className="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-black text-xs transition-all flex items-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
-              title="ثبت تیکت پشتیبانی و شکایت در مرکز CRM بیمه"
-            >
-              <MessageSquarePlus className="w-4 h-4 text-rose-600" />
-              <span>ثبت تیکت / شکایت CRM</span>
-            </button>
+
 
             {claimCase.assessment && (
               <button
@@ -1270,20 +1293,22 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
         )}
 
-        {/* Field Expert & Branch Dispatch Live Card */}
+        {/* Field Expert & Branch Dispatch Live Card (Light Theme) */}
         {(claimCase.assignedFieldExpert || claimCase.assignedBranch) && (
-          <div className="p-4 bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-2xl text-xs space-y-3 shadow-md border border-sky-500/30">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-2.5">
-              <div className="flex items-center gap-2 font-bold text-amber-300">
-                <UserCheck className="w-4.5 h-4.5 text-amber-400" />
+          <div className="p-5 bg-sky-50/80 border-2 border-sky-200 text-slate-900 rounded-3xl text-xs space-y-3.5 shadow-xs animate-in fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200/80 pb-2.5">
+              <div className="flex items-center gap-2 font-bold text-sky-950">
+                <div className="w-8 h-8 rounded-xl bg-sky-600 text-white flex items-center justify-center font-bold shadow-xs">
+                  <UserCheck className="w-4.5 h-4.5" />
+                </div>
                 <span className="text-xs sm:text-sm font-black">وضعیت کارشناسی میدانی و هماهنگی شعبه بیمه ({getInsurerPersianName(claimCase.culpritInsurer)}):</span>
               </div>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-400/20 text-amber-200 border border-amber-400/30 self-start sm:self-auto">
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-200/80 text-sky-900 border border-sky-300 self-start sm:self-auto">
                 {claimCase.status}
               </span>
             </div>
 
-            <p className="text-slate-200 text-xs leading-relaxed">
+            <p className="text-slate-700 text-xs leading-relaxed font-medium">
               {claimCase.assignedFieldExpert
                 ? `کارشناس رسمی میدانی «${claimCase.assignedFieldExpert.name}» (${claimCase.assignedFieldExpert.role}) توسط شرکت بیمه جهت بازدید حضوری از خودروها و محل حادثه تخصیص یافته است.`
                 : 'شرکت بیمه‌گر در حال تخصیص و اعزام کارشناس میدانی متخصص به محل حادثه جهت بازرسی فیزیکی، احراز اصالت و تعیین خسارت می‌باشد.'}
@@ -1292,23 +1317,23 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             {/* Expert & Assigned Branch Details Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
               {claimCase.assignedFieldExpert && (
-                <div className="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-sky-300 font-bold text-[11px]">
-                    <UserCheck className="w-3.5 h-3.5" />
+                <div className="bg-white p-3.5 rounded-2xl border border-sky-200 space-y-1.5 shadow-2xs">
+                  <div className="flex items-center gap-1.5 text-sky-800 font-bold text-[11px]">
+                    <UserCheck className="w-3.5 h-3.5 text-sky-600" />
                     <span>مشخصات کارشناس میدانی تخصیص‌یافته:</span>
                   </div>
-                  <div className="font-extrabold text-white text-xs">
+                  <div className="font-extrabold text-slate-900 text-xs sm:text-sm">
                     {claimCase.assignedFieldExpert.name} ({claimCase.assignedFieldExpert.role})
                   </div>
                   {claimCase.assignedFieldExpert.phone && (
-                    <div className="text-[11px] text-slate-300 flex items-center gap-1">
-                      <Phone className="w-3 h-3 text-sky-400" />
-                      <span>تلفن تماس: <span className="font-mono text-white font-bold" dir="ltr">{claimCase.assignedFieldExpert.phone}</span></span>
+                    <div className="text-[11px] text-slate-600 flex items-center gap-1 font-medium">
+                      <Phone className="w-3 h-3 text-sky-600" />
+                      <span>تلفن تماس: <span className="font-mono text-slate-900 font-bold" dir="ltr">{claimCase.assignedFieldExpert.phone}</span></span>
                     </div>
                   )}
                   {claimCase.fieldVisitSchedule && (
-                    <div className="text-[11px] text-amber-300 flex items-center gap-1">
-                      <Calendar className="w-3 h-3" />
+                    <div className="text-[11px] text-amber-800 flex items-center gap-1 font-bold">
+                      <Calendar className="w-3 h-3 text-amber-600" />
                       <span>
                         زمان هماهنگ‌شده: <strong>
                           {typeof claimCase.fieldVisitSchedule === 'string'
@@ -1322,22 +1347,22 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               )}
 
               {claimCase.assignedBranch && (
-                <div className="bg-white/10 p-3 rounded-xl border border-white/10 space-y-1.5">
-                  <div className="flex items-center gap-1.5 text-amber-300 font-bold text-[11px]">
-                    <Building2 className="w-3.5 h-3.5" />
+                <div className="bg-white p-3.5 rounded-2xl border border-sky-200 space-y-1.5 shadow-2xs">
+                  <div className="flex items-center gap-1.5 text-slate-700 font-bold text-[11px]">
+                    <Building2 className="w-3.5 h-3.5 text-blue-900" />
                     <span>نزدیک‌ترین شعبه تخصصی بیمه (محل حضور و بازدید):</span>
                   </div>
-                  <div className="font-extrabold text-white text-xs">
+                  <div className="font-extrabold text-slate-900 text-xs sm:text-sm">
                     {claimCase.assignedBranch.name} ({claimCase.assignedBranch.city})
                   </div>
-                  <div className="text-[11px] text-slate-200 leading-snug flex items-start gap-1">
-                    <MapPin className="w-3 h-3 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-slate-600 leading-snug flex items-start gap-1 font-medium">
+                    <MapPin className="w-3 h-3 text-rose-500 shrink-0 mt-0.5" />
                     <span>{claimCase.assignedBranch.address}</span>
                   </div>
                   {claimCase.assignedBranch.phone && (
-                    <div className="text-[11px] text-slate-300 flex items-center gap-1">
-                      <Phone className="w-3 h-3 text-sky-400" />
-                      <span>تلفن شعبه: <span className="font-mono text-white" dir="ltr">{claimCase.assignedBranch.phone}</span></span>
+                    <div className="text-[11px] text-slate-600 flex items-center gap-1 font-medium">
+                      <Phone className="w-3 h-3 text-sky-600" />
+                      <span>تلفن شعبه: <span className="font-mono text-slate-900 font-bold" dir="ltr">{claimCase.assignedBranch.phone}</span></span>
                     </div>
                   )}
                 </div>
@@ -1345,8 +1370,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             </div>
 
             {/* SMS Notification Banner for Customer */}
-            <div className="p-2.5 rounded-xl bg-sky-500/10 border border-sky-400/30 flex items-center gap-2 text-[11px] text-sky-200">
-              <CheckCircle2 className="w-4 h-4 text-sky-400 shrink-0" />
+            <div className="p-3 rounded-xl bg-white border border-sky-300 flex items-center gap-2 text-[11px] text-sky-900 font-medium shadow-2xs">
+              <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
               <span>پیامک مشخصات کارشناس و آدرس نزدیک‌ترین شعبه جهت حضور و تحویل مدارک، هم‌زمان برای شما و کارشناس میدانی ارسال گردیده است.</span>
             </div>
           </div>
@@ -1429,24 +1454,26 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             ) : (
               <form onSubmit={handleAddKrokiCode} className="bg-white p-4 sm:p-5 rounded-2xl border border-amber-200 space-y-3">
                 <div>
-                  <label className="block text-xs font-extrabold text-slate-800 mb-1">
+                  <label className="block text-xs font-extrabold text-slate-800 mb-1.5">
                     کد کروکی پلیس راهور <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    value={krokiInputCode}
-                    onChange={(e) => setKrokiInputCode(e.target.value)}
-                    placeholder="مثال: KR-994821"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 uppercase tracking-wider focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100"
-                    dir="ltr"
-                    required
-                  />
+                  <div className="purple-field-beam">
+                    <input
+                      type="text"
+                      value={krokiInputCode}
+                      onChange={(e) => setKrokiInputCode(e.target.value)}
+                      placeholder="مثال: KR-994821"
+                      className="w-full px-4 py-2.5 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 uppercase tracking-wider focus:outline-none"
+                      dir="ltr"
+                      required
+                    />
+                  </div>
                 </div>
 
                 <button
                   type="submit"
                   disabled={!krokiInputCode.trim()}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95"
+                  className="w-full py-3 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   ثبت کد کروکی و ارجاع پرونده به شرکت بیمه مقصر (بیمه دانا)
@@ -1458,98 +1485,232 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Automatic Insurance Referral Banner (Shown when not in temporary kroki waiting state) */}
         {claimCase.status !== 'ثبت موقت - در انتظار افزودن کروکی' && (
-          <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 flex items-start gap-3.5 shadow-xs animate-in fade-in">
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0 shadow-xs font-bold">
-              <CheckCircle2 className="w-5 h-5" />
+          <div className="green-rotating-border shadow-xs animate-in fade-in">
+            <div className="bg-slate-50 p-5 flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0 shadow-xs font-bold">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div className="space-y-1 text-xs flex-1">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h4 className="font-black text-slate-900 text-sm">
+                    استعلام هوشمند انجام شد؛ ارجاع خودکار پرونده به {getInsurerPersianName(claimCase.culpritInsurer)}
+                  </h4>
+                  <span className="text-[10px] font-black bg-emerald-100/80 text-emerald-900 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                    تایید شده و برخط
+                  </span>
+                </div>
+                <p className="text-slate-600 leading-relaxed font-medium">
+                  پرونده شما با استعلام هوشمند لحظه‌ای تایید گردید و جهت بررسی و تخصیص ارزیاب خسارت، مستقیماً به <strong className="text-slate-900">{getInsurerPersianName(claimCase.culpritInsurer)}</strong> ارجاع داده شد. پیامک اطلاع‌رسانی برای زیان‌دیده ({claimCase.victimName} - {claimCase.victimPhone}) و مقصر ({claimCase.culpritName} - {claimCase.culpritPhone}) ارسال شده است.
+                </p>
+              </div>
             </div>
-            <div className="space-y-1 text-xs flex-1">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <h4 className="font-black text-slate-900 text-sm">
-                  استعلام هوشمند انجام شد؛ ارجاع خودکار پرونده به {getInsurerPersianName(claimCase.culpritInsurer)}
-                </h4>
-                <span className="text-[10px] font-black bg-emerald-100/80 text-emerald-900 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                  تایید شده و برخط
+          </div>
+        )}
+
+        {/* Main Navigation Tabs */}
+        <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 border border-slate-200 rounded-2xl overflow-x-auto select-none shadow-2xs">
+          {mainActiveTab === 'assessment' ? (
+            <div className="purple-tab-active shrink-0">
+              <button
+                type="button"
+                onClick={() => setMainActiveTab('assessment')}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-purple-950 bg-white shadow-xs cursor-pointer whitespace-nowrap"
+              >
+                <FileText className="w-4 h-4 text-purple-700" />
+                <span>برآورد و ارزیابی خسارت</span>
+                {hasAnyCompletedAssessment && (
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                )}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMainActiveTab('assessment')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50"
+            >
+              <FileText className="w-4 h-4 text-slate-400" />
+              <span>برآورد و ارزیابی خسارت</span>
+            </button>
+          )}
+
+          {mainActiveTab === 'chat' ? (
+            <div className="purple-tab-active shrink-0">
+              <button
+                type="button"
+                onClick={() => setMainActiveTab('chat')}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-purple-950 bg-white shadow-xs cursor-pointer whitespace-nowrap"
+              >
+                <MessageSquare className="w-4 h-4 text-purple-700" />
+                <span>ارتباط با کارشناس</span>
+                {unifiedChatMessages.length > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
+                    {unifiedChatMessages.length}
+                  </span>
+                )}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMainActiveTab('chat')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50"
+            >
+              <MessageSquare className="w-4 h-4 text-slate-400" />
+              <span>ارتباط با کارشناس</span>
+              {unifiedChatMessages.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-blue-100 text-blue-900 border border-blue-200">
+                  {unifiedChatMessages.length}
                 </span>
+              )}
+            </button>
+          )}
+
+          {mainActiveTab === 'support' ? (
+            <div className="purple-tab-active shrink-0">
+              <button
+                type="button"
+                onClick={() => setMainActiveTab('support')}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-purple-950 bg-white shadow-xs cursor-pointer whitespace-nowrap"
+              >
+                <Headphones className="w-4 h-4 text-purple-700" />
+                <span>پشتیبانی و تیکت‌های CRM</span>
+                {caseTicketsCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                    {caseTicketsCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMainActiveTab('support')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50"
+            >
+              <Headphones className="w-4 h-4 text-slate-400" />
+              <span>پشتیبانی و تیکت‌های CRM</span>
+              {caseTicketsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                  {caseTicketsCount}
+                </span>
+              )}
+            </button>
+          )}
+
+          {mainActiveTab === 'timeline' ? (
+            <div className="purple-tab-active shrink-0">
+              <button
+                type="button"
+                onClick={() => setMainActiveTab('timeline')}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-purple-950 bg-white shadow-xs cursor-pointer whitespace-nowrap"
+              >
+                <Clock className="w-4 h-4 text-purple-700" />
+                <span>روند و تاریخچه پرونده</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setMainActiveTab('timeline')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50"
+            >
+              <Clock className="w-4 h-4 text-slate-400" />
+              <span>روند و تاریخچه پرونده</span>
+            </button>
+          )}
+        </div>
+
+        {/* TAB 1: ASSESSMENT & CLAIM DETAILS */}
+        {mainActiveTab === 'assessment' && (
+          <div className="space-y-6 animate-in fade-in duration-200">
+            {/* Address */}
+            {claimCase.address && (
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs flex items-center gap-2 text-slate-700">
+                <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+                <div>
+                  <span className="text-slate-400 font-bold block text-[10px]">محل تصادف:</span>
+                  <span className="font-bold text-slate-800">{claimCase.address}</span>
+                </div>
               </div>
-              <p className="text-slate-600 leading-relaxed font-medium">
-                پرونده شما با استعلام هوشمند لحظه‌ای تایید گردید و جهت بررسی و تخصیص ارزیاب خسارت، مستقیماً به <strong className="text-slate-900">{getInsurerPersianName(claimCase.culpritInsurer)}</strong> ارجاع داده شد. پیامک اطلاع‌رسانی برای زیان‌دیده ({claimCase.victimName} - {claimCase.victimPhone}) و مقصر ({claimCase.culpritName} - {claimCase.culpritPhone}) ارسال شده است.
-              </p>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* Address */}
-        {claimCase.address && (
-          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs flex items-center gap-2 text-slate-700">
-            <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-            <div>
-              <span className="text-slate-400 font-bold block text-[10px]">محل تصادف:</span>
-              <span className="font-bold text-slate-800">{claimCase.address}</span>
-            </div>
-          </div>
-        )}
+            {/* Insurance Policy & Financial Coverage Limits Card (With Rotating Purple Border Stream) */}
+            {(() => {
+              const calc = calculateClaimDamageWithPolicyLimits(claimCase);
+              const policyLimit = calc.policyMaxFinancialLimit;
+              return (
+                <div className="purple-rotating-border shadow-sm">
+                  <div className="bg-white text-slate-900 p-5 space-y-3">
+                    <div
+                      onClick={() => setIsPolicyExpanded(!isPolicyExpanded)}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-purple-50 border border-purple-200 text-purple-700 flex items-center justify-center font-bold shadow-xs shrink-0">
+                          <Shield className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
+                              اطلاعات بیمه‌نامه و سقف تعهدات مالی
+                            </h3>
+                            <span className="text-[10px] text-purple-800 bg-purple-50 font-bold px-2 py-0.5 rounded-full border border-purple-200">
+                              کلیک برای {isPolicyExpanded ? 'بستن' : 'مشاهده جزئیات'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                            استعلام برخط سامانه سنهاب بیمه مرکزی ({getInsurerPersianName(claimCase.culpritInsurer)})
+                          </p>
+                        </div>
+                      </div>
 
-        {/* Insurance Policy & Financial Coverage Limits Card */}
-        {(() => {
-          const calc = calculateClaimDamageWithPolicyLimits(claimCase);
-          const policyLimit = calc.policyMaxFinancialLimit;
-          return (
-            <div className="bg-slate-950 text-white rounded-3xl p-5 sm:p-6 shadow-md border border-slate-800 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/30 text-blue-400 flex items-center justify-center font-bold shadow-xs">
-                    <Shield className="w-5 h-5" />
+                      <div className="flex items-center gap-2 self-start sm:self-auto">
+                        <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1.5 shadow-2xs">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          استعلام معتبر سنهاب
+                        </span>
+                        <div className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+                          {isPolicyExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
+                      </div>
+                    </div>
+
+                    {isPolicyExpanded && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-3 border-t border-slate-100 animate-in fade-in slide-in-from-top-2">
+                        <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl">
+                          <span className="text-slate-500 text-[10px] block mb-1 font-bold">شماره بیمه‌نامه شخص ثالث</span>
+                          <span className="font-mono font-bold text-slate-900 text-xs" dir="ltr">
+                            {claimCase.culpritPolicyNumber || 'DAN-1403-882194'}
+                          </span>
+                        </div>
+
+                        <div className="bg-amber-50/70 border border-amber-200 p-3.5 rounded-2xl">
+                          <span className="text-amber-800 text-[10px] block mb-1 font-bold">سقف تعهد مالی بیمه‌نامه</span>
+                          <span className="font-mono font-black text-amber-900 text-xs sm:text-sm">
+                            {formatCurrency(policyLimit)}
+                          </span>
+                        </div>
+
+                        <div className="bg-purple-50/70 border border-purple-200 p-3.5 rounded-2xl">
+                          <span className="text-purple-800 text-[10px] block mb-1 font-bold">کد رهگیری سامانه سنهاب</span>
+                          <span className="font-mono font-bold text-purple-900 text-xs" dir="ltr">
+                            {claimCase.sanhabInquiry?.trackingCode || 'SNH-994821'}
+                          </span>
+                        </div>
+
+                        <div className="bg-emerald-50/70 border border-emerald-200 p-3.5 rounded-2xl">
+                          <span className="text-emerald-800 text-[10px] block mb-1 font-bold">وضعیت شمول خودرو</span>
+                          <span className="font-bold text-emerald-900 text-xs">
+                            خودروی متعارف (۱۰۰٪ شمول)
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <h3 className="font-extrabold text-sm sm:text-base text-white flex items-center gap-2">
-                      اطلاعات بیمه‌نامه و سقف تعهدات مالی
-                    </h3>
-                    <p className="text-[11px] text-slate-400 font-medium">
-                      استعلام برخط سامانه سنهاب بیمه مرکزی ({getInsurerPersianName(claimCase.culpritInsurer)})
-                    </p>
-                  </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    استعلام معتبر سنهاب
-                  </span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
-                  <span className="text-slate-400 text-[10px] block mb-1 font-medium">شماره بیمه‌نامه شخص ثالث</span>
-                  <span className="font-mono font-bold text-white text-xs" dir="ltr">
-                    {claimCase.culpritPolicyNumber || 'DAN-1403-882194'}
-                  </span>
-                </div>
-
-                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
-                  <span className="text-slate-400 text-[10px] block mb-1 font-medium">سقف تعهد مالی بیمه‌نامه</span>
-                  <span className="font-mono font-extrabold text-amber-400 text-xs">
-                    {formatCurrency(policyLimit)}
-                  </span>
-                </div>
-
-                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
-                  <span className="text-slate-400 text-[10px] block mb-1 font-medium">کد رهگیری سامانه سنهاب</span>
-                  <span className="font-mono font-bold text-blue-300 text-xs" dir="ltr">
-                    {claimCase.sanhabInquiry?.trackingCode || 'SNH-994821'}
-                  </span>
-                </div>
-
-                <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
-                  <span className="text-slate-400 text-[10px] block mb-1 font-medium">وضعیت شمول خودرو</span>
-                  <span className="font-bold text-emerald-400 text-xs">
-                    خودروی متعارف (۱۰۰٪ شمول)
-                  </span>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+              );
+            })()}
 
         {/* PARTY ONE POST-CREATION STATUS BANNER (When no expert requests exist yet) */}
         {isPartyOne && pendingDocRequests.length === 0 && myDocChat.length === 0 && (
@@ -1598,282 +1759,6 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 <span>بارگذاری مدارک و شواهد طرف دوم</span>
               </button>
             </div>
-          </div>
-        )}
-
-        {/* UNIFIED CHAT WITH INSURANCE EXPERT & SYSTEM */}
-        {(unifiedChatMessages.length > 0 || pendingDocRequests.length > 0 || !!claimCase.assignedExpert || claimCase.status === 'در حال ارزیابی' || claimCase.status === 'درخواست مدارک' || claimCase.status === 'نیازمند اصلاح اطلاعات مشتری') && (
-          <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-blue-900" />
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                    گفتگو و تبادل مدارک با کارشناس ارزیاب پرونده
-                  </h3>
-                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                    کارشناس ارزیاب: {claimCase.assignedExpert?.name || 'فاطمه احمدی (ارزیاب خسارت)'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-extrabold border border-slate-200">
-                  کانال ارتباطی {isPartyOne ? 'طرف اول' : 'طرف دوم'}
-                </span>
-                <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-extrabold border border-emerald-200 hidden sm:inline">
-                  گفتگوی فعال
-                </span>
-              </div>
-            </div>
-
-            {/* Unified Chat Messages Stream */}
-            <div className="space-y-3 max-h-80 overflow-y-auto pr-1 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200">
-              {unifiedChatMessages.length === 0 ? (
-                <div className="text-center py-6 space-y-2">
-                  <MessageSquare className="w-8 h-8 text-slate-300 mx-auto" />
-                  <p className="text-xs text-slate-500 font-medium">
-                    گفتگو با کارشناس ارزیاب آغاز شده است. می‌توانید سوالات، توضیحات یا مدارک تکمیلی خود را ارسال فرمایید.
-                  </p>
-                </div>
-              ) : (
-                unifiedChatMessages.map((msg, idx) => {
-                  if (msg.isSystem) {
-                    return (
-                      <div key={msg.id || idx} className="p-3 bg-slate-100/90 border border-slate-200 rounded-2xl text-xs space-y-1 text-slate-800">
-                        <div className="flex items-center justify-between font-bold text-[10px] text-slate-700">
-                          <span className="flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-blue-900" />
-                            <span>{msg.senderName}</span>
-                          </span>
-                          <span className="font-mono text-slate-400">{msg.time}</span>
-                        </div>
-                        <p className="font-medium leading-relaxed">{msg.text}</p>
-                      </div>
-                    );
-                  }
-
-                  const isFromExpert = msg.isFromExpert;
-                  return (
-                    <div
-                      key={msg.id || idx}
-                      className={`p-3.5 rounded-2xl text-xs space-y-2 border ${
-                        isFromExpert
-                          ? 'bg-purple-50/90 border-purple-200 mr-4 sm:mr-8 text-purple-950 shadow-2xs'
-                          : 'bg-blue-900 border-blue-950 ml-4 sm:ml-8 text-white shadow-sm'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between font-bold text-[10px]">
-                        <span className={isFromExpert ? 'text-purple-800' : 'text-blue-100'}>
-                          {isFromExpert ? `کارشناس ارزیاب: ${msg.senderName}` : `شما (${myRoleLabel})`}
-                        </span>
-                        <span className={`font-mono ${isFromExpert ? 'text-slate-400' : 'text-blue-200'}`}>
-                          {msg.time}
-                        </span>
-                      </div>
-                      <p className="font-medium leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-
-                      {/* Attached files preview in chat bubble */}
-                      {msg.files && msg.files.length > 0 && (
-                        <div className="pt-2 flex flex-wrap gap-2 border-t border-slate-200/50 mt-2">
-                          {msg.files.map((fileItem, fi) => {
-                            const dUrl = fileItem.dataUrl;
-                            const fName = fileItem.name || `فایل ضمیمه #${fi + 1}`;
-                            const fType = fileItem.fileType || (typeof dUrl === 'string' && dUrl.startsWith('data:video') ? 'video' : 'image');
-
-                            return (
-                              <div
-                                key={fi}
-                                className={`p-2 rounded-xl text-[11px] space-y-1.5 max-w-xs ${
-                                  isFromExpert ? 'bg-white border border-slate-200 text-slate-900' : 'bg-blue-800/80 border border-blue-700 text-white'
-                                }`}
-                              >
-                                <span className="font-bold block truncate">{fName}</span>
-                                {dUrl && (fType === 'image' || (!fType && typeof dUrl === 'string' && dUrl.startsWith('data:image'))) && (
-                                  <img
-                                    src={dUrl}
-                                    alt={fName}
-                                    onClick={() => setPreviewImageModal(dUrl)}
-                                    className="w-full h-28 object-cover rounded-lg border border-slate-200/40 cursor-pointer hover:opacity-90 transition-opacity"
-                                  />
-                                )}
-                                {dUrl && fType === 'video' && (
-                                  <video src={dUrl} controls className="w-full max-h-32 rounded-lg border border-slate-200/40" />
-                                )}
-                                {dUrl && (fType === 'pdf' || fType === 'doc') && (
-                                  <a
-                                    href={dUrl}
-                                    download={fName}
-                                    className={`font-bold text-[10px] block underline ${isFromExpert ? 'text-purple-700' : 'text-blue-200'}`}
-                                  >
-                                    دانلود فایل ({fType.toUpperCase()})
-                                  </a>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Direct Message & Document Composer for Customer */}
-            <form onSubmit={handleSendCustomerChatMessage} className="pt-2 border-t border-slate-100 space-y-2.5">
-              {customerChatFile && (
-                <div className="flex items-center justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs font-bold text-blue-900">
-                  <div className="flex items-center gap-2 truncate">
-                    <Paperclip className="w-4 h-4 text-blue-700 shrink-0" />
-                    <span className="truncate">مدرک انتخاب‌شده: {customerChatFile.name} ({customerChatFile.size})</span>
-                    {customerChatFile.type === 'image' && (
-                      <img src={customerChatFile.dataUrl} className="w-8 h-8 rounded-md object-cover border border-blue-200" alt="پیش‌نمایش" />
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setCustomerChatFile(null)}
-                    className="text-rose-600 hover:text-rose-700 text-xs px-2 py-1 bg-white rounded-lg border border-rose-200 font-bold shrink-0"
-                  >
-                    حذف فایل
-                  </button>
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={customerChatText}
-                  onChange={(e) => setCustomerChatText(e.target.value)}
-                  placeholder="پاسخ، پیام یا توضیحات خود را برای کارشناس بنویسید..."
-                  className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-900 transition-colors"
-                />
-
-                <label
-                  className="p-2.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition-all shrink-0 flex items-center gap-1"
-                  title="افزودن تصویر، ویدیو یا مدرک"
-                >
-                  <Camera className="w-4 h-4 text-slate-700" />
-                  <span className="text-xs font-bold hidden sm:inline">افزودن عکس/مدرک</span>
-                  <input
-                    type="file"
-                    accept="image/*,video/*,.pdf,.doc,.docx"
-                    onChange={handleCustomerChatFileChange}
-                    className="hidden"
-                  />
-                </label>
-
-                <button
-                  type="submit"
-                  className="px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0"
-                >
-                  <span>ارسال پیام</span>
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* PARTY COMMENTS & EXPLANATIONS SECTION — ONLY SHOWN IF PARTY COMMENTS ACTUALLY EXIST */}
-        {claimCase.partyComments && claimCase.partyComments.length > 0 && (
-          <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-5 h-5 text-blue-900" />
-                <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
-                  اظهارات و یادداشت‌های طرفین حادثه
-                </h3>
-              </div>
-              <span className="text-[10px] bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-bold border border-slate-200">
-                ارسال مستقیم برای کارشناس
-              </span>
-            </div>
-
-            <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-              {claimCase.partyComments.map((cmt) => (
-                <div
-                  key={cmt.id}
-                  className={`p-3.5 rounded-2xl text-xs space-y-1.5 border ${
-                    cmt.uploaderParty === 'PARTY_ONE'
-                      ? 'bg-blue-50/70 border-blue-200 text-blue-950'
-                      : 'bg-purple-50/70 border-purple-200 text-purple-950'
-                  }`}
-                >
-                  <div className="flex items-center justify-between font-bold text-[11px]">
-                    <span className="flex items-center gap-1.5">
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
-                        cmt.uploaderParty === 'PARTY_ONE' ? 'bg-blue-200/80 text-blue-950' : 'bg-purple-200/80 text-purple-950'
-                      }`}>
-                        {cmt.role}
-                      </span>
-                      <span>{cmt.author}</span>
-                    </span>
-                    <span className="text-slate-400 text-[10px] font-mono">{cmt.time}</span>
-                  </div>
-                  <p className="font-medium leading-relaxed">{cmt.text}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Add Comment Form */}
-            <form onSubmit={handleAddPartyComment} className="flex gap-2 pt-2">
-              <input
-                type="text"
-                value={partyCommentInput}
-                onChange={(e) => setPartyCommentInput(e.target.value)}
-                placeholder={`توضیحات و اظهارات خود به‌عنوان ${isPartyOne ? 'طرف اول' : 'طرف دوم'} را ثبت کنید...`}
-                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-900 bg-slate-50 focus:bg-white transition-colors"
-              />
-              <button
-                type="submit"
-                className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0"
-              >
-                <span>ثبت اظهارات</span>
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Assigned Expert Info & Customer Complaint Box — ONLY shown after expert evaluation */}
-        {claimCase.assessment && (
-          <div className="bg-slate-950 text-white rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-md space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-blue-500/15 border border-blue-500/30 text-blue-400 flex items-center justify-center font-bold text-sm shadow-xs">
-                  <UserCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 font-bold block">کارشناس ارزیاب تخصیص‌یافته</span>
-                  <h4 className="font-extrabold text-white text-sm">
-                    {claimCase.assignedExpert?.name || claimCase.assessment?.submittedBy || (claimCase.culpritInsurer === 'dana' ? 'فاطمه احمدی' : claimCase.culpritInsurer === 'iran' ? 'رضا تهرانی' : 'نرگس کریمی')}
-                  </h4>
-                  <p className="text-[11px] text-slate-400">
-                    {claimCase.assignedExpert?.role || 'کارشناس ارزیابی خسارت خودرو'} ({getInsurerPersianName(claimCase.culpritInsurer)})
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowExpertComplaintModal(true)}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 font-bold text-xs border border-slate-700 transition-all flex items-center gap-1.5 self-start sm:self-auto active:scale-95 cursor-pointer"
-              >
-                <AlertTriangle className="w-4 h-4 text-amber-400" />
-                <span>ثبت اعتراض / شکایت از عملکرد کارشناس</span>
-              </button>
-            </div>
-
-            {expertComplaintSuccessMsg && (
-              <div className="p-3.5 bg-emerald-950/80 border border-emerald-500/50 rounded-2xl text-emerald-200 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                <span>{expertComplaintSuccessMsg}</span>
-              </div>
-            )}
-
-            <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
-              در صورت وجود هرگونه اعتراض به برآورد خسارت، عدم پاسخگویی یا رفتار نامناسب کارشناس ارزیاب، می‌توانید شکایت خود را ثبت نمایید. این شکایت مستقیماً در پنل مدیریتی شرکت بیمه ثبت شده و نمره عملکرد کارشناس مربوطه را کاهش خواهد داد.
-            </p>
           </div>
         )}
 
@@ -2280,43 +2165,38 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                   const culpritDebt = Math.max(0, totalClaim - policyCeiling);
                   const exceedsCeiling = totalClaim > policyCeiling;
 
+                  const isExpanded = expandedAssessmentCardId === card.id || expandedAssessmentCardId === 'all';
+
                   return (
                     <div
                       key={card.id}
-                      onClick={() => setSelectedAssessmentModal({
-                        ...card,
-                        directDamage,
-                        diminution,
-                        diminutionPercent,
-                        salvage,
-                        totalClaim,
-                        policyCeiling,
-                        insurerPayable,
-                        culpritDebt,
-                        exceedsCeiling
-                      })}
-                      className={`rounded-3xl border-2 transition-all shadow-xs hover:shadow-md overflow-hidden cursor-pointer ${
+                      className={`rounded-3xl border-2 transition-all shadow-xs overflow-hidden ${
                         isField
-                          ? 'bg-gradient-to-br from-sky-50/70 via-blue-50/30 to-white border-sky-200/90 hover:border-sky-400 hover:ring-2 hover:ring-sky-200/50'
-                          : 'bg-gradient-to-br from-slate-50/70 via-blue-50/30 to-white border-slate-200 hover:border-blue-300'
+                          ? 'bg-gradient-to-br from-sky-50/70 via-blue-50/30 to-white border-sky-200/90'
+                          : 'bg-gradient-to-br from-slate-50/70 via-blue-50/30 to-white border-slate-200'
                       }`}
                     >
-                      {/* Card Header */}
-                      <div className={`p-5 sm:p-6 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-                        isField ? 'border-sky-100 bg-sky-50/80' : 'border-indigo-100 bg-indigo-100/40'
-                      }`}>
+                      {/* Card Header (Clickable to Toggle Expand/Collapse) */}
+                      <div
+                        onClick={() => setExpandedAssessmentCardId(isExpanded ? null : card.id)}
+                        className={`p-4 sm:p-5 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer transition-colors ${
+                          isField 
+                            ? 'border-sky-100 bg-sky-50/90 hover:bg-sky-100/70' 
+                            : 'border-indigo-100 bg-indigo-50/60 hover:bg-indigo-100/50'
+                        }`}
+                      >
                         <div className="flex items-start sm:items-center gap-3">
-                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-white shadow-xs shrink-0 ${
+                          <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white shadow-xs shrink-0 ${
                             isField ? 'bg-sky-600' : 'bg-indigo-600'
                           }`}>
-                            {isField ? <UserCheck className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
+                            {isField ? <UserCheck className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
                           </div>
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <h4 className="font-extrabold text-slate-900 text-sm sm:text-base">
                                 {card.title}
                               </h4>
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${
                                 isField
                                   ? 'bg-sky-100 text-sky-900 border-sky-200'
                                   : 'bg-indigo-200/80 text-indigo-900 border-indigo-300'
@@ -2325,39 +2205,92 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                               </span>
                             </div>
                             <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                              کارشناس: <strong>{card.expertName}</strong> ({card.expertRole}) • کد پروانه: <span className="font-mono">{card.stampCode}</span> • تاریخ: <span className="font-mono">{card.date}</span>
+                              کارشناس: <strong>{card.expertName}</strong> • تاریخ: <span className="font-mono">{card.date}</span>
                             </p>
                           </div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
                           {exceedsCeiling ? (
-                            <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-500/15 text-rose-800 border border-rose-300 flex items-center gap-1">
-                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
-                              <span>مازاد بر سقف ({formatCurrency(culpritDebt)} بدهی مقصر)</span>
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-rose-500/15 text-rose-800 border border-rose-300 flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 text-rose-600" />
+                              <span>مازاد سقف ({formatCurrency(culpritDebt)})</span>
                             </span>
                           ) : (
-                            <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/15 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>پوشش ۱۰۰٪ در سقف بیمه‌نامه</span>
+                            <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-500/15 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>پوشش سقف بیمه</span>
                             </span>
                           )}
 
-                          {isField ? (
-                            <span className="px-3 py-1 bg-sky-600 text-white rounded-full text-xs font-black shadow-xs flex items-center gap-1 border border-sky-700">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-sky-100" />
-                              {card.verdict}
-                            </span>
-                          ) : (
-                            <span className="px-3 py-1 bg-indigo-600 text-white rounded-full text-xs font-black shadow-xs flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              {card.verdict}
-                            </span>
-                          )}
+                          <span className={`px-3 py-1 text-white rounded-full text-xs font-black shadow-xs flex items-center gap-1 ${
+                            isField ? 'bg-sky-600' : 'bg-indigo-600'
+                          }`}>
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {card.verdict}
+                          </span>
+
+                          <div className="flex items-center gap-1 text-xs font-extrabold text-slate-600 bg-white/80 px-2.5 py-1 rounded-xl border border-slate-200">
+                            <span>{isExpanded ? 'بستن' : 'مشاهده جزئیات'}</span>
+                            {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Card Body */}
+                      {/* Compact Preview Mode when Collapsed */}
+                      {!isExpanded && (
+                        <div className="p-4 bg-white/70 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+                            <div className="bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+                              <span className="text-slate-500 text-[11px] block">کل خسارت:</span>
+                              <span className="font-extrabold text-slate-900 font-mono">{formatCurrency(totalClaim)}</span>
+                            </div>
+                            <div className="bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300 text-emerald-950">
+                              <span className="text-emerald-800 font-bold text-[11px] block">سهم قابل پرداخت بیمه:</span>
+                              <span className="font-black text-emerald-900 font-mono">{formatCurrency(insurerPayable)}</span>
+                            </div>
+                            {culpritDebt > 0 && (
+                              <div className="bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-300 text-rose-950">
+                                <span className="text-rose-800 font-bold text-[11px] block">بدهی مازاد مقصر:</span>
+                                <span className="font-black text-rose-900 font-mono">{formatCurrency(culpritDebt)}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedAssessmentCardId(card.id)}
+                              className="px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-extrabold text-xs shadow-xs transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>مشاهده و گسترش کارشناسی</span>
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedAssessmentModal({
+                                ...card,
+                                directDamage,
+                                diminution,
+                                diminutionPercent,
+                                salvage,
+                                totalClaim,
+                                policyCeiling,
+                                insurerPayable,
+                                culpritDebt,
+                                exceedsCeiling
+                              })}
+                              className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl font-bold text-xs border border-slate-200 transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-slate-500" />
+                              <span>پنجره تفکیکی</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Card Body (Shown when Expanded) */}
+                      {isExpanded && (
                       <div className="p-5 sm:p-6 space-y-4">
                         
                         {/* Financial Metrics Summary for THIS Assessment */}
@@ -3132,23 +3065,38 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                             )}
 
                             {/* Secondary Button to View Details Modal */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedAssessmentModal(card);
-                              }}
-                              className="w-full py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-between transition-colors cursor-pointer"
-                            >
-                              <div className="flex items-center gap-2">
-                                <FileText className="w-4 h-4 text-slate-500" />
-                                <span>مشاهده ریز اقلام و فاکتور تفکیکی قطعات (اختیاری)</span>
-                              </div>
-                              <span className="text-[11px] text-slate-400 font-bold">مشاهده اقلام ↵</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedAssessmentModal(card);
+                                }}
+                                className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-between transition-colors cursor-pointer"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <FileText className="w-4 h-4 text-slate-500" />
+                                  <span>مشاهده ریز اقلام و فاکتور تفکیکی قطعات (اختیاری)</span>
+                                </div>
+                                <span className="text-[11px] text-slate-400 font-bold">مشاهده اقلام ↵</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedAssessmentCardId(null);
+                                }}
+                                className="py-2.5 px-4 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors cursor-pointer"
+                              >
+                                <span>کوچک کردن کارت</span>
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
+                    )}
                     </div>
                   );
                 })}
@@ -3223,48 +3171,54 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs">
               <div>
                 <label className="block text-slate-700 mb-1.5 font-bold">نام و نام خانوادگی صاحب حساب</label>
-                <input
-                  type="text"
-                  value={beneficiary}
-                  onChange={(e) => setBeneficiary(e.target.value)}
-                  placeholder="مثال: پریسا رضایی"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-sky-200 text-xs bg-white text-slate-900 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 focus:outline-none font-medium"
-                />
+                <div className="purple-field-beam">
+                  <input
+                    type="text"
+                    value={beneficiary}
+                    onChange={(e) => setBeneficiary(e.target.value)}
+                    placeholder="مثال: پریسا رضایی"
+                    className="w-full px-3.5 py-2.5 text-xs bg-white text-slate-900 focus:outline-none font-medium"
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-slate-700 mb-1.5 font-bold">کد ملی صاحب حساب</label>
-                <input
-                  type="text"
-                  value={nationalId}
-                  onChange={(e) => setNationalId(e.target.value)}
-                  placeholder="0012345678"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-sky-200 text-xs font-mono bg-white text-slate-900 focus:border-sky-600 focus:ring-1 focus:ring-sky-600 focus:outline-none"
-                  dir="ltr"
-                />
+                <div className="purple-field-beam">
+                  <input
+                    type="text"
+                    value={nationalId}
+                    onChange={(e) => setNationalId(e.target.value)}
+                    placeholder="0012345678"
+                    className="w-full px-3.5 py-2.5 text-xs font-mono bg-white text-slate-900 focus:outline-none"
+                    dir="ltr"
+                  />
+                </div>
               </div>
               <div className="sm:col-span-2">
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-slate-700 font-bold">شماره شبا (IBAN - با پیشوند IR)</label>
                   {iban && iban.length >= 6 && (
-                    <span className="text-[11px] font-bold text-sky-800 bg-sky-100 px-2 py-0.5 rounded-lg border border-sky-200">
+                    <span className="text-[11px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded-lg border border-purple-200">
                       بانک مقصد شناسایی‌شده: {getBankNameFromIban(iban)}
                     </span>
                   )}
                 </div>
-                <input
-                  type="text"
-                  value={iban}
-                  onChange={(e) => {
-                    let val = e.target.value.trim().toUpperCase();
-                    if (val.length > 0 && !val.startsWith('IR') && /^[0-9]/.test(val)) {
-                      val = 'IR' + val;
-                    }
-                    setIban(val);
-                  }}
-                  placeholder="IR820540102680020817909002"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-sky-200 text-xs font-mono bg-white text-slate-900 uppercase focus:border-sky-600 focus:ring-1 focus:ring-sky-600 focus:outline-none"
-                  dir="ltr"
-                />
+                <div className="purple-field-beam">
+                  <input
+                    type="text"
+                    value={iban}
+                    onChange={(e) => {
+                      let val = e.target.value.trim().toUpperCase();
+                      if (val.length > 0 && !val.startsWith('IR') && /^[0-9]/.test(val)) {
+                        val = 'IR' + val;
+                      }
+                      setIban(val);
+                    }}
+                    placeholder="IR820540102680020817909002"
+                    className="w-full px-3.5 py-2.5 text-xs font-mono bg-white text-slate-900 uppercase focus:outline-none"
+                    dir="ltr"
+                  />
+                </div>
               </div>
             </div>
 
@@ -3326,103 +3280,638 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             )}
           </div>
         )}
+        </div>
+      )}
 
-        {/* CRM Customer Tickets & Complaints Section */}
-        <div className="pt-2 border-t border-slate-100">
+      {/* ========================================================================= */}
+      {/* TAB 2: CHAT & EXPERT COMMUNICATION (Light Theme)                          */}
+      {/* ========================================================================= */}
+      {mainActiveTab === 'chat' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          
+          {/* Assigned Expert Info & Customer Complaint Box (With Rotating Blue Border) */}
+          <div className="blue-rotating-border shadow-sm">
+            <div className="bg-gradient-to-br from-slate-50 via-white to-sky-50/40 p-5 sm:p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 border border-sky-200 flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                    <UserCheck className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-sky-800 bg-sky-100/80 px-2 py-0.5 rounded-full font-extrabold border border-sky-200">
+                        کارشناس ارزیاب تخصیص‌یافته
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        کد پروانه: {claimCase.assignedExpert?.stampCode || 'EXP-98421'}
+                      </span>
+                    </div>
+                    <h4 className="font-black text-slate-900 text-base mt-0.5">
+                      {claimCase.assignedExpert?.name || claimCase.assessment?.submittedBy || (claimCase.culpritInsurer === 'dana' ? 'فاطمه احمدی' : claimCase.culpritInsurer === 'iran' ? 'رضا تهرانی' : 'نرگس کریمی')}
+                    </h4>
+                    <p className="text-xs text-slate-600 font-medium">
+                      {claimCase.assignedExpert?.role || 'کارشناس ارزیابی و خسارت خودرو'} • شرکت متعهد: <strong>{getInsurerPersianName(claimCase.culpritInsurer)}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setShowExpertComplaintModal(true)}
+                    className="px-3.5 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs border border-amber-300 transition-all flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
+                  >
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    <span>ثبت اعتراض یا شکایت از کارشناس</span>
+                  </button>
+                </div>
+              </div>
+
+              {expertComplaintSuccessMsg && (
+                <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-2xl text-emerald-900 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <span>{expertComplaintSuccessMsg}</span>
+                </div>
+              )}
+
+              <div className="p-3 bg-white rounded-2xl border border-slate-200 text-xs text-slate-600 leading-relaxed font-medium flex items-start gap-2">
+                <Info className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                <span>
+                  گفتگوی شما مستقیماً با کارشناس مسئول این پرونده برقرار است. تمامی پیام‌ها، مستندات ارسالی و زمان‌بندی‌ها در پرونده رسمی بیمه ذخیره و ثبت می‌گردد.
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Unified Chat Box */}
+          <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-blue-900" />
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                    گفتگو و تبادل مدارک با کارشناس ارزیاب
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                    کانال پیام‌رسانی برخط پرونده خسارت #{claimCase.id}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-extrabold border border-slate-200">
+                  شما: {myRoleLabel}
+                </span>
+                <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-extrabold border border-emerald-200 hidden sm:inline">
+                  اتصال پایدار
+                </span>
+              </div>
+            </div>
+
+            {/* Unified Chat Messages Stream */}
+            <div className="space-y-3 min-h-[220px] max-h-96 overflow-y-auto pr-1 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200">
+              {unifiedChatMessages.length === 0 ? (
+                <div className="text-center py-10 space-y-2">
+                  <MessageSquare className="w-10 h-10 text-slate-300 mx-auto" />
+                  <p className="text-xs text-slate-600 font-bold">
+                    پیامی در این پرونده ثبت نشده است.
+                  </p>
+                  <p className="text-[11px] text-slate-500 font-medium max-w-sm mx-auto">
+                    می‌توانید سوالات، مدارک تکمیلی یا توضیحات تصادف خود را مستقیماً برای کارشناس ارزیاب ارسال فرمایید.
+                  </p>
+                </div>
+              ) : (
+                unifiedChatMessages.map((msg, idx) => {
+                  if (msg.isSystem) {
+                    return (
+                      <div key={msg.id || idx} className="p-3 bg-slate-100/90 border border-slate-200 rounded-2xl text-xs space-y-1 text-slate-800">
+                        <div className="flex items-center justify-between font-bold text-[10px] text-slate-700">
+                          <span className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-blue-900" />
+                            <span>{msg.senderName}</span>
+                          </span>
+                          <span className="font-mono text-slate-400">{msg.time}</span>
+                        </div>
+                        <p className="font-medium leading-relaxed">{msg.text}</p>
+                      </div>
+                    );
+                  }
+
+                  const isFromExpert = msg.isFromExpert;
+                  return (
+                    <div
+                      key={msg.id || idx}
+                      className={`p-3.5 rounded-2xl text-xs space-y-2 border ${
+                        isFromExpert
+                          ? 'bg-purple-50/90 border-purple-200 mr-4 sm:mr-8 text-purple-950 shadow-2xs'
+                          : 'bg-blue-900 border-blue-950 ml-4 sm:ml-8 text-white shadow-sm'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold text-[10px]">
+                        <span className={isFromExpert ? 'text-purple-800' : 'text-blue-100'}>
+                          {isFromExpert ? `کارشناس ارزیاب: ${msg.senderName}` : `شما (${myRoleLabel})`}
+                        </span>
+                        <span className={`font-mono ${isFromExpert ? 'text-slate-400' : 'text-blue-200'}`}>
+                          {msg.time}
+                        </span>
+                      </div>
+                      <p className="font-medium leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+
+                      {/* Attached files preview in chat bubble */}
+                      {msg.files && msg.files.length > 0 && (
+                        <div className="pt-2 flex flex-wrap gap-2 border-t border-slate-200/50 mt-2">
+                          {msg.files.map((fileItem, fi) => {
+                            const dUrl = fileItem.dataUrl;
+                            const fName = fileItem.name || `فایل ضمیمه #${fi + 1}`;
+                            const fType = fileItem.fileType || (typeof dUrl === 'string' && dUrl.startsWith('data:video') ? 'video' : 'image');
+
+                            return (
+                              <div
+                                key={fi}
+                                className={`p-2 rounded-xl text-[11px] space-y-1.5 max-w-xs ${
+                                  isFromExpert ? 'bg-white border border-slate-200 text-slate-900' : 'bg-blue-800/80 border border-blue-700 text-white'
+                                }`}
+                              >
+                                <span className="font-bold block truncate">{fName}</span>
+                                {dUrl && (fType === 'image' || (!fType && typeof dUrl === 'string' && dUrl.startsWith('data:image'))) && (
+                                  <img
+                                    src={dUrl}
+                                    alt={fName}
+                                    onClick={() => setPreviewImageModal(dUrl)}
+                                    className="w-full h-28 object-cover rounded-lg border border-slate-200/40 cursor-pointer hover:opacity-90 transition-opacity"
+                                  />
+                                )}
+                                {dUrl && fType === 'video' && (
+                                  <video src={dUrl} controls className="w-full max-h-32 rounded-lg border border-slate-200/40" />
+                                )}
+                                {dUrl && (fType === 'pdf' || fType === 'doc') && (
+                                  <a
+                                    href={dUrl}
+                                    download={fName}
+                                    className={`font-bold text-[10px] block underline ${isFromExpert ? 'text-purple-700' : 'text-blue-200'}`}
+                                  >
+                                    دانلود فایل ({fType.toUpperCase()})
+                                  </a>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Direct Message & Document Composer for Customer */}
+            <form onSubmit={handleSendCustomerChatMessage} className="pt-2 border-t border-slate-100 space-y-2.5">
+              {customerChatFile && (
+                <div className="flex items-center justify-between p-2.5 bg-blue-50 border border-blue-200 rounded-xl text-xs font-bold text-blue-900">
+                  <div className="flex items-center gap-2 truncate">
+                    <Paperclip className="w-4 h-4 text-blue-700 shrink-0" />
+                    <span className="truncate">مدرک انتخاب‌شده: {customerChatFile.name} ({customerChatFile.size})</span>
+                    {customerChatFile.type === 'image' && (
+                      <img src={customerChatFile.dataUrl} className="w-8 h-8 rounded-md object-cover border border-blue-200" alt="پیش‌نمایش" />
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerChatFile(null)}
+                    className="text-rose-600 hover:text-rose-700 text-xs px-2 py-1 bg-white rounded-lg border border-rose-200 font-bold shrink-0"
+                  >
+                    حذف فایل
+                  </button>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <div className="purple-field-beam flex-1">
+                  <input
+                    type="text"
+                    value={customerChatText}
+                    onChange={(e) => setCustomerChatText(e.target.value)}
+                    placeholder="پاسخ، پیام یا توضیحات خود را برای کارشناس بنویسید..."
+                    className="w-full px-4 py-2.5 text-xs font-medium text-slate-900 bg-white focus:outline-none"
+                  />
+                </div>
+
+                <label
+                  className="p-2.5 rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition-all shrink-0 flex items-center gap-1"
+                  title="افزودن تصویر، ویدیو یا مدرک"
+                >
+                  <Camera className="w-4 h-4 text-slate-700" />
+                  <span className="text-xs font-bold hidden sm:inline">افزودن عکس/مدرک</span>
+                  <input
+                    type="file"
+                    accept="image/*,video/*,.pdf,.doc,.docx"
+                    onChange={handleCustomerChatFileChange}
+                    className="hidden"
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  className="px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-600 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                >
+                  <span>ارسال پیام</span>
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </form>
+          </div>
+
+          {/* Party Comments Section */}
+          <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-purple-700" />
+                <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                  اظهارات و یادداشت‌های ثبت‌شده طرفین حادثه
+                </h3>
+              </div>
+              <span className="text-[10px] bg-purple-50 text-purple-900 px-2.5 py-1 rounded-full font-bold border border-purple-200">
+                ثبت رسمی در پرونده
+              </span>
+            </div>
+
+            <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+              {(!claimCase.partyComments || claimCase.partyComments.length === 0) ? (
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center text-xs text-slate-500 font-medium">
+                  هنوز اظهاراتی از طرفین ثبت نشده است. می‌توانید شرح ماوقع تصادف را در زیر اضافه کنید.
+                </div>
+              ) : (
+                claimCase.partyComments.map((cmt) => (
+                  <div
+                    key={cmt.id}
+                    className={`p-3.5 rounded-2xl text-xs space-y-1.5 border ${
+                      cmt.uploaderParty === 'PARTY_ONE'
+                        ? 'bg-blue-50/70 border-blue-200 text-blue-950'
+                        : 'bg-purple-50/70 border-purple-200 text-purple-950'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between font-bold text-[11px]">
+                      <span className="flex items-center gap-1.5">
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+                          cmt.uploaderParty === 'PARTY_ONE' ? 'bg-blue-200/80 text-blue-950' : 'bg-purple-200/80 text-purple-950'
+                        }`}>
+                          {cmt.role}
+                        </span>
+                        <span>{cmt.author}</span>
+                      </span>
+                      <span className="text-slate-400 text-[10px] font-mono">{cmt.time}</span>
+                    </div>
+                    <p className="font-medium leading-relaxed">{cmt.text}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add Comment Form */}
+            <form onSubmit={handleAddPartyComment} className="flex gap-2 pt-2">
+              <div className="purple-field-beam flex-1">
+                <input
+                  type="text"
+                  value={partyCommentInput}
+                  onChange={(e) => setPartyCommentInput(e.target.value)}
+                  placeholder={`توضیحات و اظهارات خود به‌عنوان ${isPartyOne ? 'طرف اول' : 'طرف دوم'} را بنویسید...`}
+                  className="w-full px-4 py-2.5 text-xs font-medium text-slate-900 bg-white focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-600 text-white font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+              >
+                <span>ثبت اظهارات</span>
+                <Send className="w-3.5 h-3.5" />
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 3: CRM SUPPORT & COMPLAINTS (Light Theme)                             */}
+      {/* ========================================================================= */}
+      {mainActiveTab === 'support' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          
+          {/* Quick Help & Escalation Options */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div
+              onClick={() => setShowCrmTicketModal(true)}
+              className="bg-white p-4 rounded-3xl border-2 border-slate-200 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer space-y-2 group"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-900 border border-blue-200 flex items-center justify-center font-bold">
+                <LifeBuoy className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              </div>
+              <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                ثبت تیکت پشتیبانی CRM
+              </h4>
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                درخواست پیگیری، سوال درباره فرآیند پرداخت یا مشکلات مدارک
+              </p>
+            </div>
+
+            <div
+              onClick={() => setShowExpertComplaintModal(true)}
+              className="bg-white p-4 rounded-3xl border-2 border-slate-200 hover:border-amber-400 hover:shadow-md transition-all cursor-pointer space-y-2 group"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-800 border border-amber-200 flex items-center justify-center font-bold">
+                <AlertTriangle className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              </div>
+              <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                شکایت از عملکرد کارشناس
+              </h4>
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                ثبت عدم پاسخگویی، تاخیر در بازدید یا رفتار نامناسب ارزیاب
+              </p>
+            </div>
+
+            <div
+              onClick={() => setShowDisputeModal(true)}
+              className="bg-white p-4 rounded-3xl border-2 border-slate-200 hover:border-purple-400 hover:shadow-md transition-all cursor-pointer space-y-2 group"
+            >
+              <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-900 border border-purple-200 flex items-center justify-center font-bold">
+                <Scale className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              </div>
+              <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                راهنمای ثبت شکایت در بیمه مرکزی
+              </h4>
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                دریافت اطلاعات پرونده و لینک مستقیم ورود به درگاه شکایات بیمه مرکزی (سنهاب)
+              </p>
+            </div>
+          </div>
+
+          {/* CRM Tickets Section Component */}
           <CustomerTicketsSection
             claimCase={claimCase}
             session={session}
             onOpenCreateTicket={() => setShowCrmTicketModal(true)}
           />
         </div>
+      )}
 
-        {/* Case Timeline */}
-        <div className="space-y-3 pt-4 border-t border-slate-100">
-          <h4 className="font-extrabold text-slate-800 text-xs flex items-center gap-2">
-            <Clock className="w-4 h-4 text-indigo-600" />
-            تاریخچه کامل روند پرونده
-          </h4>
-          <div className="space-y-2">
-            {(claimCase.history || []).map((h, idx) => (
-              <div
-                key={idx}
-                className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs flex items-start justify-between gap-3"
-              >
-                <div>
-                  <span className="font-bold text-slate-800 block">{h.status}</span>
-                  <span className="text-slate-600 mt-0.5 block">{h.note}</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono shrink-0">{h.time}</span>
+      {/* ========================================================================= */}
+      {/* TAB 4: CASE TIMELINE (Step-by-step audit)                                 */}
+      {/* ========================================================================= */}
+      {mainActiveTab === 'timeline' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                  تاریخچه و گاه‌شمار کامل مراحل پرونده خسارت #{claimCase.id}
+                </h3>
               </div>
-            ))}
+              <span className="text-[10px] bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-bold border border-slate-200">
+                ثبت سیستمی
+              </span>
+            </div>
+
+            <div className="space-y-2.5">
+              {(claimCase.history || []).length === 0 ? (
+                <div className="p-5 text-center text-xs text-slate-500">
+                  رویدادی برای نمایش ثبت نشده است.
+                </div>
+              ) : (
+                (claimCase.history || []).map((h, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-slate-50 hover:bg-indigo-50/30 p-3.5 rounded-2xl border border-slate-200 transition-colors text-xs flex items-start justify-between gap-3"
+                  >
+                    <div className="space-y-1">
+                      <span className="font-black text-slate-900 block text-xs sm:text-sm">{h.status}</span>
+                      <p className="text-slate-600 font-medium leading-relaxed">{h.note}</p>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono shrink-0 bg-white px-2 py-1 rounded-lg border border-slate-200">
+                      {h.time}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
+      )}
+
+      {/* Main Container Close */}
       </div>
 
-      {/* Central Insurance Complaint Modal */}
+      {/* Central Insurance (SANHAB) Complaint Referral Guide Modal */}
       {showDisputeModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-xl w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-extrabold text-base text-slate-900 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-rose-600" />
-                ثبت شکایت رسمی به بیمه مرکزی
-              </h3>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-900 border border-purple-200 flex items-center justify-center font-bold">
+                  <Scale className="w-5 h-5 text-purple-700" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900">
+                    راهنمای ثبت شکایت در بیمه مرکزی (سنهاب)
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    سامانه نظارت و رسیدگی به شکایات بیمه مرکزی جمهوری اسلامی ایران
+                  </p>
+                </div>
+              </div>
               <button
+                type="button"
                 onClick={() => setShowDisputeModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSubmitDispute} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  موضوع شکایت
-                </label>
-                <select
-                  value={disputeSubject}
-                  onChange={(e) => setDisputeSubject(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs"
+            {/* Official Notice */}
+            <div className="p-4 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-2 text-xs leading-relaxed text-slate-700">
+              <div className="flex items-center gap-2 text-purple-900 font-extrabold text-xs">
+                <ShieldCheck className="w-4 h-4 text-purple-700 shrink-0" />
+                <span>حالت ارجاعی به سامانه حاکمیتی بیمه مرکزی</span>
+              </div>
+              <p>
+                فرآیند رسمی و قانونی رسیدگی به شکایات از شرکت‌های بیمه و ارزیابان خسارت، به صورت مستقل در <strong>«سامانه سنهاب بیمه مرکزی»</strong> ثبت و بررسی می‌شود. اطلاعات پرونده شما در کادر زیر آماده شده است تا هنگام ثبت شکایت، آن‌ها را به سادگی در فرم بیمه مرکزی وارد نمایید.
+              </p>
+            </div>
+
+            {/* Ready Case Information Box */}
+            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-slate-600" />
+                  اطلاعات پرونده شما (جهت درج در فرم شکایات سنهاب)
+                </span>
+                <span className="text-[10px] text-slate-500 font-medium">برای کپی روی مقادیر کلیک کنید</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                {/* Case ID */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">شماره پرونده خسارت:</span>
+                    <span className="font-black text-slate-900 font-mono text-xs">{claimCase.id}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(claimCase.id, 'caseId')}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-purple-100 text-slate-600 hover:text-purple-900 transition-colors cursor-pointer"
+                    title="کپی شماره پرونده"
+                  >
+                    {copiedSanhabField === 'caseId' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+
+                {/* Insurer Name */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">شرکت بیمه متعهد:</span>
+                    <span className="font-black text-purple-900 text-xs">{getInsurerPersianName(claimCase.culpritInsurer)}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(getInsurerPersianName(claimCase.culpritInsurer), 'insurer')}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-purple-100 text-slate-600 hover:text-purple-900 transition-colors cursor-pointer"
+                    title="کپی نام شرکت بیمه"
+                  >
+                    {copiedSanhabField === 'insurer' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+
+                {/* Sanhab Code */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">کد پیگیری استعلام سنهاب:</span>
+                    <span className="font-black text-slate-900 font-mono text-xs">
+                      {claimCase.sanhabInquiry?.trackingCode || claimCase.policyInquirySanhab?.code || 'SNH-994821'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(claimCase.sanhabInquiry?.trackingCode || claimCase.policyInquirySanhab?.code || 'SNH-994821', 'sanhab')}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-purple-100 text-slate-600 hover:text-purple-900 transition-colors cursor-pointer"
+                    title="کپی کد سنهاب"
+                  >
+                    {copiedSanhabField === 'sanhab' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+
+                {/* Policy Number */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">شماره بیمه‌نامه:</span>
+                    <span className="font-black text-slate-900 font-mono text-xs">
+                      {claimCase.culpritPolicyNumber || claimCase.policyNumber || 'PL-99214'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(claimCase.culpritPolicyNumber || claimCase.policyNumber || 'PL-99214', 'policy')}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-purple-100 text-slate-600 hover:text-purple-900 transition-colors cursor-pointer"
+                    title="کپی شماره بیمه‌نامه"
+                  >
+                    {copiedSanhabField === 'policy' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+
+                {/* National ID */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">کد ملی شما:</span>
+                    <span className="font-black text-slate-900 font-mono text-xs">
+                      {p1DisplayNationalId || session.nationalId || claimCase.victimNationalId || claimCase.culpritNationalId || '۰۲۴۸۵۲۳۶۹۱'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(p1DisplayNationalId || session.nationalId || claimCase.victimNationalId || claimCase.culpritNationalId || '0248523691', 'nid')}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-purple-100 text-slate-600 hover:text-purple-900 transition-colors cursor-pointer"
+                    title="کپی کد ملی"
+                  >
+                    {copiedSanhabField === 'nid' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+
+                {/* Plate */}
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 block font-bold">پلاک انتظامی خودرو:</span>
+                    <span className="font-black text-slate-900 text-xs font-mono">
+                      {claimCase.victimPlate || claimCase.plate || 'ایران ۲۲ - ۱۲۳ ج ۴۵'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(claimCase.victimPlate || claimCase.plate || 'ایران ۲۲ - ۱۲۳ ج ۴۵', 'plate')}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-purple-100 text-slate-600 hover:text-purple-900 transition-colors cursor-pointer"
+                    title="کپی پلاک"
+                  >
+                    {copiedSanhabField === 'plate' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Step-by-Step Guide */}
+            <div className="space-y-2">
+              <span className="text-xs font-extrabold text-slate-800 block">
+                مراحل ثبت شکایت در سامانه بیمه مرکزی:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600">
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <strong className="text-purple-900 block font-black mb-0.5">۱. ورود به درگاه سنهاب:</strong>
+                  روی دکمه ورود مستقیم کلیک کنید تا بخش شکایات باز شود.
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <strong className="text-purple-900 block font-black mb-0.5">۲. انتخاب شرکت بیمه:</strong>
+                  شرکت «{getInsurerPersianName(claimCase.culpritInsurer)}» و رشته بیمه را انتخاب کنید.
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <strong className="text-purple-900 block font-black mb-0.5">۳. ورود کدهای پرونده:</strong>
+                  کد بیمه‌نامه و کد سنهاب کپی‌شده را در فیلد مربوطه قرار دهید.
+                </div>
+                <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                  <strong className="text-purple-900 block font-black mb-0.5">۴. دریافت کد رهگیری:</strong>
+                  پس از ثبت، کد رهگیری نظارتی به شماره شما پیامک می‌شود.
+                </div>
+              </div>
+            </div>
+
+            {/* Action Buttons with Direct Link */}
+            <div className="space-y-2.5 pt-2 border-t border-slate-100">
+              <a
+                href="https://complaint.centinsur.ir"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3.5 px-4 rounded-xl bg-purple-700 hover:bg-purple-600 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer text-center"
+              >
+                <span>ورود مستقیم به سامانه ثبت شکایات بیمه مرکزی (سنهاب)</span>
+                <ExternalLink className="w-4 h-4" />
+              </a>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard('https://complaint.centinsur.ir', 'sanhabUrl')}
+                  className="flex-1 py-2.5 px-3 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <option value="مبلغ ارزیابی نامتناسب">مبلغ ارزیابی نامتناسب با خسارت واقعی</option>
-                  <option value="تاخیر در بررسی">تاخیر نامتعارف در رسیدگی به پرونده</option>
-                  <option value="رفتار کارشناس">اعتراض به نحوه بررسی کارشناس</option>
-                  <option value="سایر">سایر موارد</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  توضیحات و شرح شکایت <span className="text-rose-500">*</span>
-                </label>
-                <textarea
-                  rows={4}
-                  value={disputeDesc}
-                  onChange={(e) => setDisputeDesc(e.target.value)}
-                  placeholder="دلایل عدم رضایت خود را شرح دهید..."
-                  className="w-full px-4 py-3 rounded-xl border border-slate-300 text-xs"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-2">
+                  {copiedSanhabField === 'sanhabUrl' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedSanhabField === 'sanhabUrl' ? 'لینک کپی شد' : 'کپی لینک مستقیم سنهاب'}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowDisputeModal(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700"
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
                 >
-                  انصراف
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2.5 rounded-xl bg-rose-600 text-white text-xs font-bold shadow-md hover:bg-rose-500"
-                >
-                  ثبت و ارسال به بیمه مرکزی
+                  بستن
                 </button>
               </div>
-            </form>
+            </div>
+
           </div>
         </div>
       )}
