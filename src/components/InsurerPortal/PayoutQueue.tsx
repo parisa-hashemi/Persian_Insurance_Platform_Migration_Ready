@@ -49,7 +49,7 @@ export const PayoutQueue: React.FC<PayoutQueueProps> = ({
           status: 'پرداخت شده',
           time: new Date().toLocaleString('fa-IR'),
           user: session.name || 'پورتال بیمه‌گر',
-          note: `واریز آنلاین خسارت به مبلغ ${formatCurrency(c.assessment?.payable)} انجام شد`
+          note: `واریز آنلاین خسارت به مبلغ ${formatCurrency(c.insurerPayableAmount || c.assessment?.payable)} انجام شد`
         }
       ]
     };
@@ -117,7 +117,7 @@ export const PayoutQueue: React.FC<PayoutQueueProps> = ({
                 <div>
                   <span className="text-slate-700 block mb-0.5 font-bold">مبلغ قابل واریز</span>
                   <span className="font-black text-emerald-800 text-base">
-                    {formatCurrency(c.assessment?.payable || 17000000)}
+                    {formatCurrency(c.insurerPayableAmount || c.assessment?.payable || 17000000)}
                   </span>
                 </div>
 

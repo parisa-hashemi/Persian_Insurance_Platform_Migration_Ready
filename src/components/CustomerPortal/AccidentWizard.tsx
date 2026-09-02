@@ -815,6 +815,13 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       ]
     };
 
+    // ثبت موقت (در انتظار کروکی): هیچ ارجاعی انجام نمی‌شود؛
+    // پس از ورود کد کروکی توسط مشتری، هوش مصنوعی کارشناس خسارت را بر اساس موقعیت تخصیص می‌دهد.
+    if (status === 'ثبت موقت - در انتظار افزودن کروکی') {
+      onComplete(newCase);
+      return;
+    }
+
     // Trigger AI Auto-Dispatcher to assign optimal expert and branch based on location and kroki
     const { updatedCase } = autoDispatchClaimWithAI(newCase);
     onComplete(updatedCase);

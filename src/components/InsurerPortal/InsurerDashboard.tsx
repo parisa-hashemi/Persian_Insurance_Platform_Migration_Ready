@@ -208,6 +208,20 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
     return expertsMap[clean] || expertsMap['iran'] || INITIAL_EXPERTS[clean] || [];
   }, [companyCode, expertsMap]);
 
+  // فهرست ترکیبی برای تب عملکرد: کارشناسان خسارت + کارشناسان میدانی (با برچسب دسته)
+  const performanceStaffList = useMemo(() => {
+    const clean = companyCode.toLowerCase();
+    const assessors = (expertsMap[clean] || expertsMap['iran'] || INITIAL_EXPERTS[clean] || []).map((st) => ({
+      ...st,
+      perfCategory: 'assessor' as const
+    }));
+    const fields = (fieldExpertsMap[clean] || INITIAL_FIELD_EXPERTS[clean] || []).map((st) => ({
+      ...st,
+      perfCategory: 'fieldexpert' as const
+    }));
+    return [...assessors, ...fields];
+  }, [companyCode, expertsMap, fieldExpertsMap]);
+
   const [assessorActionMsg, setAssessorActionMsg] = useState<string | null>(null);
 
   const handleToggleStaffStatus = (staffId: string, category: StaffRoleCategory) => {
@@ -291,11 +305,14 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
   const [newComplaintDesc, setNewComplaintDesc] = useState('');
 
   const [perfFilter, setPerfFilter] = useState<'ALL' | 'EXCELLENT' | 'COMPLAINTS' | 'SLOW'>('ALL');
+  const [perfRoleFilter, setPerfRoleFilter] = useState<'ALL' | 'assessor' | 'fieldexpert'>('ALL');
   const [perfSearch, setPerfSearch] = useState('');
 
   // Helper to compute individual performance for an assessor
   const getExpertEvaluation = (exp: StaffMember) => {
-    const assignedCases = companyCases.filter((c) => c.assignedExpert?.id === exp.id);
+    const assignedCases = companyCases.filter(
+      (c) => c.assignedExpert?.id === exp.id || c.assignedFieldExpert?.id === exp.id
+    );
     const assignedCount = assignedCases.length;
     const evaluatedCount = assignedCases.filter((c) =>
       c.status.includes('ارزیابی') || c.status.includes('تایید') || c.status.includes('پرداخت')
@@ -312,6 +329,9 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
     else if (exp.id === 'a2') avgResponseMins = 75;
     else if (exp.id === 'ir2') avgResponseMins = 140;
     else if (exp.id === 'd1') avgResponseMins = 22;
+    else if (exp.id === 'fed1') avgResponseMins = 19;
+    else if (exp.id === 'fed1-2') avgResponseMins = 38;
+    else if (exp.id.startsWith('fed') || exp.id.startsWith('fe')) avgResponseMins = 27;
     else if (exp.id === 'a1') avgResponseMins = 18;
     else if (exp.id === 'ir1') avgResponseMins = 15;
 
@@ -327,6 +347,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
     if (exp.id === 'd2') rating = 3.6;
     else if (exp.id === 'ir2') rating = 3.2;
     else if (exp.id === 'a2') rating = 4.1;
+    else if (exp.id === 'fed1-2') rating = 4.0;
 
     // Calculate dynamic performance score (0 - 100)
     let score = 100;
@@ -413,7 +434,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
     e.preventDefault();
     if (!targetExpertIdForComplaint || !newComplainantName.trim() || !newComplaintDesc.trim()) return;
 
-    const targetExp = currentCompanyExperts.find((exp) => exp.id === targetExpertIdForComplaint);
+    const targetExp = performanceStaffList.find((exp) => exp.id === targetExpertIdForComplaint);
     if (!targetExp) return;
 
     const newCmp: ExpertComplaint = {
@@ -831,11 +852,11 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
         </div>
 
         {/* Center: Navigation Menu Tabs */}
-        <div className="flex flex-wrap items-center justify-center gap-1.5 flex-1 max-w-4xl">
+        <div className="flex flex-nowrap md:flex-wrap items-center md:justify-center gap-1.5 flex-1 max-w-full md:max-w-4xl overflow-x-auto pb-1 md:pb-0 -mx-1 px-1">
           
           <button
             onClick={() => setActiveTab('dash')}
-            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'dash'
                 ? 'bg-blue-600 text-white shadow-md border border-blue-300'
                 : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
@@ -847,7 +868,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
           <button
             onClick={() => setActiveTab('cases')}
-            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'cases'
                 ? 'bg-blue-600 text-white shadow-md border border-blue-300'
                 : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
@@ -859,7 +880,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
           <button
             onClick={() => setActiveTab('experts')}
-            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'experts'
                 ? 'bg-blue-600 text-white shadow-md border border-blue-300'
                 : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
@@ -871,7 +892,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
           <button
             onClick={() => setActiveTab('aiConsole')}
-            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'aiConsole'
                 ? 'bg-blue-600 text-white shadow-md border border-blue-300'
                 : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
@@ -883,7 +904,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
           <button
             onClick={() => setActiveTab('assessors')}
-            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'assessors' || activeTab === 'reviewers'
                 ? 'bg-blue-600 text-white shadow-md border border-blue-300'
                 : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
@@ -895,7 +916,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
           <button
             onClick={() => setActiveTab('bodyClaim')}
-            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+            className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
               activeTab === 'bodyClaim'
                 ? 'bg-blue-600 text-white shadow-md border border-blue-300'
                 : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
@@ -1337,7 +1358,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
             <div className="px-4 py-2.5 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-bold flex items-center gap-2 self-start md:self-auto shrink-0 shadow-xs">
               <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>ثبت شکایت تنها توسط مشتریان (زیان‌دیده/مقصر) در پورتال پرونده انجام می‌شود</span>
+              <span>ثبت شکایت توسط مشتریان در پورتال پرونده — برای کارشناس خسارت و کارشناس میدانی</span>
             </div>
           </div>
 
@@ -1354,9 +1375,9 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
               <span className="text-[11px] text-slate-600 font-bold block">تعداد کارشناسان</span>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-black text-blue-900 font-mono">{currentCompanyExperts.length}</span>
+                <span className="text-2xl font-black text-blue-900 font-mono">{performanceStaffList.length}</span>
                 <span className="text-[10px] text-emerald-700 font-bold">
-                  ({currentCompanyExperts.filter((e) => e.active !== false).length} فعال)
+                  ({performanceStaffList.filter((e) => e.active !== false).length} فعال)
                 </span>
               </div>
               <p className="text-[10px] text-slate-500 font-medium">کارشناسان ثبت‌شده شرکت</p>
@@ -1366,8 +1387,8 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               <span className="text-[11px] text-slate-600 font-bold block">میانگین زمان بررسی</span>
               <span className="text-2xl font-black text-amber-700 font-mono">
                 {Math.round(
-                  currentCompanyExperts.reduce((acc, exp) => acc + getExpertEvaluation(exp).avgResponseMins, 0) /
-                    (currentCompanyExperts.length || 1)
+                  performanceStaffList.reduce((acc, exp) => acc + getExpertEvaluation(exp).avgResponseMins, 0) /
+                    (performanceStaffList.length || 1)
                 )}{' '}
                 دقیقه
               </span>
@@ -1379,7 +1400,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               <span className="text-2xl font-black text-rose-700 font-mono">
                 {
                   complaintsList.filter(
-                    (c) => currentCompanyExperts.some((exp) => exp.id === c.expertId) && c.status !== 'مردود'
+                    (c) => performanceStaffList.some((exp) => exp.id === c.expertId) && c.status !== 'مردود'
                   ).length
                 }
               </span>
@@ -1390,8 +1411,8 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               <span className="text-[11px] text-slate-600 font-bold block">میانگین نمره عملکرد</span>
               <span className="text-2xl font-black text-blue-900 font-mono">
                 {(
-                  currentCompanyExperts.reduce((acc, exp) => acc + getExpertEvaluation(exp).finalScore, 0) /
-                  (currentCompanyExperts.length || 1)
+                  performanceStaffList.reduce((acc, exp) => acc + getExpertEvaluation(exp).finalScore, 0) /
+                  (performanceStaffList.length || 1)
                 ).toFixed(1)}{' '}
                 / ۱۰۰
               </span>
@@ -1399,69 +1420,107 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             </div>
           </div>
 
-          {/* Search & Filter Controls */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-800/50 p-3 rounded-2xl border border-slate-800">
-            {/* Filter Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+          {/* Search & Filter Controls — نوار روشن و یکپارچه */}
+          <div className="space-y-3 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200 shadow-xs">
+
+            {/* ردیف ۱: تفکیک نقش کارشناسان + جستجو */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl w-full md:w-auto md:min-w-[420px]">
+                <button
+                  onClick={() => setPerfRoleFilter('ALL')}
+                  className={`py-2 px-2 rounded-xl text-[11px] sm:text-xs font-black transition-all ${
+                    perfRoleFilter === 'ALL'
+                      ? 'bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow'
+                      : 'text-slate-600 hover:text-blue-700'
+                  }`}
+                >
+                  همه ({performanceStaffList.length})
+                </button>
+                <button
+                  onClick={() => setPerfRoleFilter('assessor')}
+                  className={`py-2 px-2 rounded-xl text-[11px] sm:text-xs font-black transition-all ${
+                    perfRoleFilter === 'assessor'
+                      ? 'bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow'
+                      : 'text-slate-600 hover:text-blue-700'
+                  }`}
+                >
+                  کارشناس خسارت ({performanceStaffList.filter((e) => e.perfCategory === 'assessor').length})
+                </button>
+                <button
+                  onClick={() => setPerfRoleFilter('fieldexpert')}
+                  className={`py-2 px-2 rounded-xl text-[11px] sm:text-xs font-black transition-all ${
+                    perfRoleFilter === 'fieldexpert'
+                      ? 'bg-gradient-to-l from-teal-500 to-cyan-600 text-white shadow'
+                      : 'text-slate-600 hover:text-teal-700'
+                  }`}
+                >
+                  کارشناس میدانی ({performanceStaffList.filter((e) => e.perfCategory === 'fieldexpert').length})
+                </button>
+              </div>
+
+              {/* Search Input */}
+              <div className="relative w-full md:w-72">
+                <Search className="w-4 h-4 text-blue-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={perfSearch}
+                  onChange={(e) => setPerfSearch(e.target.value)}
+                  placeholder="جستجوی نام یا سمت کارشناس..."
+                  className="w-full pr-10 pl-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white shadow-inner transition-all"
+                />
+              </div>
+            </div>
+
+            {/* ردیف ۲: فیلترهای وضعیت عملکرد */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 -mx-1 px-1">
               <button
                 onClick={() => setPerfFilter('ALL')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                className={`px-3.5 py-1.5 rounded-full text-[11px] font-black whitespace-nowrap transition-all border ${
                   perfFilter === 'ALL'
-                    ? 'bg-purple-600 text-white shadow-md'
-                    : 'bg-slate-800 text-slate-300 hover:text-white'
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700'
                 }`}
               >
-                همه کارشناسان
+                همه وضعیت‌ها
               </button>
               <button
                 onClick={() => setPerfFilter('EXCELLENT')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 ${
+                className={`px-3.5 py-1.5 rounded-full text-[11px] font-black whitespace-nowrap transition-all border ${
                   perfFilter === 'EXCELLENT'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'bg-slate-800 text-slate-300 hover:text-emerald-400'
+                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'
                 }`}
               >
-                <span>عملکرد عالی</span>
+                عملکرد عالی
               </button>
               <button
                 onClick={() => setPerfFilter('COMPLAINTS')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 ${
+                className={`px-3.5 py-1.5 rounded-full text-[11px] font-black whitespace-nowrap transition-all border ${
                   perfFilter === 'COMPLAINTS'
-                    ? 'bg-rose-600 text-white shadow-md'
-                    : 'bg-slate-800 text-slate-300 hover:text-rose-400'
+                    ? 'bg-rose-500 text-white border-rose-500 shadow-sm'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-rose-300 hover:text-rose-600'
                 }`}
               >
-                <span>دارای شکایت</span>
+                دارای شکایت
               </button>
               <button
                 onClick={() => setPerfFilter('SLOW')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1 ${
+                className={`px-3.5 py-1.5 rounded-full text-[11px] font-black whitespace-nowrap transition-all border ${
                   perfFilter === 'SLOW'
-                    ? 'bg-amber-600 text-white shadow-md'
-                    : 'bg-slate-800 text-slate-300 hover:text-amber-400'
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-amber-300 hover:text-amber-700'
                 }`}
               >
-                <span>پاسخگویی کند</span>
+                پاسخگویی کند
               </button>
-            </div>
-
-            {/* Search Input */}
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={perfSearch}
-                onChange={(e) => setPerfSearch(e.target.value)}
-                placeholder="جستجوی نام یا سمت کارشناس..."
-                className="w-full pr-9 pl-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-purple-500"
-              />
             </div>
           </div>
 
           {/* Individual Assessor Evaluation Cards */}
           <div className="space-y-4">
-            {currentCompanyExperts
+            {performanceStaffList
               .filter((exp) => {
+                if (perfRoleFilter !== 'ALL' && exp.perfCategory !== perfRoleFilter) return false;
                 const evalData = getExpertEvaluation(exp);
                 if (perfFilter === 'EXCELLENT' && evalData.finalScore < 88) return false;
                 if (perfFilter === 'COMPLAINTS' && evalData.complaintsCount === 0) return false;
@@ -1485,13 +1544,28 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                     {/* Top Row: Expert Info & Performance Gauge */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-white text-base shadow-sm shrink-0">
+                        <div
+                          className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-white text-base shadow-sm shrink-0 ${
+                            exp.perfCategory === 'fieldexpert'
+                              ? 'bg-gradient-to-br from-teal-500 to-cyan-600'
+                              : 'bg-gradient-to-br from-blue-500 to-indigo-600'
+                          }`}
+                        >
                           {exp.name.slice(0, 2)}
                         </div>
 
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
                             <h3 className="font-extrabold text-blue-900 text-base">{exp.name}</h3>
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
+                                exp.perfCategory === 'fieldexpert'
+                                  ? 'bg-teal-50 text-teal-800 border-teal-300'
+                                  : 'bg-blue-50 text-blue-800 border-blue-300'
+                              }`}
+                            >
+                              {exp.perfCategory === 'fieldexpert' ? 'کارشناس میدانی' : 'کارشناس خسارت'}
+                            </span>
                             <span
                               className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
                                 isActive
@@ -1510,8 +1584,8 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                       </div>
 
                       {/* Performance Score Gauge Badge */}
-                      <div className="flex items-center gap-3 self-start sm:self-auto">
-                        <div className="p-3 rounded-2xl border-2 border-amber-300 bg-amber-50 text-center font-mono space-y-0.5 text-amber-950">
+                      <div className="flex items-center gap-3 self-stretch sm:self-auto">
+                        <div className="flex-1 sm:flex-none p-3 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 text-center font-mono space-y-0.5">
                           <span className="text-[10px] font-bold text-slate-700 block">نمره عملکرد (تک‌به‌تک)</span>
                           <span className="text-2xl font-black block text-blue-900">{evalData.finalScore} / ۱۰۰</span>
                           <span className="text-[10px] font-black block">{evalData.tierLabel}</span>

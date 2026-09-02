@@ -63,7 +63,7 @@ import { CustomerTicketsSection } from './CustomerTicketsSection';
 import { CustomerExpertCallModal } from './CustomerExpertCallModal';
 import { AIChatCopilotModal } from '../AI/AIChatCopilotModal';
 import { CustomerDebtModal } from './CustomerDebtModal';
-import { dispatchObjectionStageWithAI } from '../../lib/ai/aiDispatcher';
+import { dispatchObjectionStageWithAI, autoDispatchClaimWithAI } from '../../lib/ai/aiDispatcher';
 
 // Helper to detect Iranian bank name from IBAN (Sheba) code
 export const getBankNameFromIban = (ibanStr: string): string => {
@@ -186,7 +186,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     const targetInsurer = getInsurerPersianName(claimCase.culpritInsurer);
     const updatedStatus: CaseStatus = 'در انتظار ارجاع به ارزیاب';
 
-    const updated: ClaimCase = {
+    const withKroki: ClaimCase = {
       ...claimCase,
       status: updatedStatus,
       hasKroki: true,
@@ -203,8 +203,14 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       ]
     };
 
-    onUpdateCase(updated);
-    setKrokiSuccessMsg(`کد کروکی با موفقیت ثبت شد و پرونده به ${targetInsurer} ارجاع داده گردید.`);
+    // چون پرونده اکنون کروکی دارد، هوش مصنوعی همان روند عادی را اجرا می‌کند:
+    // تخصیص خودکار کارشناس خسارت بر اساس موقعیت مکانی حادثه و شعبه مربوطه.
+    const { updatedCase: dispatchedCase, assignedExpertName } = autoDispatchClaimWithAI(withKroki, { forceDeskExpert: true });
+
+    onUpdateCase(dispatchedCase);
+    setKrokiSuccessMsg(
+      `کد کروکی با موفقیت ثبت شد؛ هوش مصنوعی پرونده را بر اساس موقعیت حادثه به کارشناس خسارت «${assignedExpertName || 'کارشناس ارزیاب'}» در ${targetInsurer} محول کرد.`
+    );
   };
 
   // Accurate role resolution for logged-in customer in CustomerCaseDetail
@@ -328,6 +334,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   const [expertComplaintReason, setExpertComplaintReason] = useState<'مبلغ برآورد ناچیز' | 'تأخیر در پاسخگویی' | 'عدم بررسی دقیق قطعات' | 'برخورد نامناسب' | 'سایر'>('مبلغ برآورد ناچیز');
   const [expertComplaintDesc, setExpertComplaintDesc] = useState('');
   const [expertComplaintSuccessMsg, setExpertComplaintSuccessMsg] = useState<string | null>(null);
+  // شکایت علیه کدام کارشناس؟ (ارزیاب خسارت یا کارشناس میدانی)
+  const [complaintTargetKind, setComplaintTargetKind] = useState<'assessor' | 'fieldexpert'>('assessor');
 
   // Direct Customer Chat with Expert State
   const [customerChatText, setCustomerChatText] = useState('');
@@ -743,11 +751,20 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     e.preventDefault();
     if (!expertComplaintDesc.trim()) return;
 
-    const targetExpert = claimCase.assignedExpert || {
-      id: claimCase.culpritInsurer === 'dana' ? 'd2' : claimCase.culpritInsurer === 'iran' ? 'ir2' : 'a2',
-      name: claimCase.assignedExpert?.name || claimCase.assessment?.submittedBy || (claimCase.culpritInsurer === 'dana' ? 'فاطمه احمدی' : claimCase.culpritInsurer === 'iran' ? 'رضا تهرانی' : 'نرگس کریمی'),
-      role: claimCase.assignedExpert?.role || 'کارشناس ارزیاب خسارت'
-    };
+    const fieldExp = claimCase.assignedFieldExpert;
+    const isFieldTarget = complaintTargetKind === 'fieldexpert' && !!fieldExp;
+
+    const targetExpert = isFieldTarget
+      ? {
+          id: fieldExp!.id,
+          name: fieldExp!.name,
+          role: fieldExp!.role || 'کارشناس رسمی بازدید میدانی'
+        }
+      : claimCase.assignedExpert || {
+          id: claimCase.culpritInsurer === 'dana' ? 'd2' : claimCase.culpritInsurer === 'iran' ? 'ir2' : 'a2',
+          name: claimCase.assignedExpert?.name || claimCase.assessment?.submittedBy || (claimCase.culpritInsurer === 'dana' ? 'فاطمه احمدی' : claimCase.culpritInsurer === 'iran' ? 'رضا تهرانی' : 'نرگس کریمی'),
+          role: claimCase.assignedExpert?.role || 'کارشناس ارزیاب خسارت'
+        };
 
     const myName = session.name || (isVictim ? claimCase.victimName : claimCase.culpritName) || 'مشتری';
 
@@ -755,6 +772,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       id: `CMP-${Date.now()}`,
       expertId: targetExpert.id,
       expertName: targetExpert.name,
+      expertRole: targetExpert.role,
+      expertCategory: isFieldTarget ? 'fieldexpert' : 'assessor',
       caseId: claimCase.id,
       complainantName: `${myName} (${myRoleLabel})`,
       complainantRole: isVictim ? 'زیان‌دیده' : isCulprit ? 'مقصر' : 'زیان‌دیده',
@@ -1002,7 +1021,13 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     const detectedBank = getBankNameFromIban(iban);
     const insurerNameStr = claimCase.bodyInsuranceInfo?.insurerName || getInsurerPersianName(claimCase.culpritInsurer || claimCase.victimInsurer);
 
-    const payableFinal = claimCase.assessment?.payable || damageCalc.insurerPayablePortion || 245000000;
+    // مبلغ نهایی قابل پرداخت برای امور مالی و خزانه‌داری:
+    // بر اساس محاسبه‌ی رسمی «تفکیک خسارت و سقف تعهد مالی بیمه‌نامه» (شامل کسر داغی،
+    // افت ارزش، فرانشیز و اعمال سقف تعهد) — نه رقم خام ارزیابی.
+    const payableFinal =
+      damageCalc.insurerPayablePortion && damageCalc.insurerPayablePortion > 0
+        ? damageCalc.insurerPayablePortion
+        : claimCase.assessment?.payable || 245000000;
 
     // Generate real-time SMS dispatch logs for claimant
     const victimSmsLog = {
@@ -3922,7 +3947,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
-                <span>ثبت شکایت از عملکرد کارشناس ارزیاب</span>
+                <span>ثبت شکایت از عملکرد کارشناس</span>
               </h3>
               <button
                 type="button"
@@ -3933,10 +3958,43 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               </button>
             </div>
 
-            <div className="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-xs space-y-1">
-              <span className="text-amber-800 font-bold block">کارشناس مربوطه:</span>
+            {/* انتخاب کارشناس هدف شکایت */}
+            {claimCase.assignedFieldExpert && (
+              <div className="space-y-1.5">
+                <span className="block text-[11px] font-bold text-slate-700">شکایت مربوط به کدام کارشناس است؟</span>
+                <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-2xl">
+                  <button
+                    type="button"
+                    onClick={() => setComplaintTargetKind('assessor')}
+                    className={`py-2 px-2 rounded-xl text-[11px] font-black transition-all ${
+                      complaintTargetKind === 'assessor'
+                        ? 'bg-gradient-to-l from-blue-600 to-indigo-600 text-white shadow'
+                        : 'text-slate-600 hover:text-blue-700'
+                    }`}
+                  >
+                    کارشناس ارزیاب خسارت
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setComplaintTargetKind('fieldexpert')}
+                    className={`py-2 px-2 rounded-xl text-[11px] font-black transition-all ${
+                      complaintTargetKind === 'fieldexpert'
+                        ? 'bg-gradient-to-l from-teal-500 to-cyan-600 text-white shadow'
+                        : 'text-slate-600 hover:text-teal-700'
+                    }`}
+                  >
+                    کارشناس میدانی (بازدید حضوری)
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="p-3.5 bg-blue-50 rounded-2xl border border-blue-200 text-xs space-y-1">
+              <span className="text-blue-800 font-bold block">کارشناس مربوطه:</span>
               <p className="font-extrabold text-slate-900 text-sm">
-                {claimCase.assignedExpert?.name || claimCase.assessment?.submittedBy || (claimCase.culpritInsurer === 'dana' ? 'فاطمه احمدی' : claimCase.culpritInsurer === 'iran' ? 'رضا تهرانی' : 'نرگس کریمی')}
+                {complaintTargetKind === 'fieldexpert' && claimCase.assignedFieldExpert
+                  ? `${claimCase.assignedFieldExpert.name} — ${claimCase.assignedFieldExpert.role || 'کارشناس رسمی بازدید میدانی'}`
+                  : (claimCase.assignedExpert?.name || claimCase.assessment?.submittedBy || (claimCase.culpritInsurer === 'dana' ? 'فاطمه احمدی' : claimCase.culpritInsurer === 'iran' ? 'رضا تهرانی' : 'نرگس کریمی'))}
               </p>
               <p className="text-[10px] text-slate-500 font-mono">پرونده: {claimCase.id}</p>
             </div>

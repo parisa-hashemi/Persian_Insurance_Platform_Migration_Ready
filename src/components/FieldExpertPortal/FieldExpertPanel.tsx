@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   MapPin,
   Car,
@@ -708,6 +708,15 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   };
 
   // Add Part manually in unified workspace
+  // اعلان موفقیت افزودن قطعه (بازخورد فوری برای جلوگیری از کلیک تکراری کارشناس)
+  const [partAddedToast, setPartAddedToast] = useState<string | null>(null);
+  const partToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showPartAddedToast = (msg: string) => {
+    if (partToastTimerRef.current) clearTimeout(partToastTimerRef.current);
+    setPartAddedToast(msg);
+    partToastTimerRef.current = setTimeout(() => setPartAddedToast(null), 2600);
+  };
+
   const handleAddPart = () => {
     if (isCaseReadOnly) return;
     const finalPartName = selectedPartName === 'سایر قطعات (سفارشی)' ? customPartName.trim() : selectedPartName;
@@ -753,6 +762,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       setCustomPartName('');
     }
     setPartNoteInput('');
+    showPartAddedToast(`✓ قطعه «${finalPartName}» با موفقیت به لیست خسارت افزوده شد.`);
   };
 
   // Remove Part
@@ -2053,6 +2063,13 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                         <Plus className="w-4 h-4" />
                         <span>افزودن به لیست</span>
                       </button>
+
+                      {partAddedToast && (
+                        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] px-5 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black shadow-2xl shadow-emerald-600/40 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4" role="status" aria-live="polite">
+                          <CheckCircle2 className="w-4 h-4 shrink-0" />
+                          <span>{partAddedToast}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

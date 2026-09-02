@@ -114,7 +114,9 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
     claimCase.croquiData ||
     claimCase.isOnlineCroqui
   );
-  const isNoCroquiCase = !hasCroqui;
+  // ثبت موقت: مشتری در انتظار صدور کروکی پلیس است — نباید به کارشناس میدانی ارجاع شود
+  const isPendingCroquiDraft = claimCase.status === 'ثبت موقت - در انتظار افزودن کروکی';
+  const isNoCroquiCase = !hasCroqui && !isPendingCroquiDraft;
   const isFieldExpertRequired = Boolean(
     isNoCroquiCase ||
     claimCase.objectionStage === 4 ||
@@ -1462,7 +1464,11 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                     {claimCase.status}
                   </span>
                 )}
-                {isNoCroquiCase ? (
+                {isPendingCroquiDraft ? (
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-sky-50 text-sky-900 border border-sky-200">
+                    ثبت موقت — در انتظار کروکی مشتری
+                  </span>
+                ) : isNoCroquiCase ? (
                   <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
                     بدون کروکی
                   </span>
@@ -1476,6 +1482,24 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                 </span>
               </div>
             </div>
+
+            {/* PENDING-CROQUI DRAFT: informational only — no field-expert referral */}
+            {isPendingCroquiDraft && (
+              <div className="bg-sky-50/70 border border-sky-200 rounded-3xl p-5 shadow-2xs animate-in fade-in flex items-start gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm sm:text-base font-black text-sky-950">
+                    ثبت موقت — در انتظار بارگذاری کد کروکی توسط مشتری
+                  </h3>
+                  <p className="text-xs text-sky-900 leading-relaxed font-medium">
+                    مشتری اعلام کرده کروکی پلیس به‌زودی صادر می‌شود؛ بنابراین این پرونده نیازی به ارجاع به کارشناس میدانی ندارد.
+                    به محض ثبت کد کروکی در پورتال مشتری، هوش مصنوعی به‌صورت خودکار پرونده را بر اساس موقعیت حادثه به کارشناس خسارت محول می‌کند و روند عادی ارزیابی آغاز می‌شود.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* MANDATORY REGULATORY NOTICE FOR NO-CROQUI CASES (CLEAN & COMPACT NOTICE ONLY) */}
             {isNoCroquiCase && (
@@ -2216,46 +2240,6 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
               </div>
             </div>
 
-            {/* PAYMENT & FINANCIAL SETTLEMENT SECTION (ALWAYS AT THE VERY BOTTOM OF THE PAGE) */}
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-blue-900" />
-                  <span>وضعیت پرداخت و صدور حواله مالی خسارت</span>
-                </h4>
-
-                <span className="px-2.5 py-1 bg-blue-600 text-white font-bold text-[11px] rounded-lg">
-                  مدیریت واریز
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                <div className="bg-white p-3 rounded-xl border border-slate-200">
-                  <span className="text-slate-500 block mb-1">قابل پرداخت</span>
-                  <span className="font-black text-slate-900 text-sm">
-                    {hasCompletedAssessment && activeAssessment ? formatCurrency(activeAssessment.payable) : 'در انتظار تایید ارزیابی'}
-                  </span>
-                </div>
-                <div className="bg-white p-3 rounded-xl border border-slate-200">
-                  <span className="text-slate-500 block mb-1">تصمیم زیان‌دیده</span>
-                  <span className="font-bold text-slate-800">
-                    {hasCompletedAssessment ? 'تایید اولیه' : 'ثبت نشده'}
-                  </span>
-                </div>
-                <div className="bg-white p-3 rounded-xl border border-slate-200">
-                  <span className="text-slate-500 block mb-1">وضعیت واریز</span>
-                  <span className="font-bold text-slate-800">
-                    {hasCompletedAssessment ? 'در انتظار شبا و حواله' : 'در انتظار ارزیابی'}
-                  </span>
-                </div>
-                <div className="bg-white p-3 rounded-xl border border-emerald-100">
-                  <span className="text-slate-500 block mb-1">نسخه ارزیابی</span>
-                  <span className="font-bold text-purple-700 font-mono">
-                    {hasCompletedAssessment && activeAssessment ? `A-${activeAssessment.roundIdx || 1}` : '-'}
-                  </span>
-                </div>
-              </div>
-            </div>
 
           </div>
 

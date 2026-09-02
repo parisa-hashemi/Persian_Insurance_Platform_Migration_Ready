@@ -770,6 +770,10 @@ export interface ExpertComplaint {
   id: string;
   expertId: string;
   expertName: string;
+  /** سمت کارشناس هدف شکایت (کارشناس خسارت / کارشناس میدانی) */
+  expertRole?: string;
+  /** دسته‌ی کارشناس برای تفکیک در پنل بیمه‌گر */
+  expertCategory?: 'assessor' | 'fieldexpert';
   caseId?: string;
   complainantName: string;
   complainantRole: 'زیان‌دیده' | 'مقصر' | 'تعمیرگاه' | 'مدیر بیمه';

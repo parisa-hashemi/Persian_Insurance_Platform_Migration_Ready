@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   ClipboardCheck,
   CheckCircle2,
@@ -773,12 +773,22 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     });
   };
 
+  // اعلان موفقیت افزودن قطعه (تا کارشناس مطمئن شود قطعه اضافه شده و دوباره کلیک نکند)
+  const [partAddedToast, setPartAddedToast] = useState<string | null>(null);
+  const partToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showPartAddedToast = (msg: string) => {
+    if (partToastTimerRef.current) clearTimeout(partToastTimerRef.current);
+    setPartAddedToast(msg);
+    partToastTimerRef.current = setTimeout(() => setPartAddedToast(null), 2600);
+  };
+
   const handleAddPart = () => {
     if (isCaseRejected(activeCase)) return;
     setParts((prev) => [
       ...prev,
       { name: 'گلگیر جلو راست', type: 'replace', partPrice: 0, repairPrice: 0, salvageNeeded: false, salvageValue: 0 }
     ]);
+    showPartAddedToast('✓ قطعه جدید به لیست ارزیابی افزوده شد — نام قطعه و نوع عملیات را در ردیف جدید ویرایش کنید.');
   };
 
   const handleRemovePart = (index: number) => {
@@ -2985,14 +2995,23 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       </div>
 
                       {!isCaseRejected(activeCase) ? (
-                        <button
-                          type="button"
-                          onClick={handleAddPart}
-                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-md flex items-center gap-1.5"
-                        >
-                          <Plus className="w-4 h-4" />
-                          افزودن قطعه
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={handleAddPart}
+                            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-md flex items-center gap-1.5 active:scale-95 transition-transform"
+                          >
+                            <Plus className="w-4 h-4" />
+                            افزودن قطعه
+                          </button>
+
+                          {partAddedToast && (
+                            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] px-5 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-black shadow-2xl shadow-emerald-600/40 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4" role="status" aria-live="polite">
+                              <CheckCircle2 className="w-4 h-4 shrink-0" />
+                              <span>{partAddedToast}</span>
+                            </div>
+                          )}
+                        </>
                       ) : (
                         <span className="px-3 py-1.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold text-xs flex items-center gap-1">
                           <Lock className="w-3.5 h-3.5" />
