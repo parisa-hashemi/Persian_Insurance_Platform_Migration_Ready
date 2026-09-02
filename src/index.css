@@ -246,3 +246,60 @@ option {
 
 
 
+
+
+/* ============================================================
+   KARINSHO DESIGN SYSTEM — پالت روشن و یکپارچه
+   ============================================================ */
+:root {
+  --krn-ink: #0f2657;
+  --krn-blue: #2563eb;
+  --krn-indigo: #6366f1;
+  --krn-sky: #38bdf8;
+  --krn-ice: #f4f8fe;
+  --krn-red: #ff3b5c;
+}
+
+html, body {
+  background-color: var(--krn-ice);
+  scroll-behavior: smooth;
+  overflow-x: clip;
+}
+
+/* اسکرول‌بار مدرن و روشن */
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #93c5fd, #a5b4fc);
+  border-radius: 99px;
+  border: 2px solid var(--krn-ice);
+}
+*::-webkit-scrollbar-thumb:hover { background: #60a5fa; }
+
+/* فوکوس کیبورد واضح و برند */
+:focus-visible {
+  outline: 2.5px solid var(--krn-blue);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* دکمه‌ها: کرسر و ترنزیشن نرم سراسری */
+button { cursor: pointer; }
+button, a, input, select, textarea {
+  transition: background-color .2s ease, border-color .2s ease,
+              box-shadow .2s ease, color .2s ease, transform .15s ease;
+}
+
+/* جدول‌ها در موبایل: اسکرول افقی به‌جای شکستن صفحه */
+@media (max-width: 768px) {
+  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+/* کاهش حرکت برای کاربرانی که ترجیح می‌دهند */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

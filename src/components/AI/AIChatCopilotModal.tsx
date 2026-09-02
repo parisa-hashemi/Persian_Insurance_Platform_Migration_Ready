@@ -175,7 +175,7 @@ export const AIChatCopilotModal: React.FC<AIChatCopilotModalProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in">
       <div className="bg-slate-900 text-white w-full max-w-2xl h-[620px] rounded-3xl border border-indigo-500/30 shadow-2xl flex flex-col overflow-hidden">
         {/* Modal Header */}
-        <div className="p-4 px-6 bg-gradient-to-r from-indigo-950 via-slate-900 to-blue-950 border-b border-indigo-500/20 flex items-center justify-between">
+        <div className="p-4 px-6 bg-gradient-to-r from-indigo-600 via-slate-900 to-indigo-600 border-b border-indigo-500/20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-500 to-sky-400 text-white flex items-center justify-center shadow-lg shadow-indigo-500/30">
               <Bot className="w-6 h-6" />

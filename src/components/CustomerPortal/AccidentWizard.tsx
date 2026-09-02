@@ -827,7 +827,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         <div className="flex items-center justify-between relative">
           <div className="absolute top-1/2 left-0 right-0 h-1.5 bg-slate-200 -translate-y-1/2 z-0 rounded-full" />
           <div
-            className="absolute top-1/2 right-0 h-1.5 bg-blue-900 -translate-y-1/2 z-0 rounded-full transition-all duration-300"
+            className="absolute top-1/2 right-0 h-1.5 bg-blue-600 -translate-y-1/2 z-0 rounded-full transition-all duration-300"
             style={{ width: `${((currentStep - 1) / 4) * 100}%` }}
           />
 
@@ -842,7 +842,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <div
                 className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-all ${
                   currentStep >= step
-                    ? 'bg-blue-900 text-white shadow-xs'
+                    ? 'bg-blue-600 text-white shadow-xs'
                     : 'bg-slate-100 text-slate-500 border-2 border-slate-300'
                 }`}
               >
@@ -856,7 +856,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         {/* Step 1: Conditions, Policy Acceptance, Croqui & Role */}
         {currentStep === 1 && (
           <div className="space-y-6 pt-2 animate-in fade-in">
-            <h3 className="font-black text-lg text-blue-950 flex items-center gap-2">
+            <h3 className="font-black text-lg text-blue-900 flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-blue-900" />
               تایید قوانین، ارزیابی کروکی و تعیین نقش
             </h3>
@@ -880,9 +880,9 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 type="checkbox"
                 checked={agreePolicy}
                 onChange={(e) => setAgreePolicy(e.target.checked)}
-                className="w-5 h-5 text-blue-900 rounded focus:ring-blue-900"
+                className="w-5 h-5 text-blue-900 rounded focus:ring-blue-300"
               />
-              <span className="text-xs font-black text-blue-950">
+              <span className="text-xs font-black text-blue-900">
                 قوانین و مقررات حریم خصوصی و صحت اطلاعات وارد شده را می‌پذیرم.
               </span>
             </label>
@@ -1087,7 +1087,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                             <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
                               <span className="text-[11px] font-black text-slate-500 block">شماره گزارش:</span>
-                              <span className="font-mono font-black text-blue-950">{croquiData.reportNumber}</span>
+                              <span className="font-mono font-black text-blue-900">{croquiData.reportNumber}</span>
                             </div>
                             <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
                               <span className="text-[11px] font-black text-slate-500 block">تاریخ و محل:</span>
@@ -1111,7 +1111,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   {hasKroki === false && (
                     <div className="space-y-3 pt-3 border-t border-purple-200 animate-in fade-in">
                       {futurePolice === true ? (
-                        <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-2xl text-blue-950 text-xs font-bold flex items-center justify-between gap-3 shadow-xs">
+                        <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-2xl text-blue-900 text-xs font-bold flex items-center justify-between gap-3 shadow-xs">
                           <div className="flex items-center gap-2.5">
                             <Clock className="w-5 h-5 text-blue-700 shrink-0" />
                             <div>
@@ -1155,7 +1155,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
                 {/* 3. Driver Role Selection & Alignment */}
                 <div className="space-y-3 bg-slate-50 p-5 rounded-2xl border-2 border-slate-200">
-                  <label className="block text-xs font-black text-blue-950">
+                  <label className="block text-xs font-black text-blue-900">
                     بر اساس مدارک فوق، نقش شما در این تصادف چیست؟ <span className="text-rose-600">*</span>
                   </label>
                   <div className="grid grid-cols-2 gap-4">
@@ -1164,7 +1164,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                       onClick={() => setWizardRole('victim')}
                       className={`p-4 rounded-2xl border-2 font-black text-sm flex flex-col items-center gap-2 transition-all ${
                         wizardRole === 'victim'
-                          ? 'border-blue-900 bg-sky-100 text-blue-950 shadow-sm'
+                          ? 'border-blue-300 bg-sky-100 text-blue-900 shadow-sm'
                           : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
                       }`}
                     >
@@ -1176,7 +1176,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                       onClick={() => setWizardRole('culprit')}
                       className={`p-4 rounded-2xl border-2 font-black text-sm flex flex-col items-center gap-2 transition-all ${
                         wizardRole === 'culprit'
-                          ? 'border-blue-900 bg-sky-100 text-blue-950 shadow-sm'
+                          ? 'border-blue-300 bg-sky-100 text-blue-900 shadow-sm'
                           : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
                       }`}
                     >
@@ -1223,7 +1223,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 type="button"
                 disabled={!agreePolicy || hasKroki === null}
                 onClick={() => setCurrentStep(2)}
-                className="px-6 py-2.5 rounded-xl bg-blue-900 disabled:opacity-50 text-white font-black text-xs hover:bg-blue-800 shadow-md transition-all flex items-center gap-2 active:scale-95"
+                className="px-6 py-2.5 rounded-xl bg-blue-600 disabled:opacity-50 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
               >
                 تایید و ادامه به مرحله بعد <ArrowLeft className="w-4 h-4" />
               </button>
@@ -1235,7 +1235,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         {currentStep === 2 && (
           <div className="space-y-6 pt-2 animate-in fade-in">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="font-black text-lg text-blue-950">
+              <h3 className="font-black text-lg text-blue-900">
                 زمان و موقعیت مکانی دقیق وقوع حادثه
               </h3>
               <span className="px-3 py-1 rounded-full bg-sky-100 text-sky-950 text-xs font-extrabold border border-sky-300">
@@ -1245,7 +1245,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
             {/* Shamsi Calendar & Time Picker */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-black text-blue-950">
+              <label className="block text-xs font-black text-blue-900">
                 تاریخ و ساعت وقوع حادثه (تقویم شمسی) <span className="text-rose-600">*</span>
               </label>
               <ShamsiDateTimePicker
@@ -1257,7 +1257,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             {/* GPS Map & Auto Address */}
             <div className="space-y-3 pt-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <label className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+                <label className="text-xs font-black text-blue-900 flex items-center gap-1.5">
                   <MapPin className="w-4 h-4 text-blue-900" />
                   موقعیت وقوع حادثه روی نقشه <span className="text-rose-600">*</span>
                 </label>
@@ -1265,7 +1265,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 <button
                   type="button"
                   onClick={handleGetCurrentGPS}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs font-black shadow-md transition-all active:scale-95"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black shadow-md transition-all active:scale-95"
                 >
                   <Crosshair className={`w-4 h-4 ${gpsLoading ? 'animate-spin' : ''}`} />
                   <span>{gpsLoading ? 'در حال دریافت موقعیت GPS...' : 'تعیین موقعیت GPS من'}</span>
@@ -1291,7 +1291,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               {/* Auto-filled Address Input */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-[11px] font-black text-blue-950">
+                  <label className="text-[11px] font-black text-blue-900">
                     آدرس محل تصادف (تولید خودکار بر اساس GPS / قابل ویرایش):
                   </label>
                   <span className="text-[10px] text-sky-950 font-black bg-sky-100 border border-sky-300 px-2 py-0.5 rounded-md">
@@ -1303,7 +1303,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   onChange={(e) => setAddress(e.target.value)}
                   rows={2}
                   placeholder="آدرس دقیق محل تصادف..."
-                  className="w-full px-4 py-3 rounded-2xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:border-blue-900 transition-all shadow-xs placeholder:text-slate-400"
+                  className="w-full px-4 py-3 rounded-2xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:border-blue-500 transition-all shadow-xs placeholder:text-slate-400"
                 />
               </div>
 
@@ -1320,7 +1320,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <button
                 type="button"
                 onClick={() => setCurrentStep(3)}
-                className="px-6 py-2.5 rounded-xl bg-blue-900 text-white font-black text-xs hover:bg-blue-800 shadow-md transition-all flex items-center gap-2 active:scale-95"
+                className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
               >
                 تایید موقعیت و ادامه <ArrowLeft className="w-4 h-4" />
               </button>
@@ -1333,7 +1333,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
           <div className="space-y-6 pt-2 animate-in fade-in">
             <div className="flex items-center justify-between border-b border-slate-200 pb-3">
               <div>
-                <h3 className="font-black text-lg text-blue-950">
+                <h3 className="font-black text-lg text-blue-900">
                   تکمیل مستندات صحنه تصادف و مدارک
                 </h3>
                 <p className="text-xs text-slate-600 font-bold mt-0.5">
@@ -1348,11 +1348,11 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             {/* 1. Scene Documentation Photo Grid (8 slots) */}
             <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border-2 border-slate-200 space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+                <label className="text-xs font-black text-blue-900 flex items-center gap-1.5">
                   <Camera className="w-4 h-4 text-blue-900" />
                   تکمیل مستندات صحنه (تصاویر زوایای مختلف خودرو) <span className="text-rose-600">*</span>
                 </label>
-                <span className="text-[10px] font-black text-blue-950 bg-sky-100 px-2 py-0.5 rounded-md border border-sky-300">
+                <span className="text-[10px] font-black text-blue-900 bg-sky-100 px-2 py-0.5 rounded-md border border-sky-300">
                   {toFaDigits(files.filter(f => ['پلاک', 'جلو', 'عقب', 'راست', 'چپ', 'سقف', 'خسارت ۱', 'خسارت ۲'].includes(f.name)).length)} از ۸ بارگذاری شده
                 </span>
               </div>
@@ -1402,7 +1402,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           </div>
                         </div>
                       ) : (
-                        <label className="aspect-square border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:border-blue-900 hover:bg-blue-50 transition-all p-2 text-center group/label bg-white">
+                        <label className="aspect-square border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all p-2 text-center group/label bg-white">
                           <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover/label:bg-blue-100 text-slate-600 group-hover/label:text-blue-900 flex items-center justify-center mb-1.5 transition-colors">
                             <Camera className="w-5 h-5" />
                           </div>
@@ -1426,7 +1426,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
             {/* 2. Chassis VIN Lookup & Vehicle Documentation */}
             <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border-2 border-slate-200 space-y-3">
-              <label className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+              <label className="text-xs font-black text-blue-900 flex items-center gap-1.5">
                 <ScanLine className="w-4 h-4 text-blue-900" />
                 موقعیت شماره شاسی و مدارک شناسایی خودرو
               </label>
@@ -1451,7 +1451,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 </div>
 
                 {selectedChassisLoc && (
-                  <div className="p-3 bg-sky-50 border-2 border-sky-300 rounded-xl text-blue-950 text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in">
+                  <div className="p-3 bg-sky-50 border-2 border-sky-300 rounded-xl text-blue-900 text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-amber-600 shrink-0" />
                       <span>راهنمای انتخاب‌شده: <strong className="text-blue-900">{selectedChassisLoc}</strong></span>
@@ -1496,7 +1496,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           </button>
                         </div>
                       ) : (
-                        <label className="border-2 border-dashed border-slate-300 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer hover:border-blue-900 hover:bg-blue-50 transition-all bg-white group/doc">
+                        <label className="border-2 border-dashed border-slate-300 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all bg-white group/doc">
                           <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-sky-100 group-hover/doc:bg-sky-200 text-blue-900 flex items-center justify-center transition-colors">
                               <item.icon className="w-5 h-5" />
@@ -1525,7 +1525,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
             {/* 3. Video from Accident Scene */}
             <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border-2 border-slate-200 space-y-2">
-              <label className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+              <label className="text-xs font-black text-blue-900 flex items-center gap-1.5">
                 <Video className="w-4 h-4 text-blue-900" />
                 ویدیو از صحنه تصادف
               </label>
@@ -1550,11 +1550,11 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   </button>
                 </div>
               ) : (
-                <label className="border-2 border-dashed border-slate-300 rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-900 hover:bg-blue-50 transition-all bg-white group/vid">
+                <label className="border-2 border-dashed border-slate-300 rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all bg-white group/vid">
                   <div className="w-10 h-10 rounded-2xl bg-sky-100 text-blue-900 group-hover/vid:scale-110 flex items-center justify-center mb-2 transition-transform">
                     <Upload className="w-5 h-5" />
                   </div>
-                  <span className="text-xs font-extrabold text-blue-950 block">آپلود ویدیو کامل صحنه تصادف</span>
+                  <span className="text-xs font-extrabold text-blue-900 block">آپلود ویدیو کامل صحنه تصادف</span>
                   <span className="text-[10px] text-slate-500 font-bold mt-1">فرمت‌های MP4, MOV یا WEBM (حداکثر ۵۰ مگابایت)</span>
                   <input
                     type="file"
@@ -1568,7 +1568,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
             {/* 4. Audio Description & Text Explanation */}
             <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border-2 border-slate-200 space-y-3">
-              <label className="text-xs font-black text-blue-950 flex items-center gap-1.5">
+              <label className="text-xs font-black text-blue-900 flex items-center gap-1.5">
                 <Mic className="w-4 h-4 text-blue-900" />
                 توضیحات صوتی و متنی حادثه
               </label>
@@ -1577,7 +1577,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <div className="bg-white p-4 rounded-2xl border-2 border-slate-200 space-y-3">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${isRecordingVoice ? 'bg-rose-600 animate-ping' : 'bg-blue-900'}`} />
+                    <div className={`w-3 h-3 rounded-full ${isRecordingVoice ? 'bg-rose-600 animate-ping' : 'bg-blue-600'}`} />
                     <span className="text-xs font-bold text-slate-900">ضبط توضیحات صوتی (اختیاری)</span>
                   </div>
 
@@ -1599,7 +1599,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     <button
                       type="button"
                       onClick={startVoiceRecording}
-                      className="px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition-all active:scale-95"
                     >
                       <Mic className="w-4 h-4" />
                       <span>برای ضبط توضیحات کلیک کنید</span>
@@ -1612,7 +1612,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
                       <Volume2 className="w-5 h-5 text-blue-900" />
-                      <span className="text-xs font-bold text-blue-950">فایل صوتی شما با موفقیت آماده شد</span>
+                      <span className="text-xs font-bold text-blue-900">فایل صوتی شما با موفقیت آماده شد</span>
                     </div>
                     <audio src={audioUrl} controls className="h-8 max-w-[200px]" />
                   </div>
@@ -1621,13 +1621,13 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
               {/* Text Description Textarea */}
               <div className="space-y-1">
-                <label className="text-[11px] font-black text-blue-950">یا به صورت متنی شرح دهید (اختیاری):</label>
+                <label className="text-[11px] font-black text-blue-900">یا به صورت متنی شرح دهید (اختیاری):</label>
                 <textarea
                   value={writtenReport}
                   onChange={(e) => setWrittenReport(e.target.value)}
                   rows={3}
                   placeholder="توضیح کامل درباره نحوه وقوع تصادف، خسارت‌ها بنویسید..."
-                  className="w-full px-4 py-3 rounded-2xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:border-blue-900 shadow-xs placeholder:text-slate-400"
+                  className="w-full px-4 py-3 rounded-2xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:border-blue-500 shadow-xs placeholder:text-slate-400"
                 />
               </div>
             </div>
@@ -1655,7 +1655,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <button
                 type="button"
                 onClick={() => setCurrentStep(4)}
-                className="px-6 py-2.5 rounded-xl bg-blue-900 text-white font-black text-xs hover:bg-blue-800 shadow-md transition-all flex items-center gap-2 active:scale-95"
+                className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
               >
                 ثبت مستندات و ادامه <ArrowLeft className="w-4 h-4" />
               </button>
@@ -1666,7 +1666,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         {/* Step 4: User Details (Victim or Culprit) */}
         {currentStep === 4 && (
           <div className="space-y-5 pt-2 animate-in fade-in">
-            <h3 className="font-extrabold text-base text-blue-950 text-center">
+            <h3 className="font-extrabold text-base text-blue-900 text-center">
               {wizardRole === 'culprit' ? 'اطلاعات مقصر حادثه (شما)' : 'اطلاعات زیان‌دیده (شما)'}
             </h3>
 
@@ -1939,7 +1939,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         {/* Step 5: Culprit Details & Finish */}
         {currentStep === 5 && (
           <div className="space-y-5 pt-2 animate-in fade-in">
-            <h3 className="font-extrabold text-base text-blue-950 text-center">
+            <h3 className="font-extrabold text-base text-blue-900 text-center">
               اطلاعات طرف مقابل ({wizardRole === 'culprit' ? 'زیان‌دیده' : 'مقصر'})
             </h3>
 
@@ -2226,7 +2226,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto dir-rtl text-slate-900">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h4 className="text-base font-extrabold text-blue-950 flex items-center gap-2">
+              <h4 className="text-base font-extrabold text-blue-900 flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-blue-600" />
                 فرم استعلام اطلاعات بیمه (زیان‌دیده)
               </h4>
@@ -2329,7 +2329,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
               {/* Coverage Caps */}
               <div className="sm:col-span-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                <p className="font-extrabold text-blue-950 text-xs text-center">سقف پوشش‌ها (ریال)</p>
+                <p className="font-extrabold text-blue-900 text-xs text-center">سقف پوشش‌ها (ریال)</p>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div>
                     <label className="block text-[10px] text-slate-500 font-bold mb-1">مالی</label>
@@ -2337,7 +2337,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                       type="text"
                       value={(vicCoverageFinancial || 0).toLocaleString('fa-IR')}
                       readOnly
-                      className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-950"
+                      className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-900"
                     />
                   </div>
                   <div>
@@ -2346,7 +2346,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                       type="text"
                       value={(vicCoverageBodily || 0).toLocaleString('fa-IR')}
                       readOnly
-                      className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-950"
+                      className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-900"
                     />
                   </div>
                   <div>
@@ -2355,7 +2355,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                       type="text"
                       value={(vicCoverageDriver || 0).toLocaleString('fa-IR')}
                       readOnly
-                      className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-950"
+                      className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-900"
                     />
                   </div>
                 </div>
@@ -2390,7 +2390,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto dir-rtl text-slate-900">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h4 className="text-base font-extrabold text-blue-950 flex items-center gap-2">
+              <h4 className="text-base font-extrabold text-blue-900 flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-blue-600" />
                 نتیجه استعلام اطلاعات بیمه و هویت (طرف مقابل)
               </h4>
@@ -2570,7 +2570,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </button>
 
             <div className="space-y-1">
-              <h4 className="font-extrabold text-base flex items-center justify-center gap-2 text-blue-950">
+              <h4 className="font-extrabold text-base flex items-center justify-center gap-2 text-blue-900">
                 <ScanLine className="w-5 h-5 animate-pulse text-blue-600" />
                 دوربین اسکن بارکد شماره شاسی (VIN)
               </h4>
@@ -2659,7 +2659,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     setFuturePolice(true);
                     setShowFuturePoliceModal(false);
                   }}
-                  className="p-4 rounded-2xl bg-blue-50 hover:bg-blue-100/80 border-2 border-blue-600 text-blue-950 text-right transition-all flex items-center justify-between group shadow-xs"
+                  className="p-4 rounded-2xl bg-blue-50 hover:bg-blue-100/80 border-2 border-blue-600 text-blue-900 text-right transition-all flex items-center justify-between group shadow-xs"
                 >
                   <div className="space-y-1 pl-2">
                     <span className="font-black text-xs block text-blue-900 flex items-center gap-1.5">
@@ -2738,7 +2738,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                       }
                     }}
                     placeholder="نام خودرو را تایپ کنید یا از لیست زیر انتخاب کنید (مثلاً: پژو ۲۰۶، پراید)..."
-                    className="w-full pr-10 pl-9 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-900 shadow-2xs transition-colors"
+                    className="w-full pr-10 pl-9 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-500 shadow-2xs transition-colors"
                   />
                   <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3 pointer-events-none" />
                   {(chassisFilter || selectedChassisLoc) && (
@@ -2782,7 +2782,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           }}
                           className={`p-2.5 rounded-xl cursor-pointer transition-all flex items-center justify-between gap-2.5 ${
                             isSelected
-                              ? 'bg-blue-900 text-white font-black shadow-xs'
+                              ? 'bg-blue-600 text-white font-black shadow-xs'
                               : 'hover:bg-sky-50 text-slate-800 font-bold'
                           }`}
                         >
@@ -2807,7 +2807,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               </div>
 
               {selectedChassisLoc && (
-                <div className="p-3.5 bg-sky-50 border-2 border-sky-300 rounded-2xl text-blue-950 text-xs font-bold space-y-2 animate-in fade-in">
+                <div className="p-3.5 bg-sky-50 border-2 border-sky-300 rounded-2xl text-blue-900 text-xs font-bold space-y-2 animate-in fade-in">
                   <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                     <div>
@@ -2818,7 +2818,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowChassisGuideModal(false)}
-                    className="w-full py-2 bg-blue-900 hover:bg-blue-950 text-white rounded-xl text-xs font-black shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                    className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black shadow-xs transition-colors flex items-center justify-center gap-1.5"
                   >
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                     <span>ثبت و بستن راهنما</span>

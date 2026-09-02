@@ -1724,7 +1724,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                     : 'پرونده اعلام خسارت شما با موفقیت ثبت شد و در انتظار ارجاع به کارشناس ارزیاب است'}
                 </span>
               </div>
-              <span className="px-3 py-1 rounded-full bg-blue-900 text-white font-extrabold text-[10px]">
+              <span className="px-3 py-1 rounded-full bg-blue-600 text-white font-extrabold text-[10px]">
                 {claimCase.status}
               </span>
             </div>
@@ -1813,7 +1813,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                     <Clock className="w-5 h-5 text-blue-900 shrink-0" />
                     <span>پرونده در دست ارزیابی کارشناس بیمه</span>
                   </div>
-                  <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-950 text-[10px] font-extrabold border border-blue-200">
+                  <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-900 text-[10px] font-extrabold border border-blue-200">
                     در حال ارزیابی
                   </span>
                 </div>
@@ -2261,7 +2261,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                             <button
                               type="button"
                               onClick={() => setExpandedAssessmentCardId(card.id)}
-                              className="px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-extrabold text-xs shadow-xs transition-all flex items-center gap-1 cursor-pointer"
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-extrabold text-xs shadow-xs transition-all flex items-center gap-1 cursor-pointer"
                             >
                               <span>مشاهده و گسترش کارشناسی</span>
                               <ChevronDown className="w-3.5 h-3.5" />
@@ -3129,7 +3129,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             </div>
 
             {/* Approved Payout Highlight Card */}
-            <div className="p-4 bg-gradient-to-r from-sky-900 to-indigo-950 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
+            <div className="p-4 bg-gradient-to-r from-sky-900 to-indigo-600 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
               <div className="space-y-1 text-center sm:text-right">
                 <span className="text-[10px] text-sky-200 font-bold">مبلغ خالص مصوب جهت واریز به حساب شما:</span>
                 <div className="text-xl sm:text-2xl font-black text-emerald-300">
@@ -3403,7 +3403,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                       className={`p-3.5 rounded-2xl text-xs space-y-2 border ${
                         isFromExpert
                           ? 'bg-purple-50/90 border-purple-200 mr-4 sm:mr-8 text-purple-950 shadow-2xs'
-                          : 'bg-blue-900 border-blue-950 ml-4 sm:ml-8 text-white shadow-sm'
+                          : 'bg-blue-600 border-blue-300 ml-4 sm:ml-8 text-white shadow-sm'
                       }`}
                     >
                       <div className="flex items-center justify-between font-bold text-[10px]">
@@ -3545,14 +3545,14 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                     key={cmt.id}
                     className={`p-3.5 rounded-2xl text-xs space-y-1.5 border ${
                       cmt.uploaderParty === 'PARTY_ONE'
-                        ? 'bg-blue-50/70 border-blue-200 text-blue-950'
+                        ? 'bg-blue-50/70 border-blue-200 text-blue-900'
                         : 'bg-purple-50/70 border-purple-200 text-purple-950'
                     }`}
                   >
                     <div className="flex items-center justify-between font-bold text-[11px]">
                       <span className="flex items-center gap-1.5">
                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
-                          cmt.uploaderParty === 'PARTY_ONE' ? 'bg-blue-200/80 text-blue-950' : 'bg-purple-200/80 text-purple-950'
+                          cmt.uploaderParty === 'PARTY_ONE' ? 'bg-blue-200/80 text-blue-900' : 'bg-purple-200/80 text-purple-950'
                         }`}>
                           {cmt.role}
                         </span>
@@ -4480,7 +4480,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 <button
                   type="submit"
                   disabled={(!docFileData && !docNote.trim()) || isUploading}
-                  className="px-6 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white font-extrabold shadow-md shadow-blue-900/20 flex items-center gap-2"
+                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-extrabold shadow-md shadow-blue-900/20 flex items-center gap-2"
                 >
                   {isUploading ? (
                     <span>در حال بارگذاری...</span>
@@ -4505,7 +4505,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             <div className={`p-5 sm:p-6 border-b flex items-center justify-between gap-3 text-white ${
               selectedAssessmentModal.type === 'FIELD_EXPERT'
                 ? 'bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950'
-                : 'bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950'
+                : 'bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-600'
             }`}>
               <div className="flex items-center gap-3">
                 <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold shadow-inner shrink-0 ${

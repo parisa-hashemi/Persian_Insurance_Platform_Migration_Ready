@@ -315,8 +315,8 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
           }}
           className={`flex-1 py-2 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             authMode === 'OTP'
-              ? 'bg-blue-900 text-white shadow-md'
-              : 'text-slate-600 hover:text-blue-900'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'text-slate-600 hover:text-blue-700'
           }`}
         >
           <MessageSquare className="w-3.5 h-3.5" />
@@ -332,8 +332,8 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
           }}
           className={`flex-1 py-2 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             authMode === 'PASSWORD'
-              ? 'bg-blue-900 text-white shadow-md'
-              : 'text-slate-600 hover:text-blue-900'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'text-slate-600 hover:text-blue-700'
           }`}
         >
           <Lock className="w-3.5 h-3.5" />
@@ -349,8 +349,8 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
           }}
           className={`flex-1 py-2 text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             authMode === 'REGISTER'
-              ? 'bg-blue-900 text-white shadow-md'
-              : 'text-slate-600 hover:text-blue-900'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'text-slate-600 hover:text-blue-700'
           }`}
         >
           <UserPlus className="w-3.5 h-3.5" />
@@ -374,7 +374,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
               <button
                 type="button"
                 onClick={handleGoToRegistration}
-                className="px-3 py-1.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
               >
                 <UserPlus className="w-3.5 h-3.5" />
                 <span>انتقال به بخش ثبت‌نام</span>
@@ -410,7 +410,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   placeholder="مثال: 09121234567"
-                  className="w-full px-4 py-3 bg-white border-2 border-slate-300 rounded-2xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900 focus:ring-4 focus:ring-blue-50 shadow-sm transition"
+                  className="w-full px-4 py-3 bg-white border-2 border-slate-300 rounded-2xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50 shadow-sm transition"
                   dir="ltr"
                   required
                 />
@@ -419,7 +419,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
               {/* Submit Button */}
               <button
                 type="submit"
-                className="w-full py-3.5 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
               >
                 <MessageSquare className="w-4 h-4" />
                 <span>ارسال کد تایید پیامکی (OTP)</span>
@@ -439,7 +439,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
                     }
                     className="p-2 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 text-right transition group cursor-pointer"
                   >
-                    <div className="text-[11px] font-black text-slate-800 group-hover:text-blue-900">
+                    <div className="text-[11px] font-black text-slate-800 group-hover:text-blue-700">
                       رضا صادقی
                     </div>
                     <div className="text-[10px] text-slate-500 font-mono" dir="ltr">
@@ -454,7 +454,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
                     }
                     className="p-2 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 text-right transition group cursor-pointer"
                   >
-                    <div className="text-[11px] font-black text-slate-800 group-hover:text-blue-900">
+                    <div className="text-[11px] font-black text-slate-800 group-hover:text-blue-700">
                       مهرداد کاظمی
                     </div>
                     <div className="text-[10px] text-slate-500 font-mono" dir="ltr">
@@ -477,7 +477,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
                   <button
                     type="button"
                     onClick={() => setEnteredOtp(generatedOtp)}
-                    className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-blue-950 rounded-lg text-xs font-black shadow-sm transition active:scale-95 cursor-pointer"
+                    className="px-2.5 py-1 bg-gradient-to-l from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white rounded-lg text-xs font-black shadow-sm transition active:scale-95 cursor-pointer"
                   >
                     درج خودکار کد
                   </button>
@@ -492,7 +492,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
                 <div className="flex items-center gap-1.5 text-slate-600 font-bold">
                   <Phone className="w-3.5 h-3.5 text-blue-900" />
                   <span>ارسال شده به:</span>
-                  <span className="font-mono text-blue-950 font-black" dir="ltr">
+                  <span className="font-mono text-blue-900 font-black" dir="ltr">
                     {phoneNumber}
                   </span>
                 </div>
@@ -521,7 +521,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
                   value={enteredOtp}
                   onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
                   placeholder="••••"
-                  className="w-full py-3.5 bg-white border-2 border-slate-300 focus:border-blue-900 focus:ring-4 focus:ring-blue-50 rounded-2xl text-center text-2xl font-mono tracking-[0.5em] text-slate-900 font-black shadow-sm"
+                  className="w-full py-3.5 bg-white border-2 border-slate-300 focus:border-blue-500 focus:ring-4 focus:ring-blue-50 rounded-2xl text-center text-2xl font-mono tracking-[0.5em] text-slate-900 font-black shadow-sm"
                   dir="ltr"
                   autoFocus
                   required
@@ -554,7 +554,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
               {/* Submit Verification Button */}
               <button
                 type="submit"
-                className="w-full py-3.5 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>تایید کد پیامکی و ورود به سامانه</span>
@@ -579,7 +579,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               placeholder="09121112233"
-              className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900 shadow-sm"
+              className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500 shadow-sm"
               dir="ltr"
               required
             />
@@ -607,7 +607,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••"
-              className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900 shadow-sm"
+              className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500 shadow-sm"
               dir="ltr"
               required
             />
@@ -615,7 +615,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
           >
             <span>ورود به حساب کاربری</span>
             <ArrowLeft className="w-4 h-4" />
@@ -637,7 +637,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="مثال: علی احمدی"
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 shadow-sm"
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 shadow-sm"
               required
             />
           </div>
@@ -651,7 +651,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
               placeholder="09121234567"
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900 shadow-sm"
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500 shadow-sm"
               dir="ltr"
               required
             />
@@ -667,7 +667,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
               value={nationalId}
               onChange={(e) => setNationalId(e.target.value.replace(/\D/g, ''))}
               placeholder="0012345678"
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900 shadow-sm"
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500 shadow-sm"
               dir="ltr"
               required
             />
@@ -683,7 +683,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900 shadow-sm"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500 shadow-sm"
                 dir="ltr"
                 required
               />
@@ -697,7 +697,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900 shadow-sm"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500 shadow-sm"
                 dir="ltr"
                 required
               />
@@ -706,7 +706,7 @@ export const CustomerOtpLoginForm: React.FC<CustomerOtpLoginFormProps> = ({ onSu
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer mt-2"
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer mt-2"
           >
             <span>ثبت‌نام و دریافت پیامک تایید (OTP)</span>
             <ArrowLeft className="w-4 h-4" />

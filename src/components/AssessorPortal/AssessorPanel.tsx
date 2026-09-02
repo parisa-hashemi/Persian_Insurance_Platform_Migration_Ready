@@ -2624,7 +2624,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                             key={cmt.id}
                             className={`p-3 rounded-xl text-xs space-y-1 border ${
                               cmt.uploaderParty === 'PARTY_ONE'
-                                ? 'bg-blue-50/80 border-blue-200 text-blue-950'
+                                ? 'bg-blue-50/80 border-blue-200 text-blue-900'
                                 : 'bg-amber-50/80 border-amber-200 text-amber-950'
                             }`}
                           >
@@ -3771,7 +3771,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       <button
                         type="button"
                         onClick={() => handlePoliceInquiry(preliminaryCheckCase)}
-                        className="px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-700/20 transition-all flex items-center gap-1.5 active:scale-95"
+                        className="px-4 py-2.5 bg-blue-700 hover:bg-blue-500 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-700/20 transition-all flex items-center gap-1.5 active:scale-95"
                       >
                         <ShieldAlert className="w-4 h-4" />
                         {activeInquiry ? 'استعلام مجدد از پلیس' : 'استعلام از پلیس'}
@@ -3865,7 +3865,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                         {/* Police Badge & Official Stamp */}
                         <div className="bg-blue-50 p-3 rounded-xl border border-blue-200 space-y-1">
                           <span className="text-blue-900 font-bold block text-[11px]">افسر کاردان فنی و یگان:</span>
-                          <span className="font-bold text-blue-950 text-xs block">
+                          <span className="font-bold text-blue-900 text-xs block">
                             {preliminaryCheckCase.croquiData?.officerName || activeInquiry.officer || 'سروان صادقی'}
                           </span>
                           <span className="text-[10px] text-blue-800 font-extrabold flex items-center gap-1">
@@ -5367,7 +5367,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
               {/* Simulated SMS Notification */}
               <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200 space-y-2">
-                <div className="flex items-center gap-2 font-black text-blue-950">
+                <div className="flex items-center gap-2 font-black text-blue-900">
                   <Smartphone className="w-4 h-4 text-blue-700 shrink-0" />
                   <span>پیامک ارسال‌شده به تلفن همراه بازبین:</span>
                 </div>

@@ -384,7 +384,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
   return (
     <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-in fade-in" dir="rtl">
       {/* Top Banner Header */}
-      <div className="bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-blue-800/40 flex items-center justify-between flex-wrap gap-4">
+      <div className="bg-gradient-to-r from-blue-600 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-blue-800/40 flex items-center justify-between flex-wrap gap-4">
         <div className="space-y-2">
           <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-black">
             <ShieldCheck className="w-4 h-4 text-amber-400" />
@@ -481,7 +481,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
               onClick={() => setFilterTab('pending')}
               className={`p-4 rounded-2xl border cursor-pointer transition-all ${
                 filterTab === 'pending'
-                  ? 'bg-blue-900 text-white border-blue-500 shadow-lg ring-2 ring-blue-400'
+                  ? 'bg-blue-600 text-white border-blue-500 shadow-lg ring-2 ring-blue-400'
                   : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
               }`}
             >
@@ -496,7 +496,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
               onClick={() => setFilterTab('approved')}
               className={`p-4 rounded-2xl border cursor-pointer transition-all ${
                 filterTab === 'approved'
-                  ? 'bg-blue-900 text-white border-blue-500 shadow-lg ring-2 ring-blue-400'
+                  ? 'bg-blue-600 text-white border-blue-500 shadow-lg ring-2 ring-blue-400'
                   : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
               }`}
             >
@@ -511,7 +511,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
               onClick={() => setFilterTab('rejected')}
               className={`p-4 rounded-2xl border cursor-pointer transition-all ${
                 filterTab === 'rejected'
-                  ? 'bg-blue-900 text-white border-blue-500 shadow-lg ring-2 ring-blue-400'
+                  ? 'bg-blue-600 text-white border-blue-500 shadow-lg ring-2 ring-blue-400'
                   : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
               }`}
             >
@@ -526,7 +526,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
               onClick={() => setFilterTab('all')}
               className={`p-4 rounded-2xl border cursor-pointer transition-all ${
                 filterTab === 'all'
-                  ? 'bg-blue-900 text-white border-blue-500 shadow-lg ring-2 ring-blue-400'
+                  ? 'bg-blue-600 text-white border-blue-500 shadow-lg ring-2 ring-blue-400'
                   : 'bg-white hover:bg-slate-50 border-slate-200 text-slate-800'
               }`}
             >
@@ -800,7 +800,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                     </div>
 
                     {/* Open Button */}
-                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-blue-700 font-black group-hover:text-blue-900">
+                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-blue-700 font-black group-hover:text-blue-700">
                       <span>مشاهده ۵ کارت اطلاعات پرونده</span>
                       <ArrowRight className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
                     </div>
@@ -1045,7 +1045,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                         <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold">
                           <ImageIcon className="w-4 h-4" />
                         </div>
-                        <h4 className="text-xs font-black text-blue-950">کارت ۳: مدارک و تصاویر</h4>
+                        <h4 className="text-xs font-black text-blue-900">کارت ۳: مدارک و تصاویر</h4>
                       </div>
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 border border-blue-200">
                         {activeCase.files?.length || 4} مدرک بارگذاری شده
@@ -1068,7 +1068,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-blue-700 font-black group-hover:text-blue-900">
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-blue-700 font-black group-hover:text-blue-700">
                     <span>مشاهده گالری اسناد و مدارک</span>
                     <ChevronLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
                   </div>
@@ -1198,7 +1198,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                   </div>
                 </div>
               ) : (
-                <div className="p-6 bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-3xl shadow-xl space-y-4 border border-blue-800">
+                <div className="p-6 bg-gradient-to-r from-blue-600 via-slate-900 to-indigo-600 text-white rounded-3xl shadow-xl space-y-4 border border-blue-800">
                   <div className="flex items-center justify-between pb-3 border-b border-blue-800/80">
                     <div className="flex items-center gap-2">
                       <ShieldCheck className="w-5 h-5 text-amber-400" />
@@ -1632,7 +1632,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="px-3.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-950 font-extrabold text-xs flex items-center gap-1.5 shadow-xs">
+                    <div className="px-3.5 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 font-extrabold text-xs flex items-center gap-1.5 shadow-xs">
                       <Paperclip className="w-4 h-4 text-blue-700" />
                       <span>کل مدارک پرونده: {totalCount} مورد</span>
                     </div>
@@ -1645,7 +1645,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                     onClick={() => setMediaCategoryFilter('ALL')}
                     className={`px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center gap-1.5 shrink-0 ${
                       mediaCategoryFilter === 'ALL'
-                        ? 'bg-blue-900 text-white border-blue-900 shadow-sm'
+                        ? 'bg-blue-600 text-white border-blue-300 shadow-sm'
                         : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
                     }`}
                   >
@@ -1823,7 +1823,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md backdrop-blur-xs border truncate max-w-[130px] ${
                                 file.type === 'kroki'
                                   ? 'bg-amber-900/80 text-amber-200 border-amber-400/30'
-                                  : 'bg-blue-900/80 text-blue-200 border-blue-400/30'
+                                  : 'bg-blue-600/80 text-blue-200 border-blue-400/30'
                               }`}>
                                 {file.category}
                               </span>
@@ -1848,7 +1848,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                     <p className="font-bold text-xs text-slate-600">مدرکی در این دسته‌بندی یافت نشد.</p>
                     <button
                       onClick={() => setMediaCategoryFilter('ALL')}
-                      className="text-xs text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer"
+                      className="text-xs text-blue-700 hover:text-blue-700 font-bold underline cursor-pointer"
                     >
                       نمایش تمام مدارک پرونده
                     </button>
@@ -2225,7 +2225,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
               {/* Note / metadata footer */}
               {item.note && (
                 <div className="p-3 bg-blue-50/70 rounded-xl border border-blue-100 text-xs text-slate-800">
-                  <span className="font-bold text-blue-950 block mb-0.5">یادداشت مدرک:</span>
+                  <span className="font-bold text-blue-900 block mb-0.5">یادداشت مدرک:</span>
                   <p>{item.note}</p>
                 </div>
               )}
@@ -2300,7 +2300,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                             setShowSmsModal(false);
                             handleSelectCase(c.id);
                           }}
-                          className="text-xs font-black text-blue-700 hover:text-blue-900 cursor-pointer flex items-center gap-1"
+                          className="text-xs font-black text-blue-700 hover:text-blue-700 cursor-pointer flex items-center gap-1"
                         >
                           <span>مشاهده پرونده</span>
                           <ArrowRight className="w-3 h-3 rotate-180" />
@@ -2334,7 +2334,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start justify-center p-4 pt-16 sm:pt-24 animate-in fade-in" dir="rtl">
           <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 text-slate-900 overflow-hidden space-y-0 animate-in zoom-in-95">
             {/* Header & Search Bar */}
-            <div className="p-5 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white space-y-3">
+            <div className="p-5 bg-gradient-to-r from-blue-600 via-indigo-900 to-slate-900 text-white space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-300 flex items-center justify-center font-bold">
@@ -2410,7 +2410,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                           <span className="font-mono font-black text-xs px-2.5 py-0.5 rounded-lg bg-blue-100 text-blue-900 border border-blue-200">
                             {c.id}
                           </span>
-                          <span className="font-extrabold text-sm text-slate-900 group-hover:text-blue-900">
+                          <span className="font-extrabold text-sm text-slate-900 group-hover:text-blue-700">
                             {c.victimName || 'زیان‌دیده'} ({c.carType || 'خودرو'})
                           </span>
                           {isApproved ? (

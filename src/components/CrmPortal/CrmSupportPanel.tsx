@@ -328,7 +328,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
   return (
     <div className="space-y-6 pb-12 animate-in fade-in" dir="rtl">
       {/* HEADER BANNER */}
-      <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800/40 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-600 via-slate-900 to-indigo-600 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800/40 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -340,7 +340,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
 
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
               <span>میز کار امور مشتریان</span>
-              <span className="text-xs font-bold px-3 py-1 bg-amber-400 text-blue-950 rounded-xl shadow-xs">
+              <span className="text-xs font-bold px-3 py-1 bg-amber-400 text-blue-900 rounded-xl shadow-xs">
                 {session.name} ({session.roleTitle || 'پشتیبانی ارشد'})
               </span>
             </h1>
@@ -566,7 +566,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
             onClick={() => setActiveTab('hub360')}
             className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === 'hub360'
-                ? 'bg-blue-900 text-white shadow-md'
+                ? 'bg-blue-600 text-white shadow-md'
                 : 'text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -735,7 +735,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-black text-xs text-blue-950">پرونده {c.id}</span>
+                    <span className="font-black text-xs text-blue-900">پرونده {c.id}</span>
                     <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-bold">{c.status}</span>
                   </div>
                   <div className="text-[11px] text-slate-700 font-medium flex items-center justify-between">

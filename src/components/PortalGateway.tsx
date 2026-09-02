@@ -350,7 +350,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                   <select
                     value={orgRole}
                     onChange={(e) => setOrgRole(e.target.value as RoleType)}
-                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs sm:text-sm font-black text-blue-950 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer shadow-sm"
+                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs sm:text-sm font-black text-blue-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer shadow-sm"
                   >
                     <option value="insurer">شرکت بیمه‌گر (مدیریت پرونده‌ها و ارجاع خسارت)</option>
                     <option value="assessor">کارشناس ارزیابی خسارت (برآورد هوشمند و مدل ۳D)</option>
@@ -382,14 +382,14 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         value={insurerPass}
                         onChange={(e) => setInsPass(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500"
                         dir="ltr"
                       />
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                     >
                       <span>ورود به پنل مدیریت شرکت بیمه</span>
                       <ArrowLeft className="w-4 h-4" />
@@ -577,7 +577,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         type="text"
                         value={adminUser}
                         onChange={(e) => setAdminUser(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500"
                         dir="ltr"
                         required
                       />
@@ -592,7 +592,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         value={adminPass}
                         onChange={(e) => setAdminPass(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500"
                         dir="ltr"
                         required
                       />
@@ -600,7 +600,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-amber-500 hover:bg-amber-400 text-blue-950 font-black rounded-xl text-xs shadow-md border border-amber-300 transition-all flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full py-3 bg-gradient-to-l from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black rounded-xl text-xs shadow-md border border-amber-300 transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
                       <span>ورود به پنل مدیریت ارشد کلان</span>
                       <ArrowLeft className="w-4 h-4" />

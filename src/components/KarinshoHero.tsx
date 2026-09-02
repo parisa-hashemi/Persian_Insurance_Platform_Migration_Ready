@@ -33,9 +33,11 @@ export const KarinshoHero: React.FC = () => {
           font-size: clamp(40px, 6.5vw, 72px);
           line-height: 1;
           letter-spacing: -0.01em;
-          background: linear-gradient(105deg, #0b1e3f 30%, #1d4ed8 78%, #3b82f6 100%);
+          background: linear-gradient(105deg, #0b1e3f 18%, #1d4ed8 42%, #7db4ff 50%, #1d4ed8 58%, #3b82f6 88%);
+          background-size: 240% 100%;
           -webkit-background-clip: text; background-clip: text;
           -webkit-text-fill-color: transparent; color: transparent;
+          animation: krn-wordshine 5.5s ease-in-out infinite;
           filter: drop-shadow(0 2px 14px rgba(29,78,216,.14));
         }
         .krn-tagline {
@@ -63,7 +65,7 @@ export const KarinshoHero: React.FC = () => {
           height: clamp(230px, 34vw, 420px);
           margin-top: clamp(4px, 1vw, 14px);
         }
-        .krn-scene svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+        .krn-scene > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
         /* infinite scrolling groups (world moves RIGHT because car drives LEFT) */
         @keyframes krn-scroll-far  { from { transform: translateX(0) } to { transform: translateX(600px) } }
@@ -115,10 +117,66 @@ export const KarinshoHero: React.FC = () => {
         @keyframes krn-tail { 0%,100% { opacity: .9 } 50% { opacity: 1; filter: drop-shadow(0 0 10px rgba(255,59,92,.9)); } }
         .krn-tail { animation: krn-tail 1.3s ease-in-out infinite; }
 
+        /* clouds drifting */
+        @keyframes krn-cloud { from { transform: translateX(0) } to { transform: translateX(760px) } }
+        .krn-cloud-a { animation: krn-cloud 46s linear infinite; }
+        .krn-cloud-b { animation: krn-cloud 64s linear infinite; animation-delay: -20s; }
+
+        /* درخشش داخل خودِ حروف لوگوتایپ */
+        @keyframes krn-wordshine {
+          0%, 55% { background-position: 120% 0 }
+          100%    { background-position: -60% 0 }
+        }
+
+        /* aurora blobs in sky */
+        @keyframes krn-aurora {
+          0%,100% { transform: translate(0,0) scale(1); }
+          50%     { transform: translate(-40px, 14px) scale(1.12); }
+        }
+        .krn-aurora   { animation: krn-aurora 11s ease-in-out infinite; }
+        .krn-aurora-b { animation-duration: 15s; animation-delay: 3s; }
+
+        /* sparkles rising from the light trail */
+        @keyframes krn-spark {
+          0%   { transform: translate(0,0) scale(1);        opacity: 0; }
+          15%  { opacity: .95; }
+          100% { transform: translate(90px,-56px) scale(.2); opacity: 0; }
+        }
+        .krn-spark   { animation: krn-spark 2.2s ease-out infinite; }
+        .krn-spark-b { animation-duration: 2.9s; animation-delay: .8s; }
+        .krn-spark-c { animation-duration: 2.5s; animation-delay: 1.5s; }
+        .krn-spark-d { animation-duration: 3.2s; animation-delay: .3s; }
+
+        /* floating glass chips over the scene */
+        .krn-chip {
+          position: absolute; z-index: 6;
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 9px 14px;
+          background: rgba(255,255,255,.72);
+          backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+          border: 1px solid rgba(147,197,253,.6);
+          border-radius: 16px;
+          box-shadow: 0 12px 30px -12px rgba(37,99,235,.35);
+          font-size: 11.5px; font-weight: 800; color: #1e3a8a;
+          white-space: nowrap;
+          animation: krn-chip-float 4.2s ease-in-out infinite;
+        }
+        .krn-chip svg { flex: none; }
+        .krn-chip-2 { animation-delay: 1.2s; animation-duration: 5s; }
+        .krn-chip-3 { animation-delay: 2.2s; animation-duration: 4.6s; }
+        @keyframes krn-chip-float {
+          0%,100% { transform: translateY(0) }
+          50%     { transform: translateY(-9px) }
+        }
+        @media (max-width: 900px) { .krn-chip-3 { display: none } }
+        @media (max-width: 640px) { .krn-chip-2 { display: none } .krn-chip { font-size: 10.5px; padding: 7px 11px } }
+
         @media (prefers-reduced-motion: reduce) {
           .krn-far, .krn-mid, .krn-near, .krn-car, .krn-rim, .krn-trail, .krn-trail-2,
           .krn-streak, .krn-streak-b, .krn-streak-c, .krn-dust, .krn-dust-b, .krn-dust-c,
-          .krn-beam, .krn-tail { animation: none !important; }
+          .krn-beam, .krn-tail, .krn-cloud-a, .krn-cloud-b,
+          .krn-aurora, .krn-aurora-b, .krn-spark, .krn-spark-b, .krn-spark-c,
+          .krn-spark-d, .krn-chip { animation: none !important; }
         }
       `}</style>
 
@@ -154,7 +212,20 @@ export const KarinshoHero: React.FC = () => {
       </div>
 
       {/* ---------- صحنه‌ی متحرک ---------- */}
-      <div className="krn-scene" aria-hidden="true">
+      <div className="krn-scene">
+        {/* چیپ‌های شیشه‌ای شناور */}
+        <div className="krn-chip" style={{ top: '12%', insetInlineStart: '7%' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
+          <span>ارزیابی هوشمند با هوش مصنوعی</span>
+        </div>
+        <div className="krn-chip krn-chip-2" style={{ top: '18%', insetInlineEnd: '8%' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span>تسویه خسارت در ۲۴ ساعت</span>
+        </div>
+        <div className="krn-chip krn-chip-3" style={{ bottom: '34%', insetInlineEnd: '16%' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+          <span>۹۸٪ رضایت مشتریان</span>
+        </div>
         <svg viewBox="0 0 1440 420" preserveAspectRatio="xMinYMax slice">
           <defs>
             {/* sky glow */}
@@ -198,6 +269,9 @@ export const KarinshoHero: React.FC = () => {
               <stop offset="0%" stopColor="#fff7d6" stopOpacity=".9" />
               <stop offset="100%" stopColor="#fff7d6" stopOpacity="0" />
             </linearGradient>
+            <filter id="krnSoft" x="-40%" y="-120%" width="180%" height="340%">
+              <feGaussianBlur stdDeviation="26" />
+            </filter>
             <radialGradient id="krnShadow" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="#0b1e3f" stopOpacity=".28" />
               <stop offset="100%" stopColor="#0b1e3f" stopOpacity="0" />
@@ -206,6 +280,34 @@ export const KarinshoHero: React.FC = () => {
 
           {/* آسمان و هاله‌ی نور */}
           <rect x="0" y="0" width="1440" height="420" fill="url(#krnSun)" />
+
+          {/* هاله‌های آرورا در آسمان */}
+          <g aria-hidden="true" filter="url(#krnSoft)">
+            <ellipse className="krn-aurora"   cx="380"  cy="60" rx="250" ry="58" fill="#93c5fd" opacity=".16" />
+            <ellipse className="krn-aurora krn-aurora-b" cx="1080" cy="46" rx="290" ry="64" fill="#c7d2fe" opacity=".18" />
+          </g>
+
+          {/* ابرهای شناور */}
+          <g fill="#ffffff" aria-hidden="true">
+            <g className="krn-cloud-a" opacity=".85">
+              {[-760, 0].map((ox) => (
+                <g key={ox} transform={`translate(${ox},0)`}>
+                  <ellipse cx="180" cy="86"  rx="64" ry="17" />
+                  <ellipse cx="222" cy="76"  rx="40" ry="14" />
+                  <ellipse cx="560" cy="120" rx="52" ry="14" />
+                </g>
+              ))}
+            </g>
+            <g className="krn-cloud-b" opacity=".6">
+              {[-760, 0].map((ox) => (
+                <g key={ox} transform={`translate(${ox},0)`}>
+                  <ellipse cx="360" cy="140" rx="70" ry="15" />
+                  <ellipse cx="410" cy="130" rx="42" ry="12" />
+                  <ellipse cx="700" cy="92"  rx="58" ry="14" />
+                </g>
+              ))}
+            </g>
+          </g>
 
           {/* کوه‌های محو دوردست */}
           <path d="M0 258 L150 196 L295 250 L430 205 L560 258 Z" fill="#e2ecf9" opacity=".8" />
@@ -270,6 +372,18 @@ export const KarinshoHero: React.FC = () => {
             ))}
           </g>
 
+          {/* تیرهای چراغ برق کنار جاده — لایه‌ی نزدیک */}
+          <g className="krn-near" aria-hidden="true">
+            {[-600, 0, 600, 1200].map((ox) => (
+              <g key={ox} transform={`translate(${ox},0)`}>
+                <rect x="118" y="196" width="5" height="66" rx="2.5" fill="#b6c9e8" />
+                <rect x="98" y="192" width="34" height="6" rx="3" fill="#b6c9e8" />
+                <circle cx="98" cy="200" r="6" fill="#fde68a" />
+                <circle cx="98" cy="200" r="13" fill="#fde68a" opacity=".28" />
+              </g>
+            ))}
+          </g>
+
           {/* رگه‌های نور سرعت که از پشت ماشین رد می‌شوند */}
           <g>
             <rect className="krn-streak"   x="620" y="238" width="230" height="5" rx="2.5" fill="url(#krnStreak)" />
@@ -285,6 +399,14 @@ export const KarinshoHero: React.FC = () => {
               <rect className="krn-trail krn-trail-2" x="328" y="74" width="500" height="7" rx="3.5" fill="url(#krnTrailR)" opacity=".7" />
               {/* ردِ آبی نئونی زیر بدنه */}
               <rect className="krn-trail krn-trail-2" x="310" y="118" width="560" height="9" rx="4.5" fill="url(#krnTrailB)" />
+            </g>
+
+            {/* جرقه‌های ریز بلندشونده از ردِ نور */}
+            <g aria-hidden="true">
+              <circle className="krn-spark"   cx="420" cy="60" r="3.2" fill="#ff8fa3" />
+              <circle className="krn-spark krn-spark-b" cx="560" cy="66" r="2.6" fill="#fda4af" />
+              <circle className="krn-spark krn-spark-c" cx="500" cy="120" r="2.8" fill="#93c5fd" />
+              <circle className="krn-spark krn-spark-d" cx="680" cy="58" r="2.2" fill="#fecdd3" />
             </g>
 
             {/* سایه متحرک زیر ماشین */}

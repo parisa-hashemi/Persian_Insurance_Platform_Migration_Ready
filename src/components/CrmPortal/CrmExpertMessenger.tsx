@@ -267,7 +267,7 @@ export const CrmExpertMessenger: React.FC<CrmExpertMessengerProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in">
       {/* Top Banner */}
-      <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-blue-950 text-white rounded-3xl p-6 sm:p-7 shadow-lg border border-purple-800/40 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-indigo-600 text-white rounded-3xl p-6 sm:p-7 shadow-lg border border-purple-800/40 relative overflow-hidden">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1.5">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-200 text-xs font-black">
@@ -588,7 +588,7 @@ export const CrmExpertMessenger: React.FC<CrmExpertMessengerProps> = ({
                           <button
                             type="button"
                             onClick={() => handleResolveExpertRequest(task)}
-                            className="px-3 py-1.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-[11px] flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                            className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-[11px] flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             <span>ثبت اتمام پیگیری</span>

@@ -269,7 +269,7 @@ export const PoliceCroquiReportView: React.FC<PoliceCroquiReportViewProps> = ({
             </span>
             <button
               onClick={() => setZoomImage(data.croquiPhotoUrl || null)}
-              className="text-[11px] font-bold text-blue-700 hover:text-blue-900 flex items-center gap-1 cursor-pointer"
+              className="text-[11px] font-bold text-blue-700 hover:text-blue-700 flex items-center gap-1 cursor-pointer"
             >
               <Maximize2 className="w-3.5 h-3.5" />
               <span>مشاهده در اندازه بزرگ</span>

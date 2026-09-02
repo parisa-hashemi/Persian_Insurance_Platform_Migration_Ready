@@ -64,7 +64,7 @@ export const PayoutQueue: React.FC<PayoutQueueProps> = ({
             <CreditCard className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-xl font-black text-blue-950">
+            <h2 className="text-xl font-black text-blue-900">
               صف تسویه مالی و دستور واریز بانک
             </h2>
             <p className="text-xs text-slate-600 mt-0.5 font-medium">
@@ -88,7 +88,7 @@ export const PayoutQueue: React.FC<PayoutQueueProps> = ({
             >
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
                 <div>
-                  <span className="font-extrabold text-blue-950 text-sm font-mono">{c.id}</span>
+                  <span className="font-extrabold text-blue-900 text-sm font-mono">{c.id}</span>
                   <span className="text-xs text-slate-600 font-medium block mt-0.5">
                     ذی‌نفع: {c.payoutInfo?.beneficiary || c.victimName} | تاریخ: {c.date}
                   </span>

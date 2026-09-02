@@ -323,7 +323,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black text-blue-950">پورتال خسارت بیمه بدنه خودرو</h1>
+              <h1 className="text-xl font-black text-blue-900">پورتال خسارت بیمه بدنه خودرو</h1>
               <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-sky-100 text-sky-950 border border-sky-300">
                 مستقل از شخص ثالث
               </span>
@@ -346,7 +346,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
               </button>
               <button
                 onClick={() => setViewState('create_step1')}
-                className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs font-black shadow-md border border-blue-950 transition-all flex items-center gap-2 active:scale-95"
+                className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black shadow-md border border-blue-300 transition-all flex items-center gap-2 active:scale-95"
               >
                 <Zap className="w-4 h-4 text-amber-400" />
                 <span>ثبت اعلام خسارت بدنه جدید</span>
@@ -369,7 +369,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
         <div className="space-y-6">
           {/* Quick Guide Card */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gradient-to-br from-blue-900 to-indigo-950 text-white p-5 rounded-3xl shadow-sm space-y-2">
+            <div className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white p-5 rounded-3xl shadow-sm space-y-2">
               <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center text-amber-400 font-bold">
                 ۱
               </div>
@@ -383,7 +383,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
               <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-900 flex items-center justify-center font-bold">
                 ۲
               </div>
-              <h3 className="font-extrabold text-sm text-blue-950">مستندسازی چندرسانه‌ای</h3>
+              <h3 className="font-extrabold text-sm text-blue-900">مستندسازی چندرسانه‌ای</h3>
               <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                 عکس، ویدیو و فایل صوتی توضیحات راننده را بدون نیاز به حضور فیزیکی اولیه در سیستم بارگذاری کنید.
               </p>
@@ -405,7 +405,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <Car className="w-5 h-5 text-blue-900" />
-                <h2 className="font-black text-blue-950 text-base">
+                <h2 className="font-black text-blue-900 text-base">
                   پرونده‌های خسارت بدنه من ({bodilyCases.length})
                 </h2>
               </div>
@@ -429,7 +429,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                 </p>
                 <button
                   onClick={() => setViewState('create_step1')}
-                  className="px-6 py-2.5 rounded-xl bg-blue-900 text-white font-black text-xs shadow-md mt-2 active:scale-95"
+                  className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs shadow-md mt-2 active:scale-95"
                 >
                   ثبت اولین اعلام خسارت بدنه
                 </button>
@@ -456,15 +456,15 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                       onClick={() => onOpenCaseDetail && onOpenCaseDetail(c.id)}
                       className={`p-5 rounded-2xl border-2 transition-all cursor-pointer space-y-3 relative group shadow-xs ${
                         isFieldCompleted && c.status !== 'پرداخت شده' && c.status !== 'در انتظار پرداخت'
-                          ? 'border-blue-900 bg-blue-50/40 hover:bg-blue-50/70 shadow-sm ring-1 ring-blue-900/20'
-                          : 'border-slate-200 hover:border-blue-900 bg-slate-50/70 hover:bg-white'
+                          ? 'border-blue-300 bg-blue-50/40 hover:bg-blue-50/70 shadow-sm ring-1 ring-blue-900/20'
+                          : 'border-slate-200 hover:border-blue-400 bg-slate-50/70 hover:bg-white'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-black text-blue-950 font-mono text-sm">{c.id}</span>
-                            <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-950 text-[10px] font-black">
+                            <span className="font-black text-blue-900 font-mono text-sm">{c.id}</span>
+                            <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 text-[10px] font-black">
                               {insurerName}
                             </span>
                           </div>
@@ -479,7 +479,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                             : c.status === 'در انتظار پرداخت'
                             ? 'bg-sky-100 text-sky-950 border-sky-300'
                             : isFieldCompleted
-                            ? 'bg-blue-900 text-amber-300 border-blue-950 shadow-xs animate-pulse'
+                            ? 'bg-gradient-to-br from-blue-500 to-indigo-600 text-white border-blue-300 shadow-xs animate-pulse'
                             : 'bg-amber-100 text-amber-950 border-amber-300'
                         }`}>
                           {isFieldCompleted && c.status !== 'پرداخت شده' && c.status !== 'در انتظار پرداخت'
@@ -490,7 +490,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
 
                       {/* Field expert completion alert banner */}
                       {isFieldCompleted && c.status !== 'پرداخت شده' && (
-                        <div className="p-2.5 rounded-xl bg-blue-900 text-white text-[11px] font-bold flex items-center justify-between shadow-xs">
+                        <div className="p-2.5 rounded-xl bg-blue-600 text-white text-[11px] font-bold flex items-center justify-between shadow-xs">
                           <div className="flex items-center gap-1.5">
                             <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" />
                             <span>
@@ -545,7 +545,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-black text-blue-900">مرحله ۱ از ۲</span>
-                <h2 className="text-lg font-black text-blue-950 mt-0.5">
+                <h2 className="text-lg font-black text-blue-900 mt-0.5">
                   استعلام هوشمند بیمه‌نامه بدنه و اطلاعات حادثه
                 </h2>
               </div>
@@ -556,7 +556,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
 
             {/* National ID Inquiry Box */}
             <div className="bg-slate-50 p-5 rounded-2xl border-2 border-blue-200 space-y-3">
-              <label className="block text-xs font-black text-blue-950">
+              <label className="block text-xs font-black text-blue-900">
                 کد ملی مالک / بیمه‌گذار جهت استعلام برخط سنهاب:
               </label>
               <div className="flex flex-col sm:flex-row items-center gap-2.5">
@@ -567,7 +567,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                     value={nationalId}
                     onChange={(e) => setNationalId(e.target.value)}
                     placeholder="کد ملی ۱۰ رقمی (مثلاً ۰۰۱۲۳۴۵۶۷۸)"
-                    className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-white border-2 border-slate-300 font-mono font-bold text-xs text-slate-900 focus:outline-none focus:border-blue-900"
+                    className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-white border-2 border-slate-300 font-mono font-bold text-xs text-slate-900 focus:outline-none focus:border-blue-500"
                     dir="ltr"
                   />
                 </div>
@@ -575,7 +575,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                   type="button"
                   onClick={() => handleInquirePolicy(nationalId)}
                   disabled={isInquiring || !nationalId.trim()}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-sm flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-sm flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
                 >
                   {isInquiring ? (
                     <>
@@ -654,7 +654,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
 
           {/* Accident Details Form */}
           <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-5">
-            <h3 className="font-black text-blue-950 text-base pb-2 border-b border-slate-200 flex items-center gap-2">
+            <h3 className="font-black text-blue-900 text-base pb-2 border-b border-slate-200 flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-900" />
               <span>مشخصات و شرایط سانحه خسارت بدنه</span>
             </h3>
@@ -667,7 +667,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                 <select
                   value={damageType}
                   onChange={(e) => setDamageType(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                 >
                   <option value="تصادف تک‌وسیله (برخورد با مانع / جدول / گاردریل)">
                     تصادف تک‌وسیله (برخورد با مانع / جدول / گاردریل)
@@ -695,7 +695,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                     type="text"
                     value={incidentDate}
                     onChange={(e) => setIncidentDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                   />
                 </div>
                 <div>
@@ -706,7 +706,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                     type="text"
                     value={incidentTime}
                     onChange={(e) => setIncidentTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -720,7 +720,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                   type="text"
                   value={province}
                   onChange={(e) => setProvince(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -730,7 +730,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                   type="text"
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -746,7 +746,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="مثلاً: تهران، بزرگراه ستاری، خروجی جنت‌آباد، خیابان مخبری، پلاک ۲۰..."
-                    className="w-full pr-10 pl-4 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-900"
+                    className="w-full pr-10 pl-4 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
@@ -762,7 +762,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                 value={incidentDescription}
                 onChange={(e) => setIncidentDescription(e.target.value)}
                 placeholder="توضیح دهید حادثه چطور اتفاق افتاد و کدام قطعات (کاپوت، گلگیر، شاسی، چراغ و...) صدمه دیده‌اند..."
-                className="w-full p-3.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-900"
+                className="w-full p-3.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
               />
             </div>
 
@@ -780,7 +780,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                 type="button"
                 onClick={() => setViewState('create_step2')}
                 disabled={!inquiredPolicy || !address.trim() || !incidentDescription.trim()}
-                className="px-6 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-md border border-blue-950 flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md border border-blue-300 flex items-center gap-2 active:scale-95 disabled:opacity-50"
               >
                 <span>مرحله بعد: بارگذاری عکس، ویدیو و ضبط صوت</span>
                 <ArrowLeft className="w-4 h-4" />
@@ -798,7 +798,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-[11px] font-black text-blue-900">مرحله ۲ از ۲</span>
-                <h2 className="text-lg font-black text-blue-950 mt-0.5">
+                <h2 className="text-lg font-black text-blue-900 mt-0.5">
                   مستندات چندرسانه‌ای: عکس، ویدیو و فایل صوتی
                 </h2>
               </div>
@@ -816,12 +816,12 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <Camera className="w-5 h-5 text-blue-900" />
-                <h3 className="font-black text-blue-950 text-sm">
+                <h3 className="font-black text-blue-900 text-sm">
                   عکس‌های خسارت و زوایای خودرو ({photos.length} تصویر)
                 </h3>
               </div>
 
-              <label className="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95">
+              <label className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95">
                 <Upload className="w-4 h-4" />
                 <span>افزودن عکس جدید</span>
                 <input
@@ -862,7 +862,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <Video className="w-5 h-5 text-blue-900" />
-                <h3 className="font-black text-blue-950 text-sm">
+                <h3 className="font-black text-blue-900 text-sm">
                   ویدیوی ۳۰ ثانیه‌ای دور خودرو و جزئیات ضربه
                 </h3>
               </div>
@@ -916,7 +916,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2">
                 <Mic className="w-5 h-5 text-blue-900" />
-                <h3 className="font-black text-blue-950 text-sm">
+                <h3 className="font-black text-blue-900 text-sm">
                   ضبط یا بارگذاری صوت توضیحات راننده (Voice Note)
                 </h3>
               </div>
@@ -937,7 +937,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
             <div className="bg-blue-50/70 border-2 border-blue-200 rounded-2xl p-5 space-y-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="space-y-1 text-right">
-                  <span className="font-black text-xs text-blue-950 block">
+                  <span className="font-black text-xs text-blue-900 block">
                     توضیح صوتی نحوه تصادف و صدای غیرعادی موتور یا جلوبندی
                   </span>
                   <p className="text-[11px] text-slate-600 font-medium">
@@ -973,11 +973,11 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
               {audioFile && (
                 <div className="bg-white p-4 rounded-xl border border-blue-200 flex items-center justify-between gap-3 animate-in fade-in">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-900 text-amber-300 flex items-center justify-center font-bold">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold">
                       <Volume2 className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="font-bold text-xs text-blue-950 block">{audioFile.name}</span>
+                      <span className="font-bold text-xs text-blue-900 block">{audioFile.name}</span>
                       <span className="text-[10px] text-slate-500 font-mono mt-0.5 block">{audioFile.fileName}</span>
                     </div>
                   </div>
@@ -1047,17 +1047,17 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
           </div>
 
           <div className="space-y-2 max-w-lg mx-auto">
-            <h2 className="text-2xl font-black text-blue-950">
+            <h2 className="text-2xl font-black text-blue-900">
               درخواست خسارت بدنه شما با موفقیت ثبت و ارجاع گردید!
             </h2>
-            <div className="inline-block px-4 py-1.5 rounded-full bg-blue-100 text-blue-950 font-black text-sm font-mono border border-blue-300">
+            <div className="inline-block px-4 py-1.5 rounded-full bg-blue-100 text-blue-900 font-black text-sm font-mono border border-blue-300">
               کد رهگیری پرونده: {createdCase.id}
             </div>
           </div>
 
           {/* Routing Notification Box */}
           <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5 max-w-xl mx-auto text-right space-y-3">
-            <div className="flex items-center gap-2 text-blue-950 font-black text-xs">
+            <div className="flex items-center gap-2 text-blue-900 font-black text-xs">
               <Building2 className="w-4 h-4 text-blue-900" />
               <span>نتیجه ارجاع هوشمند پرونده:</span>
             </div>
@@ -1079,7 +1079,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
               onClick={() => onOpenCaseDetail && onOpenCaseDetail(createdCase.id)}
-              className="px-6 py-3 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-md flex items-center gap-2 active:scale-95"
+              className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md flex items-center gap-2 active:scale-95"
             >
               <span>مشاهده و پیگیری زنده پرونده</span>
               <ArrowLeft className="w-4 h-4" />

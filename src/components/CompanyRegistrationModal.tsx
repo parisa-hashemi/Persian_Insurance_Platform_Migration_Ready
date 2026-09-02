@@ -171,11 +171,11 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
         {/* Header */}
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-900 text-amber-300 flex items-center justify-center shadow-xs">
+            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-xs">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black text-blue-950 flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-black text-blue-900 flex items-center gap-2">
                 ثبت‌نام و درخواست پنل شرکت بیمه
                 <span className="text-xs bg-blue-100 text-blue-900 border border-blue-200 px-2.5 py-0.5 rounded-full font-bold">
                   سطح ۲: مدیر ارشد شرکت (Company Admin)
@@ -201,12 +201,12 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
             <div className="flex items-center gap-2">
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center font-black text-xs ${
-                  step >= 1 ? 'bg-blue-900 text-white' : 'bg-slate-300 text-slate-600'
+                  step >= 1 ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-600'
                 }`}
               >
                 ۱
               </div>
-              <span className={step === 1 ? 'text-blue-950 font-black' : 'text-slate-600 font-medium'}>
+              <span className={step === 1 ? 'text-blue-900 font-black' : 'text-slate-600 font-medium'}>
                 اطلاعات ثبتی شرکت
               </span>
             </div>
@@ -214,12 +214,12 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
             <div className="flex items-center gap-2">
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center font-black text-xs ${
-                  step >= 2 ? 'bg-blue-900 text-white' : 'bg-slate-300 text-slate-600'
+                  step >= 2 ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-600'
                 }`}
               >
                 ۲
               </div>
-              <span className={step === 2 ? 'text-blue-950 font-black' : 'text-slate-600 font-medium'}>
+              <span className={step === 2 ? 'text-blue-900 font-black' : 'text-slate-600 font-medium'}>
                 مشخصات مدیر ارشد
               </span>
             </div>
@@ -227,12 +227,12 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
             <div className="flex items-center gap-2">
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center font-black text-xs ${
-                  step === 3 ? 'bg-blue-900 text-white' : 'bg-slate-300 text-slate-600'
+                  step === 3 ? 'bg-blue-600 text-white' : 'bg-slate-300 text-slate-600'
                 }`}
               >
                 ۳
               </div>
-              <span className={step === 3 ? 'text-blue-950 font-black' : 'text-slate-600 font-medium'}>
+              <span className={step === 3 ? 'text-blue-900 font-black' : 'text-slate-600 font-medium'}>
                 بارگذاری مستندات
               </span>
             </div>
@@ -254,11 +254,11 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
               <div className="w-16 h-16 rounded-3xl bg-emerald-100 border-2 border-emerald-300 flex items-center justify-center text-emerald-700 mb-4 shadow-sm">
                 <CheckCircle2 className="w-9 h-9" />
               </div>
-              <h3 className="text-xl font-black text-blue-950 mb-2">درخواست ثبت‌نام با موفقیت ثبت شد</h3>
+              <h3 className="text-xl font-black text-blue-900 mb-2">درخواست ثبت‌نام با موفقیت ثبت شد</h3>
               <p className="text-sm text-slate-600 max-w-lg mb-6 leading-relaxed font-medium">
                 اطلاعات و مدارک شرکت «<span className="text-blue-900 font-black">{companyName}</span>» با شماره پیگیری{' '}
-                <span className="text-blue-950 font-mono font-black bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">{submittedId}</span> جهت تایید به کارتابل{' '}
-                <span className="text-blue-950 font-bold">مدیر کل سامانه (Super Admin)</span> ارسال گردید.
+                <span className="text-blue-900 font-mono font-black bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-200">{submittedId}</span> جهت تایید به کارتابل{' '}
+                <span className="text-blue-900 font-bold">مدیر کل سامانه (Super Admin)</span> ارسال گردید.
               </p>
 
               <div className="w-full max-w-md bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 text-right text-xs space-y-2 mb-6">
@@ -283,13 +283,13 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                 </div>
               </div>
 
-              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-950 mb-6 max-w-lg text-right font-medium">
+              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900 mb-6 max-w-lg text-right font-medium">
                 💡 <span className="font-bold">نکته برای تست و ارزیابی:</span> شما می‌توانید همین حالا وارد پرتال «مدیر کل سامانه» (Super Admin) شوید، در تب «درخواست‌های ثبت شرکت» این درخواست را تایید فرمایید تا حساب مدیر ارشد بلافاصله فعال شود.
               </div>
 
               <button
                 onClick={onClose}
-                className="px-6 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-sm font-black transition-colors cursor-pointer shadow-sm"
+                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-black transition-colors cursor-pointer shadow-sm"
               >
                 متوجه شدم و بستن پنجره
               </button>
@@ -308,7 +308,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     placeholder="مثال: بیمه سرمد / بیمه نوین"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 placeholder-slate-400"
                   />
                 </div>
                 <div>
@@ -320,7 +320,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={companyCode}
                     onChange={(e) => setCompanyCode(e.target.value)}
                     placeholder="مثال: sarmad / novin"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 text-left font-mono placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 text-left font-mono placeholder-slate-400"
                   />
                 </div>
               </div>
@@ -336,7 +336,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={economicCode}
                     onChange={(e) => setEconomicCode(e.target.value)}
                     placeholder="مثال: 411492019482"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 font-mono text-left placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
                   />
                 </div>
                 <div>
@@ -349,7 +349,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={registrationNumber}
                     onChange={(e) => setRegistrationNumber(e.target.value)}
                     placeholder="مثال: 44819"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 font-mono text-left placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
                   />
                 </div>
                 <div>
@@ -361,7 +361,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={licenseNumber}
                     onChange={(e) => setLicenseNumber(e.target.value)}
                     placeholder="مثال: LIC-1392-SRM"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 font-mono text-left placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
                   />
                 </div>
               </div>
@@ -377,7 +377,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={companyPhone}
                     onChange={(e) => setCompanyPhone(e.target.value)}
                     placeholder="۰۲۱-۴۳۹۷۵۰۰۰"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 font-mono text-left placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
                   />
                 </div>
                 <div>
@@ -389,7 +389,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={companyEmail}
                     onChange={(e) => setCompanyEmail(e.target.value)}
                     placeholder="info@company.ir"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 text-left font-mono placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 text-left font-mono placeholder-slate-400"
                   />
                 </div>
               </div>
@@ -400,7 +400,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                   <select
                     value={province}
                     onChange={(e) => setProvince(e.target.value)}
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 cursor-pointer"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     <option value="تهران">تهران</option>
                     <option value="اصفهان">اصفهان</option>
@@ -421,7 +421,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="تهران، خیابان ولیعصر، تقاطع ..."
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 placeholder-slate-400"
                   />
                 </div>
               </div>
@@ -429,7 +429,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
               <div className="pt-4 flex justify-end">
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-black flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
                 >
                   <span>مرحله بعد: مشخصات مدیر ارشد</span>
                   <ArrowLeft className="w-4 h-4" />
@@ -439,7 +439,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
           ) : step === 2 ? (
             /* Step 2 Form */
             <form onSubmit={handleNextStep2} className="space-y-4">
-              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-950 font-medium">
+              <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900 font-medium">
                 <span className="font-black text-blue-900">توجه:</span> مدیر ارشد معرفی‌شده پس از تایید مدیر کل پلتفرم، با «کد ملی» و «شماره همراه» ثبت شده در این بخش به عنوان مدیر شرکت وارد پنل شده و اختیار تعریف کارشناسان خسارت را خواهد داشت.
               </div>
 
@@ -454,7 +454,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={adminName}
                     onChange={(e) => setAdminName(e.target.value)}
                     placeholder="مثال: دکتر علیرضا رضایی"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 placeholder-slate-400"
                   />
                 </div>
                 <div>
@@ -468,7 +468,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={adminNationalId}
                     onChange={(e) => setAdminNationalId(e.target.value)}
                     placeholder="0012345678"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 font-mono text-left placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
                   />
                 </div>
               </div>
@@ -485,7 +485,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={adminPhone}
                     onChange={(e) => setAdminPhone(e.target.value)}
                     placeholder="09121112233"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 font-mono text-left placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
                   />
                   <span className="text-[11px] text-slate-500 mt-1 block font-medium">
                     کد فعال‌سازی و رمز یکبار مصرف به این شماره ارسال خواهد شد.
@@ -501,7 +501,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={adminEmail}
                     onChange={(e) => setAdminEmail(e.target.value)}
                     placeholder="admin@company.ir"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 text-left font-mono placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 text-left font-mono placeholder-slate-400"
                   />
                 </div>
               </div>
@@ -517,7 +517,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-black flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black flex items-center gap-2 transition-colors shadow-sm cursor-pointer"
                 >
                   <span>مرحله بعد: بارگذاری مدارک</span>
                   <ArrowLeft className="w-4 h-4" />

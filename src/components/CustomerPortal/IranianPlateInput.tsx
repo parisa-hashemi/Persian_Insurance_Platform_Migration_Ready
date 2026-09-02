@@ -30,7 +30,7 @@ export const IranianPlateInput: React.FC<IranianPlateInputProps> = ({
   return (
     <div className="flex flex-col items-center gap-1.5 w-full">
       <div
-        className="w-full max-w-[340px] h-14 bg-white border-[2.5px] border-slate-950 rounded-xl overflow-hidden shadow-sm flex items-stretch select-none transition-all focus-within:ring-2 focus-within:ring-blue-600 focus-within:border-blue-900"
+        className="w-full max-w-[340px] h-14 bg-white border-[2.5px] border-slate-950 rounded-xl overflow-hidden shadow-sm flex items-stretch select-none transition-all focus-within:ring-2 focus-within:ring-blue-600 focus-within:border-blue-300"
         dir="ltr"
       >
         {/* Left: Blue Strip with Iran Flag & I.R. IRAN */}

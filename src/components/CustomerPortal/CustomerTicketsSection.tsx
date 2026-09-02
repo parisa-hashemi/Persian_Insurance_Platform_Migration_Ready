@@ -121,7 +121,7 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
       case 'ارجاع به ارزیاب ارشد':
         return 'bg-purple-50 text-purple-950 border-purple-200';
       default:
-        return 'bg-blue-50 text-blue-950 border-blue-200';
+        return 'bg-blue-50 text-blue-900 border-blue-200';
     }
   };
 
@@ -153,7 +153,7 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
           <button
             type="button"
             onClick={onOpenCreateTicket}
-            className="px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-md shadow-blue-900/10 active:scale-95 transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+            className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md shadow-blue-900/10 active:scale-95 transition-all flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>ثبت تیکت / شکایت جدید</span>
@@ -168,7 +168,7 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
           onClick={() => setActiveSectionTab('tickets')}
           className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
             activeSectionTab === 'tickets'
-              ? 'bg-white text-blue-950 font-black shadow-xs'
+              ? 'bg-white text-blue-900 font-black shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
@@ -181,7 +181,7 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
           onClick={() => setActiveSectionTab('calls')}
           className={`flex-1 py-2 rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer ${
             activeSectionTab === 'calls'
-              ? 'bg-white text-blue-950 font-black shadow-xs'
+              ? 'bg-white text-blue-900 font-black shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >

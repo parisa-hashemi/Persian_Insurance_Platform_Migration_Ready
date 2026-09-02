@@ -68,7 +68,7 @@ export const SearchableCompanySelect: React.FC<SearchableCompanySelectProps> = (
           onClick={() => setIsOpen(!isOpen)}
           className={`w-full px-3.5 py-2.5 bg-white border-2 rounded-xl text-right transition-all flex items-center justify-between gap-2 shadow-sm ${
             isOpen
-              ? 'border-blue-900 ring-4 ring-blue-50'
+              ? 'border-blue-300 ring-4 ring-blue-50'
               : 'border-slate-300 hover:border-blue-800'
           }`}
         >
@@ -106,7 +106,7 @@ export const SearchableCompanySelect: React.FC<SearchableCompanySelectProps> = (
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="جستجوی نام شرکت بیمه یا شهر..."
-                  className="w-full pr-9 pl-8 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900"
+                  className="w-full pr-9 pl-8 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500"
                 />
                 {searchTerm && (
                   <button
@@ -134,7 +134,7 @@ export const SearchableCompanySelect: React.FC<SearchableCompanySelectProps> = (
                     }}
                     className={`w-full p-2 rounded-xl text-right transition flex items-center justify-between gap-2 ${
                       isSelected
-                        ? 'bg-blue-900 text-white font-bold shadow-sm'
+                        ? 'bg-blue-600 text-white font-bold shadow-sm'
                         : 'hover:bg-blue-50 text-slate-800'
                     }`}
                   >

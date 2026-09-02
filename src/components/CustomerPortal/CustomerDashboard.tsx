@@ -308,7 +308,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
       case 'در انتظار ارجاع':
         return 'bg-amber-100 text-amber-950 border-amber-300 font-extrabold';
       default:
-        return 'bg-blue-100 text-blue-950 border-blue-300 font-extrabold';
+        return 'bg-blue-100 text-blue-900 border-blue-300 font-extrabold';
     }
   };
 
@@ -332,10 +332,10 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 <img
                   src={session.avatarUrl}
                   alt={session.name}
-                  className="w-16 h-16 rounded-2xl object-cover shadow-md border-2 border-blue-300 group-hover:border-amber-500 transition-colors"
+                  className="w-16 h-16 rounded-2xl object-cover shadow-md border-2 border-blue-300 group-hover:border-blue-400 transition-colors"
                 />
               ) : (
-                <div className="w-16 h-16 rounded-2xl bg-blue-900 text-amber-400 flex items-center justify-center font-black text-2xl shadow-md border-2 border-blue-200 group-hover:border-amber-500 transition-colors">
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-md border-2 border-blue-200 group-hover:border-blue-400 transition-colors">
                   {session.name ? session.name.charAt(0) : 'ک'}
                 </div>
               )}
@@ -346,10 +346,10 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
             <div className="space-y-1 text-right">
               <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-blue-950 tracking-tight group-hover:text-blue-700 transition-colors">
+                <h1 className="text-xl sm:text-2xl font-black text-blue-900 tracking-tight group-hover:text-blue-700 transition-colors">
                   {session.name || 'مشتری گرامی'}
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-950 border border-blue-300">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
                   پورتال خودخدمت بیمه‌گذار
                 </span>
               </div>
@@ -412,10 +412,10 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               }}
               className="p-3.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl text-center min-w-[100px] transition-all shadow-sm cursor-pointer"
             >
-              <span className="block text-xl font-black text-blue-950 font-mono">
+              <span className="block text-xl font-black text-blue-900 font-mono">
                 {activeClaimsCount}
               </span>
-              <span className="text-[10px] text-blue-950 font-extrabold block mt-0.5">
+              <span className="text-[10px] text-blue-900 font-extrabold block mt-0.5">
                 در حال بررسی
               </span>
             </button>
@@ -435,9 +435,9 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               onClick={onStartWizard}
               className="bg-gradient-to-br from-blue-600 to-indigo-700 p-5 rounded-3xl shadow-lg hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 text-white cursor-pointer relative overflow-hidden group flex flex-col justify-between"
             >
-              <div className="absolute -bottom-6 -left-6 w-28 h-28 bg-amber-400/20 rounded-full blur-xl group-hover:scale-150 transition-transform" />
+              <div className="absolute -bottom-6 -left-6 w-28 h-28 bg-sky-300/25 rounded-full blur-xl group-hover:scale-150 transition-transform" />
               <div className="relative z-10 space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-amber-300 shadow-md">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-md">
                   <CarFront className="w-6 h-6" />
                 </div>
                 <div>
@@ -447,7 +447,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   </p>
                 </div>
               </div>
-              <div className="pt-3 flex items-center gap-1 text-xs font-bold text-amber-300">
+              <div className="pt-3 flex items-center gap-1 text-xs font-bold text-sky-200">
                 <span>شروع ثبت حادثه</span>
                 <ArrowLeft className="w-4 h-4" />
               </div>
@@ -493,7 +493,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   <ShieldPlus className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-blue-950 text-base">خسارت بدنه</h3>
+                  <h3 className="font-extrabold text-blue-900 text-base">خسارت بدنه</h3>
                   <p className="text-[11px] text-slate-600 mt-1 leading-relaxed font-medium">
                     استعلام و ثبت خسارت بدنه مستقل از ثالث
                   </p>
@@ -519,7 +519,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 </div>
                 <div>
                   <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-blue-950 text-base">پرونده‌های من</h3>
+                    <h3 className="font-extrabold text-blue-900 text-base">پرونده‌های من</h3>
                     {activeClaimsCount > 0 && (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                         {activeClaimsCount} فعال
@@ -547,7 +547,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   <User className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-blue-950 text-base">پروفایل من</h3>
+                  <h3 className="font-extrabold text-blue-900 text-base">پروفایل من</h3>
                   <p className="text-[11px] text-slate-600 mt-1 leading-relaxed font-medium">
                     ویرایش نام، کد ملی، شماره تماس و تصویر
                   </p>
@@ -562,7 +562,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
           {/* Quick Financial Debt/Receivable Spotlight Banner */}
           {(totalReceivablesFromCulprit > 0 || totalDebtsToVictim > 0 || totalReceivablesFromInsurer > 0) && (
-            <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-indigo-950 text-white rounded-3xl p-6 shadow-md border border-slate-800 space-y-4">
+            <div className="bg-gradient-to-r from-slate-900 via-blue-600 to-indigo-600 text-white rounded-3xl p-6 shadow-md border border-slate-800 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 rounded-2xl bg-amber-400/20 text-amber-300 border border-amber-400/30">
@@ -666,7 +666,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <FolderSearch className="w-6 h-6 text-amber-500" />
-                <h2 className="text-xl font-black text-blue-950">پرونده‌های من</h2>
+                <h2 className="text-xl font-black text-blue-900">پرونده‌های من</h2>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-900 border border-amber-300">
                   {myCases.length} پرونده
                 </span>
@@ -694,7 +694,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   value={caseSearch}
                   onChange={(e) => setCaseSearch(e.target.value)}
                   placeholder="جستجو کد، نام، تلفن یا پلاک..."
-                  className="w-full pr-9 pl-3 py-2 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 font-bold focus:outline-none focus:border-blue-900"
+                  className="w-full pr-9 pl-3 py-2 bg-white border-2 border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 font-bold focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -707,7 +707,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               onClick={() => setFinancialFilter('all')}
               className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
                 financialFilter === 'all'
-                  ? 'bg-blue-950 text-white shadow-sm'
+                  ? 'bg-blue-700 text-white shadow-sm'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
               }`}
             >
@@ -759,7 +759,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           {financialFilter !== 'all' && (
             <div className="p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl space-y-3 animate-in fade-in">
               <div className="flex items-center justify-between">
-                <span className="font-black text-xs text-blue-950 flex items-center gap-1.5">
+                <span className="font-black text-xs text-blue-900 flex items-center gap-1.5">
                   <Scale className="w-4 h-4 text-blue-900" />
                   خلاصه تراز مالی فیلتر شده:
                 </span>
@@ -800,7 +800,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 <FolderSearch className="w-8 h-8" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-extrabold text-blue-950">
+                <h3 className="text-base font-extrabold text-blue-900">
                   فعلاً هیچ پرونده‌ای ثبت نشده است
                 </h3>
                 <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto font-medium">
@@ -809,7 +809,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               </div>
               <button
                 onClick={onStartWizard}
-                className="px-6 py-3 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs shadow-md border border-blue-950 transition-all flex items-center justify-center gap-2 mx-auto active:scale-95 cursor-pointer"
+                className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md border border-blue-300 transition-all flex items-center justify-center gap-2 mx-auto active:scale-95 cursor-pointer"
               >
                 <CarFront className="w-4 h-4" />
                 <span>ثبت آنلاین تصادف جدید</span>
@@ -827,7 +827,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   setFinancialFilter('all');
                   setCaseSearch('');
                 }}
-                className="px-4 py-1.5 rounded-lg bg-blue-900 text-white font-bold text-xs mt-2 cursor-pointer"
+                className="px-4 py-1.5 rounded-lg bg-blue-600 text-white font-bold text-xs mt-2 cursor-pointer"
               >
                 نمایش همه پرونده‌ها
               </button>
@@ -893,7 +893,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                         </div>
                         <div>
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-black text-lg text-blue-950 font-mono tracking-wide group-hover:text-blue-700 transition-colors">
+                            <span className="font-black text-lg text-blue-900 font-mono tracking-wide group-hover:text-blue-700 transition-colors">
                               {c.id}
                             </span>
                             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-900 border border-blue-300 flex items-center gap-1 shadow-2xs">
@@ -1011,7 +1011,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                               ? isVictim
                                 ? 'bg-emerald-700 hover:bg-emerald-800 text-white'
                                 : 'bg-rose-700 hover:bg-rose-800 text-white'
-                              : 'bg-blue-900 hover:bg-blue-800 text-white'
+                              : 'bg-blue-600 hover:bg-blue-500 text-white'
                           }`}
                         >
                           <Scale className="w-3.5 h-3.5" />
@@ -1037,7 +1037,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                             <a
                               href={`tel:${culpritPhone}`}
                               onClick={(e) => e.stopPropagation()}
-                              className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-950 border border-blue-200 rounded-lg font-mono font-bold text-[11px] flex items-center gap-1 transition-all"
+                              className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 rounded-lg font-mono font-bold text-[11px] flex items-center gap-1 transition-all"
                               dir="ltr"
                               title="تماس مستقیم با مقصر حادثه"
                             >
@@ -1151,7 +1151,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           
           <div className="flex items-center justify-between border-b border-slate-200 pb-4">
             <div>
-              <h2 className="text-xl font-black text-blue-950 flex items-center gap-2">
+              <h2 className="text-xl font-black text-blue-900 flex items-center gap-2">
                 <User className="w-6 h-6 text-blue-900" />
                 پروفایل و مشخصات بیمه‌گذار
               </h2>
@@ -1181,7 +1181,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             
             {/* AVATAR UPLOAD & SELECTION SECTION */}
             <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-5 space-y-4">
-              <label className="block text-xs font-bold text-blue-950">
+              <label className="block text-xs font-bold text-blue-900">
                 تصویر پروفایل
               </label>
 
@@ -1196,14 +1196,14 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       className="w-24 h-24 rounded-3xl object-cover border-2 border-blue-400 shadow-md"
                     />
                   ) : (
-                    <div className="w-24 h-24 rounded-3xl bg-blue-900 text-white font-black text-4xl flex items-center justify-center border-2 border-blue-300 shadow-md">
+                    <div className="w-24 h-24 rounded-3xl bg-blue-600 text-white font-black text-4xl flex items-center justify-center border-2 border-blue-300 shadow-md">
                       {profName ? profName.charAt(0) : 'ک'}
                     </div>
                   )}
 
                   <label
                     htmlFor="avatar-file-input"
-                    className="absolute -bottom-2 -right-2 bg-amber-500 hover:bg-amber-400 text-blue-950 p-2 rounded-xl shadow cursor-pointer transition-transform active:scale-95 border border-white"
+                    className="absolute -bottom-2 -right-2 bg-gradient-to-l from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white p-2 rounded-xl shadow cursor-pointer transition-transform active:scale-95 border border-white"
                     title="تغییر عکس"
                   >
                     <Camera className="w-4 h-4" />
@@ -1272,7 +1272,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               
               <div>
-                <label className="block text-xs text-blue-950 font-bold mb-1">
+                <label className="block text-xs text-blue-900 font-bold mb-1">
                   نام و نام خانوادگی
                 </label>
                 <input
@@ -1280,13 +1280,13 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   value={profName}
                   onChange={(e) => setProfName(e.target.value)}
                   placeholder="مثال: مهدی کشاورز"
-                  className="w-full px-4 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                  className="w-full px-4 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-blue-950 font-bold mb-1">
+                <label className="block text-xs text-blue-900 font-bold mb-1">
                   شماره موبایل ثبت‌شده (غیرقابل تغییر اصلی)
                 </label>
                 <input
@@ -1300,7 +1300,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs text-blue-950 font-bold mb-1">
+                <label className="block text-xs text-blue-900 font-bold mb-1">
                   کد ملی (۱۰ رقمی)
                 </label>
                 <input
@@ -1309,13 +1309,13 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   value={profNationalId}
                   onChange={(e) => setProfNationalId(e.target.value)}
                   placeholder="0012345678"
-                  className="w-full px-4 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                  className="w-full px-4 py-2.5 bg-white border-2 border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                   dir="ltr"
                 />
               </div>
 
               <div>
-                <label className="block text-xs text-blue-950 font-bold mb-1">
+                <label className="block text-xs text-blue-900 font-bold mb-1">
                   نوع حساب کاربری
                 </label>
                 <div className="px-4 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-950 font-bold flex items-center gap-2">
@@ -1330,7 +1330,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             <div className="pt-2 flex justify-end">
               <button
                 type="submit"
-                className="px-6 py-3 bg-blue-900 hover:bg-blue-800 text-white font-black rounded-xl text-xs shadow-md border border-blue-950 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
+                className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs shadow-md border border-blue-300 transition-all flex items-center gap-2 active:scale-95 cursor-pointer"
               >
                 <Save className="w-4 h-4" />
                 <span>ذخیره تغییرات پروفایل</span>

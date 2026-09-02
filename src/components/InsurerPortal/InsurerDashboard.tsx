@@ -378,8 +378,8 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
       badgeClass = 'bg-emerald-100 text-emerald-950 border-emerald-300 font-extrabold';
     } else if (finalScore >= 70) {
       tierLabel = 'خوب (B)';
-      tierColor = 'text-blue-950 border-blue-300 bg-blue-100';
-      badgeClass = 'bg-blue-100 text-blue-950 border-blue-300 font-extrabold';
+      tierColor = 'text-blue-900 border-blue-300 bg-blue-100';
+      badgeClass = 'bg-blue-100 text-blue-900 border-blue-300 font-extrabold';
     } else if (finalScore >= 50) {
       tierLabel = 'نیازمند بهبود (C)';
       tierColor = 'text-amber-950 border-amber-300 bg-amber-100';
@@ -837,8 +837,8 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             onClick={() => setActiveTab('dash')}
             className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
               activeTab === 'dash'
-                ? 'bg-blue-900 text-white shadow-md border border-blue-950'
-                : 'text-slate-700 hover:text-blue-950 hover:bg-blue-50 font-bold'
+                ? 'bg-blue-600 text-white shadow-md border border-blue-300'
+                : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
             }`}
           >
             <LayoutDashboard className="w-4 h-4" />
@@ -849,8 +849,8 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             onClick={() => setActiveTab('cases')}
             className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
               activeTab === 'cases'
-                ? 'bg-blue-900 text-white shadow-md border border-blue-950'
-                : 'text-slate-700 hover:text-blue-950 hover:bg-blue-50 font-bold'
+                ? 'bg-blue-600 text-white shadow-md border border-blue-300'
+                : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
             }`}
           >
             <FolderOpen className="w-4 h-4" />
@@ -861,8 +861,8 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             onClick={() => setActiveTab('experts')}
             className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
               activeTab === 'experts'
-                ? 'bg-blue-900 text-white shadow-md border border-blue-950'
-                : 'text-slate-700 hover:text-blue-950 hover:bg-blue-50 font-bold'
+                ? 'bg-blue-600 text-white shadow-md border border-blue-300'
+                : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
             }`}
           >
             <TrendingUp className="w-4 h-4" />
@@ -873,8 +873,8 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             onClick={() => setActiveTab('aiConsole')}
             className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
               activeTab === 'aiConsole'
-                ? 'bg-blue-900 text-white shadow-md border border-blue-950'
-                : 'text-slate-700 hover:text-blue-950 hover:bg-blue-50 font-bold'
+                ? 'bg-blue-600 text-white shadow-md border border-blue-300'
+                : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
             }`}
           >
             <Sparkles className="w-4 h-4 text-amber-400" />
@@ -885,8 +885,8 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             onClick={() => setActiveTab('assessors')}
             className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
               activeTab === 'assessors' || activeTab === 'reviewers'
-                ? 'bg-blue-900 text-white shadow-md border border-blue-950'
-                : 'text-slate-700 hover:text-blue-950 hover:bg-blue-50 font-bold'
+                ? 'bg-blue-600 text-white shadow-md border border-blue-300'
+                : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
             }`}
           >
             <Users className="w-4 h-4 text-amber-300" />
@@ -897,8 +897,8 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             onClick={() => setActiveTab('bodyClaim')}
             className={`px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
               activeTab === 'bodyClaim'
-                ? 'bg-blue-900 text-white shadow-md border border-blue-950'
-                : 'text-slate-700 hover:text-blue-950 hover:bg-blue-50 font-bold'
+                ? 'bg-blue-600 text-white shadow-md border border-blue-300'
+                : 'text-slate-700 hover:text-blue-900 hover:bg-blue-50 font-bold'
             }`}
           >
             <Car className="w-4 h-4" />
@@ -932,11 +932,11 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               {/* Card 1: کل پرونده‌ها */}
               <div
                 onClick={() => handleCardClick('ALL')}
-                className="bg-white border-2 border-slate-200 hover:border-blue-900 rounded-2xl p-4 shadow-xs transition-all cursor-pointer space-y-2 group"
+                className="bg-white border-2 border-slate-200 hover:border-blue-400 rounded-2xl p-4 shadow-xs transition-all cursor-pointer space-y-2 group"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black text-blue-950 font-mono">{totalCount}</span>
-                  <div className="p-2 rounded-xl bg-blue-900 text-amber-400 group-hover:scale-110 transition-transform shadow-xs">
+                  <span className="text-2xl font-black text-blue-900 font-mono">{totalCount}</span>
+                  <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white group-hover:scale-110 transition-transform shadow-xs">
                     <FolderOpen className="w-5 h-5" />
                   </div>
                 </div>
@@ -1109,7 +1109,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
           {/* RECENT CLAIMS SECTION (آخرین پرونده‌ها) */}
           <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-sm space-y-4 p-6">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-              <h2 className="text-sm font-black text-blue-950">آخرین پرونده‌های ارجاعی</h2>
+              <h2 className="text-sm font-black text-blue-900">آخرین پرونده‌های ارجاعی</h2>
               <button
                 onClick={() => setActiveTab('cases')}
                 className="text-xs font-extrabold text-blue-900 hover:text-blue-700 transition-colors"
@@ -1129,17 +1129,17 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                   <div
                     key={c.id}
                     onClick={() => onOpenCaseDetail(c.id)}
-                    className="bg-slate-50 border border-slate-200 hover:border-blue-500 rounded-2xl p-4 flex items-center justify-between gap-4 transition-all hover:shadow-md cursor-pointer group"
+                    className="bg-slate-50 border border-slate-200 hover:border-blue-500 rounded-2xl p-4 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 sm:gap-4 transition-all hover:shadow-md cursor-pointer group"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-900 border border-blue-200 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                         <FileText className="w-5 h-5" />
                       </div>
-                      <div className="space-y-1">
-                        <span className="text-sm font-black text-blue-950 font-mono block">
+                      <div className="space-y-1 min-w-0">
+                        <span className="text-sm font-black text-blue-900 font-mono block truncate">
                           {c.id}
                         </span>
-                        <p className="text-xs text-slate-700 font-medium">
+                        <p className="text-xs text-slate-700 font-medium truncate">
                           {c.victimName} — {c.date}
                         </p>
                         {c.address && (
@@ -1154,7 +1154,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                       <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-950 border border-amber-300">
                         {c.status}
                       </span>
-                      <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-blue-900 transition-colors" />
+                      <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-blue-700 transition-colors" />
                     </div>
                   </div>
                 ))}
@@ -1170,7 +1170,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
         <div className="space-y-6 animate-in fade-in">
           
           {/* Export Header Banner */}
-          <div className="bg-gradient-to-r from-blue-900 to-indigo-950 rounded-3xl p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-blue-950">
+          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 text-white shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-blue-300">
             <div className="space-y-1">
               <h2 className="text-xl font-black text-white">مدیریت جامع پرونده‌های ارجاعی</h2>
               <p className="text-xs text-blue-100 font-medium">
@@ -1179,7 +1179,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             </div>
             <button
               onClick={handleExportCSV}
-              className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-blue-950 font-black text-xs shadow-md flex items-center gap-2 transition-all active:scale-95 shrink-0 border border-amber-300"
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-l from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black text-xs shadow-md flex items-center gap-2 transition-all active:scale-95 shrink-0 border border-sky-300"
             >
               <FileSpreadsheet className="w-4 h-4" />
               خروجی اکسل (CSV)
@@ -1189,7 +1189,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
           {/* Search & Filter Bar */}
           <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-extrabold text-blue-950 text-sm flex items-center gap-2">
+              <h3 className="font-extrabold text-blue-900 text-sm flex items-center gap-2">
                 <Search className="w-4 h-4 text-blue-900" />
                 فیلتر پیشرفته پرونده‌ها
               </h3>
@@ -1201,13 +1201,13 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="جستجوی سریع (کد، نام، پلاک، آدرس)..."
-                className="px-4 py-2.5 rounded-xl border-2 border-slate-200 bg-white text-xs text-slate-900 placeholder-slate-400 font-bold focus:outline-none focus:border-blue-900 transition-all"
+                className="px-4 py-2.5 rounded-xl border-2 border-slate-200 bg-white text-xs text-slate-900 placeholder-slate-400 font-bold focus:outline-none focus:border-blue-500 transition-all"
               />
 
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-4 py-2.5 rounded-xl border-2 border-slate-200 bg-white text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 cursor-pointer transition-all"
+                className="px-4 py-2.5 rounded-xl border-2 border-slate-200 bg-white text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 cursor-pointer transition-all"
               >
                 <option value="ALL">همه وضعیت‌ها</option>
                 <option value="انتظار تایید مقصر">انتظار تایید مقصر</option>
@@ -1227,7 +1227,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                 value={selectedProvince}
                 onChange={(e) => setSelectedProvince(e.target.value)}
                 placeholder="فیلتر استان/شهر (مثال: تهران، اصفهان)..."
-                className="px-4 py-2.5 rounded-xl border-2 border-slate-200 bg-white text-xs text-slate-900 placeholder-slate-400 font-bold focus:outline-none focus:border-blue-900 transition-all"
+                className="px-4 py-2.5 rounded-xl border-2 border-slate-200 bg-white text-xs text-slate-900 placeholder-slate-400 font-bold focus:outline-none focus:border-blue-500 transition-all"
               />
             </div>
           </div>
@@ -1235,7 +1235,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
           {/* Cases Table */}
           <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-sm overflow-hidden">
             <div className="p-5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <h3 className="font-extrabold text-blue-950 text-sm">
+              <h3 className="font-extrabold text-blue-900 text-sm">
                 لیست پرونده‌های {companyInfo.name} ({filteredCases.length})
               </h3>
             </div>
@@ -1262,7 +1262,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                   <tbody className="divide-y divide-slate-200 font-bold text-slate-800">
                     {filteredCases.map((c) => (
                       <tr key={c.id} className="hover:bg-blue-50/50 transition-colors">
-                        <td className="p-3.5 font-black font-mono text-blue-950">
+                        <td className="p-3.5 font-black font-mono text-blue-900">
                           {c.id}
                           {c.fraudFlag?.flagged && <AlertTriangle className="w-3.5 h-3.5 text-rose-500 inline mr-1" />}
                         </td>
@@ -1304,7 +1304,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                         <td className="p-3.5 text-center">
                           <button
                             onClick={() => onOpenCaseDetail(c.id)}
-                            className="px-3 py-1.5 rounded-lg bg-blue-900 hover:bg-blue-800 text-white font-black text-[11px] transition-all shadow-sm active:scale-95"
+                            className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-[11px] transition-all shadow-sm active:scale-95"
                           >
                             بررسی پرونده
                           </button>
@@ -1326,7 +1326,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-200">
             <div>
-              <h2 className="text-lg font-black text-blue-950 flex items-center gap-2">
+              <h2 className="text-lg font-black text-blue-900 flex items-center gap-2">
                 <TrendingUp className="w-5 h-5 text-blue-900" />
                 ارزیابی انفرادی عملکرد و SLA کارشناسان {companyInfo.name}
               </h2>
@@ -1343,7 +1343,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
           {/* Action Notification */}
           {assessorActionMsg && (
-            <div className="p-3.5 bg-blue-50 border border-blue-300 rounded-2xl text-blue-950 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+            <div className="p-3.5 bg-blue-50 border border-blue-300 rounded-2xl text-blue-900 text-xs font-bold flex items-center gap-2 animate-in fade-in">
               <CheckCircle2 className="w-5 h-5 text-blue-900 shrink-0" />
               <span>{assessorActionMsg}</span>
             </div>
@@ -1354,7 +1354,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
               <span className="text-[11px] text-slate-600 font-bold block">تعداد کارشناسان</span>
               <div className="flex items-baseline gap-1.5">
-                <span className="text-2xl font-black text-blue-950 font-mono">{currentCompanyExperts.length}</span>
+                <span className="text-2xl font-black text-blue-900 font-mono">{currentCompanyExperts.length}</span>
                 <span className="text-[10px] text-emerald-700 font-bold">
                   ({currentCompanyExperts.filter((e) => e.active !== false).length} فعال)
                 </span>
@@ -1388,7 +1388,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-1">
               <span className="text-[11px] text-slate-600 font-bold block">میانگین نمره عملکرد</span>
-              <span className="text-2xl font-black text-blue-950 font-mono">
+              <span className="text-2xl font-black text-blue-900 font-mono">
                 {(
                   currentCompanyExperts.reduce((acc, exp) => acc + getExpertEvaluation(exp).finalScore, 0) /
                   (currentCompanyExperts.length || 1)
@@ -1480,18 +1480,18 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                 return (
                   <div
                     key={exp.id}
-                    className="bg-white border-2 border-slate-200 hover:border-blue-900 rounded-2xl p-5 shadow-sm transition-all space-y-4 relative overflow-hidden"
+                    className="bg-white border-2 border-slate-200 hover:border-blue-400 rounded-2xl p-5 shadow-sm transition-all space-y-4 relative overflow-hidden"
                   >
                     {/* Top Row: Expert Info & Performance Gauge */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b border-slate-200">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-2xl bg-blue-900 flex items-center justify-center font-black text-white text-base shadow-sm shrink-0">
+                        <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center font-black text-white text-base shadow-sm shrink-0">
                           {exp.name.slice(0, 2)}
                         </div>
 
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
-                            <h3 className="font-extrabold text-blue-950 text-base">{exp.name}</h3>
+                            <h3 className="font-extrabold text-blue-900 text-base">{exp.name}</h3>
                             <span
                               className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
                                 isActive
@@ -1513,7 +1513,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                       <div className="flex items-center gap-3 self-start sm:self-auto">
                         <div className="p-3 rounded-2xl border-2 border-amber-300 bg-amber-50 text-center font-mono space-y-0.5 text-amber-950">
                           <span className="text-[10px] font-bold text-slate-700 block">نمره عملکرد (تک‌به‌تک)</span>
-                          <span className="text-2xl font-black block text-blue-950">{evalData.finalScore} / ۱۰۰</span>
+                          <span className="text-2xl font-black block text-blue-900">{evalData.finalScore} / ۱۰۰</span>
                           <span className="text-[10px] font-black block">{evalData.tierLabel}</span>
                         </div>
                       </div>
@@ -1529,7 +1529,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                             زمان پاسخگویی (SLA)
                           </span>
                         </div>
-                        <span className="text-base font-extrabold text-blue-950 font-mono block">
+                        <span className="text-base font-extrabold text-blue-900 font-mono block">
                           {evalData.avgResponseMins} دقیقه
                         </span>
                         <span className="text-[10px] text-slate-500 font-bold block">
@@ -1628,7 +1628,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                             پرونده‌های ارزیابی‌شده
                           </span>
                         </div>
-                        <span className="text-base font-extrabold text-blue-950 font-mono block">
+                        <span className="text-base font-extrabold text-blue-900 font-mono block">
                           {evalData.evaluatedCount} از {evalData.assignedCount} پرونده
                         </span>
                         <span className="text-[10px] text-emerald-700 font-bold block">تطابق با AI: {evalData.aiMatchRate}٪</span>
@@ -1678,7 +1678,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
                       <button
                         onClick={() => setSelectedExpertForComplaints(exp)}
-                        className="px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-950 font-black flex items-center gap-1.5 border border-blue-200 transition-all active:scale-95"
+                        className="px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 font-black flex items-center gap-1.5 border border-blue-200 transition-all active:scale-95"
                       >
                         <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                         <span>مشاهده و نظارت بر شکایت‌های مشتریان ({evalData.complaintsCount})</span>
@@ -1695,7 +1695,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               <div className="bg-white border-2 border-slate-200 p-6 rounded-3xl max-w-2xl w-full space-y-5 shadow-xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <div>
-                    <h3 className="font-extrabold text-blue-950 text-sm flex items-center gap-2">
+                    <h3 className="font-extrabold text-blue-900 text-sm flex items-center gap-2">
                       <AlertTriangle className="w-5 h-5 text-rose-600" />
                       <span>سوابق و لیست شکایت‌های ثبت‌شده — {selectedExpertForComplaints.name}</span>
                     </h3>
@@ -1779,7 +1779,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                   </p>
                   <button
                     onClick={() => setSelectedExpertForComplaints(null)}
-                    className="px-5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-bold text-xs shrink-0 self-end sm:self-auto shadow-sm"
+                    className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shrink-0 self-end sm:self-auto shadow-sm"
                   >
                     بستن پنجره
                   </button>
@@ -1793,7 +1793,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
               <div className="bg-white border-2 border-slate-200 p-6 rounded-3xl max-w-md w-full space-y-5 shadow-xl animate-in zoom-in-95">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                  <h3 className="font-extrabold text-blue-950 text-sm flex items-center gap-2">
+                  <h3 className="font-extrabold text-blue-900 text-sm flex items-center gap-2">
                     <AlertTriangle className="w-5 h-5 text-amber-600" />
                     <span>قوانین ثبت شکایت از کارشناسان ارزیاب</span>
                   </h3>
@@ -1821,7 +1821,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                 <div className="pt-2 flex justify-end">
                   <button
                     onClick={() => setShowAddComplaintModal(false)}
-                    className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold text-xs shadow-sm"
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-sm"
                   >
                     متوجه شدم
                   </button>
@@ -1838,7 +1838,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
         <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-sm space-y-6 animate-in fade-in">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <div>
-              <h2 className="text-lg font-black text-blue-950 flex items-center gap-2">
+              <h2 className="text-lg font-black text-blue-900 flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-amber-500" />
                 کنسول هوش مصنوعی و پایش تقلب (ClaimFlow AI Console)
               </h2>
@@ -1847,7 +1847,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
           </div>
 
           <div className="p-6 rounded-2xl bg-blue-50 border border-blue-200 space-y-3">
-            <h3 className="font-black text-sm text-blue-950">الگوریتم پیشرفته تشخیص تقلب فعال است</h3>
+            <h3 className="font-black text-sm text-blue-900">الگوریتم پیشرفته تشخیص تقلب فعال است</h3>
             <p className="text-xs text-slate-700 leading-relaxed font-medium">
               سیستم به صورت خودکار تصاویر صحنه تصادف، خط و خش‌های قدیمی، تطابق پلاک و کد VIN را کنترل کرده و هشدار صادر می‌نماید.
             </p>
@@ -1862,11 +1862,11 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200">
             <div>
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-2xl bg-blue-900 text-amber-300 flex items-center justify-center font-black shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black shadow-sm">
                   <Users className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-blue-950 flex items-center gap-2">
+                  <h2 className="text-lg font-black text-blue-900 flex items-center gap-2">
                     مدیریت پرسنل و کارشناسان {companyInfo.name}
                     <span className="px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-900 font-bold text-xs">
                       سطح دسترسی: مدیر ارشد شرکت (Company Admin)
@@ -1881,7 +1881,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
             <button
               onClick={() => setShowInviteStaffModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto active:scale-95 cursor-pointer"
+              className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-sm transition-all flex items-center gap-1.5 self-start sm:self-auto active:scale-95 cursor-pointer"
             >
               <UserPlus className="w-4 h-4" />
               <span>دعوت و افزودن پرسنل جدید</span>
@@ -1890,7 +1890,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
           {/* Action Message Notification */}
           {staffActionMsg && (
-            <div className="p-3.5 bg-blue-50 border border-blue-300 rounded-2xl text-blue-950 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+            <div className="p-3.5 bg-blue-50 border border-blue-300 rounded-2xl text-blue-900 text-xs font-bold flex items-center gap-2 animate-in fade-in">
               <CheckCircle2 className="w-5 h-5 text-blue-900 shrink-0" />
               <span>{staffActionMsg}</span>
             </div>
@@ -1944,7 +1944,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                   onClick={() => setStaffCategoryFilter(tab.key as any)}
                   className={`p-3 rounded-2xl border-2 transition-all text-right flex flex-col justify-between ${
                     isSelected
-                      ? 'bg-blue-900 text-white border-blue-950 shadow-sm'
+                      ? 'bg-blue-600 text-white border-blue-300 shadow-sm'
                       : 'bg-slate-50 hover:bg-white text-slate-700 border-slate-200'
                   }`}
                 >
@@ -1973,7 +1973,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                 value={staffSearch}
                 onChange={(e) => setStaffSearch(e.target.value)}
                 placeholder="جستجو بر اساس نام پرسنل، شماره همراه، کد ملی، شماره پروانه یا سمت..."
-                className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-xs text-slate-900 placeholder-slate-400 font-bold focus:outline-none focus:border-blue-900"
+                className="w-full pr-10 pl-4 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-xs text-slate-900 placeholder-slate-400 font-bold focus:outline-none focus:border-blue-500"
               />
             </div>
             {staffSearch && (
@@ -1993,7 +1993,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               <p className="text-xs font-bold">هیچ پرسنلی در این دسته‌بندی تعریف نشده است.</p>
               <button
                 onClick={() => setShowInviteStaffModal(true)}
-                className="px-4 py-2 rounded-xl bg-blue-900 text-white text-xs font-bold mt-2"
+                className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold mt-2"
               >
                 افزودن اولین کارشناس
               </button>
@@ -2034,7 +2034,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                       key={staff.id}
                       className={`p-5 rounded-3xl border-2 transition-all space-y-3 relative overflow-hidden ${
                         isActive
-                          ? 'bg-white border-slate-200 hover:border-blue-900 shadow-xs'
+                          ? 'bg-white border-slate-200 hover:border-blue-400 shadow-xs'
                           : 'bg-slate-50 border-slate-300 opacity-80'
                       }`}
                     >
@@ -2042,7 +2042,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1">
                           <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-extrabold text-blue-950 text-base">{staff.name}</span>
+                            <span className="font-extrabold text-blue-900 text-base">{staff.name}</span>
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${catInfo.color}`}>
                               {catInfo.title}
                             </span>
@@ -2131,7 +2131,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                                 inviteLink: `https://claimflow.ir/login?invite=${staff.id}&org=${companyCode}`
                               })
                             }
-                            className="text-blue-900 hover:text-blue-950 font-bold flex items-center gap-1 text-[11px] underline cursor-pointer"
+                            className="text-blue-900 hover:text-blue-900 font-bold flex items-center gap-1 text-[11px] underline cursor-pointer"
                           >
                             <Mail className="w-3 h-3" />
                             <span>مشاهده پیامک و لینک ورود</span>
@@ -2158,7 +2158,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                   <Trash2 className="w-6 h-6" />
                 </div>
                 <div className="text-center space-y-1.5">
-                  <h3 className="font-extrabold text-blue-950 text-base">حذف همکار از سیستم</h3>
+                  <h3 className="font-extrabold text-blue-900 text-base">حذف همکار از سیستم</h3>
                   <p className="text-xs text-slate-600 leading-relaxed font-medium">
                     آیا از حذف دسترسی «<strong className="text-slate-900">{staffToDelete.name}</strong>» اطمینان دارید؟
                   </p>
@@ -2189,11 +2189,11 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               <div className="bg-white border-2 border-slate-200 p-6 rounded-3xl max-w-lg w-full space-y-5 shadow-2xl animate-in zoom-in-95 max-h-[90vh] overflow-y-auto">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-blue-900 text-white flex items-center justify-center font-bold">
+                    <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold">
                       <UserPlus className="w-4 h-4" />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-blue-950 text-sm">
+                      <h3 className="font-extrabold text-blue-900 text-sm">
                         دعوت و تعریف پرسنل / کارشناس جدید
                       </h3>
                       <p className="text-[11px] text-slate-500 font-medium">شرکت {companyInfo.name}</p>
@@ -2230,7 +2230,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                           }}
                           className={`p-2.5 rounded-xl border-2 text-right transition-all font-bold text-[11px] cursor-pointer ${
                             newStaffCategory === item.key
-                              ? 'bg-blue-900 text-white border-blue-950 shadow-xs'
+                              ? 'bg-blue-600 text-white border-blue-300 shadow-xs'
                               : 'bg-slate-50 hover:bg-white text-slate-700 border-slate-200'
                           }`}
                         >
@@ -2252,7 +2252,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                         value={newStaffName}
                         onChange={(e) => setNewStaffName(e.target.value)}
                         placeholder="مثلاً: دکتر مهدی کاظمی"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-500"
                       />
                     </div>
 
@@ -2265,7 +2265,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                         value={newStaffRole}
                         onChange={(e) => setNewStaffRole(e.target.value)}
                         placeholder="مثلاً: کارشناس ارشد خسارت اتومبیل"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -2282,7 +2282,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                         value={newStaffNationalId}
                         onChange={(e) => setNewStaffNationalId(e.target.value)}
                         placeholder="مثلاً: ۰۰۱۲۳۴۵۶۷۸"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-500"
                       />
                     </div>
 
@@ -2296,7 +2296,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                         value={newStaffPhone}
                         onChange={(e) => setNewStaffPhone(e.target.value)}
                         placeholder="مثلاً: ۰۹۱۲۳۴۵۶۷۸۹"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -2312,7 +2312,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                         value={newStaffLicenseCode}
                         onChange={(e) => setNewStaffLicenseCode(e.target.value)}
                         placeholder="مثلاً: EXP-98421"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold font-mono focus:outline-none focus:border-blue-500"
                       />
                     </div>
 
@@ -2325,12 +2325,12 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                         value={newStaffBranch}
                         onChange={(e) => setNewStaffBranch(e.target.value)}
                         placeholder="مثلاً: شعبه مرکزی ونک"
-                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-slate-200 text-slate-900 font-bold focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
 
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-[11px] text-blue-950 space-y-1">
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl text-[11px] text-blue-900 space-y-1">
                     <span className="font-black block">نحوه ورود پرسنل:</span>
                     <p className="text-slate-600 font-medium">
                       پس از ثبت، حساب کاربری فوراً فعال شده و کارشناس می‌تواند در صفحه ورود (Portal Gateway) با انتخاب نقش مربوطه، درج کد ملی و شماره موبایل وارد سیستم شود.
@@ -2347,7 +2347,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-extrabold shadow-sm flex items-center gap-1.5 cursor-pointer"
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold shadow-sm flex items-center gap-1.5 cursor-pointer"
                     >
                       <UserPlus className="w-4 h-4" />
                       <span>ثبت و صدور دعوت‌نامه</span>
@@ -2367,7 +2367,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-extrabold text-blue-950 text-base">
+                    <h3 className="font-extrabold text-blue-900 text-base">
                       کارشناس «{lastInviteResult.newStaff.name}» با موفقیت فعال شد
                     </h3>
                     <p className="text-xs text-slate-500 font-medium">
@@ -2399,7 +2399,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                         setCopiedLinkNotice(true);
                         setTimeout(() => setCopiedLinkNotice(false), 3000);
                       }}
-                      className="px-3 py-2 rounded-xl bg-blue-900 text-white font-bold text-xs flex items-center gap-1 hover:bg-blue-800 cursor-pointer"
+                      className="px-3 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs flex items-center gap-1 hover:bg-blue-500 cursor-pointer"
                     >
                       <Copy className="w-3.5 h-3.5" />
                       <span>{copiedLinkNotice ? 'کپی شد!' : 'کپی لینک'}</span>
@@ -2414,7 +2414,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                       setLastInviteResult(null);
                       setShowInviteStaffModal(false);
                     }}
-                    className="px-5 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs cursor-pointer"
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs cursor-pointer"
                   >
                     بستن و ادامه
                   </button>
@@ -2448,7 +2448,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             <div className="bg-white p-4 rounded-2xl border-2 border-slate-200 shadow-xs">
               <span className="text-[11px] text-slate-500 font-bold block">کل پرونده‌های بدنه</span>
-              <span className="text-xl font-black text-blue-950 font-mono mt-1 block">
+              <span className="text-xl font-black text-blue-900 font-mono mt-1 block">
                 {bodyClaimsList.length}
               </span>
             </div>
@@ -2507,11 +2507,11 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
           <div className="bg-white border-2 border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-xl bg-blue-900 text-amber-300 flex items-center justify-center font-black shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black shadow-sm">
                   <Car className="w-6 h-6" />
                 </div>
                 <div>
-                  <h2 className="text-base font-black text-blue-950">
+                  <h2 className="text-base font-black text-blue-900">
                     کارتابل ادعای بدنه - شرکت {companyInfo.name}
                   </h2>
                   <p className="text-xs text-slate-500 font-medium mt-0.5">
@@ -2521,7 +2521,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-950 font-black text-xs border border-blue-200">
+                <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-900 font-black text-xs border border-blue-200">
                   {bodyClaimsList.length} پرونده ثبتی
                 </span>
               </div>
@@ -2536,7 +2536,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                   value={bodySearchTerm}
                   onChange={(e) => setBodySearchTerm(e.target.value)}
                   placeholder="جستجو با شماره پرونده بدنه، کدملی، پلاک، نام بیمه‌گذار یا آدرس..."
-                  className="w-full pr-10 pl-4 py-2.5 rounded-xl border-2 border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white"
+                  className="w-full pr-10 pl-4 py-2.5 rounded-xl border-2 border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white"
                 />
               </div>
 
@@ -2544,7 +2544,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                 <select
                   value={bodyStatusFilter}
                   onChange={(e) => setBodyStatusFilter(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900 focus:bg-white"
+                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-200 bg-slate-50/50 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500 focus:bg-white"
                 >
                   <option value="ALL">همه وضعیت‌ها</option>
                   <option value="PENDING_DISPATCH">در انتظار ارجاع به کارشناس میدانی</option>
@@ -2626,11 +2626,11 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                     return (
                       <div
                         key={claim.id}
-                        className="bg-slate-50/80 hover:bg-white rounded-2xl border-2 border-slate-200 hover:border-blue-900 p-5 transition-all shadow-xs space-y-4"
+                        className="bg-slate-50/80 hover:bg-white rounded-2xl border-2 border-slate-200 hover:border-blue-400 p-5 transition-all shadow-xs space-y-4"
                       >
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
                           <div className="flex items-center gap-3">
-                            <span className="font-black text-sm text-blue-950 font-mono bg-blue-100 px-3 py-1 rounded-xl">
+                            <span className="font-black text-sm text-blue-900 font-mono bg-blue-100 px-3 py-1 rounded-xl">
                               {claim.id}
                             </span>
                             <div>
@@ -2745,7 +2745,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                             <button
                               type="button"
                               onClick={() => openBodyDispatchModal(claim)}
-                              className="px-5 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-md border border-blue-950 flex items-center gap-2 active:scale-95 transition-all"
+                              className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md border border-blue-300 flex items-center gap-2 active:scale-95 transition-all"
                             >
                               <Compass className="w-4 h-4 text-amber-400" />
                               <span>ارجاع به کارشناس میدانی و تعیین شعبه</span>
@@ -2776,11 +2776,11 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               <div className="bg-white rounded-3xl border-2 border-slate-200 max-w-2xl w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95 my-8 text-right">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-blue-900 text-amber-300 flex items-center justify-center font-bold">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold">
                       <Compass className="w-6 h-6" />
                     </div>
                     <div>
-                      <h3 className="text-base font-black text-blue-950">
+                      <h3 className="text-base font-black text-blue-900">
                         ارجاع پرونده بدنه به کارشناس میدانی و تعیین شعبه
                       </h3>
                       <span className="text-xs text-slate-500 font-mono">
@@ -2831,13 +2831,13 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                 <div className="space-y-4">
                   {/* Select Branch */}
                   <div>
-                    <label className="block text-xs font-black text-blue-950 mb-1.5">
+                    <label className="block text-xs font-black text-blue-900 mb-1.5">
                       انتخاب شعبه / مرکز ارزیابی خسارت جهت حضور مشتری و کارشناس:
                     </label>
                     <select
                       value={selectedBranchId}
                       onChange={(e) => setSelectedBranchId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                     >
                       {INSURANCE_BRANCHES.filter(
                         (b) => b.insurerCode === companyCode || b.insurerCode === 'all'
@@ -2851,13 +2851,13 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
                   {/* Select Field Expert */}
                   <div>
-                    <label className="block text-xs font-black text-blue-950 mb-1.5">
+                    <label className="block text-xs font-black text-blue-900 mb-1.5">
                       انتخاب کارشناس میدانی (Field Surveyor):
                     </label>
                     <select
                       value={selectedFieldExpertId}
                       onChange={(e) => setSelectedFieldExpertId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                     >
                       {(INITIAL_FIELD_EXPERTS[companyCode] || INITIAL_FIELD_EXPERTS['dana'] || []).map(
                         (exp) => (
@@ -2879,7 +2879,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                         type="text"
                         value={scheduledVisitDate}
                         onChange={(e) => setScheduledVisitDate(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                       />
                     </div>
                     <div>
@@ -2890,7 +2890,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                         type="text"
                         value={scheduledVisitTime}
                         onChange={(e) => setScheduledVisitTime(e.target.value)}
-                        className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-900"
+                        className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
                       />
                     </div>
                   </div>
@@ -2904,7 +2904,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                       rows={2}
                       value={dispatchInstructions}
                       onChange={(e) => setDispatchInstructions(e.target.value)}
-                      className="w-full p-3 rounded-xl border-2 border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-900"
+                      className="w-full p-3 rounded-xl border-2 border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>
@@ -2938,7 +2938,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                           onClick={() => setModalSmsPreviewTab('EXPERT')}
                           className={`flex-1 py-1.5 text-[11px] font-extrabold rounded-lg transition-all ${
                             modalSmsPreviewTab === 'EXPERT'
-                              ? 'bg-white text-blue-950 shadow-xs'
+                              ? 'bg-white text-blue-900 shadow-xs'
                               : 'text-slate-600 hover:text-slate-900'
                           }`}
                         >
@@ -3009,7 +3009,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                   <button
                     type="button"
                     onClick={handleConfirmBodyDispatch}
-                    className="px-6 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-md border border-blue-950 flex items-center gap-2 active:scale-95"
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md border border-blue-300 flex items-center gap-2 active:scale-95"
                   >
                     <Send className="w-4 h-4 text-amber-400" />
                     <span>تایید نهایی ارجاع به کارشناس میدانی</span>
@@ -3025,11 +3025,11 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
               <div className="bg-white rounded-3xl border-2 border-slate-200 max-w-4xl w-full p-6 space-y-6 shadow-2xl animate-in zoom-in-95 my-8 text-right">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-900 text-amber-300 flex items-center justify-center font-black">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black">
                       <FileText className="w-6 h-6" />
                     </div>
                     <div>
-                      <h3 className="text-base font-black text-blue-950">
+                      <h3 className="text-base font-black text-blue-900">
                         بررسی پرونده خسارت بدنه: {selectedBodyCaseForReview.id}
                       </h3>
                       <span className="text-xs text-slate-500 font-medium">
@@ -3048,7 +3048,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
                 {/* Section 1: Accident Narrative */}
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2 text-xs">
-                  <span className="font-black text-blue-950 block">شرح کتبی سانحه توسط راننده:</span>
+                  <span className="font-black text-blue-900 block">شرح کتبی سانحه توسط راننده:</span>
                   <p className="text-slate-700 leading-relaxed font-medium">
                     {selectedBodyCaseForReview.writtenReport || 'شرح ثبت نشده است.'}
                   </p>
@@ -3123,7 +3123,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
 
                 {/* Section 4: Damage Photos Gallery */}
                 <div className="space-y-3">
-                  <span className="font-black text-xs text-blue-950 block">عکس‌های ارسالی از خسارت بدنه:</span>
+                  <span className="font-black text-xs text-blue-900 block">عکس‌های ارسالی از خسارت بدنه:</span>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {selectedBodyCaseForReview.files
                       ?.filter((f) => f.type === 'image' || !f.type)
@@ -3153,7 +3153,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                       setSelectedBodyCaseForReview(null);
                       openBodyDispatchModal(c);
                     }}
-                    className="px-6 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black text-xs shadow-md border border-blue-950 flex items-center gap-2 active:scale-95"
+                    className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md border border-blue-300 flex items-center gap-2 active:scale-95"
                   >
                     <Compass className="w-4 h-4 text-amber-400" />
                     <span>ارجاع این پرونده به کارشناس میدانی و شعبه</span>

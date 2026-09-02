@@ -207,7 +207,7 @@ export default function App() {
   const selectedCase = cases.find((c) => c.id === selectedCaseId);
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-blue-900 selection:text-amber-300" dir="rtl">
+    <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white" dir="rtl">
       {/* Top Navbar */}
       <Navbar
         currentSession={session}

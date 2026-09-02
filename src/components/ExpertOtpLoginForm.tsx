@@ -51,8 +51,8 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
       badge: 'پورتال ارزیاب خسارت و برآورد هوشمند ۳D',
       defaultRoleTitle: 'کارشناس ارزیاب خسارت بدنه',
       colorClass: 'blue',
-      btnBg: 'bg-blue-900 hover:bg-blue-800 text-white',
-      accentBorder: 'border-blue-900',
+      btnBg: 'bg-blue-600 hover:bg-blue-500 text-white',
+      accentBorder: 'border-blue-300',
       accentBg: 'bg-blue-50 text-blue-900',
       tagText: 'ارزیابی آنلاین و شبیه‌سازی خسارت'
     },
@@ -61,7 +61,7 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
       badge: 'پورتال کارشناسان میدانی و بازسازی صحنه حادثه',
       defaultRoleTitle: 'کارشناس رسمی بازدید میدانی',
       colorClass: 'amber',
-      btnBg: 'bg-amber-500 hover:bg-amber-400 text-blue-950',
+      btnBg: 'bg-gradient-to-l from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white',
       accentBorder: 'border-amber-500',
       accentBg: 'bg-amber-50 text-amber-900',
       tagText: 'بازدید حضوری، عکاسی و گزارش میدانی'
@@ -379,14 +379,14 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
               <div className="pt-1 flex items-center justify-between">
                 <span className="text-[11px] text-amber-900 font-bold">
                   کد ارسالی:{' '}
-                  <span className="font-mono text-base font-black text-blue-950 px-2 py-0.5 bg-white rounded-lg border border-amber-300">
+                  <span className="font-mono text-base font-black text-blue-900 px-2 py-0.5 bg-white rounded-lg border border-amber-300">
                     {generatedOtp}
                   </span>
                 </span>
                 <button
                   type="button"
                   onClick={() => setEnteredOtp(generatedOtp)}
-                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-blue-950 rounded-lg text-xs font-black shadow-sm transition active:scale-95 cursor-pointer"
+                  className="px-2.5 py-1 bg-gradient-to-l from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white rounded-lg text-xs font-black shadow-sm transition active:scale-95 cursor-pointer"
                 >
                   درج خودکار کد
                 </button>
@@ -413,7 +413,7 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
                 setErrorMsg(null);
                 setSuccessMsg(null);
               }}
-              className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-slate-600 hover:text-blue-900 hover:bg-slate-100 transition flex items-center gap-1 cursor-pointer"
+              className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-slate-600 hover:text-blue-700 hover:bg-slate-100 transition flex items-center gap-1 cursor-pointer"
             >
               <Edit2 className="w-3 h-3" />
               <span>ویرایش شماره</span>
@@ -431,7 +431,7 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
               value={enteredOtp}
               onChange={(e) => setEnteredOtp(e.target.value)}
               placeholder="•••••"
-              className="w-full px-4 py-3 bg-white border-2 border-blue-900 rounded-xl text-center font-mono text-2xl tracking-[0.6em] text-blue-950 font-black focus:outline-none focus:ring-4 focus:ring-blue-100 shadow-sm"
+              className="w-full px-4 py-3 bg-white border border-blue-200 rounded-xl text-center font-mono text-2xl tracking-[0.6em] text-blue-900 font-black focus:outline-none focus:ring-4 focus:ring-blue-100 shadow-sm"
               dir="ltr"
               autoFocus
               required

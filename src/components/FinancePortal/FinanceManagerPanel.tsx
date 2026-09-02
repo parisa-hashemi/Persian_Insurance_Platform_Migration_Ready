@@ -1262,7 +1262,7 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
 
                         {/* IBAN & Bank */}
                         <td className="p-4">
-                          <div className="flex items-center gap-1 font-mono font-bold text-blue-950 text-[11px] dir-ltr">
+                          <div className="flex items-center gap-1 font-mono font-bold text-blue-900 text-[11px] dir-ltr">
                             <span>{order.victimIban}</span>
                             <button
                               type="button"
@@ -2092,7 +2092,7 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500 font-bold">شماره شبا مقصد:</span>
-                <span className="font-black font-mono text-blue-950">{selectedOrderForPay.victimIban}</span>
+                <span className="font-black font-mono text-blue-900">{selectedOrderForPay.victimIban}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-slate-500 font-bold">بانک مقصد:</span>
@@ -2455,7 +2455,7 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
                 </div>
                 <div>
                   <span className="text-slate-500 font-bold">شماره شبا مقصد:</span>
-                  <span className="font-mono font-bold text-blue-950 mr-2">{selectedOrderForVoucher.victimIban}</span>
+                  <span className="font-mono font-bold text-blue-900 mr-2">{selectedOrderForVoucher.victimIban}</span>
                 </div>
                 <div>
                   <span className="text-slate-500 font-bold">بانک مقصد:</span>

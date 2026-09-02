@@ -104,7 +104,7 @@ export const SearchableStaffSelect: React.FC<SearchableStaffSelectProps> = ({
           onClick={() => setIsOpen(!isOpen)}
           className={`w-full p-3 bg-white border-2 rounded-2xl text-right transition-all flex items-center justify-between gap-3 shadow-sm hover:shadow ${
             isOpen
-              ? 'border-blue-900 ring-4 ring-blue-50'
+              ? 'border-blue-300 ring-4 ring-blue-50'
               : selectedStaff || selectedName
               ? 'border-slate-300 hover:border-blue-700'
               : 'border-slate-300 hover:border-slate-400'
@@ -146,7 +146,7 @@ export const SearchableStaffSelect: React.FC<SearchableStaffSelectProps> = ({
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-[11px] text-slate-500 pt-0.5">
-                  <span className="font-mono font-bold text-blue-950" dir="ltr">
+                  <span className="font-mono font-bold text-blue-900" dir="ltr">
                     {selectedPhone || selectedStaff.phone || 'بدون شماره'}
                   </span>
                   {selectedStaff.branchName && (
@@ -188,7 +188,7 @@ export const SearchableStaffSelect: React.FC<SearchableStaffSelectProps> = ({
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   placeholder="جستجوی نام کارشناس، کد ملی یا شماره همراه..."
-                  className="w-full pr-9 pl-8 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 focus:ring-2 focus:ring-blue-100"
+                  className="w-full pr-9 pl-8 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
                 />
                 {searchTerm && (
                   <button
@@ -250,7 +250,7 @@ export const SearchableStaffSelect: React.FC<SearchableStaffSelectProps> = ({
                       }}
                       className={`w-full p-2.5 rounded-xl text-right transition flex items-center justify-between gap-2.5 ${
                         isSelected
-                          ? 'bg-blue-900 text-white font-bold shadow-sm'
+                          ? 'bg-blue-600 text-white font-bold shadow-sm'
                           : 'hover:bg-blue-50 text-slate-800'
                       }`}
                     >
@@ -357,7 +357,7 @@ export const SearchableStaffSelect: React.FC<SearchableStaffSelectProps> = ({
                 value={selectedName}
                 onChange={(e) => onNameChange(e.target.value)}
                 placeholder="مثال: مهندس سارا محمدی"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-900 shadow-sm"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 shadow-sm"
                 required
               />
             </div>
@@ -370,7 +370,7 @@ export const SearchableStaffSelect: React.FC<SearchableStaffSelectProps> = ({
                 value={selectedPhone}
                 onChange={(e) => onPhoneChange(e.target.value)}
                 placeholder="09121234567"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-900 shadow-sm"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500 shadow-sm"
                 dir="ltr"
                 required
               />
@@ -390,12 +390,12 @@ export const SearchableStaffSelect: React.FC<SearchableStaffSelectProps> = ({
                 type="tel"
                 value={selectedPhone}
                 onChange={(e) => onPhoneChange(e.target.value)}
-                className="px-2 py-0.5 bg-white border border-blue-900 rounded font-mono text-xs font-bold text-blue-950 w-32"
+                className="px-2 py-0.5 bg-white border border-blue-300 rounded font-mono text-xs font-bold text-blue-900 w-32"
                 dir="ltr"
                 autoFocus
               />
             ) : (
-              <span className="font-mono font-black text-blue-950 px-2 py-0.5 bg-white rounded-md border border-slate-200" dir="ltr">
+              <span className="font-mono font-black text-blue-900 px-2 py-0.5 bg-white rounded-md border border-slate-200" dir="ltr">
                 {selectedPhone}
               </span>
             )}

@@ -1141,7 +1141,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                 <div className="bg-white p-3.5 rounded-2xl border border-emerald-200 space-y-1 text-xs">
                   <span className="text-[10px] text-slate-500 font-bold block">اطلاعات حساب واریزی:</span>
                   <div className="font-bold text-slate-900">{claimCase.victimName}</div>
-                  <div className="font-mono text-xs font-bold text-blue-950 truncate">{claimCase.payoutInfo.iban}</div>
+                  <div className="font-mono text-xs font-bold text-blue-900 truncate">{claimCase.payoutInfo.iban}</div>
                   <div className="text-[11px] text-slate-600">{claimCase.payoutInfo.bankName || 'بانک عامل'}</div>
                 </div>
               )}
@@ -1278,7 +1278,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                         {(claimCase.assignedBranch || currentSelectedBranch) && (
                           <div className="p-3 bg-blue-50/70 rounded-2xl border border-blue-200 space-y-1 text-right">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-black text-blue-950 flex items-center gap-1">
+                              <span className="text-[10px] font-black text-blue-900 flex items-center gap-1">
                                 <Building2 className="w-3.5 h-3.5 text-blue-700" />
                                 <span>مرکز پرداخت و کارشناسی خسارت:</span>
                               </span>
@@ -1364,7 +1364,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                     value={insurerSupplementalNote}
                     onChange={(e) => setInsurerSupplementalNote(e.target.value)}
                     placeholder="نکات تکمیلی، دستور بررسی داغی قطعات، کنترل شاسی و انطباق با کروکی را اینجا تایپ کنید..."
-                    className="w-full p-3 rounded-2xl border border-slate-200 bg-slate-50/50 text-slate-900 text-xs font-bold focus:outline-none focus:border-blue-900 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-400"
+                    className="w-full p-3 rounded-2xl border border-slate-200 bg-slate-50/50 text-slate-900 text-xs font-bold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-400"
                   />
 
                   {/* Quick Suggestion Chips */}
@@ -1395,7 +1395,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                     type="button"
                     onClick={() => handleSendInsurerInstruction()}
                     disabled={!insurerSupplementalNote.trim()}
-                    className="w-full py-3 bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white rounded-2xl font-black text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-2xl font-black text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2"
                   >
                     <Send className="w-4 h-4" />
                     <span>ارسال نکات تکمیلی به کارشناس ارزیاب</span>
@@ -1428,7 +1428,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                     type="button"
                     onClick={handleQueryCroqui}
                     disabled={isQueryingCroqui}
-                    className="px-4 py-2.5 bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs transition-all active:scale-95"
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-2xs transition-all active:scale-95"
                   >
                     {isQueryingCroqui ? (
                       <Sparkles className="w-4 h-4 text-white animate-spin" />
@@ -1504,7 +1504,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                 {claimCase.assignedFieldExpert && (
                   <div className="bg-white p-3.5 rounded-2xl border border-amber-200 flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-blue-900 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <div>
@@ -1533,7 +1533,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                   className="flex flex-wrap items-center justify-between gap-3 cursor-pointer select-none"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-blue-900 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                    <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
                       <FileText className="w-5 h-5" />
                     </div>
                     <div>
@@ -1564,7 +1564,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                         handleQueryCroqui();
                       }}
                       disabled={isQueryingCroqui}
-                      className="px-3.5 py-2 bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-95 flex items-center gap-1.5"
+                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-2xs transition-all active:scale-95 flex items-center gap-1.5"
                     >
                       {isQueryingCroqui ? (
                         <Sparkles className="w-3.5 h-3.5 text-white animate-spin" />
@@ -1727,7 +1727,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                             {(claimCase.customerKrokiPhoto || claimCase.croquiData?.fileUrl) && (
                               <div
                                 onClick={() => setPreviewImage(claimCase.customerKrokiPhoto || claimCase.croquiData?.fileUrl || '')}
-                                className="relative w-36 h-24 rounded-xl border border-slate-300 bg-slate-100 overflow-hidden shrink-0 cursor-pointer group shadow-2xs hover:border-blue-900"
+                                className="relative w-36 h-24 rounded-xl border border-slate-300 bg-slate-100 overflow-hidden shrink-0 cursor-pointer group shadow-2xs hover:border-blue-400"
                               >
                                 <img
                                   src={claimCase.customerKrokiPhoto || claimCase.croquiData?.fileUrl || ''}
@@ -1744,7 +1744,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                               <div
                                 key={idx}
                                 onClick={() => setPreviewImage(img.url)}
-                                className="relative w-36 h-24 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden shrink-0 cursor-pointer group shadow-2xs hover:border-blue-900"
+                                className="relative w-36 h-24 rounded-xl border border-slate-200 bg-slate-100 overflow-hidden shrink-0 cursor-pointer group shadow-2xs hover:border-blue-400"
                               >
                                 <img src={img.url} alt={img.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                                 <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold p-1 text-center truncate">
@@ -1774,7 +1774,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                               el.scrollIntoView({ behavior: 'smooth' });
                             }
                           }}
-                          className="px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white rounded-xl text-xs font-bold shadow-2xs transition-all flex items-center gap-2 active:scale-95"
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow-2xs transition-all flex items-center gap-2 active:scale-95"
                         >
                           <UserPlus className="w-4 h-4" />
                           <span>تایید و ارجاع پرونده به ارزیاب خسارت</span>
@@ -1792,17 +1792,17 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
               {/* CARD 1: زمان و مکان خسارت */}
               <div
                 onClick={() => setActiveModalTab('time_location')}
-                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-900 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
+                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-400 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-900 group-hover:text-white transition-colors">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                     <MapPin className="w-4 h-4" />
                   </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-900 transition-colors" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-700 transition-colors" />
                 </div>
 
                 <div>
-                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-950 transition-colors">
+                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-900 transition-colors">
                     زمان، مکان و مستندات
                   </h4>
                   <p className="text-[11px] text-slate-500 font-medium truncate mt-1">
@@ -1814,17 +1814,17 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
               {/* CARD 2: اطلاعات زیان‌دیده */}
               <div
                 onClick={() => setActiveModalTab('victim_info')}
-                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-900 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
+                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-400 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-900 group-hover:text-white transition-colors">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                     <User className="w-4 h-4" />
                   </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-900 transition-colors" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-700 transition-colors" />
                 </div>
 
                 <div>
-                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-950 transition-colors">
+                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-900 transition-colors">
                     اطلاعات زیان‌دیده
                   </h4>
                   <p className="text-[11px] text-slate-500 font-medium truncate mt-1">
@@ -1840,17 +1840,17 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
               {/* CARD 3: اطلاعات مقصر */}
               <div
                 onClick={() => setActiveModalTab('culprit_info')}
-                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-900 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
+                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-400 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-900 group-hover:text-white transition-colors">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                     <AlertTriangle className="w-4 h-4" />
                   </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-900 transition-colors" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-700 transition-colors" />
                 </div>
 
                 <div>
-                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-950 transition-colors">
+                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-900 transition-colors">
                     اطلاعات مقصر
                   </h4>
                   <p className="text-[11px] text-slate-500 font-medium truncate mt-1">
@@ -1866,17 +1866,17 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
               {/* CARD 4: بیمه‌نامه و سقف تعهدات */}
               <div
                 onClick={() => setActiveModalTab('policy_info')}
-                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-900 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
+                className="bg-slate-50/70 hover:bg-white border border-slate-200 hover:border-blue-400 rounded-2xl p-4 cursor-pointer transition-all shadow-2xs hover:shadow-xs space-y-2.5 group relative active:scale-98"
               >
                 <div className="flex items-center justify-between">
-                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-900 group-hover:text-white transition-colors">
+                  <div className="w-8 h-8 rounded-xl bg-slate-100 text-blue-900 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors">
                     <ShieldCheck className="w-4 h-4" />
                   </div>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-900 transition-colors" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-700 transition-colors" />
                 </div>
 
                 <div>
-                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-950 transition-colors">
+                  <h4 className="font-bold text-slate-900 text-xs group-hover:text-blue-900 transition-colors">
                     بیمه‌نامه و سقف تعهدات
                   </h4>
                   <p className="text-[11px] text-slate-500 font-medium truncate mt-1">
@@ -1898,7 +1898,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
             <div className="bg-white rounded-3xl border border-slate-200 p-4 sm:p-6 shadow-sm space-y-4 animate-in fade-in transition-all">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-2xl bg-blue-900 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold shadow-xs shrink-0">
                     <ClipboardCheck className="w-5 h-5" />
                   </div>
                   <div>
@@ -2030,13 +2030,13 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                     return (
                       <div
                         key={item.id || idx}
-                        className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 flex flex-col justify-between transition-all shadow-2xs hover:shadow-xs hover:border-blue-900"
+                        className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 flex flex-col justify-between transition-all shadow-2xs hover:shadow-xs hover:border-blue-400"
                       >
                         <div className="space-y-3">
                           {/* Card Header Tag */}
                           <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1.5 bg-blue-900 text-white">
+                              <span className="px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1.5 bg-blue-600 text-white">
                                 {isField ? <Compass className="w-3.5 h-3.5" /> : <FileBadge className="w-3.5 h-3.5" />}
                                 <span>{isField ? 'بازدید و اصالت‌سنجی میدانی' : 'ارزیابی خسارت خودرو'}</span>
                               </span>
@@ -2116,7 +2116,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                           <button
                             type="button"
                             onClick={() => setSelectedAssessmentForModal(item)}
-                            className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 bg-blue-900 hover:bg-blue-800 text-white shadow-2xs transition-all active:scale-98"
+                            className="w-full py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white shadow-2xs transition-all active:scale-98"
                           >
                             <Maximize2 className="w-3.5 h-3.5" />
                             <span>مشاهده جزئیات کامل، فاکتور و مدل ۲بعدی</span>
@@ -2182,7 +2182,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                       {/* Timeline Node Icon */}
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 z-10 transition-all ${
                         isLast
-                          ? 'bg-blue-900 text-white ring-4 ring-blue-100 shadow-sm'
+                          ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-sm'
                           : 'bg-slate-300 text-white shadow-2xs'
                       }`}>
                         {isLast ? (
@@ -2224,7 +2224,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                   <span>وضعیت پرداخت و صدور حواله مالی خسارت</span>
                 </h4>
 
-                <span className="px-2.5 py-1 bg-blue-900 text-white font-bold text-[11px] rounded-lg">
+                <span className="px-2.5 py-1 bg-blue-600 text-white font-bold text-[11px] rounded-lg">
                   مدیریت واریز
                 </span>
               </div>
@@ -2271,7 +2271,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
             <div className="sticky top-0 bg-white border-b border-slate-200 p-4 sm:p-5 z-20 flex items-center justify-between gap-3 shadow-2xs">
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold text-white shadow-sm shrink-0 ${
-                  selectedAssessmentForModal.type === 'FIELD_EXPERT' ? 'bg-emerald-700' : 'bg-blue-900'
+                  selectedAssessmentForModal.type === 'FIELD_EXPERT' ? 'bg-emerald-700' : 'bg-blue-600'
                 }`}>
                   {selectedAssessmentForModal.type === 'FIELD_EXPERT' ? <Compass className="w-5 h-5" /> : <FileBadge className="w-5 h-5" />}
                 </div>
@@ -2379,7 +2379,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                     <span>جدول تفکیکی قطعات و اجرت‌های برآوردشده</span>
                   </h4>
                   <span className="text-[11px] text-slate-500 font-bold">
-                    تعداد اقلام: <strong className="text-blue-950 font-black">{selectedAssessmentForModal.parts?.length || 0}</strong>
+                    تعداد اقلام: <strong className="text-blue-900 font-black">{selectedAssessmentForModal.parts?.length || 0}</strong>
                   </span>
                 </div>
 
@@ -2447,7 +2447,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                       <span>تصاویر و مستندات ثبت‌شده در بازدید ({selectedAssessmentForModal.expertName})</span>
                     </h4>
                     <span className="text-[11px] text-slate-500 font-bold">
-                      تعداد تصاویر: <strong className="text-blue-950 font-black">{selectedAssessmentForModal.photos.length}</strong>
+                      تعداد تصاویر: <strong className="text-blue-900 font-black">{selectedAssessmentForModal.photos.length}</strong>
                     </span>
                   </div>
 
@@ -2596,7 +2596,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                       <MapPin className="w-5 h-5" />
                     </div>
                     <div>
-                      <h4 className="font-extrabold text-blue-950 text-sm">اطلاعات زمان، مکان و آدرس وقوع حادثه</h4>
+                      <h4 className="font-extrabold text-blue-900 text-sm">اطلاعات زمان، مکان و آدرس وقوع حادثه</h4>
                       <p className="text-[11px] text-blue-800 font-medium">اطلاعات جغرافیایی ثبت‌شده هنگام اعلام خسارت آنلاین</p>
                     </div>
                   </div>

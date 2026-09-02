@@ -37,7 +37,7 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
   return (
     <div className="max-w-2xl mx-auto bg-white rounded-3xl border-2 border-slate-200 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 text-slate-900">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white p-6 relative">
+      <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-6 relative">
         {onClose && (
           <button
             onClick={onClose}
@@ -47,7 +47,7 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
           </button>
         )}
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-amber-400 text-blue-950 flex items-center justify-center font-bold shadow-lg">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md text-white flex items-center justify-center font-bold shadow-lg border border-white/30">
             <Search className="w-6 h-6 stroke-[2.5]" />
           </div>
           <div>
@@ -72,7 +72,7 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
                 value={trackingCode}
                 onChange={(e) => setTrackingCode(e.target.value)}
                 placeholder="مثال: CF-8382-YZ"
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-slate-900 placeholder-slate-400 text-sm font-mono tracking-wider focus:outline-none focus:border-blue-900 transition-all uppercase font-bold"
+                className="w-full px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-slate-900 placeholder-slate-400 text-sm font-mono tracking-wider focus:outline-none focus:border-blue-500 transition-all uppercase font-bold"
                 dir="ltr"
                 required
               />
@@ -86,7 +86,7 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="09123456789"
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-slate-900 placeholder-slate-400 text-sm font-mono tracking-wider focus:outline-none focus:border-blue-900 transition-all font-bold"
+                className="w-full px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-slate-900 placeholder-slate-400 text-sm font-mono tracking-wider focus:outline-none focus:border-blue-500 transition-all font-bold"
                 dir="ltr"
               />
             </div>
@@ -94,7 +94,7 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-black text-sm shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 border border-blue-950"
+            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-sm shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 border border-blue-300"
           >
             <Search className="w-5 h-5 stroke-[2.5]" />
             جستجو و استعلام وضعیت
@@ -109,7 +109,7 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
                 <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-blue-200">
                   <div>
                     <span className="text-xs text-slate-500 font-medium block">کد رهگیری</span>
-                    <span className="text-lg font-black text-blue-950 font-mono">
+                    <span className="text-lg font-black text-blue-900 font-mono">
                       {resultCase.id}
                     </span>
                   </div>
@@ -141,7 +141,7 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
 
                 {/* Timeline History */}
                 <div className="space-y-2 pt-2">
-                  <p className="text-xs font-bold text-blue-950 flex items-center gap-1">
+                  <p className="text-xs font-bold text-blue-900 flex items-center gap-1">
                     <Clock className="w-4 h-4 text-blue-900" />
                     تاریخچه گذر وضعیت پرونده:
                   </p>
@@ -169,7 +169,7 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
                       if (onClose) onClose();
                       onOpenCaseDetail(resultCase.id);
                     }}
-                    className="w-full py-3 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all shadow-md"
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all shadow-md"
                   >
                     <FileText className="w-4 h-4" />
                     ورود به صفحه کامل جزئیات پرونده

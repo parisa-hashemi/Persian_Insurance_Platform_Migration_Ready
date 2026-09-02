@@ -790,7 +790,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
     <div className="min-h-screen bg-slate-100/70 text-slate-900 font-sans pb-16" dir="rtl">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-blue-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-blue-700 animate-bounce">
+        <div className="fixed bottom-6 right-6 z-50 bg-blue-600 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 border border-blue-700 animate-bounce">
           <Sparkles className="w-5 h-5 text-amber-300" />
           <span className="font-semibold text-sm">{toastMessage}</span>
         </div>
@@ -805,7 +805,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-black text-lg sm:text-xl text-blue-950 tracking-tight">
+                <h1 className="font-black text-lg sm:text-xl text-blue-900 tracking-tight">
                   پنل مدیریت ارشد و راهبری کلان بیمه کشور
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 flex items-center gap-1">
@@ -936,7 +936,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
               onClick={() => setActiveTab('companies')}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                 activeTab === 'companies'
-                  ? 'bg-blue-900 text-white shadow-md shadow-blue-900/20'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20'
                   : 'text-slate-700 hover:text-slate-950 hover:bg-white/80'
               }`}
             >
@@ -1005,7 +1005,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                   });
                   setIsAddCompanyModalOpen(true);
                 }}
-                className="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold flex items-center gap-2 shadow-md shadow-blue-900/20 transition"
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-md shadow-blue-900/20 transition"
               >
                 <PlusCircle className="w-4 h-4" />
                 ثبت شرکت بیمه جدید
@@ -1069,7 +1069,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                   onClick={() => setRequestStatusFilter('all')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
                     requestStatusFilter === 'all'
-                      ? 'bg-blue-900 text-white shadow-xs'
+                      ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-600 hover:text-slate-900 border border-slate-200'
                   }`}
                 >

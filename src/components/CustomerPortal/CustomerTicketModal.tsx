@@ -165,7 +165,7 @@ export const CustomerTicketModal: React.FC<CustomerTicketModalProps> = ({
 
         {/* Assigned Expert Banner */}
         <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 text-blue-950 font-bold">
+          <div className="flex items-center gap-2 text-blue-900 font-bold">
             <User className="w-4 h-4 text-blue-600 shrink-0" />
             <span>
               کارشناس مسئول پرونده: <strong>{claimCase.assignedExpert?.name || claimCase.assessment?.submittedBy || 'فاطمه احمدی'}</strong>

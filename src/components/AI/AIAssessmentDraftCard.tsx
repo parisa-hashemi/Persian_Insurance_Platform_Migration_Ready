@@ -122,7 +122,7 @@ export const AIAssessmentDraftCard: React.FC<AIAssessmentDraftCardProps> = ({
   };
 
   return (
-    <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-blue-950 text-white rounded-3xl border-2 border-indigo-500/30 shadow-xl overflow-hidden transition-all duration-300">
+    <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-indigo-600 text-white rounded-3xl border-2 border-indigo-500/30 shadow-xl overflow-hidden transition-all duration-300">
       {/* Header Banner */}
       <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-500/20 bg-slate-950/40">
         <div className="flex items-center gap-3">

@@ -161,7 +161,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
               <div className="p-2 rounded-xl bg-amber-100 text-amber-900 border border-amber-300">
                 <Scale className="w-5 h-5" />
               </div>
-              <h2 className="text-lg sm:text-xl font-black text-blue-950">
+              <h2 className="text-lg sm:text-xl font-black text-blue-900">
                 وضعیت بدهی و طلب مالی پرونده {claimCase.id}
               </h2>
             </div>
@@ -197,7 +197,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
                 : 'bg-emerald-50/70 border-emerald-300 text-emerald-950'
               : culpritDebt > 0
               ? 'bg-gradient-to-br from-rose-50 via-amber-50/60 to-rose-100/50 border-rose-300 text-rose-950'
-              : 'bg-blue-50/70 border-blue-200 text-blue-950'
+              : 'bg-blue-50/70 border-blue-200 text-blue-900'
           }`}
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -235,7 +235,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <a
                 href={`tel:${isVictim ? culpritPhone : victimPhone}`}
-                className="px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs font-black shadow-md flex items-center justify-center gap-2 active:scale-95 transition-all"
+                className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black shadow-md flex items-center justify-center gap-2 active:scale-95 transition-all"
               >
                 <Phone className="w-4 h-4 text-amber-300" />
                 <span>تماس با {isVictim ? 'مقصر حادثه' : 'زیان‌دیده'}</span>
@@ -256,7 +256,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
         {showSmsPreview && (
           <div className="p-4 bg-slate-50 border-2 border-blue-200 rounded-2xl text-xs space-y-3 animate-in fade-in">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <div className="flex items-center gap-2 font-black text-blue-950">
+              <div className="flex items-center gap-2 font-black text-blue-900">
                 <Send className="w-4 h-4 text-blue-900" />
                 <span>پیش‌نویس پیامک رسمی و حقوقی تسویه بدهی</span>
               </div>
@@ -340,7 +340,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
 
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-medium">شرکت بیمه‌گر مقصر:</span>
-                <span className="font-extrabold text-blue-950">{insurerName}</span>
+                <span className="font-extrabold text-blue-900">{insurerName}</span>
               </div>
 
               <div className="flex items-center justify-between">
@@ -412,7 +412,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
         {/* DETAILED FINANCIAL CALCULATION BREAKDOWN TABLE */}
         <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-            <h3 className="font-black text-xs text-blue-950 flex items-center gap-2">
+            <h3 className="font-black text-xs text-blue-900 flex items-center gap-2">
               <FileText className="w-4 h-4 text-blue-900" />
               <span>ریز محاسبات مالی و استخراج سهم بیمه و بدهی مقصر</span>
             </h3>
@@ -442,7 +442,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-200 font-black text-slate-900">
               <span>مجموع کل مطالبات قانونی زیان‌دیده:</span>
-              <span className="font-mono text-sm text-blue-950">{formatCurrency(totalClaim)}</span>
+              <span className="font-mono text-sm text-blue-900">{formatCurrency(totalClaim)}</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-200">
@@ -488,7 +488,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
             {!showSettlementForm ? (
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <h4 className="font-bold text-xs text-blue-950">ثبت تسویه حساب و پرداخت مازاد بدهی</h4>
+                  <h4 className="font-bold text-xs text-blue-900">ثبت تسویه حساب و پرداخت مازاد بدهی</h4>
                   <p className="text-[11px] text-slate-500">
                     در صورت پرداخت یا توافق طرفین، تسویه را در سامانه ثبت نمایید.
                   </p>
@@ -504,7 +504,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
             ) : (
               <form onSubmit={handleRecordSettlement} className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3 animate-in fade-in">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                  <span className="font-black text-xs text-blue-950">فرم ثبت تسویه توافقی مازاد بدهی</span>
+                  <span className="font-black text-xs text-blue-900">فرم ثبت تسویه توافقی مازاد بدهی</span>
                   <button
                     type="button"
                     onClick={() => setShowSettlementForm(false)}
@@ -524,7 +524,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
                       value={settlementAmount}
                       onChange={(e) => setSettlementAmount(e.target.value)}
                       placeholder={String(culpritDebt)}
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:outline-none focus:border-blue-900"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl font-mono text-xs focus:outline-none focus:border-blue-500"
                     />
                   </div>
                   <div>
@@ -536,7 +536,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
                       value={settlementNote}
                       onChange={(e) => setSettlementNote(e.target.value)}
                       placeholder="مثال: واریز کارت به کارت / رسید شماره ۹۸۴۱۲"
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-blue-900"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-blue-500"
                     />
                   </div>
                 </div>

@@ -930,7 +930,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   return (
     <div className="space-y-6 pb-12 animate-in fade-in" dir="rtl">
       {/* Top Banner & Header */}
-      <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-blue-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-700/50 relative overflow-hidden">
+      <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-indigo-600 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-700/50 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -942,7 +942,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-3">
               <span>{session.name}</span>
-              <span className="text-xs font-bold px-3 py-1 bg-amber-400 text-blue-950 rounded-xl shadow-xs">
+              <span className="text-xs font-bold px-3 py-1 bg-amber-400 text-blue-900 rounded-xl shadow-xs">
                 {session.roleTitle || 'کارشناس میدانی رسمی'}
               </span>
             </h1>
@@ -1007,7 +1007,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 onClick={() => setActiveTab('in_progress')}
                 className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                   activeTab === 'in_progress'
-                    ? 'bg-blue-900 text-white shadow-md'
+                    ? 'bg-blue-600 text-white shadow-md'
                     : 'text-slate-600 hover:bg-slate-100'
                 }`}
               >
@@ -1089,7 +1089,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     <div className="space-y-3">
                       {/* Top Badges */}
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="text-xs font-black font-mono text-blue-950 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
+                        <span className="text-xs font-black font-mono text-blue-900 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
                           {c.id}
                         </span>
 
@@ -1227,7 +1227,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                               ? 'bg-rose-900 hover:bg-rose-800 text-white'
                               : c.fieldDraftSaved
                               ? 'bg-amber-600 hover:bg-amber-500 text-white'
-                              : 'bg-blue-900 hover:bg-blue-800 text-white'
+                              : 'bg-blue-600 hover:bg-blue-500 text-white'
                           }`}
                         >
                           {activeTab === 'completed' || activeTab === 'rejected' ? (
@@ -1269,7 +1269,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   <ArrowRight className="w-4 h-4" />
                   <span>بازگشت به لیست ماموریت‌ها</span>
                 </button>
-                <span className="text-xs font-black text-blue-950 bg-amber-100 px-3 py-1 rounded-xl border border-amber-300">
+                <span className="text-xs font-black text-blue-900 bg-amber-100 px-3 py-1 rounded-xl border border-amber-300">
                   پرونده {selectedCase.id}
                 </span>
                 {isCaseSubmitted && (
@@ -1376,7 +1376,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               onClick={() => setWorkspaceTab('docs')}
               className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 workspaceTab === 'docs'
-                  ? 'bg-blue-900 text-white shadow-xs'
+                  ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
@@ -1388,7 +1388,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               onClick={() => setWorkspaceTab('authenticity')}
               className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 workspaceTab === 'authenticity'
-                  ? 'bg-blue-900 text-white shadow-xs'
+                  ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
@@ -1407,7 +1407,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               onClick={() => setWorkspaceTab('assessment_parts')}
               className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 workspaceTab === 'assessment_parts'
-                  ? 'bg-blue-900 text-white shadow-xs ring-2 ring-blue-900/30'
+                  ? 'bg-blue-600 text-white shadow-xs ring-2 ring-blue-900/30'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
@@ -1424,7 +1424,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               onClick={() => setWorkspaceTab('photos')}
               className={`px-4 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-2 cursor-pointer ${
                 workspaceTab === 'photos'
-                  ? 'bg-blue-900 text-white shadow-xs'
+                  ? 'bg-blue-600 text-white shadow-xs'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
               }`}
             >
@@ -1483,7 +1483,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-200">
                       <span className="text-slate-500">شرکت بیمه‌گر مقصر:</span>
-                      <span className="font-black text-blue-950">{getInsurerPersianName(selectedCase.culpritInsurer)}</span>
+                      <span className="font-black text-blue-900">{getInsurerPersianName(selectedCase.culpritInsurer)}</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-200">
                       <span className="text-slate-500">محل دقیق حادثه:</span>
@@ -1551,7 +1551,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 selectedCase.writtenReport ||
                 selectedCase.files?.some((f) => f.type === 'audio' || f.type === 'video')) && (
                 <div className="bg-gradient-to-r from-sky-50 to-blue-50 border-2 border-sky-200 rounded-2xl p-5 space-y-4 shadow-xs">
-                  <h4 className="font-black text-blue-950 text-xs sm:text-sm flex items-center gap-2">
+                  <h4 className="font-black text-blue-900 text-xs sm:text-sm flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-blue-700" />
                     <span>مستندات صوتی، تصویری و شرح سانحه بارگذاری‌شده توسط بیمه‌گذار</span>
                   </h4>
@@ -1626,7 +1626,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       <div
                         key={doc.id}
                         onClick={() => doc.dataUrl && setPreviewPhotoUrl(doc.dataUrl)}
-                        className="bg-slate-50 rounded-2xl p-2 border border-slate-200 cursor-pointer hover:border-blue-900 transition-all space-y-1.5 group"
+                        className="bg-slate-50 rounded-2xl p-2 border border-slate-200 cursor-pointer hover:border-blue-400 transition-all space-y-1.5 group"
                       >
                         <div className="w-full h-28 bg-slate-200 rounded-xl overflow-hidden relative flex items-center justify-center">
                           {doc.dataUrl ? (
@@ -1652,7 +1652,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 <button
                   type="button"
                   onClick={() => setWorkspaceTab('authenticity')}
-                  className="px-6 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
                 >
                   <span>مرحله بعدی: اصالت‌سنجی و گزارش تشریحی</span>
                   <ArrowRight className="w-4 h-4 rotate-180" />
@@ -1664,8 +1664,8 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
           {/* TAB 2: AUTHENTICITY & PHYSICAL REPORT (اصالت‌سنجی و گزارش تشریحی) */}
           {workspaceTab === 'authenticity' && (
             <div className="space-y-6 animate-in fade-in">
-              <div className="p-4 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs text-blue-950 space-y-1">
-                <h4 className="font-black text-blue-950 flex items-center gap-1.5">
+              <div className="p-4 bg-blue-50/80 border border-blue-200 rounded-2xl text-xs text-blue-900 space-y-1">
+                <h4 className="font-black text-blue-900 flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-blue-700" />
                   <span>دستورالعمل احراز اصالت فیزیکی تصادف در محل:</span>
                 </h4>
@@ -1852,7 +1852,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   onChange={(e) => setFieldReportText(e.target.value)}
                   placeholder="مشاهدات حضوری از وضعیت بدنه، شاسی، رنگ‌شدگی، ارتفاع سپرها، بررسی کیلومترشمار، کارت ماشین و نحوه برخورد..."
                   className={`w-full p-4 rounded-2xl border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none leading-relaxed ${
-                    isCaseReadOnly ? 'bg-slate-100 text-slate-800' : 'bg-white focus:border-blue-900 focus:ring-1 focus:ring-blue-900'
+                    isCaseReadOnly ? 'bg-slate-100 text-slate-800' : 'bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-300'
                   }`}
                 />
               </div>
@@ -1872,7 +1872,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 <button
                   type="button"
                   onClick={() => setWorkspaceTab('assessment_parts')}
-                  className="px-6 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
                 >
                   <span>مرحله بعدی: ارزیابی خسارت و مدل ۲بعدی خودرو</span>
                   <ArrowRight className="w-4 h-4 rotate-180" />
@@ -1885,7 +1885,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
           {workspaceTab === 'assessment_parts' && (
             <div className="space-y-6 animate-in fade-in">
               {/* Header Box */}
-              <div className="p-4 bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-3xl flex items-center justify-between flex-wrap gap-3 shadow-md">
+              <div className="p-4 bg-gradient-to-r from-blue-600 via-slate-900 to-indigo-600 text-white rounded-3xl flex items-center justify-between flex-wrap gap-3 shadow-md">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-bold shadow-xs">
                     <Sliders className="w-5 h-5" />
@@ -2135,7 +2135,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               </div>
 
               {/* Pricing Totals Bar */}
-              <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 text-white rounded-2xl p-5 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs shadow-md">
+              <div className="bg-gradient-to-r from-blue-600 via-slate-900 to-indigo-600 text-white rounded-2xl p-5 grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs shadow-md">
                 <div>
                   <span className="text-slate-400 block text-[11px]">مجموع بهای قطعات:</span>
                   <span className="font-mono text-sm sm:text-base font-black text-amber-300">{formatCurrency(totalPartsCost)}</span>
@@ -2173,7 +2173,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 <button
                   type="button"
                   onClick={() => setWorkspaceTab('photos')}
-                  className="px-6 py-2.5 bg-blue-900 hover:bg-blue-800 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-xs flex items-center gap-1.5 shadow-md cursor-pointer"
                 >
                   <span>مرحله بعدی: عکس‌های بازدید میدانی و خسارت</span>
                   <ArrowRight className="w-4 h-4 rotate-180" />
@@ -2254,7 +2254,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       />
                       <label
                         htmlFor="field-photo-input"
-                        className="w-full px-4 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white font-black cursor-pointer flex items-center justify-center gap-2 shadow-xs transition-all"
+                        className="w-full px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black cursor-pointer flex items-center justify-center gap-2 shadow-xs transition-all"
                       >
                         <Upload className="w-4 h-4" />
                         <span>انتخاب فایل عکس</span>
@@ -2414,7 +2414,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 </div>
 
                 {!isCaseReadOnly ? (
-                  <div className="p-3.5 bg-blue-900 text-white rounded-2xl text-xs space-y-1">
+                  <div className="p-3.5 bg-blue-600 text-white rounded-2xl text-xs space-y-1">
                     <span className="font-bold text-amber-300 block">نکته مربوط به تسویه مستقیم:</span>
                     <p className="text-slate-200 text-[11px] leading-relaxed">
                       به دلیل انجام کارشناسی فیزیکی در محل توسط کارشناس رسمی میدانی، نیازی به تایید مجدد ارزیابی توسط مشتری نیست. زیان‌دیده تنها شماره شبای بانکی خود را وارد می‌کند و وجه خسارت توسط شرکت بیمه واریز خواهد شد.
@@ -2510,7 +2510,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50 space-y-1.5 text-slate-800"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-black text-blue-950 flex items-center gap-1.5">
+                      <span className="font-black text-blue-900 flex items-center gap-1.5">
                         <Phone className="w-3.5 h-3.5 text-emerald-600" />
                         <span>{notif.title}</span>
                       </span>
@@ -2528,7 +2528,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               <button
                 type="button"
                 onClick={() => setShowSmsModal(false)}
-                className="px-5 py-2 rounded-xl bg-blue-900 text-white font-extrabold text-xs cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-blue-600 text-white font-extrabold text-xs cursor-pointer"
               >
                 بستن
               </button>
