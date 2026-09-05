@@ -1,28 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import {
-  Headphones,
-  LayoutDashboard,
-  AlertTriangle,
-  Bell,
-  MessageSquare,
-  Users,
-  FileSpreadsheet,
-  PhoneCall,
-  Search,
-  Plus,
-  Send,
-  CheckCircle2,
-  Clock,
-  User,
-  Shield,
-  Copy,
-  Check,
-  Building,
-  Layers,
-  ChevronLeft,
-  BookOpen,
-  ArrowRight
-} from 'lucide-react';
+import { notifyApp } from '../../lib/appNotify';
+import { Headphones, LayoutDashboard, AlertTriangle, Bell, MessageSquare, Users, FileSpreadsheet, PhoneCall, Search, Plus, Send, CheckCircle2, Clock, User, Shield, Copy, Check, Building, Layers, ChevronLeft, BookOpen, ArrowRight, X } from 'lucide-react';
 import {
   UserSession,
   ClaimCase,
@@ -186,19 +164,47 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
 
   // Computed Quick KPIs
   const kpis = useMemo(() => {
-    const overdueTasks = followUps.filter(t => t.status === 'در انتظار انجام');
+    let dismissedIds: string[] = [];
+    try {
+      const raw = localStorage.getItem('claimflow_crm_dismissed_overdue');
+      if (raw) dismissedIds = JSON.parse(raw);
+    } catch (e) {}
+
+    const overdueTasks = followUps.filter(t => {
+      if (t.status !== 'در انتظار انجام' && t.status !== 'در حال پیگیری') return false;
+      if (dismissedIds.includes(t.id) || dismissedIds.includes(`task-${t.id}`) || (t.caseId && dismissedIds.includes(t.caseId))) return false;
+      const linkedCase = cases.find(c => c.id === t.caseId);
+      if (linkedCase && linkedCase.crmOverdueResolved) return false;
+      return true;
+    });
+
     const expertRequests = overdueTasks.filter(t => t.requestedByName || t.targetDepartment === 'امور مشتریان');
+
+    // System detected overdue cases
+    const systemOverdueCases = cases.filter(c => {
+      if (c.crmOverdueResolved || dismissedIds.includes(c.id)) return false;
+      const isAlreadyInTasks = overdueTasks.some(t => t.caseId === c.id);
+      if (isAlreadyInTasks) return false;
+
+      const isMissingIban = c.status === 'در انتظار پرداخت' && (!c.payoutInfo?.iban || c.payoutInfo?.verification === 'FAILED');
+      const isUnconfirmed = c.status === 'در انتظار تایید زیان‌دیده' || c.status === 'در انتظار تایید کاربر';
+      const isMissingDocs = c.docRequests?.some(d => d.status === 'ارسال شد - در انتظار کاربر');
+
+      return isMissingIban || isUnconfirmed || isMissingDocs;
+    });
+
+    const totalOverdueCount = overdueTasks.length + systemOverdueCases.length;
     const openTickets = tickets.filter(t => t.status !== 'بسته شده و حل گردید');
     const urgentTickets = openTickets.filter(t => t.priority === 'فوری' || t.priority.includes('بحرانی'));
 
     return {
-      overdueTasksCount: overdueTasks.length,
+      overdueTasksCount: totalOverdueCount,
       expertRequestsCount: expertRequests.length,
       openTicketsCount: openTickets.length,
       urgentTicketsCount: urgentTickets.length,
       todayCallsCount: callLogs.length
     };
-  }, [followUps, tickets, callLogs]);
+  }, [followUps, tickets, callLogs, cases]);
 
   // Search Results for Global Search Bar
   const searchResults = useMemo(() => {
@@ -232,7 +238,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
   // Handle Save Call Log
   const handleSaveCallLog = () => {
     if (!newCallForm.contactName.trim() || !newCallForm.contactPhone.trim() || !newCallForm.notes.trim()) {
-      alert('لطفاً نام مخاطب، شماره تماس و خلاصه مکالمه را تکمیل فرمایید.');
+      notifyApp('لطفاً نام مخاطب، شماره تماس و خلاصه مکالمه را تکمیل فرمایید.');
       return;
     }
 
@@ -402,7 +408,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
                 onClick={() => setGlobalSearchTerm('')}
                 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
@@ -470,7 +476,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
               onClick={() => setShowFaqDrawer(false)}
               className="text-xs font-bold text-slate-500 hover:text-slate-800"
             >
-              بستن ✕
+              <span className="inline-flex items-center gap-1.5"><X className="w-3.5 h-3.5" />بستن</span>
             </button>
           </div>
 
@@ -808,7 +814,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
                 onClick={() => setShowNewCallModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -948,7 +954,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
                 onClick={() => setShowNewTicketModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -1000,7 +1006,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
                 type="button"
                 onClick={() => {
                   if (!newTicketForm.customerName.trim() || !newTicketForm.customerPhone.trim() || !newTicketForm.subject.trim() || !newTicketForm.initialMessage.trim()) {
-                    alert('لطفاً کلیه فیلدها را تکمیل فرمایید.');
+                    notifyApp('لطفاً کلیه فیلدها را تکمیل فرمایید.');
                     return;
                   }
                   const nowStr = `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`;

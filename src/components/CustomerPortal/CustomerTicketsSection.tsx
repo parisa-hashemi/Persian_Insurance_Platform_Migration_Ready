@@ -126,7 +126,7 @@ export const CustomerTicketsSection: React.FC<CustomerTicketsSectionProps> = ({
   };
 
   return (
-    <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm" dir="rtl">
+    <div className="bg-white border-2 border-slate-200 rounded-3xl p-4 sm:p-5 sm:p-6 space-y-4 shadow-sm" dir="rtl">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">

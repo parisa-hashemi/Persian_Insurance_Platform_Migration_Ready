@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { notifyApp } from '../../lib/appNotify';
 import {
   ClipboardCheck,
   CheckCircle2,
@@ -607,9 +608,9 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       if (prevItem.reviewerNote) {
         setNoteInput(`[بر مبنای بازبینی ارزیابی کارشناس قبل (${prevItem.expertName})]: ` + prevItem.reviewerNote);
       }
-      alert('کلیه اقلام قطعات و برآوردهای کارشناس قبلی با موفقیت به پیش‌نویس ارزیابی شما منتقل شد. اکنون می‌توانید تغییرات مورد نظرتان را اعمال فرمایید.');
+      notifyApp('کلیه اقلام قطعات و برآوردهای کارشناس قبلی با موفقیت به پیش‌نویس ارزیابی شما منتقل شد. اکنون می‌توانید تغییرات مورد نظرتان را اعمال فرمایید.');
     } else {
-      alert('اقلام قطعه‌ای برای کپی یافت نشد.');
+      notifyApp('اقلام قطعه‌ای برای کپی یافت نشد.');
     }
   };
 
@@ -648,7 +649,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     e.preventDefault();
     if (!assessorChatMsg.trim() || !activeCase) return;
     if (isCaseRejected(activeCase)) {
-      alert('این پرونده در وضعیت «رد شده» قرار دارد و ارسال پیام یا ایجاد تغییر در آن مسدود است.');
+      notifyApp('این پرونده در وضعیت «رد شده» قرار دارد و ارسال پیام یا ایجاد تغییر در آن مسدود است.');
       return;
     }
 
@@ -736,12 +737,54 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
   const handleDecideAiLine = (findingId: string, decision: 'APPROVED' | 'EDITED' | 'REJECTED') => {
     if (isCaseRejected(activeCase)) {
-      alert('این پرونده در وضعیت «رد شده» قرار دارد و تغییر تصمیم هوش مصنوعی مسدود است.');
+      notifyApp('این پرونده در وضعیت «رد شده» قرار دارد و تغییر تصمیم هوش مصنوعی مسدود است.');
       return;
     }
+    const finding = aiDecisionsState.find((x) => x.findingId === findingId);
+
     setAiDecisionsState((prev) =>
       prev.map((item) => (item.findingId === findingId ? { ...item, decision } : item))
     );
+
+    if (!finding) return;
+    const opType: 'replace' | 'repair' = (finding.operation || '').includes('تعویض') ? 'replace' : 'repair';
+
+    if (decision === 'APPROVED') {
+      // با تایید نظر هوش مصنوعی، دقیقاً همان قطعه با همان نام و نوع عملیات
+      // به جدول قیمت‌گذاری پایین اضافه می‌شود؛ کارشناس فقط قیمت و داغی را تعیین می‌کند.
+      setParts((prev) => {
+        const existingIdx = prev.findIndex((pp) => pp.name.trim() === finding.part.trim());
+        if (existingIdx >= 0) {
+          const copy = [...prev];
+          copy[existingIdx] = { ...copy[existingIdx], type: opType };
+          return copy;
+        }
+        return [
+          ...prev,
+          {
+            name: finding.part,
+            type: opType,
+            partPrice: 0,
+            repairPrice: 0,
+            salvageNeeded: opType === 'replace',
+            salvageValue: 0
+          }
+        ];
+      });
+      showPartAddedToast(`✓ قطعه «${finding.part}» (${opType === 'replace' ? 'تعویضی' : 'تعمیری'}) به جدول قیمت‌گذاری پایین اضافه شد — فقط قیمت و داغی را تعیین کنید.`);
+    } else if (decision === 'REJECTED') {
+      // در صورت رد، اگر همین قطعه قبلاً به‌صورت خودکار (بدون قیمت) اضافه شده بود، حذف می‌شود
+      setParts((prev) =>
+        prev.filter(
+          (pp) =>
+            !(
+              pp.name.trim() === finding.part.trim() &&
+              (pp.partPrice || 0) === 0 &&
+              (pp.repairPrice || 0) === 0
+            )
+        )
+      );
+    }
   };
 
   const handleAutoAddPartFromBlueprint = (partName: string, operationType: 'replace' | 'repair', note?: string) => {
@@ -788,7 +831,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       ...prev,
       { name: 'گلگیر جلو راست', type: 'replace', partPrice: 0, repairPrice: 0, salvageNeeded: false, salvageValue: 0 }
     ]);
-    showPartAddedToast('✓ قطعه جدید به لیست ارزیابی افزوده شد — نام قطعه و نوع عملیات را در ردیف جدید ویرایش کنید.');
+    showPartAddedToast('قطعه جدید به لیست ارزیابی افزوده شد — نام قطعه و نوع عملیات را در ردیف جدید ویرایش کنید.');
   };
 
   const handleRemovePart = (index: number) => {
@@ -843,12 +886,38 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
   const handleApplyAiDraftParts = (draftParts: PartItem[], gross: number, salvage: number, technicalNote?: string) => {
     if (!activeCase || isCaseRejected(activeCase)) return;
-    setParts(draftParts);
-    setGrossInput(String(gross));
-    setSalvageInput(String(salvage));
+
+    // قطعات تاییدشده‌ی هوش مصنوعی با همان نام و نوع (تعویضی/تعمیری) به لیست پایین
+    // «اضافه» می‌شوند (نه جایگزینی) تا کارشناس فقط قیمت و داغی هر مورد را ثبت کند.
+    let addedCount = 0;
+    setParts((prev) => {
+      const merged = [...prev];
+      draftParts.forEach((dp) => {
+        const idx = merged.findIndex((pp) => pp.name.trim() === dp.name.trim());
+        if (idx >= 0) {
+          merged[idx] = { ...merged[idx], type: dp.type, salvageNeeded: dp.salvageNeeded };
+        } else {
+          merged.push(dp);
+          addedCount++;
+        }
+      });
+      return merged;
+    });
+
+    // فقط اگر مقادیر واقعی ارسال شده باشد جمع‌ها را به‌روزرسانی کن (حالت بدون قیمت: دست نمی‌زنیم)
+    if (gross > 0) setGrossInput(String(gross));
+    if (salvage > 0) setSalvageInput(String(salvage));
     if (technicalNote) {
       setNoteInput(technicalNote);
     }
+
+    window.setTimeout(() => {
+      showPartAddedToast(
+        addedCount > 0
+          ? `✓ ${addedCount} قطعه پیشنهادی هوش مصنوعی با همان نام و نوع عملیات به جدول قیمت‌گذاری اضافه شد — قیمت و داغی هر مورد را تعیین کنید.`
+          : '✓ قطعات پیشنهادی از قبل در جدول قیمت‌گذاری موجود بودند؛ نوع عملیات آن‌ها به‌روزرسانی شد.'
+      );
+    }, 0);
   };
 
   const handleSendAiDraftMessageToCustomer = (msg: { target: string; targetParty: 'PARTY_ONE' | 'PARTY_TWO'; text: string; docType?: string }) => {
@@ -886,7 +955,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     };
 
     onUpdateCase(updatedCase);
-    alert(`پیام با موفقیت برای ${msg.target} ارسال شد و در تاریخچه پرونده ثبت گردید.`);
+    notifyApp(`پیام با موفقیت برای ${msg.target} ارسال شد و در تاریخچه پرونده ثبت گردید.`);
   };
 
   const handleAppendAiNote = (noteText: string) => {
@@ -896,7 +965,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const handleSaveDraft = () => {
     if (!activeCase) return;
     if (isCaseRejected(activeCase)) {
-      alert('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و امکان ذخیره پیش‌نویس وجود ندارد.');
+      notifyApp('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و امکان ذخیره پیش‌نویس وجود ندارد.');
       return;
     }
     const gross = parseMoneyNumber(grossInput) || computePartsTotal();
@@ -932,13 +1001,13 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     };
 
     onUpdateCase(updated);
-    alert('پیش‌نویس ارزیابی با موفقیت ذخیره شد.');
+    notifyApp('پیش‌نویس ارزیابی با موفقیت ذخیره شد.');
   };
 
   const handleFinalizeAssessment = () => {
     if (!activeCase) return;
     if (isCaseRejected(activeCase)) {
-      alert('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و امکان ثبت یا ارسال ارزیابی وجود ندارد.');
+      notifyApp('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و امکان ثبت یا ارسال ارزیابی وجود ندارد.');
       return;
     }
 
@@ -1047,7 +1116,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const handleRequestCorrection = () => {
     if (!activeCase || !correctionReason.trim()) return;
     if (isCaseRejected(activeCase)) {
-      alert('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و امکان درخواست اصلاح اطلاعات وجود ندارد.');
+      notifyApp('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و امکان درخواست اصلاح اطلاعات وجود ندارد.');
       return;
     }
 
@@ -1072,13 +1141,13 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
     onUpdateCase(updated);
     setCorrectionReason('');
-    alert('درخواست اصلاح اطلاعات با موفقیت برای مشتری ارسال گردید.');
+    notifyApp('درخواست اصلاح اطلاعات با موفقیت برای مشتری ارسال گردید.');
   };
 
   const handleSendDocRequest = () => {
     if (!activeCase || !docRequestType) return;
     if (isCaseRejected(activeCase)) {
-      alert('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و ارسال درخواست مدارک مسدود است.');
+      notifyApp('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و ارسال درخواست مدارک مسدود است.');
       return;
     }
 
@@ -1133,7 +1202,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     setShowDocRequestModal(false);
     setDocRequestDesc('');
     setCustomDocType('');
-    alert(`درخواست مدرک تکمیلی «${finalDocType}» برای ${docRequestTarget} ارسال گردید.`);
+    notifyApp(`درخواست مدرک تکمیلی «${finalDocType}» برای ${docRequestTarget} ارسال گردید.`);
   };
 
   const handleUpdateDocReqStatus = (reqId: string | number, newStatus: string) => {
@@ -1165,7 +1234,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const handleSendExpertChatMessage = (recipientParty: 'PARTY_ONE' | 'PARTY_TWO') => {
     if (!activeCase || !expertChatInput.trim()) return;
     if (isCaseRejected(activeCase)) {
-      alert('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و ارسال پیام مسدود است.');
+      notifyApp('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و ارسال پیام مسدود است.');
       return;
     }
 
@@ -1235,10 +1304,10 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     };
     onUpdateCase(updated);
     setAcceptModalCase(null);
-    alert('پرونده با موفقیت پذیرفته شد و وضعیت آن به «در حال ارزیابی» تغییر یافت.');
+    notifyApp('پرونده با موفقیت پذیرفته شد و وضعیت آن به «در حال ارزیابی» تغییر یافت.');
   };
 
-  // Handler for Rejecting Assignment (Red Cross ✕ button opens modal)
+  // Handler for Rejecting Assignment (Red Cross button opens modal)
   const handleRejectAssignment = (c: ClaimCase) => {
     setRejectModalCase(c);
     setRejectReasonInput('');
@@ -1264,7 +1333,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     }
     setRejectModalCase(null);
     setRejectReasonInput('');
-    alert(`پرونده ${updated.id} با علت «${reasonText}» رد شد.\n• کسر ۰.۲ امتیاز از عملکرد کارشناس در سامانه اعمال گردید.\n• پرونده به‌صورت خودکار توسط هوش مصنوعی به کارشناس جایگزین ارجاع و پیامک‌های اطلاع‌رسانی ارسال شدند.`);
+    notifyApp(`پرونده ${updated.id} با علت «${reasonText}» رد شد.\n• کسر ۰.۲ امتیاز از عملکرد کارشناس در سامانه اعمال گردید.\n• پرونده به‌صورت خودکار توسط هوش مصنوعی به کارشناس جایگزین ارجاع و پیامک‌های اطلاع‌رسانی ارسال شدند.`);
   };
 
   // Handler for Police Inquiry in Image 3 (Second Police Inquiry in Adjuster Workflow)
@@ -1326,7 +1395,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       setPreliminaryCheckCase(updated);
     }
 
-    alert(`استعلام رسمی از سامانه پلیس/نیروی انتظامی با موفقیت انجام شد.\nکد کروکی: ${kroki}\nمرکز انتظامی: ${station}\nافسر: ${officer}\nدرصد تقصیر مقصر: ${faultPercent}٪`);
+    notifyApp(`استعلام رسمی از سامانه پلیس/نیروی انتظامی با موفقیت انجام شد.\nکد کروکی: ${kroki}\nمرکز انتظامی: ${station}\nافسر: ${officer}\nدرصد تقصیر مقصر: ${faultPercent}٪`);
   };
 
   // Handler for Chain Collision simulation in Image 3
@@ -1367,7 +1436,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       setPreliminaryCheckCase(updated);
     }
 
-    alert('تصادف زنجیره‌ای با موفقیت شبیه‌سازی و جزییات سه خودرو در پرونده بروزرسانی گردید.');
+    notifyApp('تصادف زنجیره‌ای با موفقیت شبیه‌سازی و جزییات سه خودرو در پرونده بروزرسانی گردید.');
   };
 
   // Handler for Fraud/Suspicion flag in Image 3
@@ -1395,23 +1464,23 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     };
     onUpdateCase(updated);
     setPreliminaryCheckCase(null);
-    alert('گزارش تردید در اصالت تصادف ثبت شد و جهت بررسی تخصصی به شرکت بیمه ارسال گردید.');
+    notifyApp('گزارش تردید در اصالت تصادف ثبت شد و جهت بررسی تخصصی به شرکت بیمه ارسال گردید.');
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in pb-16">
+    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in pb-10 sm:pb-16">
       
       {/* Top Banner Header */}
-      <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl flex items-center justify-between flex-wrap gap-4 border border-purple-800/40">
+      <div className="bg-gradient-to-l from-blue-500 via-indigo-500 to-blue-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg shadow-blue-300/40 flex items-center justify-between flex-wrap gap-4 border border-blue-300/50">
         <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 text-xs font-extrabold">
-            <ClipboardCheck className="w-4 h-4 text-purple-400" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-white border border-white/30 text-xs font-extrabold backdrop-blur-sm">
+            <ClipboardCheck className="w-4 h-4 text-sky-200" />
             پنل اختصاصی کارشناسان خسارت و ارزیابان
           </div>
           <h1 className="text-2xl sm:text-3xl font-black">
             ارزیابی هوشمند، مدلسازی سه‌بعدی و برآورد خسارت
           </h1>
-          <p className="text-xs text-slate-300 font-medium">
+          <p className="text-xs text-blue-100 font-medium">
             کارشناس محترم: {session.name} | شرکت: {getInsurerPersianName(companyCode)}
           </p>
         </div>
@@ -1648,7 +1717,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
             </div>
 
             {filteredCases.length === 0 ? (
-              <div className="p-12 text-center text-slate-400 space-y-2">
+              <div className="p-6 sm:p-12 text-center text-slate-400 space-y-2">
                 <FolderOpen className="w-12 h-12 mx-auto text-slate-300" />
                 <p className="text-xs font-bold text-slate-500">پرونده‌ای با این مشخصات یافت نشد.</p>
               </div>
@@ -2037,8 +2106,8 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     sla.isExpired
                       ? 'bg-rose-100/90 border-rose-400 text-rose-950 shadow-sm'
                       : sla.isNearDeadline
-                      ? 'bg-amber-50/90 border-amber-300 text-amber-950'
-                      : 'bg-slate-50 border-slate-200 text-slate-900'
+                      ? 'bg-yellow-50/90 border-yellow-300 text-yellow-950'
+                      : 'bg-blue-50/60 border-blue-200 text-slate-900'
                   }`}>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5">
@@ -2046,8 +2115,8 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                           sla.isExpired
                             ? 'bg-rose-700 text-white shadow-sm'
                             : sla.isNearDeadline
-                            ? 'bg-amber-500 text-white shadow-sm'
-                            : 'bg-purple-100 text-purple-800'
+                            ? 'bg-yellow-400 text-yellow-950 shadow-sm'
+                            : 'bg-blue-100 text-blue-800'
                         }`}>
                           <Timer className="w-5 h-5 stroke-[2.5]" />
                         </div>
@@ -2099,8 +2168,8 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                             sla.isExpired
                               ? 'bg-rose-600'
                               : sla.isNearDeadline
-                              ? 'bg-amber-500'
-                              : 'bg-emerald-500'
+                              ? 'bg-gradient-to-l from-yellow-400 to-amber-300'
+                              : 'bg-gradient-to-l from-blue-500 to-sky-400'
                           }`}
                           style={{ width: `${sla.progressPercent}%` }}
                         />
@@ -2276,37 +2345,37 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
               {activeTab === 'summary' && (
                 <div className="space-y-6 animate-in fade-in">
                   
-                  {/* Both Parties Overview Card */}
-                  <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-4 shadow-md">
-                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                  {/* Both Parties Overview Card — روشن و یکپارچه */}
+                  <div className="bg-white text-slate-900 p-5 rounded-2xl space-y-4 shadow-sm border border-blue-200">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                       <div className="flex items-center gap-2">
-                        <Users className="w-5 h-5 text-purple-400" />
-                        <h4 className="font-extrabold text-sm text-white">
+                        <Users className="w-5 h-5 text-blue-600" />
+                        <h4 className="font-extrabold text-sm text-blue-950">
                           اطلاعات طرفین پرونده مشترک (طرف اول و طرف دوم)
                         </h4>
                       </div>
-                      <span className="px-2.5 py-1 rounded-full bg-purple-500/20 text-purple-300 text-[10px] font-bold border border-purple-500/30">
+                      <span className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200">
                         پرونده دوطرفه
                       </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                      <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/80 space-y-1">
-                        <span className="text-blue-400 font-extrabold block mb-1">
+                      <div className="bg-blue-50/70 p-3.5 rounded-xl border border-blue-200 space-y-1">
+                        <span className="text-blue-700 font-extrabold block mb-1">
                           طرف اول ({activeCase.partyOneRole || 'زیان‌دیده'})
                         </span>
-                        <p className="font-extrabold text-white text-sm">{activeCase.victimName || activeCase.partyOneName}</p>
-                        <p className="text-slate-400 font-mono" dir="ltr">{activeCase.victimPhone || activeCase.partyOnePhone}</p>
-                        <p className="text-slate-300 font-semibold pt-1">پلاک: {activeCase.victimPlate}</p>
+                        <p className="font-extrabold text-slate-900 text-sm">{activeCase.victimName || activeCase.partyOneName}</p>
+                        <p className="text-slate-500 font-mono" dir="ltr">{activeCase.victimPhone || activeCase.partyOnePhone}</p>
+                        <p className="text-slate-700 font-semibold pt-1">پلاک: {activeCase.victimPlate}</p>
                       </div>
 
-                      <div className="bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/80 space-y-1">
-                        <span className="text-amber-400 font-extrabold block mb-1">
+                      <div className="bg-sky-50/70 p-3.5 rounded-xl border border-sky-200 space-y-1">
+                        <span className="text-sky-700 font-extrabold block mb-1">
                           طرف دوم ({activeCase.partyTwoRole || 'مقصر'})
                         </span>
-                        <p className="font-extrabold text-white text-sm">{activeCase.culpritName || activeCase.partyTwoName}</p>
-                        <p className="text-slate-400 font-mono" dir="ltr">{activeCase.culpritPhone || activeCase.partyTwoPhone}</p>
-                        <p className="text-slate-300 font-semibold pt-1">پلاک: {activeCase.culpritPlate}</p>
+                        <p className="font-extrabold text-slate-900 text-sm">{activeCase.culpritName || activeCase.partyTwoName}</p>
+                        <p className="text-slate-500 font-mono" dir="ltr">{activeCase.culpritPhone || activeCase.partyTwoPhone}</p>
+                        <p className="text-slate-700 font-semibold pt-1">پلاک: {activeCase.culpritPlate}</p>
                       </div>
                     </div>
                   </div>
@@ -2355,7 +2424,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                                 onClick={() => setIsDocRequestsOpen(false)}
                                 className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 font-bold flex items-center justify-center text-xs"
                               >
-                                ✕
+                                <X className="w-4 h-4" />
                               </button>
                             </div>
 
@@ -2496,9 +2565,29 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       const activePartyKey = expertChatActiveTab;
                       const activeRoleKey = expertChatActiveTab === 'PARTY_ONE' ? 'زیان‌دیده' : 'مقصر';
 
-                      const chatsForTab = (activeCase.docChat || []).filter(c =>
+                      const rawDocChats = (activeCase.docChat || []).filter(c =>
                         c.targetParty === activePartyKey || c.senderParty === activePartyKey || c.target === activeRoleKey
                       );
+
+                      // Include any objectionChat messages for PARTY_ONE that may not be in docChat
+                      let chatsForTab = [...rawDocChats];
+                      if (activePartyKey === 'PARTY_ONE' && activeCase.objectionChat && activeCase.objectionChat.length > 0) {
+                        activeCase.objectionChat.forEach((objMsg, idx) => {
+                          const alreadyExists = chatsForTab.some(c => c.text === objMsg.text);
+                          if (!alreadyExists) {
+                            chatsForTab.push({
+                              id: `obj-msg-${idx}`,
+                              from: objMsg.sender === 'expert' ? 'expert' : 'user',
+                              senderParty: objMsg.sender === 'expert' ? 'EXPERT' : 'PARTY_ONE',
+                              targetParty: 'PARTY_ONE',
+                              by: objMsg.name,
+                              senderName: objMsg.name,
+                              text: objMsg.text,
+                              at: objMsg.time
+                            });
+                          }
+                        });
+                      }
 
                       return (
                         <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
@@ -2732,71 +2821,6 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                           <p>{activeCase.workshopInfo.shopAddress}</p>
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {/* Interactive Objection Chat Stream for Assessor */}
-                  {(activeCase.objectionChat || activeCase.objectionStage === 2) && (
-                    <div className="bg-slate-900 rounded-3xl border border-slate-800 p-5 space-y-4 shadow-xl text-xs">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                        <div className="flex items-center gap-2">
-                          <MessageSquare className="w-5 h-5 text-indigo-400" />
-                          <h4 className="font-extrabold text-white text-xs">
-                            گفتگو و چت مستقیم با زیان‌دیده ({activeCase.victimName || 'مشتری'})
-                          </h4>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-[10px] font-bold border border-indigo-500/30">
-                          کانال فعال پاسخگویی ارزیاب
-                        </span>
-                      </div>
-
-                      {/* Chat Messages */}
-                      <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                        {(!activeCase.objectionChat || activeCase.objectionChat.length === 0) ? (
-                          <p className="text-center text-xs text-slate-500 py-4">پیامی در این گفتگو ثبت نشده است.</p>
-                        ) : (
-                          activeCase.objectionChat.map((msg, idx) => (
-                            <div
-                              key={idx}
-                              className={`flex flex-col ${
-                                msg.sender === 'expert' ? 'items-start' : 'items-end'
-                              }`}
-                            >
-                              <div
-                                className={`max-w-[85%] p-3 rounded-2xl text-xs leading-relaxed ${
-                                  msg.sender === 'expert'
-                                    ? 'bg-purple-600 text-white rounded-tl-none'
-                                    : 'bg-slate-800 text-slate-200 border border-slate-700 rounded-tr-none'
-                                }`}
-                              >
-                                <div className="flex items-center justify-between gap-3 text-[10px] opacity-75 mb-1">
-                                  <span className="font-bold">{msg.name}</span>
-                                  <span className="font-mono">{msg.time}</span>
-                                </div>
-                                <p>{msg.text}</p>
-                              </div>
-                            </div>
-                          ))
-                        )}
-                      </div>
-
-                      {/* Reply Form */}
-                      <form onSubmit={handleSendAssessorChatMessage} className="flex gap-2">
-                        <input
-                          type="text"
-                          value={assessorChatMsg}
-                          onChange={(e) => setAssessorChatMsg(e.target.value)}
-                          placeholder="پاسخ کارشناس ارزیاب را بنویسید..."
-                          className="flex-1 px-4 py-2.5 rounded-xl bg-slate-800 border border-slate-700 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-purple-500"
-                        />
-                        <button
-                          type="submit"
-                          className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 transition-all"
-                        >
-                          <span>ارسال پاسخ</span>
-                          <Send className="w-3.5 h-3.5" />
-                        </button>
-                      </form>
                     </div>
                   )}
 
@@ -3345,7 +3369,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* MODAL 1: Why AI Modal */}
       {whyFinding && (
-        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-200 animate-in zoom-in-95 text-slate-900">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
@@ -3356,7 +3380,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 onClick={() => setWhyFinding(null)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -3379,7 +3403,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* MODAL 2: Edit AI Finding Modal */}
       {editingAiFinding && (
-        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-200 animate-in zoom-in-95 text-slate-900 text-xs">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-extrabold text-sm text-slate-900">
@@ -3389,7 +3413,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 onClick={() => setEditingAiFinding(null)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -3450,7 +3474,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* MODAL 3: Request Documents Modal */}
       {showDocRequestModal && (
-        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-200 animate-in zoom-in-95 text-slate-900 text-xs">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-extrabold text-sm text-slate-900">
@@ -3460,14 +3484,14 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 onClick={() => setShowDocRequestModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-3">
               <div>
                 <label className="block text-slate-500 font-bold mb-1">این درخواست برای کدام طرف است؟</label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setDocRequestTarget('زیان‌دیده')}
@@ -3563,7 +3587,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* MODAL 4: Image 2 — قبول ارزیابی پرونده */}
       {acceptModalCase && (
-        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 border border-slate-200 animate-in zoom-in-95 text-slate-900">
             <div className="flex items-center justify-between pb-2">
               <div className="space-y-0.5">
@@ -3574,7 +3598,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 onClick={() => setAcceptModalCase(null)}
                 className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -3685,7 +3709,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* MODAL 5: Image 3 — بررسی اولیه پرونده */}
       {preliminaryCheckCase && (
-        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-4xl w-full shadow-2xl space-y-6 border border-slate-200 animate-in zoom-in-95 text-slate-900 my-8">
             
             {/* Header */}
@@ -3723,7 +3747,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   onClick={() => setPreliminaryCheckCase(null)}
                   className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
@@ -4141,7 +4165,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* Detail Form Modals (Accident, Victim, Culprit) */}
       {cardDetailModal && preliminaryCheckCase && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-[70] dir-rtl animate-in fade-in duration-200">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 z-[70] dir-rtl animate-in fade-in duration-200 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 md:p-8 space-y-5 shadow-2xl border border-slate-100 relative">
             
             {/* Top Bar with Red Cross Close Button on Top Left */}
@@ -4606,7 +4630,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                         })}
                       </div>
                     ) : (
-                      <div className="p-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                      <div className="p-5 sm:p-10 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
                         <Paperclip className="w-8 h-8 text-slate-400 mx-auto" />
                         <p className="font-bold text-xs text-slate-600">مستندی در این دسته‌بندی یافت نشد.</p>
                         <button
@@ -4684,7 +4708,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   <h4 className="font-bold text-xs text-slate-800 mb-3 text-center">
                     مستندات قابل مشاهده
                   </h4>
-                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center flex flex-col items-center justify-center space-y-2 bg-slate-50/50">
+                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-5 sm:p-8 text-center flex flex-col items-center justify-center space-y-2 bg-slate-50/50">
                     <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
                       <ImageOff className="w-6 h-6" />
                     </div>
@@ -4749,7 +4773,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   <h4 className="font-bold text-xs text-slate-800 mb-3 text-center">
                     مستندات قابل مشاهده
                   </h4>
-                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center flex flex-col items-center justify-center space-y-2 bg-slate-50/50">
+                  <div className="border-2 border-dashed border-slate-200 rounded-2xl p-5 sm:p-8 text-center flex flex-col items-center justify-center space-y-2 bg-slate-50/50">
                     <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
                       <ImageOff className="w-6 h-6" />
                     </div>
@@ -4765,7 +4789,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* MODAL: Reject Case Modal (عدم پذیرش / رد پرونده توسط کارشناس) */}
       {rejectModalCase && (
-        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/75 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl space-y-6 border border-slate-200 animate-in zoom-in-95 text-slate-900">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
@@ -4873,7 +4897,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
         };
 
         return (
-          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
             <div className="relative max-w-4xl w-full bg-white rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4 animate-in zoom-in-95">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2.5">
@@ -4975,7 +4999,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* SMS & SYSTEM NOTIFICATIONS INBOX MODAL */}
       {showSmsInboxModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[85vh]">
             {/* Header */}
             <div className="p-5 bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 text-white flex items-center justify-between">
@@ -5020,7 +5044,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
             {/* List Body */}
             <div className="p-5 overflow-y-auto space-y-3 flex-1 bg-slate-50">
               {assessorSmsList.length === 0 ? (
-                <div className="p-12 text-center text-slate-400 space-y-2">
+                <div className="p-6 sm:p-12 text-center text-slate-400 space-y-2">
                   <Inbox className="w-12 h-12 mx-auto text-slate-300" />
                   <p className="text-xs font-bold text-slate-600">هیچ پیامکی در صندوق وجود ندارد.</p>
                 </div>
@@ -5127,7 +5151,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* CRM REQUEST CONTACT MODAL */}
       {showCrmRequestModal && activeCase && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl space-y-5 border-2 border-amber-400 animate-in zoom-in-95 text-slate-900">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -5147,7 +5171,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 onClick={() => setShowCrmRequestModal(false)}
                 className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -5179,7 +5203,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 <label className="block text-xs font-black text-slate-800 mb-1">
                   سطح اولویت پیگیری:
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                   {(['عادی', 'مهم', 'فوری و بحرانی'] as const).map(p => (
                     <button
                       key={p}
@@ -5238,7 +5262,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* MODAL: دستورالعمل و توضیحات شرکت بیمه‌گر */}
       {insurerNoteModalCase && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 border border-slate-200 animate-in zoom-in-95 text-slate-900 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -5254,7 +5278,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 onClick={() => setInsurerNoteModalCase(null)}
                 className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -5342,7 +5366,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* MODAL: ASSIGNMENT TO REVIEWER SUCCESS & SMS NOTIFICATION */}
       {assignmentSuccessModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 border border-slate-200 text-slate-900 animate-in zoom-in-95" dir="rtl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
@@ -5362,7 +5386,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 onClick={() => setAssignmentSuccessModal(null)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -5417,7 +5441,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       {/* FULL PAGE MODAL: PREVIOUS EXPERT ASSESSMENT DETAILED VIEWER (دیدن صفحه و بستن صفحه) */}
       {selectedPrevAssessmentModal && activeCase && (
-        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-4 animate-in fade-in overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 animate-in fade-in overflow-y-auto">
           <div
             className="bg-white rounded-3xl max-w-5xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 text-slate-900 overflow-hidden animate-in zoom-in-95 my-auto"
             dir="rtl"

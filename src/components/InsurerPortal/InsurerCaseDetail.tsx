@@ -1,47 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import {
-  ArrowLeft,
-  UserPlus,
-  ShieldCheck,
-  Building2,
-  Clock,
-  AlertTriangle,
-  CreditCard,
-  Printer,
-  CheckCircle2,
-  FileText,
-  UserCheck,
-  RotateCcw,
-  Sparkles,
-  Info,
-  MapPin,
-  User,
-  X,
-  ExternalLink,
-  Search,
-  Maximize2,
-  FileBadge,
-  Phone,
-  Hash,
-  Shield,
-  Car,
-  ClipboardCheck,
-  ChevronDown,
-  ChevronUp,
-  Lock,
-  DollarSign,
-  ImageOff,
-  Compass,
-  Camera,
-  CheckSquare,
-  ShieldAlert,
-  RefreshCw,
-  Send,
-  Navigation,
-  MessageSquare,
-  PhoneCall,
-  Bot
-} from 'lucide-react';
+import { notifyApp } from '../../lib/appNotify';
+import { ArrowLeft, UserPlus, ShieldCheck, Building2, Clock, AlertTriangle, CreditCard, Printer, CheckCircle2, FileText, UserCheck, RotateCcw, Sparkles, Info, MapPin, User, X, ExternalLink, Search, Maximize2, FileBadge, Phone, Hash, Shield, Car, ClipboardCheck, ChevronDown, ChevronUp, Lock, DollarSign, ImageOff, Compass, Camera, CheckSquare, ShieldAlert, RefreshCw, Send, Navigation, MessageSquare, PhoneCall, Bot, Star } from 'lucide-react';
 import { ClaimCase, UserSession, StaffMember, AssessorNotification, CustomerNotification } from '../../types';
 import { INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS } from '../../data/mockData';
 import { findBestMatchingBranch, INSURANCE_BRANCHES, InsuranceBranch, getRankedFieldExpertsForAccidentLocation, RankedFieldExpertItem } from '../../data/bodyInsuranceData';
@@ -593,7 +552,7 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
     };
 
     onUpdateCase(updated);
-    alert(isFinalStage ? 'ارزیابی میدانی نهایی تایید گردید. این پرونده مختومه اعلام شده و رای قطعی صادر شد.' : 'برآورد خسارت کارشناس توسط بازبین تایید گردید و جهت مشاهده/تایید به زیان‌دیده ابلاغ شد.');
+    notifyApp(isFinalStage ? 'ارزیابی میدانی نهایی تایید گردید. این پرونده مختومه اعلام شده و رای قطعی صادر شد.' : 'برآورد خسارت کارشناس توسط بازبین تایید گردید و جهت مشاهده/تایید به زیان‌دیده ابلاغ شد.');
   };
 
   const handleReviewerReturn = (e: React.FormEvent) => {
@@ -622,7 +581,7 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
     onUpdateCase(updated);
     setShowReviewerReturnModal(false);
     setReviewerReturnReason('');
-    alert('پرونده جهت اصلاح برآورد به کارشناس خسارت عودت داده شد.');
+    notifyApp('پرونده جهت اصلاح برآورد به کارشناس خسارت عودت داده شد.');
   };
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
@@ -655,19 +614,19 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
     // SMS 1: Dispatch notification for Field Expert containing accident location AND nearest branch address
     const fieldExpertSmsText = `کارشناس گرامی ${fieldExpert.name}،
 ماموریت ارزیابی میدانی پرونده ${claimCase.id} (${vehicleName} - پلاک ${plateText}) به شما محول گردید.
-📍 محل حادثه: ${accidentLocationAddress}
-🏢 نزدیک‌ترین شعبه بیمه جهت حضور و هماهنگی: ${branch.name}
-📌 نشانی شعبه: ${branch.address}
-📞 تلفن شعبه: ${branch.phone}
-👤 مشتری: ${customerName} (همراه: ${customerPhone})
-${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
+محل حادثه: ${accidentLocationAddress}
+نزدیک‌ترین شعبه بیمه جهت حضور و هماهنگی: ${branch.name}
+نشانی شعبه: ${branch.address}
+تلفن شعبه: ${branch.phone}
+مشتری: ${customerName} (همراه: ${customerPhone})
+${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
 لطفاً جهت هماهنگی و حضور در محل یا شعبه اقدام فرمایید.
 شرکت ${insurerName}`;
 
     // SMS 2: Dispatch notification for Customer / Insured containing expert info AND nearest branch address
     const customerSmsText = `مشتری/بیمه‌گذار گرامی ${customerName}،
 پرونده خسارت شماره ${claimCase.id} به کارشناس رسمی میدانی جناب آقای/سرکار خانم ${fieldExpert.name} (همراه: ${fieldExpert.phone || '—'}) محول گردید.
-🏢 نزدیک‌ترین شعبه تخصصی پرداخت خسارت بر اساس آدرس حادثه شما:
+نزدیک‌ترین شعبه تخصصی پرداخت خسارت بر اساس آدرس حادثه شما:
 نام مرکز: ${branch.name}
 نشانی: ${branch.address}
 تلفن تماس: ${branch.phone}
@@ -797,7 +756,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
     if (!expert) return;
 
     if (isPreviousAssessor(expert.id)) {
-      alert('امکان ارجاع پرونده به ارزیاب اول/قبلی وجود ندارد! طبق مقررات بیمه مرکزی، پرونده‌های معترض باید به ارزیاب دیگری محول گردند.');
+      notifyApp('امکان ارجاع پرونده به ارزیاب اول/قبلی وجود ندارد! طبق مقررات بیمه مرکزی، پرونده‌های معترض باید به ارزیاب دیگری محول گردند.');
       return;
     }
 
@@ -889,7 +848,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
           targetParty: 'PARTY_ONE' as const,
           by: authorName,
           senderName: `${authorName} (نظارت بیمه)`,
-          text: `📌 [دستورالعمل نظارتی بیمه‌گر]: ${textToSend}`,
+          text: `[دستورالعمل نظارتی بیمه‌گر]: ${textToSend}`,
           at: nowFa
         }
       ],
@@ -1056,7 +1015,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
   }, [claimCase, culpritPartyTag, isP1Victim]);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-5 animate-in fade-in pb-16">
+    <div className="w-full max-w-[1880px] mx-auto space-y-5 animate-in fade-in pb-16">
       
       {/* Navigation & Insurer Branding Header */}
       <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm flex flex-wrap items-center justify-between gap-3">
@@ -1269,7 +1228,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                               {exp?.role || 'کارشناس ارزیاب رسمی خسارت'}
                             </p>
                             <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
-                              <span>امتیاز: {exp?.rating || 4.9} ⭐</span>
+                              <span className="inline-flex items-center gap-1">امتیاز: {exp?.rating || 4.9}<Star className="w-3 h-3 text-amber-500" /></span>
                               <span>•</span>
                               <span className="font-mono text-slate-700 font-bold">تلفن: {exp?.phone || '۰۹۱۲۰۰۰۰۰۰۰'}</span>
                             </div>
@@ -2910,7 +2869,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
 
                     <button
                       type="button"
-                      onClick={() => alert('استعلام آنلاین بیمه مرکزی (سنهاب) با موفقیت انجام شد و وضعیت بیمه‌نامه فعال تایید گردید.')}
+                      onClick={() => notifyApp('استعلام آنلاین بیمه مرکزی (سنهاب) با موفقیت انجام شد و وضعیت بیمه‌نامه فعال تایید گردید.')}
                       className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold shadow-2xs self-start sm:self-auto transition-all active:scale-95 flex items-center gap-1.5"
                     >
                       <RefreshCw className="w-3.5 h-3.5" />
@@ -3135,7 +3094,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                                   ]
                                 };
                                 onUpdateCase(updatedCase);
-                                alert('پیامک‌های رسمی ابلاغ سهم بیمه و بدهی مقصر به تلفن همراه طرفین ارسال شد.');
+                                notifyApp('پیامک‌های رسمی ابلاغ سهم بیمه و بدهی مقصر به تلفن همراه طرفین ارسال شد.');
                               }}
                               className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[11px] shadow-2xs flex items-center gap-1 active:scale-95 transition-all"
                             >
@@ -3191,7 +3150,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
               onClick={() => setPreviewImage(null)}
               className="absolute -top-12 right-0 text-white font-bold text-xs bg-slate-800/80 hover:bg-slate-700 px-4 py-2 rounded-xl border border-slate-600"
             >
-              ✕ بستن تصویر
+              <span className="inline-flex items-center gap-1.5"><X className="w-3.5 h-3.5" />بستن تصویر</span>
             </button>
           </div>
         </div>
@@ -3211,7 +3170,7 @@ ${noteText ? `📝 دستور بیمه‌گر: ${noteText}` : ''}
                 onClick={() => setShowReviewerReturnModal(false)}
                 className="text-slate-400 hover:text-slate-600 font-bold"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

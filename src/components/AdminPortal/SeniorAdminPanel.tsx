@@ -798,7 +798,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
 
       {/* Top Navigation Bar */}
       <header className="bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-40 px-4 sm:px-8 py-3.5 shadow-xs">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+        <div className="w-full max-w-[1880px] mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-blue-700 flex items-center justify-center shadow-md shadow-blue-900/20 text-white">
               <ShieldCheck className="w-6 h-6" />
@@ -840,7 +840,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
       </header>
 
       {/* Main Content Area */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-8 mt-6">
+      <main className="w-full max-w-[1880px] mx-auto px-4 sm:px-8 mt-6">
         {/* KPI High-Level Stats Bar */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           <div className="bg-white border-2 border-slate-200/90 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
@@ -1238,7 +1238,7 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                           <span className="text-slate-800 font-mono font-bold truncate max-w-[150px]">{req.adminEmail}</span>
                         </div>
                         <div className="pt-1 text-[11px] text-slate-500">
-                          🔑 با تایید این درخواست، پنل مدیریت شرکت برای این کد ملی فعال می‌گردد.
+                          با تایید این درخواست، پنل مدیریت شرکت برای این کد ملی فعال می‌گردد.
                         </div>
                       </div>
 
@@ -2292,11 +2292,11 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                     }}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-indigo-500"
                   >
-                    <option value="assessor">🟢 کارشناس ارزیاب خسارت آنلاین (Assessor)</option>
-                    <option value="reviewer">🔵 بازبین و تایید نهایی کیفیت (Reviewer)</option>
-                    <option value="fieldexpert">🟠 کارشناس بازدید میدانی و شعب (Field Inspector)</option>
-                    <option value="finance">🟣 مدیر مالی و تسویه خزانه‌داری (Finance)</option>
-                    <option value="crm">🟤 کارشناس امور مشتریان و شکایات (CRM & Support)</option>
+                    <option value="assessor">کارشناس ارزیاب خسارت آنلاین (Assessor)</option>
+                    <option value="reviewer">بازبین و تایید نهایی کیفیت (Reviewer)</option>
+                    <option value="fieldexpert">کارشناس بازدید میدانی و شعب (Field Inspector)</option>
+                    <option value="finance">مدیر مالی و تسویه خزانه‌داری (Finance)</option>
+                    <option value="crm">کارشناس امور مشتریان و شکایات (CRM & Support)</option>
                   </select>
                 </div>
               </div>

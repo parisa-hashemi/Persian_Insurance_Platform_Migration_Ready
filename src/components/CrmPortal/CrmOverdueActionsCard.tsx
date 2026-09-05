@@ -1,22 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import {
-  AlertTriangle,
-  Clock,
-  PhoneCall,
-  MessageSquare,
-  CheckCircle2,
-  FileSpreadsheet,
-  ArrowRight,
-  Send,
-  User,
-  Shield,
-  CreditCard,
-  Building2,
-  ChevronDown,
-  ChevronUp,
-  Sparkles,
-  ExternalLink
-} from 'lucide-react';
+import { AlertTriangle, Clock, PhoneCall, MessageSquare, CheckCircle2, FileSpreadsheet, ArrowRight, Send, User, Shield, CreditCard, Building2, ChevronDown, ChevronUp, Sparkles, ExternalLink, X } from 'lucide-react';
 import { ClaimCase, CrmFollowUpTask, UserSession, CustomerNotification } from '../../types';
 import { saveCustomerNotifications, loadCustomerNotifications } from '../../lib/storage';
 
@@ -41,6 +24,17 @@ export const CrmOverdueActionsCard: React.FC<CrmOverdueActionsCardProps> = ({
 }) => {
   const [filterType, setFilterType] = useState<'ALL' | 'EXPERT_REQUEST' | 'MISSING_IBAN' | 'MISSING_DOCS' | 'UNCONFIRMED'>('ALL');
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
+
+  // Locally dismissed / resolved overdue items persistence
+  const [locallyDismissedIds, setLocallyDismissedIds] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('claimflow_crm_dismissed_overdue');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {
+      console.error('Error reading dismissed overdue from storage:', e);
+    }
+    return [];
+  });
 
   // Quick SMS Modal State
   const [smsTargetCase, setSmsTargetCase] = useState<ClaimCase | null>(null);
@@ -71,8 +65,11 @@ export const CrmOverdueActionsCard: React.FC<CrmOverdueActionsCardProps> = ({
     // A. Cases with direct Expert Requests or Overdue Follow-up tasks
     followUps.forEach(task => {
       if (task.status === 'در انتظار انجام' || task.status === 'در حال پیگیری') {
+        if (locallyDismissedIds.includes(`task-${task.id}`) || locallyDismissedIds.includes(task.id) || (task.caseId && locallyDismissedIds.includes(task.caseId))) {
+          return;
+        }
         const cObj = cases.find(c => c.id === task.caseId);
-        if (cObj) {
+        if (cObj && !cObj.crmOverdueResolved) {
           list.push({
             id: `task-${task.id}`,
             caseId: task.caseId || cObj.id,
@@ -95,6 +92,11 @@ export const CrmOverdueActionsCard: React.FC<CrmOverdueActionsCardProps> = ({
 
     // B. System-detected Overdue Cases (Missing IBAN for payout)
     cases.forEach(c => {
+      // Check if case is already resolved from overdue or dismissed
+      if (c.crmOverdueResolved || locallyDismissedIds.includes(c.id) || locallyDismissedIds.includes(`auto-iban-${c.id}`) || locallyDismissedIds.includes(`auto-approval-${c.id}`) || locallyDismissedIds.includes(`auto-docs-${c.id}`)) {
+        return;
+      }
+
       const alreadyInList = list.some(item => item.caseId === c.id);
       if (alreadyInList) return;
 
@@ -150,7 +152,7 @@ export const CrmOverdueActionsCard: React.FC<CrmOverdueActionsCardProps> = ({
     });
 
     return list;
-  }, [cases, followUps]);
+  }, [cases, followUps, locallyDismissedIds]);
 
   // Filtered List
   const filteredOverdue = useMemo(() => {
@@ -199,11 +201,11 @@ export const CrmOverdueActionsCard: React.FC<CrmOverdueActionsCardProps> = ({
     const updatedHistory = [
       ...(smsTargetCase.history || []),
       {
-        date: new Date().toLocaleDateString('fa-IR'),
-        time: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
-        action: `ارسال پیامک یادآوری CRM به ${smsTargetName} (${smsTargetPhone}): «${smsCustomMessage.slice(0, 40)}...»`,
-        actor: session.name,
-        role: 'امور مشتریان'
+        status: smsTargetCase.status,
+        time: `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`,
+        user: `${session.name} (امور مشتریان)`,
+        userRole: 'CRM_SUPPORT',
+        note: `ارسال پیامک یادآوری CRM به ${smsTargetName} (${smsTargetPhone}): «${smsCustomMessage.slice(0, 40)}...»`
       }
     ];
 
@@ -219,6 +221,21 @@ export const CrmOverdueActionsCard: React.FC<CrmOverdueActionsCardProps> = ({
 
   // Mark Overdue Resolved
   const handleResolveItem = (item: typeof overdueItems[0]) => {
+    // 1. Add to dismissed IDs so it immediately leaves the UI list and persists
+    const toDismiss = [item.id, item.caseId];
+    if (item.matchedTask?.id) toDismiss.push(item.matchedTask.id, `task-${item.matchedTask.id}`);
+    
+    setLocallyDismissedIds(prev => {
+      const updated = Array.from(new Set([...prev, ...toDismiss]));
+      try {
+        localStorage.setItem('claimflow_crm_dismissed_overdue', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Error saving dismissed overdue to storage:', e);
+      }
+      return updated;
+    });
+
+    // 2. If matched task exists, update followUps
     if (item.matchedTask) {
       const updated = followUps.map(t => {
         if (t.id !== item.matchedTask?.id) return t;
@@ -232,21 +249,30 @@ export const CrmOverdueActionsCard: React.FC<CrmOverdueActionsCardProps> = ({
       onUpdateFollowUps(updated);
     }
 
+    // 3. Mark crmOverdueResolved on the authoritative ClaimCase
     const updatedHistory = [
       ...(item.caseObj.history || []),
       {
-        date: new Date().toLocaleDateString('fa-IR'),
-        time: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
-        action: `رفع وضعیت تعویق پرونده توسط امور مشتریان (${session.name})`,
-        actor: session.name,
-        role: 'امور مشتریان'
+        status: item.caseObj.status,
+        time: `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`,
+        user: `${session.name} (امور مشتریان)`,
+        userRole: 'CRM_SUPPORT',
+        note: `رفع وضعیت تعویق پرونده توسط امور مشتریان (${session.name})`
       }
     ];
 
-    onUpdateCase({
+    const updatedCaseObj: ClaimCase = {
       ...item.caseObj,
+      crmOverdueResolved: true,
+      crmOverdueResolvedAt: new Date().toISOString(),
+      crmOverdueResolvedBy: session.name,
       history: updatedHistory
-    });
+    };
+
+    onUpdateCase(updatedCaseObj);
+
+    // Notify CRM listeners
+    window.dispatchEvent(new CustomEvent('claimflow_crm_followups_updated'));
 
     setSuccessNotice(`پرونده ${item.caseId} از لیست اقدامات معوق خارج و رفع مانع گردید.`);
     setTimeout(() => setSuccessNotice(null), 4000);
@@ -396,7 +422,7 @@ export const CrmOverdueActionsCard: React.FC<CrmOverdueActionsCardProps> = ({
                   </div>
                   {item.requestedBy && (
                     <div className="flex items-center justify-between text-purple-900 text-[10px] pt-1 border-t border-slate-100 font-bold">
-                      <span>👤 تقاضای پیگیری از: {item.requestedBy}</span>
+                      <span className="inline-flex items-center gap-1"><User className="w-3 h-3" />تقاضای پیگیری از: {item.requestedBy}</span>
                       <span>({item.requestedRole || 'کارشناس ارزیاب'})</span>
                     </div>
                   )}
@@ -458,7 +484,7 @@ export const CrmOverdueActionsCard: React.FC<CrmOverdueActionsCardProps> = ({
                 onClick={() => setSmsTargetCase(null)}
                 className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

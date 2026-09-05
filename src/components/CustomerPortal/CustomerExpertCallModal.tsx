@@ -69,8 +69,8 @@ export const CustomerExpertCallModal: React.FC<CustomerExpertCallModalProps> = (
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border-2 border-slate-200 space-y-5 animate-in zoom-in-95">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto" dir="rtl">
+      <div className="bg-white rounded-3xl p-4 sm:p-6 sm:p-7 max-w-md w-full shadow-2xl border-2 border-slate-200 space-y-5 animate-in zoom-in-95">
         
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">

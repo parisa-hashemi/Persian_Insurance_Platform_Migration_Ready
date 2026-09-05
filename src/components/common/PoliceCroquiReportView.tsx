@@ -1,21 +1,5 @@
 import React, { useState } from 'react';
-import {
-  ShieldCheck,
-  FileText,
-  Calendar,
-  Clock,
-  MapPin,
-  Car,
-  AlertTriangle,
-  CheckCircle2,
-  User,
-  Building2,
-  ExternalLink,
-  Maximize2,
-  FileCheck,
-  Compass,
-  SunMedium
-} from 'lucide-react';
+import { ShieldCheck, FileText, Calendar, Clock, MapPin, Car, AlertTriangle, CheckCircle2, User, Building2, ExternalLink, Maximize2, FileCheck, Compass, SunMedium, X } from 'lucide-react';
 import { ClaimCase } from '../../types';
 import { getStandardPoliceReport, StandardPoliceReportData } from '../../lib/policeCroquiHelper';
 
@@ -295,7 +279,7 @@ export const PoliceCroquiReportView: React.FC<PoliceCroquiReportViewProps> = ({
 
       {/* Modal Zoom */}
       {zoomImage && (
-        <div className="fixed inset-0 bg-slate-950/90 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/90 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="relative max-w-4xl w-full bg-white rounded-3xl p-4 space-y-3">
             <div className="flex items-center justify-between pb-2 border-b border-slate-200">
               <span className="font-bold text-sm text-slate-900">تصویر کروکی پلیس راهور ({data.reportCode})</span>
@@ -303,7 +287,7 @@ export const PoliceCroquiReportView: React.FC<PoliceCroquiReportViewProps> = ({
                 onClick={() => setZoomImage(null)}
                 className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
             <div className="max-h-[75vh] overflow-auto flex items-center justify-center">

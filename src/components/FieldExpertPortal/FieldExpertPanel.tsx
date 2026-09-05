@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
+import { notifyApp } from '../../lib/appNotify';
 import {
   MapPin,
   Car,
@@ -523,7 +524,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   const handleSaveDraft = () => {
     if (!selectedCase) return;
     if (isCaseReadOnly) {
-      alert('این پرونده نهایی شده یا رد شده است و امکان تغییر ندارد.');
+      notifyApp('این پرونده نهایی شده یا رد شده است و امکان تغییر ندارد.');
       return;
     }
 
@@ -762,7 +763,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       setCustomPartName('');
     }
     setPartNoteInput('');
-    showPartAddedToast(`✓ قطعه «${finalPartName}» با موفقیت به لیست خسارت افزوده شد.`);
+    showPartAddedToast(`قطعه «${finalPartName}» با موفقیت به لیست خسارت افزوده شد.`);
   };
 
   // Remove Part
@@ -839,7 +840,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   const handleSubmitDirectToInsurer = () => {
     if (!selectedCase) return;
     if (isCaseReadOnly) {
-      alert('این پرونده نهایی شده یا رد شده است و امکان ارسال مجدد ندارد.');
+      notifyApp('این پرونده نهایی شده یا رد شده است و امکان ارسال مجدد ندارد.');
       return;
     }
 
@@ -941,7 +942,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
     <div className="space-y-6 pb-12 animate-in fade-in" dir="rtl">
       {/* Top Banner & Header */}
       <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-indigo-600 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-emerald-700/50 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-[min(24rem,calc(100vw-1.5rem))] h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
@@ -1074,7 +1075,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
           {/* Cases Grid */}
           {currentList.length === 0 ? (
-            <div className="bg-white rounded-3xl p-12 text-center space-y-3 border border-slate-200 shadow-xs">
+            <div className="bg-white rounded-3xl p-6 sm:p-12 text-center space-y-3 border border-slate-200 shadow-xs">
               <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
                 <FileText className="w-7 h-7" />
               </div>
@@ -1208,7 +1209,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     {/* Action Buttons */}
                     <div className="space-y-2 pt-2 border-t border-slate-100">
                       {activeTab === 'new_assignments' && (
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <button
                             onClick={() => handleAcceptMission(c)}
                             className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95 transition-all cursor-pointer"
@@ -1723,7 +1724,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-black">✅ اصالت تایید گردید</span>
+                      <span className="text-xs font-black">اصالت تایید گردید</span>
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                     </div>
                     <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
@@ -1744,7 +1745,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-black">⚠️ عدم انطباق بخشی از خسارت</span>
+                      <span className="text-xs font-black">عدم انطباق بخشی از خسارت</span>
                       <AlertTriangle className="w-4 h-4 text-amber-600" />
                     </div>
                     <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
@@ -1765,7 +1766,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-black">❌ تصادف صوری (رد خسارت)</span>
+                      <span className="text-xs font-black">تصادف صوری (رد خسارت)</span>
                       <XCircle className="w-4 h-4 text-rose-600" />
                     </div>
                     <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
@@ -1990,9 +1991,9 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                         onChange={(e) => setPartSeverity(e.target.value as any)}
                         className="w-full px-3 py-2 rounded-xl border border-slate-300 font-bold bg-white text-slate-800"
                       >
-                        <option value="major">🔴 شدید / تعویض (قرمز)</option>
-                        <option value="moderate">🟠 متوسط / صافکاری و رنگ (نارنجی)</option>
-                        <option value="minor">🟡 جزئی / خط و خش (زرد)</option>
+                        <option value="major">شدید / تعویض (قرمز)</option>
+                        <option value="moderate">متوسط / صافکاری و رنگ (نارنجی)</option>
+                        <option value="minor">جزئی / خط و خش (زرد)</option>
                       </select>
                     </div>
 
@@ -2298,7 +2299,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 </div>
 
                 {fieldPhotos.length === 0 ? (
-                  <div className="p-8 text-center bg-slate-50 rounded-3xl border border-slate-200 text-xs text-slate-400 font-bold">
+                  <div className="p-5 sm:p-8 text-center bg-slate-50 rounded-3xl border border-slate-200 text-xs text-slate-400 font-bold">
                     هنوز عکسی بارگذاری نشده است.
                   </div>
                 ) : (
@@ -2468,7 +2469,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       <button
                         type="button"
                         onClick={handleSubmitDirectToInsurer}
-                        className="px-8 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-lg shadow-emerald-600/30 flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+                        className="px-4 sm:px-8 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-lg shadow-emerald-600/30 flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
                       >
                         <Send className="w-5 h-5" />
                         <span>تایید نهایی گزارش میدانی و ارسال به بیمه‌گر جهت تسویه</span>
@@ -2489,7 +2490,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
       {/* SMS & NOTIFICATIONS MODAL */}
       {showSmsModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in zoom-in-95 border-2 border-emerald-400">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -2511,13 +2512,13 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 onClick={() => setShowSmsModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1 text-xs">
               {myNotifications.length === 0 ? (
-                <div className="p-8 text-center text-slate-400 font-bold">
+                <div className="p-5 sm:p-8 text-center text-slate-400 font-bold">
                   پیامک جدیدی دریافت نشده است.
                 </div>
               ) : (
@@ -2556,7 +2557,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
       {/* REJECT MISSION MODAL */}
       {showRejectModal && caseToReject && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95 border-2 border-rose-300">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2 text-rose-700">
@@ -2567,7 +2568,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 onClick={() => setShowRejectModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -2626,14 +2627,14 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       {previewPhotoUrl && (
         <div
           onClick={() => setPreviewPhotoUrl(null)}
-          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 cursor-pointer"
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 cursor-pointer overflow-y-auto"
         >
           <div className="relative max-w-3xl w-full max-h-[90vh] bg-slate-900 p-2 rounded-3xl overflow-hidden shadow-2xl">
             <button
               onClick={() => setPreviewPhotoUrl(null)}
               className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-slate-800 text-white font-bold text-sm flex items-center justify-center border border-slate-700 hover:bg-slate-700 cursor-pointer"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
             <img src={previewPhotoUrl} alt="Document Preview" className="w-full h-auto max-h-[80vh] object-contain mx-auto rounded-2xl" />
           </div>
@@ -2642,7 +2643,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
       {/* INSURER NOTE MODAL: دستورالعمل و توضیحات شرکت بیمه‌گر به کارشناس میدانی */}
       {insurerNoteModalCase && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl space-y-6 border border-slate-200 animate-in zoom-in-95 text-slate-900 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -2658,7 +2659,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 onClick={() => setInsurerNoteModalCase(null)}
                 className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

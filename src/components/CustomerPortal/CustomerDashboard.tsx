@@ -313,11 +313,11 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in" dir="rtl">
+    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in" dir="rtl">
       
       {/* Iranian Enterprise Portal User Header Card */}
-      <div className="bg-white border-2 border-blue-200 rounded-3xl p-6 text-slate-900 shadow-md relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-white border-2 border-blue-200 rounded-3xl p-4 sm:p-6 text-slate-900 shadow-md relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-[min(24rem,calc(100vw-1.5rem))] h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
         
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           
@@ -376,7 +376,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 setActiveTab('cases');
                 setFinancialFilter('all');
               }}
-              className="p-3.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl text-center min-w-[100px] transition-all shadow-sm cursor-pointer"
+              className="p-3.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl text-center flex-1 min-w-[88px] transition-all shadow-sm cursor-pointer"
             >
               <span className="block text-xl font-black text-amber-900 font-mono">
                 {myCases.length}
@@ -391,7 +391,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 setActiveTab('cases');
                 setFinancialFilter('debts_and_receivables');
               }}
-              className="p-3.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-2xl text-center min-w-[110px] transition-all shadow-sm cursor-pointer"
+              className="p-3.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-2xl text-center flex-1 min-w-[96px] transition-all shadow-sm cursor-pointer"
               title="مشاهده پرونده‌های دارای بدهی و طلب مالی"
             >
               <div className="flex items-center justify-center gap-1">
@@ -410,7 +410,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 setActiveTab('cases');
                 setFinancialFilter('all');
               }}
-              className="p-3.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl text-center min-w-[100px] transition-all shadow-sm cursor-pointer"
+              className="p-3.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl text-center flex-1 min-w-[88px] transition-all shadow-sm cursor-pointer"
             >
               <span className="block text-xl font-black text-blue-900 font-mono">
                 {activeClaimsCount}
@@ -562,7 +562,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
           {/* Quick Financial Debt/Receivable Spotlight Banner */}
           {(totalReceivablesFromCulprit > 0 || totalDebtsToVictim > 0 || totalReceivablesFromInsurer > 0) && (
-            <div className="bg-gradient-to-r from-slate-900 via-blue-600 to-indigo-600 text-white rounded-3xl p-6 shadow-md border border-slate-800 space-y-4">
+            <div className="bg-gradient-to-r from-slate-900 via-blue-600 to-indigo-600 text-white rounded-3xl p-4 sm:p-6 shadow-md border border-slate-800 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2.5 rounded-2xl bg-amber-400/20 text-amber-300 border border-amber-400/30">
@@ -795,7 +795,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
           {/* EMPTY STATE IF NO CASES */}
           {myCases.length === 0 ? (
-            <div className="py-12 px-4 text-center bg-blue-50/60 border border-blue-200 rounded-2xl space-y-4 max-w-lg mx-auto">
+            <div className="py-7 sm:py-12 px-4 text-center bg-blue-50/60 border border-blue-200 rounded-2xl space-y-4 max-w-lg mx-auto">
               <div className="w-16 h-16 rounded-3xl bg-amber-100 border border-amber-300 flex items-center justify-center mx-auto text-amber-900 shadow-sm">
                 <FolderSearch className="w-8 h-8" />
               </div>
@@ -809,7 +809,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               </div>
               <button
                 onClick={onStartWizard}
-                className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md border border-blue-300 transition-all flex items-center justify-center gap-2 mx-auto active:scale-95 cursor-pointer"
+                className="w-full sm:w-auto justify-center px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md border border-blue-300 transition-all flex items-center justify-center gap-2 mx-auto active:scale-95 cursor-pointer"
               >
                 <CarFront className="w-4 h-4" />
                 <span>ثبت آنلاین تصادف جدید</span>
@@ -817,7 +817,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
             </div>
           ) : filteredCases.length === 0 ? (
             /* SEARCH / FILTER RESULT EMPTY */
-            <div className="py-10 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+            <div className="py-6 sm:py-10 text-center text-slate-500 text-xs bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
               <AlertCircle className="w-8 h-8 mx-auto text-slate-400" />
               <p className="font-bold text-slate-700">هیچ پرونده‌ای با معیارهای انتخابی یافت نشد.</p>
               <p className="text-[11px] text-slate-500">می‌توانید فیلتر را بر روی «همه پرونده‌ها» قرار دهید.</p>
@@ -883,7 +883,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                   <div
                     key={c.id}
                     onClick={() => onOpenCaseDetail(c.id)}
-                    className="bg-white border-2 border-slate-200 hover:border-blue-500 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer space-y-4 group relative"
+                    className="bg-white border-2 border-slate-200 hover:border-blue-500 rounded-2xl p-4 sm:p-5 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer space-y-4 group relative"
                   >
                     {/* Card Top Row: Tracking code + Status Badge */}
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -1047,7 +1047,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                             <button
                               type="button"
                               onClick={(e) => copyPhoneNumber(culpritPhone, e)}
-                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors cursor-pointer"
                               title="کپی شماره تماس"
                             >
                               {copiedPhoneText === culpritPhone ? (
@@ -1084,7 +1084,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                             <button
                               type="button"
                               onClick={(e) => copyPhoneNumber(victimPhone, e)}
-                              className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors cursor-pointer"
+                              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors cursor-pointer"
                               title="کپی شماره تماس"
                             >
                               {copiedPhoneText === victimPhone ? (
@@ -1180,7 +1180,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           <form onSubmit={handleSaveProfile} className="space-y-6">
             
             {/* AVATAR UPLOAD & SELECTION SECTION */}
-            <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-5 space-y-4">
+            <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-4 sm:p-5 space-y-4">
               <label className="block text-xs font-bold text-blue-900">
                 تصویر پروفایل
               </label>
@@ -1196,7 +1196,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                       className="w-24 h-24 rounded-3xl object-cover border-2 border-blue-400 shadow-md"
                     />
                   ) : (
-                    <div className="w-24 h-24 rounded-3xl bg-blue-600 text-white font-black text-4xl flex items-center justify-center border-2 border-blue-300 shadow-md">
+                    <div className="w-24 h-24 rounded-3xl bg-blue-600 text-white font-black text-2xl sm:text-4xl flex items-center justify-center border-2 border-blue-300 shadow-md">
                       {profName ? profName.charAt(0) : 'ک'}
                     </div>
                   )}

@@ -247,7 +247,7 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
       sender: 'AGENT' as const,
       senderName: `${session.name} (تماس تلفنی امور مشتریان)`,
       senderRole: 'کارشناس امور مشتریان',
-      text: `📞 تماس تلفنی با مشتری (${activeTicket.customerPhone}) برقرار شد.\nخلاصه مکالمه: ${callNotes.trim()}${callResolved ? '\n(وضعیت: در مکالمه رفع ابهام شد)' : ''}`,
+      text: `تماس تلفنی با مشتری (${activeTicket.customerPhone}) برقرار شد.\nخلاصه مکالمه: ${callNotes.trim()}${callResolved ? '\n(وضعیت: در مکالمه رفع ابهام شد)' : ''}`,
       time: nowStr
     };
 
@@ -285,7 +285,7 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
       sender: 'AGENT' as const,
       senderName: `${session.name} (پیامک به مشتری)`,
       senderRole: 'سامانه پیامک امور مشتریان',
-      text: `📱 پیامک ارسال‌شده به شماره ${activeTicket.customerPhone}:\n«${customerSmsText.trim()}»`,
+      text: `پیامک ارسال‌شده به شماره ${activeTicket.customerPhone}:\n«${customerSmsText.trim()}»`,
       time: nowStr
     };
 
@@ -326,18 +326,18 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
 
     const nowStr = `${new Date().toLocaleDateString('fa-IR')} ${new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}`;
 
-    const branchReferralText = `🏢 دستور و راهنمای مراجعه حضوری به شعبه:
+    const branchReferralText = `دستور و راهنمای مراجعه حضوری به شعبه:
 مشتری گرامی (${activeTicket.customerName})،
 جهت رسیدگی نهایی به پرونده (${activeTicket.caseId || 'خسارت'})، لطفاً با همراه داشتن مدارک زیر به شعبه خسارت مراجعه فرمایید:
 
-📍 نام شعبه: ${branch.name}
-📍 آدرس: ${branch.address}
-☎️ تلفن شعبه: ${branch.phone}
+نام شعبه: ${branch.name}
+آدرس: ${branch.address}
+تلفن شعبه: ${branch.phone}
 ⏰ زمان مراجعه: ${referralDate}
 
-📋 مدارک الزامی همراه داشتن:
+مدارک الزامی همراه داشتن:
 ${referralRequiredDocs.map(d => `• ${d}`).join('\n')}
-${referralNote.trim() ? `\n📝 نکات مهم: ${referralNote.trim()}` : ''}
+${referralNote.trim() ? `\nنکات مهم: ${referralNote.trim()}` : ''}
 
 کارشناس امور مشتریان: ${session.name}`;
 

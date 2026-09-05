@@ -19,6 +19,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { CarDamageSpot } from '../types';
+import Car3DModel from './Car3DModel';
 
 export interface CarPartDefinition {
   key: string;
@@ -72,6 +73,14 @@ export const ALL_INSPECTION_PARTS: CarPartDefinition[] = [
   { key: 'rocker_r', label: 'رکاب راست', category: 'chassis_pillar', groupLabel: 'شاسی و ستون', x3d: 75, y3d: 25, z3d: -15, cx2d: 89, cy2d: 50 }
 ];
 
+const PART_LABELS: Record<string, string> = ALL_INSPECTION_PARTS.reduce(
+  (acc, p) => {
+    acc[p.key] = p.label;
+    return acc;
+  },
+  {} as Record<string, string>
+);
+
 export interface Car3DViewerProps {
   caseId: string;
   damageData?: Record<string, CarDamageSpot>;
@@ -98,37 +107,6 @@ export const Car3DViewer: React.FC<Car3DViewerProps> = ({
   const [formType, setFormType] = useState<string>('خط و خش و دفرمگی');
   const [formOperation, setFormOperation] = useState<string>('صافکاری و نقاشی');
   const [formNote, setFormNote] = useState<string>('');
-
-  // 3D Controls
-  const [rotY, setRotY] = useState(-32);
-  const [rotX, setRotX] = useState(-16);
-  const [zoom, setZoom] = useState(0.85);
-  const [isDragging, setIsDragging] = useState(false);
-  const lastPos = useRef({ x: 0, y: 0 });
-
-  const handleMouseDown = (e: React.MouseEvent) => {
-    setIsDragging(true);
-    lastPos.current = { x: e.clientX, y: e.clientY };
-  };
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!isDragging) return;
-    const dx = e.clientX - lastPos.current.x;
-    const dy = e.clientY - lastPos.current.y;
-    lastPos.current = { x: e.clientX, y: e.clientY };
-    setRotY((prev) => prev + dx * 0.6);
-    setRotX((prev) => Math.max(-45, Math.min(45, prev - dy * 0.4)));
-  };
-
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  const handleReset3D = () => {
-    setRotY(-32);
-    setRotX(-16);
-    setZoom(0.85);
-  };
 
   const handleSelectPart = (partKey: string) => {
     setActivePartKey(partKey);
@@ -429,171 +407,13 @@ export const Car3DViewer: React.FC<Car3DViewerProps> = ({
               </div>
             </div>
           ) : (
-            /* 3D ORBIT VIEW MODE */
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs text-slate-500 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-                <span>برای چرخش زاویه دید، ماوس را روی خودرو درگ نمایید.</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setRotY((prev) => prev - 30)}
-                    className="p-1.5 hover:bg-white rounded-lg text-slate-700 font-bold"
-                    title="چرخش چپ"
-                  >
-                    <RotateCw className="w-3.5 h-3.5 transform -scale-x-100" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRotY((prev) => prev + 30)}
-                    className="p-1.5 hover:bg-white rounded-lg text-slate-700 font-bold"
-                    title="چرخش راست"
-                  >
-                    <RotateCw className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setZoom((prev) => Math.min(1.4, prev + 0.15))}
-                    className="p-1.5 hover:bg-white rounded-lg text-slate-700 font-bold"
-                    title="بزرگ‌نمایی"
-                  >
-                    <ZoomIn className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setZoom((prev) => Math.max(0.5, prev - 0.15))}
-                    className="p-1.5 hover:bg-white rounded-lg text-slate-700 font-bold"
-                    title="کوچک‌نمایی"
-                  >
-                    <ZoomOut className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleReset3D}
-                    className="p-1.5 hover:bg-white rounded-lg text-slate-700 font-bold"
-                    title="ریست"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              <div
-                className="relative w-full h-[360px] bg-gradient-to-b from-slate-100 via-slate-200 to-slate-300 rounded-3xl overflow-hidden cursor-grab active:cursor-grabbing select-none flex items-center justify-center border-2 border-slate-200"
-                style={{ perspective: '1100px' }}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-              >
-                <div
-                  className="absolute transform-gpu transition-transform duration-75"
-                  style={{
-                    transform: `scale(${zoom}) rotateX(${rotX}deg) rotateY(${rotY}deg)`,
-                    transformStyle: 'preserve-3d',
-                  }}
-                >
-                  {/* Main Chassis Box */}
-                  <div
-                    className="absolute bg-slate-300 border border-slate-400/80 shadow-inner"
-                    style={{
-                      width: '180px',
-                      height: '50px',
-                      marginLeft: '-90px',
-                      marginTop: '-25px',
-                      transform: 'translate3d(0, 10px, 0)',
-                    }}
-                  />
-
-                  {/* Cabin Top */}
-                  <div
-                    className="absolute bg-slate-800 border border-slate-700/80 shadow-md"
-                    style={{
-                      width: '144px',
-                      height: '52px',
-                      marginLeft: '-72px',
-                      marginTop: '-26px',
-                      transform: 'translate3d(0, -42px, -10px)',
-                    }}
-                  />
-
-                  {/* Hood */}
-                  <div
-                    className="absolute bg-slate-200 border border-slate-300"
-                    style={{
-                      width: '170px',
-                      height: '18px',
-                      marginLeft: '-85px',
-                      marginTop: '-9px',
-                      transform: 'translate3d(0, -26px, 125px)',
-                    }}
-                  />
-
-                  {/* Trunk */}
-                  <div
-                    className="absolute bg-slate-200 border border-slate-300"
-                    style={{
-                      width: '170px',
-                      height: '18px',
-                      marginLeft: '-85px',
-                      marginTop: '-9px',
-                      transform: 'translate3d(0, -26px, -140px)',
-                    }}
-                  />
-
-                  {/* Wheels */}
-                  {[-80, 80].map((x) =>
-                    [100, -100].map((z) => (
-                      <div
-                        key={`${x}-${z}`}
-                        className="absolute w-12 h-12 rounded-full bg-slate-800 border-2 border-slate-600 shadow-md flex items-center justify-center"
-                        style={{
-                          transform: `translate3d(${x}px, 30px, ${z}px) rotateY(90deg)`,
-                        }}
-                      >
-                        <div className="w-5 h-5 rounded-full bg-slate-400" />
-                      </div>
-                    ))
-                  )}
-
-                  {/* 3D Clickable Hotspots */}
-                  {ALL_INSPECTION_PARTS.map((part) => {
-                    const spot = damageData[part.key];
-                    const isSelected = activePartKey === part.key;
-                    const isMajor = spot?.severity === 'major' || spot?.color === 'red';
-                    const isMod = spot?.severity === 'moderate' || spot?.color === 'orange';
-                    const isMinor = spot?.severity === 'minor' || spot?.color === 'yellow';
-
-                    return (
-                      <button
-                        key={part.key}
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSelectPart(part.key);
-                        }}
-                        className={`absolute w-7 h-7 rounded-full border-2 flex items-center justify-center font-black text-[11px] shadow-lg transition-transform hover:scale-125 z-30 ${
-                          isMajor
-                            ? 'bg-rose-600 border-rose-950 text-white animate-pulse ring-4 ring-rose-200'
-                            : isMod
-                            ? 'bg-amber-500 border-amber-900 text-white ring-4 ring-amber-200'
-                            : isMinor
-                            ? 'bg-yellow-400 border-yellow-800 text-yellow-950 ring-4 ring-yellow-200'
-                            : isSelected
-                            ? 'bg-indigo-600 border-indigo-950 text-white ring-4 ring-indigo-200'
-                            : 'bg-white border-slate-400 text-slate-700 hover:border-indigo-600'
-                        }`}
-                        style={{
-                          transform: `translate3d(${part.x3d}px, ${part.y3d}px, ${part.z3d}px) rotateY(${-rotY}deg) rotateX(${-rotX}deg) translate(-50%, -50%)`,
-                        }}
-                        title={`${part.label}${spot ? ` (${spot.type})` : ''}`}
-                      >
-                        {spot && spot.severity !== 'none' ? '!' : '+'}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+            /* 3D ORBIT VIEW MODE — مدل واقعی three.js */
+            <Car3DModel
+              damageData={damageData}
+              activePartKey={activePartKey}
+              onSelectPart={handleSelectPart}
+              partLabels={PART_LABELS}
+            />
           )}
         </div>
 
@@ -615,7 +435,7 @@ export const Car3DViewer: React.FC<Car3DViewerProps> = ({
             {/* Damage Details & Explanations Display */}
             {activeSpot && activeSpot.severity !== 'none' ? (
               <div className="space-y-2.5 text-xs">
-                <div className="grid grid-cols-2 gap-2 bg-white/10 p-3 rounded-2xl border border-white/10">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white/10 p-3 rounded-2xl border border-white/10">
                   <div>
                     <span className="text-slate-300 text-[10px] block">نوع آسیب‌دیدگی:</span>
                     <strong className="text-white font-bold">{activeSpot.type || 'ثبت شده'}</strong>
@@ -793,7 +613,7 @@ export const Car3DViewer: React.FC<Car3DViewerProps> = ({
 
       {/* EDIT MODAL / DRAWER (ONLY FOR ASSESSOR WHEN EDITING) */}
       {editable && editingPartKey && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl border-2 border-purple-300 shadow-2xl max-w-lg w-full p-5 sm:p-6 space-y-5 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">

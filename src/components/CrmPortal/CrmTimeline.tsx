@@ -1,18 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import {
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
-  FileText,
-  PhoneCall,
-  MessageSquare,
-  Shield,
-  CreditCard,
-  User,
-  Filter,
-  Layers,
-  ChevronDown
-} from 'lucide-react';
+import { Clock, CheckCircle2, AlertTriangle, FileText, PhoneCall, MessageSquare, Shield, CreditCard, User, Filter, Layers, ChevronDown, Lock } from 'lucide-react';
 import { ClaimCase, CustomerTicket, CustomerCallLog, CrmFollowUpTask } from '../../types';
 
 interface CrmTimelineProps {
@@ -242,7 +229,7 @@ export const CrmTimeline: React.FC<CrmTimelineProps> = ({
                 : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
             }`}
           >
-            {onlyCustomerSafe ? '✓ فقط رویدادهای قابل اعلام به مشتری' : 'نمایش همه رویدادها (شامل یادداشت‌های داخلی)'}
+            {onlyCustomerSafe ? 'فقط رویدادهای قابل اعلام به مشتری' : 'نمایش همه رویدادها (شامل یادداشت‌های داخلی)'}
           </button>
         </div>
       </div>
@@ -275,7 +262,7 @@ export const CrmTimeline: React.FC<CrmTimelineProps> = ({
                   </span>
                   {!item.isCustomerSafe && (
                     <span className="text-amber-800 font-bold text-[10px] bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                      🔒 یادداشت محرمانه داخلی CRM
+                      <span className="inline-flex items-center gap-1"><Lock className="w-3 h-3" />یادداشت محرمانه داخلی CRM</span>
                     </span>
                   )}
                 </div>

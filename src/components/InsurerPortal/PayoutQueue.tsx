@@ -57,7 +57,7 @@ export const PayoutQueue: React.FC<PayoutQueueProps> = ({
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in">
+    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in">
       <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-2">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-900 flex items-center justify-center font-bold border border-emerald-200">

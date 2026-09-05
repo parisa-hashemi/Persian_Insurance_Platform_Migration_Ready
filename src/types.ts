@@ -438,6 +438,9 @@ export interface ClaimCase {
   isBodily?: boolean;
   bodilyClaimId?: string;
   parentCaseId?: string;
+  crmOverdueResolved?: boolean;
+  crmOverdueResolvedAt?: string;
+  crmOverdueResolvedBy?: string;
   bodilyFaultPercent?: number;
   history?: HistoryEntry[];
   createdAt?: string;

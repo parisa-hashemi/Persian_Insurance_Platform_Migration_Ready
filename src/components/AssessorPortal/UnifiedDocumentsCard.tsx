@@ -7,28 +7,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import {
-  FileText,
-  Image as ImageIcon,
-  Mic,
-  Film,
-  Maximize2,
-  ChevronDown,
-  ChevronUp,
-  Sparkles,
-  Volume2,
-  VolumeX,
-  Play,
-  Pause,
-  ExternalLink,
-  ShieldCheck,
-  Calendar,
-  User,
-  HardDrive,
-  Eye,
-  CheckCircle2,
-  AlertCircle
-} from 'lucide-react';
+import { FileText, Image as ImageIcon, Mic, Film, Maximize2, ChevronDown, ChevronUp, Sparkles, Volume2, VolumeX, Play, Pause, ExternalLink, ShieldCheck, Calendar, User, HardDrive, Eye, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { ClaimCase, MediaFile, AdditionalDocItem } from '../../types';
 import { AIResult, EvidenceIntelligenceResult } from '../../lib/ai/types';
 import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
@@ -579,7 +558,7 @@ export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
               })}
             </div>
           ) : (
-            <div className="p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-1">
+            <div className="p-5 sm:p-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-1">
               <AlertCircle className="w-6 h-6 text-slate-400 mx-auto" />
               <p className="text-xs text-slate-600 font-bold">فایلی در این دسته‌بندی یافت نشد.</p>
             </div>
@@ -589,7 +568,7 @@ export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
 
       {/* Local Fallback Preview Modal (if parent doesn't handle modal) */}
       {localPreviewModal && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in zoom-in-95">
             <div className="p-4 border-b border-slate-200 flex items-center justify-between">
               <h4 className="font-extrabold text-slate-900 text-sm">{localPreviewModal.title}</h4>
@@ -598,7 +577,7 @@ export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
                 onClick={() => setLocalPreviewModal(null)}
                 className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
               >
-                ✕ بستن
+                <span className="inline-flex items-center gap-1.5"><X className="w-3.5 h-3.5" />بستن</span>
               </button>
             </div>
 

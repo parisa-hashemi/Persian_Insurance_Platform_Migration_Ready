@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { notifyApp } from '../../lib/appNotify';
 import {
   Bell,
   Send,
@@ -26,7 +27,8 @@ import {
   StaffMember,
   AssessorNotification,
   CrmFollowUpTask,
-  CustomerCallLog
+  CustomerCallLog,
+  InsurerInfo
 } from '../../types';
 import {
   loadExpertsFromStorage,
@@ -57,11 +59,45 @@ export const CrmExpertMessenger: React.FC<CrmExpertMessengerProps> = ({
   onSelectCase,
   onLogCallWithCustomer
 }) => {
-  // 1. Load All Staff Members across categories
-  const insurers = useMemo(() => loadInsurersFromStorage(), []);
+  // 1. Load All Insurance Companies & Staff Members
+  const [insurers, setInsurers] = useState<InsurerInfo[]>(() => loadInsurersFromStorage());
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      setInsurers(loadInsurersFromStorage());
+    };
+    window.addEventListener('claimflow_insurers_updated', handleUpdate);
+    return () => window.removeEventListener('claimflow_insurers_updated', handleUpdate);
+  }, []);
+
   const expertsMap = useMemo(() => loadExpertsFromStorage(), []);
   const fieldExpertsMap = useMemo(() => loadFieldExpertsFromStorage(), []);
   const reviewersMap = useMemo(() => loadReviewersFromStorage(), []);
+
+  // Ensure all companies present in staff maps are also in the insurers list
+  const allAvailableInsurers = useMemo(() => {
+    const list = [...insurers];
+    const knownCodes = new Set(list.map(i => i.code.toLowerCase()));
+
+    const staffCodes = [
+      ...Object.keys(expertsMap),
+      ...Object.keys(fieldExpertsMap),
+      ...Object.keys(reviewersMap)
+    ];
+
+    staffCodes.forEach(code => {
+      if (code && !knownCodes.has(code.toLowerCase())) {
+        knownCodes.add(code.toLowerCase());
+        list.push({
+          code,
+          name: getInsurerPersianName(code),
+          defaultPassword: '1234'
+        });
+      }
+    });
+
+    return list;
+  }, [insurers, expertsMap, fieldExpertsMap, reviewersMap]);
 
   // Flatten Staff List
   const allStaff = useMemo(() => {
@@ -144,7 +180,12 @@ export const CrmExpertMessenger: React.FC<CrmExpertMessengerProps> = ({
   const filteredStaff = useMemo(() => {
     return allStaff.filter(s => {
       if (roleCategoryFilter !== 'ALL' && s.roleCategory !== roleCategoryFilter) return false;
-      if (selectedCompanyFilter !== 'ALL' && s.companyCode !== selectedCompanyFilter) return false;
+      if (selectedCompanyFilter !== 'ALL') {
+        const matchCode = s.companyCode.toLowerCase() === selectedCompanyFilter.toLowerCase();
+        const filterPersian = getInsurerPersianName(selectedCompanyFilter);
+        const staffPersian = s.companyName || getInsurerPersianName(s.companyCode);
+        if (!matchCode && staffPersian !== filterPersian) return false;
+      }
       if (staffSearchQuery.trim()) {
         const q = staffSearchQuery.toLowerCase();
         return s.name.toLowerCase().includes(q) || s.phone.includes(q) || s.companyName.toLowerCase().includes(q);
@@ -189,7 +230,7 @@ export const CrmExpertMessenger: React.FC<CrmExpertMessengerProps> = ({
   const handleSendMessageToBell = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedExpertId || !msgTitle.trim() || !msgBody.trim()) {
-      alert('لطفاً کارشناس مقصد، عنوان و متن پیام را وارد فرمایید.');
+      notifyApp('لطفاً کارشناس مقصد، عنوان و متن پیام را وارد فرمایید.');
       return;
     }
 
@@ -347,8 +388,10 @@ export const CrmExpertMessenger: React.FC<CrmExpertMessengerProps> = ({
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-purple-600"
                 >
                   <option value="ALL">همه شرکت‌های بیمه</option>
-                  {insurers.map(ins => (
-                    <option key={ins.code} value={ins.code}>{ins.nameFa}</option>
+                  {allAvailableInsurers.map(ins => (
+                    <option key={ins.code} value={ins.code}>
+                      {ins.name || getInsurerPersianName(ins.code)}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -558,7 +601,7 @@ export const CrmExpertMessenger: React.FC<CrmExpertMessengerProps> = ({
                     {/* Requester Details */}
                     <div className="p-2.5 bg-white rounded-xl border border-amber-200/80 text-[11px] space-y-1">
                       <div className="flex items-center justify-between text-slate-800 font-bold">
-                        <span>👤 درخواست‌دهنده: {task.requestedByName || 'کارشناس سامانه'}</span>
+                        <span className="inline-flex items-center gap-1"><User className="w-3 h-3" />درخواست‌دهنده: {task.requestedByName || 'کارشناس سامانه'}</span>
                         <span className="text-purple-800 text-[10px]">({task.requestedByRole || 'کارشناس ارزیاب'})</span>
                       </div>
                       <div className="flex items-center justify-between text-slate-600 pt-0.5 border-t border-slate-100">

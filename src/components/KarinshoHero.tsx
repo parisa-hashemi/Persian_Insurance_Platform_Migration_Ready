@@ -62,7 +62,7 @@ export const KarinshoHero: React.FC = () => {
         .krn-scene {
           position: relative;
           width: 100%;
-          height: clamp(230px, 34vw, 420px);
+          height: clamp(230px, 29.2vw, 548px);
           margin-top: clamp(4px, 1vw, 14px);
         }
         .krn-scene > svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -80,25 +80,6 @@ export const KarinshoHero: React.FC = () => {
         .krn-car { animation: krn-float 2.6s ease-in-out infinite; }
         @keyframes krn-spin { to { transform: rotate(-360deg) } }
         .krn-rim { transform-origin: center; transform-box: fill-box; animation: krn-spin .55s linear infinite; }
-
-        /* light trails */
-        @keyframes krn-trail {
-          0%   { opacity: .0; transform: scaleX(.86); }
-          35%  { opacity: 1;  }
-          100% { opacity: .25; transform: scaleX(1.06); }
-        }
-        .krn-trail { transform-origin: left center; transform-box: fill-box; animation: krn-trail 1.5s ease-in-out infinite alternate; }
-        .krn-trail-2 { animation-duration: 2.1s; animation-delay: .4s; }
-
-        @keyframes krn-streak {
-          from { transform: translateX(0);      opacity: 0; }
-          12%  { opacity: .9; }
-          70%  { opacity: .55; }
-          to   { transform: translateX(760px);  opacity: 0; }
-        }
-        .krn-streak   { animation: krn-streak 1.6s linear infinite; }
-        .krn-streak-b { animation-duration: 2.3s; animation-delay: .7s; }
-        .krn-streak-c { animation-duration: 1.9s; animation-delay: 1.2s; }
 
         /* dust puffs behind wheels */
         @keyframes krn-dust {
@@ -135,17 +116,6 @@ export const KarinshoHero: React.FC = () => {
         }
         .krn-aurora   { animation: krn-aurora 11s ease-in-out infinite; }
         .krn-aurora-b { animation-duration: 15s; animation-delay: 3s; }
-
-        /* sparkles rising from the light trail */
-        @keyframes krn-spark {
-          0%   { transform: translate(0,0) scale(1);        opacity: 0; }
-          15%  { opacity: .95; }
-          100% { transform: translate(90px,-56px) scale(.2); opacity: 0; }
-        }
-        .krn-spark   { animation: krn-spark 2.2s ease-out infinite; }
-        .krn-spark-b { animation-duration: 2.9s; animation-delay: .8s; }
-        .krn-spark-c { animation-duration: 2.5s; animation-delay: 1.5s; }
-        .krn-spark-d { animation-duration: 3.2s; animation-delay: .3s; }
 
         /* floating glass chips over the scene */
         .krn-chip {
@@ -222,10 +192,6 @@ export const KarinshoHero: React.FC = () => {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
           <span>تسویه خسارت در ۲۴ ساعت</span>
         </div>
-        <div className="krn-chip krn-chip-3" style={{ bottom: '34%', insetInlineEnd: '16%' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-          <span>۹۸٪ رضایت مشتریان</span>
-        </div>
         <svg viewBox="0 0 1440 420" preserveAspectRatio="xMinYMax slice">
           <defs>
             {/* sky glow */}
@@ -238,22 +204,6 @@ export const KarinshoHero: React.FC = () => {
             <linearGradient id="krnRoad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#dfe9f6" />
               <stop offset="100%" stopColor="#f3f7fd" />
-            </linearGradient>
-            {/* red taillight trail (car faces LEFT → trail extends to the RIGHT) */}
-            <linearGradient id="krnTrailR" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#ff3b5c" stopOpacity=".95" />
-              <stop offset="45%" stopColor="#ff4d6d" stopOpacity=".45" />
-              <stop offset="100%" stopColor="#ff8fa3" stopOpacity="0" />
-            </linearGradient>
-            <linearGradient id="krnTrailB" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#2563eb" stopOpacity=".8" />
-              <stop offset="55%" stopColor="#3b82f6" stopOpacity=".3" />
-              <stop offset="100%" stopColor="#93c5fd" stopOpacity="0" />
-            </linearGradient>
-            <linearGradient id="krnStreak" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#60a5fa" stopOpacity="0" />
-              <stop offset="50%" stopColor="#3b82f6" stopOpacity=".65" />
-              <stop offset="100%" stopColor="#60a5fa" stopOpacity="0" />
             </linearGradient>
             {/* car body */}
             <linearGradient id="krnBody" x1="0" y1="0" x2="0" y2="1">
@@ -384,31 +334,8 @@ export const KarinshoHero: React.FC = () => {
             ))}
           </g>
 
-          {/* رگه‌های نور سرعت که از پشت ماشین رد می‌شوند */}
-          <g>
-            <rect className="krn-streak"   x="620" y="238" width="230" height="5" rx="2.5" fill="url(#krnStreak)" />
-            <rect className="krn-streak krn-streak-b" x="560" y="210" width="180" height="4" rx="2" fill="url(#krnStreak)" />
-            <rect className="krn-streak krn-streak-c" x="680" y="300" width="260" height="5" rx="2.5" fill="url(#krnStreak)" />
-          </g>
-
-          {/* ====== خودرو (رو به چپ) + ردِ نور ====== */}
+          {/* ====== خودرو (رو به چپ) ====== */}
           <g transform="translate(300,168)">
-            {/* ردِ قرمز چراغ عقب — از عقب ماشین به سمت راست کشیده می‌شود */}
-            <g>
-              <rect className="krn-trail"          x="326" y="54"  width="660" height="14" rx="6.5" fill="url(#krnTrailR)" />
-              <rect className="krn-trail krn-trail-2" x="328" y="74" width="500" height="7" rx="3.5" fill="url(#krnTrailR)" opacity=".7" />
-              {/* ردِ آبی نئونی زیر بدنه */}
-              <rect className="krn-trail krn-trail-2" x="310" y="118" width="560" height="9" rx="4.5" fill="url(#krnTrailB)" />
-            </g>
-
-            {/* جرقه‌های ریز بلندشونده از ردِ نور */}
-            <g aria-hidden="true">
-              <circle className="krn-spark"   cx="420" cy="60" r="3.2" fill="#ff8fa3" />
-              <circle className="krn-spark krn-spark-b" cx="560" cy="66" r="2.6" fill="#fda4af" />
-              <circle className="krn-spark krn-spark-c" cx="500" cy="120" r="2.8" fill="#93c5fd" />
-              <circle className="krn-spark krn-spark-d" cx="680" cy="58" r="2.2" fill="#fecdd3" />
-            </g>
-
             {/* سایه متحرک زیر ماشین */}
             <ellipse cx="180" cy="152" rx="185" ry="17" fill="url(#krnShadow)" />
 
@@ -421,22 +348,22 @@ export const KarinshoHero: React.FC = () => {
 
             <g className="krn-car">
               {/* نور جلو */}
-              <path className="krn-beam" d="M16 60 L-230 38 L-230 92 L20 78 Z" fill="url(#krnBeamG)" />
+              <path className="krn-beam" d="M-10 60 L-255 36 L-255 92 L-6 80 Z" fill="url(#krnBeamG)" />
 
               {/* بدنه — سدان اسپرت رو به چپ */}
               <path
-                d="M8 96
-                   C 10 78, 26 64, 52 58
+                d="M-16 94
+                   C -15 78, -2 68, 22 63
                    L 96 50
-                   C 118 30, 150 18, 192 16
-                   C 232 14, 264 24, 286 44
-                   L 300 56
-                   C 322 60, 336 68, 340 82
-                   C 343 92, 341 102, 334 108
-                   L 316 112
-                   L 60 112
-                   L 26 110
-                   C 13 108, 7 104, 8 96 Z"
+                   C 122 28, 154 17, 194 16
+                   C 234 15, 266 25, 288 45
+                   L 302 57
+                   C 324 61, 337 69, 341 83
+                   C 344 93, 342 103, 335 109
+                   L 317 112
+                   L 56 112
+                   L 2 108
+                   C -10 106, -17 102, -16 94 Z"
                 fill="url(#krnBody)"
               />
               {/* شیشه‌ها */}
@@ -446,12 +373,12 @@ export const KarinshoHero: React.FC = () => {
               />
               <path d="M196 24 L 200 52 L 252 50 C 240 36 220 27 196 24 Z" fill="#dbeafe" opacity=".55" />
               {/* خط کاراکتر بدنه */}
-              <path d="M30 84 C 110 76 240 74 330 84" stroke="#3b82f6" strokeWidth="2.2" fill="none" opacity=".5" />
+              <path d="M2 86 C 100 76 240 74 332 84" stroke="#3b82f6" strokeWidth="2.2" fill="none" opacity=".5" />
               {/* دستگیره */}
               <rect x="176" y="66" width="26" height="4" rx="2" fill="#3b82f6" opacity=".6" />
               {/* چراغ جلو */}
-              <path d="M12 74 L 34 68 L 36 78 L 14 84 Z" fill="#eaf2ff" />
-              <path d="M12 74 L 34 68 L 35 72 L 13 78 Z" fill="#ffffff" />
+              <path d="M-12 72 L 14 66 L 16 77 L -10 83 Z" fill="#eaf2ff" />
+              <path d="M-12 72 L 14 66 L 15 70 L -11 76 Z" fill="#ffffff" />
               {/* چراغ عقب LED */}
               <g className="krn-tail">
                 <path d="M318 58 L 340 64 L 338 76 L 316 72 Z" fill="#ff3b5c" />

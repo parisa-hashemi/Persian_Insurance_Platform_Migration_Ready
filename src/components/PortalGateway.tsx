@@ -277,13 +277,13 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
       {/* ================= کارت ورود شناور روی هیرو ================= */}
       <main className="relative z-10 -mt-16 sm:-mt-24 px-4 sm:px-6 lg:px-8 flex-1 w-full">
-        <div className="max-w-3xl mx-auto space-y-8">
+        <div className="w-full max-w-[1880px] mx-auto space-y-8">
 
           {/* کارت اصلی ورود */}
-          <div className="bg-white/90 backdrop-blur-xl rounded-[2rem] border border-slate-200/80 shadow-[0_24px_70px_-24px_rgba(29,78,216,0.28)] p-5 sm:p-8">
+          <div className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-xl rounded-[2rem] border border-slate-200/80 shadow-[0_24px_70px_-24px_rgba(29,78,216,0.28)] p-5 sm:p-8">
 
             {/* دو تب اصلی: مشتری / سازمانی */}
-            <div className="grid grid-cols-2 gap-2 bg-slate-100/80 p-1.5 rounded-2xl mb-7 max-w-xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-100/80 p-1.5 rounded-2xl mb-7 max-w-2xl mx-auto">
               <button
                 type="button"
                 onClick={() => setMainMode('customer')}
@@ -313,14 +313,11 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
             {/* ---------- ورود مشتری ---------- */}
             {mainMode === 'customer' && (
-              <div className="max-w-md mx-auto space-y-6 animate-in fade-in">
-                <div className="text-center space-y-2">
+              <div className="max-w-xl mx-auto space-y-6 animate-in fade-in">
+                <div className="text-center">
                   <h2 className="text-lg sm:text-xl font-black text-slate-900">
                     ورود بیمه‌گذار و زیان‌دیده
                   </h2>
-                  <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                    ورود سریع با پیامک یکبار مصرف (OTP)، رمز عبور یا ثبت‌نام آنلاین
-                  </p>
                 </div>
 
                 <CustomerOtpLoginForm
@@ -331,7 +328,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
             {/* ---------- ورود سازمانی ---------- */}
             {mainMode === 'org' && (
-              <div className="max-w-lg mx-auto space-y-6 animate-in fade-in">
+              <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in">
                 <div className="text-center space-y-2">
                   <h2 className="text-lg sm:text-xl font-black text-slate-900">
                     ورود به پنل تخصصی سازمانی
@@ -674,7 +671,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white py-5 text-center text-xs text-slate-500 font-bold">
-        <div className="max-w-5xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="w-full max-w-[1880px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p>© ۱۴۰۵ کاراینـشو — تمام حقوق محفوظ است.</p>
           <p className="text-blue-800 font-black">
             سامانه هوشمند پرداخت و ارزیابی خسارت بیمه خودرو

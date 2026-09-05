@@ -66,6 +66,32 @@ const INITIAL_CUSTOMERS: RegisteredCustomer[] = [
   }
 ];
 
+// ----------------------------------------------------
+// EMOJI SANITIZER
+// داده‌های ذخیره‌شده قدیمی (پیش از حذف ایموجی‌ها از سامانه) ممکن است
+// در متن تاریخچه، پیامک‌ها و تیکت‌ها ایموجی داشته باشند. این تابع
+// هنگام خواندن از حافظه، آن‌ها را پاک می‌کند تا UI فقط آیکن نشان دهد.
+// ----------------------------------------------------
+const UI_EMOJI_PATTERN = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{1F1E6}-\u{1F1FF}]+\s?/gu;
+
+export function stripEmojiDeep<T>(input: T): T {
+  if (typeof input === 'string') {
+    return input.replace(UI_EMOJI_PATTERN, '') as unknown as T;
+  }
+  if (Array.isArray(input)) {
+    return input.map((item) => stripEmojiDeep(item)) as unknown as T;
+  }
+  if (input && typeof input === 'object') {
+    const out: any = {};
+    for (const key of Object.keys(input as any)) {
+      const val = (input as any)[key];
+      out[key] = typeof val === 'string' && val.length > 4000 ? val : stripEmojiDeep(val);
+    }
+    return out as T;
+  }
+  return input;
+}
+
 export function loadCustomersFromStorage(): RegisteredCustomer[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
@@ -141,7 +167,7 @@ export function loadCasesFromStorage(): ClaimCase[] {
             merged.push(seed);
           }
         });
-        return merged;
+        return stripEmojiDeep(merged);
       }
     }
   } catch (e) {
@@ -664,7 +690,7 @@ export function loadAssessorNotifications(): AssessorNotification[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed;
+        return stripEmojiDeep(parsed);
       }
     }
   } catch (e) {
@@ -798,8 +824,9 @@ export function loadCustomerNotifications(phone?: string): CustomerNotification[
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        if (!phone) return parsed;
-        return parsed.filter((n) => !n.recipientPhone || n.recipientPhone === phone);
+        const clean = stripEmojiDeep(parsed);
+        if (!phone) return clean;
+        return clean.filter((n: CustomerNotification) => !n.recipientPhone || n.recipientPhone === phone);
       }
     }
     // Return initial default notifications on first launch
@@ -1237,7 +1264,7 @@ export function loadCrmCallLogsFromStorage(): CustomerCallLog[] {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.filter(l => !l.id.startsWith('CALL-1403-50') && !l.id.startsWith('CALL-demo'));
+      return stripEmojiDeep(parsed.filter(l => !l.id.startsWith('CALL-1403-50') && !l.id.startsWith('CALL-demo')));
     }
     return [];
   } catch {
@@ -1263,7 +1290,7 @@ export function loadCrmTicketsFromStorage(): CustomerTicket[] {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.filter(t => !t.id.startsWith('TCK-1403-10') && !t.id.startsWith('TCK-demo'));
+      return stripEmojiDeep(parsed.filter(t => !t.id.startsWith('TCK-1403-10') && !t.id.startsWith('TCK-demo')));
     }
     return [];
   } catch {
@@ -1315,7 +1342,7 @@ export function loadCrmFollowUpsFromStorage(): CrmFollowUpTask[] {
     }
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.filter(f => !f.id.startsWith('TSK-10') && !f.id.startsWith('TSK-demo'));
+      return stripEmojiDeep(parsed.filter(f => !f.id.startsWith('TSK-10') && !f.id.startsWith('TSK-demo')));
     }
     return [];
   } catch {

@@ -1,58 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import {
-  ArrowLeft,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  Building2,
-  FileText,
-  CreditCard,
-  AlertTriangle,
-  Upload,
-  Send,
-  MessageSquare,
-  Camera,
-  Image as ImageIcon,
-  Eye,
-  Plus,
-  Paperclip,
-  UserCheck,
-  FilePlus,
-  Video,
-  Trash2,
-  Lock,
-  Shield,
-  ShieldCheck,
-  Users,
-  Filter,
-  CheckSquare,
-  Star,
-  ShieldAlert,
-  MapPin,
-  X,
-  Sparkles,
-  Banknote,
-  ExternalLink,
-  FileCheck,
-  Maximize2,
-  Phone,
-  Calendar,
-  Car,
-  FileSpreadsheet,
-  DollarSign,
-  Info,
-  PhoneCall,
-  MessageSquarePlus,
-  Headphones,
-  Scale,
-  ChevronDown,
-  ChevronUp,
-  ChevronLeft,
-  Layers,
-  LifeBuoy,
-  Copy,
-  Check
-} from 'lucide-react';
+import { notifyApp, confirmApp } from '../../lib/appNotify';
+import { ArrowLeft, Clock, CheckCircle2, AlertCircle, Building2, FileText, CreditCard, AlertTriangle, Upload, Send, MessageSquare, Camera, Image as ImageIcon, Eye, Plus, Paperclip, UserCheck, FilePlus, Video, Trash2, Lock, Shield, ShieldCheck, Users, Filter, CheckSquare, Star, ShieldAlert, MapPin, X, Sparkles, Banknote, ExternalLink, FileCheck, Maximize2, Phone, Calendar, Car, FileSpreadsheet, DollarSign, Info, PhoneCall, MessageSquarePlus, Headphones, Scale, ChevronDown, ChevronUp, ChevronLeft, Layers, LifeBuoy, Copy, Check, Zap } from 'lucide-react';
 import { ClaimCase, UserSession, CaseStatus, AdditionalDocItem, ExpertComplaint, CustomerTicket, PaymentOrder } from '../../types';
 import { formatCurrency, parseMoneyNumber, getInsurerPersianName, loadComplaintsFromStorage, saveComplaintsToStorage, loadCrmTicketsFromStorage, saveCrmTicketsToStorage, loadPaymentOrdersFromStorage, savePaymentOrdersToStorage } from '../../lib/storage';
 import { compressImageFile } from '../../lib/imageCompressor';
@@ -597,7 +545,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     onUpdateCase(updated);
     setShowObjection1Modal(false);
     setObjection1Reason('');
-    alert(`اعتراض مرحله اول شما ثبت شد.\n• پرونده توسط هوش مصنوعی به کارشناس ارزیاب مستقل جدید (${updated.assignedExpert?.name || 'ارزیاب دوم'}) ارجاع گردید.\n• پیامک تایید و جزئیات ارجاع برای شما و کارشناس ارسال شد.`);
+    notifyApp(`اعتراض مرحله اول شما ثبت شد.\n• پرونده توسط هوش مصنوعی به کارشناس ارزیاب مستقل جدید (${updated.assignedExpert?.name || 'ارزیاب دوم'}) ارجاع گردید.\n• پیامک تایید و جزئیات ارجاع برای شما و کارشناس ارسال شد.`);
   };
 
   // Handle Stage 2 Objection (Keeps Assessor #2, opens chat channel)
@@ -634,7 +582,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     onUpdateCase(updated);
     setShowObjection2Modal(false);
     setObjection2Reason('');
-    alert('اعتراض دوم شما ثبت شد. کانال گفتگوی مستقیم با ارزیاب دوم فعال گردید.');
+    notifyApp('اعتراض دوم شما ثبت شد. کانال گفتگوی مستقیم با ارزیاب دوم فعال گردید.');
   };
 
   // Send message in Objection Chat (with optional file/photo attachment)
@@ -682,9 +630,9 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     setChatMessageInput('');
     setChatSelectedFile(null);
     if (shouldReturnToEvaluating) {
-      alert('پاسخ و تصویر شما در چت ارسال شد و وضعیت پرونده مجدداً به «در حال ارزیابی» تغییر یافت.');
+      notifyApp('پاسخ و تصویر شما در چت ارسال شد و وضعیت پرونده مجدداً به «در حال ارزیابی» تغییر یافت.');
     } else {
-      alert('پیام و مدرک شما در بخش گفتگو با موفقیت ارسال شد.');
+      notifyApp('پیام و مدرک شما در بخش گفتگو با موفقیت ارسال شد.');
     }
   };
 
@@ -718,13 +666,13 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
     onUpdateCase(updated);
     setShowWorkshopModal(false);
-    alert('اطلاعات تعمیرگاه با موفقیت جهت ارزیابی مجدد برای کارشناس ارسال شد.');
+    notifyApp('اطلاعات تعمیرگاه با موفقیت جهت ارزیابی مجدد برای کارشناس ارسال شد.');
   };
 
   // Handle Stage 4 Objection (Request Field Inspector / On-site Branch Visit)
   const handleRequestFieldInspector = () => {
     if (isCulprit) {
-      alert('شما به عنوان مقصر حادثه، صرفاً دسترسی مشاهده پرونده را دارید و درخواست ارزیابی میدانی منحصراً توسط زیان‌دیده انجام می‌پذیرد.');
+      notifyApp('شما به عنوان مقصر حادثه، صرفاً دسترسی مشاهده پرونده را دارید و درخواست ارزیابی میدانی منحصراً توسط زیان‌دیده انجام می‌پذیرد.');
       return;
     }
     setShowFieldVisitModal(true);
@@ -932,11 +880,12 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     }, 500);
   };
 
-  const handleDeleteDoc = (docId: string) => {
+  const handleDeleteDoc = async (docId: string) => {
     const docToDelete = (claimCase.additionalDocs || []).find(d => d.id === docId);
     if (!docToDelete) return;
 
-    if (!confirm(`آیا از حذف مدرک «${docToDelete.title}» اطمینان دارید؟`)) return;
+    const ok = await confirmApp(`آیا از حذف مدرک «${docToDelete.title}» اطمینان دارید؟`, { confirmLabel: 'بله، حذف شود' });
+    if (!ok) return;
 
     const updatedDocs = (claimCase.additionalDocs || []).filter(d => d.id !== docId);
     const updatedCase: ClaimCase = {
@@ -999,12 +948,12 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
   const handleAcceptAssessment = () => {
     if (isCulprit) {
-      alert('به عنوان مقصر حادثه، شما صرفاً دسترسی مشاهده پرونده را دارید و ثبت اطلاعات بانکی و دریافت خسارت منحصراً توسط زیان‌دیده انجام می‌پذیرد.');
+      notifyApp('به عنوان مقصر حادثه، شما صرفاً دسترسی مشاهده پرونده را دارید و ثبت اطلاعات بانکی و دریافت خسارت منحصراً توسط زیان‌دیده انجام می‌پذیرد.');
       return;
     }
 
     if (!hasAnyCompletedAssessment) {
-      alert('ارزیابی پرونده هنوز توسط کارشناس بیمه انجام نشده است. ثبت اطلاعات بانکی پس از ابلاغ رسمی برآورد خسارت امکان‌پذیر خواهد بود.');
+      notifyApp('ارزیابی پرونده هنوز توسط کارشناس بیمه انجام نشده است. ثبت اطلاعات بانکی پس از ابلاغ رسمی برآورد خسارت امکان‌پذیر خواهد بود.');
       return;
     }
 
@@ -1224,7 +1173,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in pb-12">
+    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in pb-12">
       {/* Top Header */}
       <div className="flex items-center justify-between gap-3">
         <button
@@ -1404,7 +1353,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Stage 4 Objection Active Banner (Waiting for Field Inspector Allocation / Inspection) */}
         {(claimCase.status === 'در انتظار ارجاع به کارشناس میدانی' || claimCase.status === 'در انتظار بازدید کارشناس میدانی' || (claimCase.objectionStage === 4 && !claimCase.fieldExpertVerdict)) && !claimCase.authenticityDispute && (
-          <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-100 border-2 border-purple-300 rounded-3xl p-5 sm:p-6 space-y-3 shadow-sm animate-in fade-in">
+          <div className="bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-100 border-2 border-purple-300 rounded-3xl p-4 sm:p-5 sm:p-6 space-y-3 shadow-sm animate-in fade-in">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-purple-200/80 pb-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold shadow-xs">
@@ -1456,7 +1405,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Temporary Registration / Add Kroki Form Banner */}
         {(claimCase.status === 'ثبت موقت - در انتظار افزودن کروکی' || (claimCase.futurePoliceExpected === true && !claimCase.hasKroki)) && (
-          <div className="bg-amber-50/90 border-2 border-amber-300 rounded-3xl p-6 space-y-4 shadow-sm animate-in fade-in">
+          <div className="bg-amber-50/90 border-2 border-amber-300 rounded-3xl p-4 sm:p-6 space-y-4 shadow-sm animate-in fade-in">
             <div className="flex items-start gap-3">
               <div className="w-11 h-11 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-md">
                 <FileText className="w-6 h-6" />
@@ -1702,7 +1651,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                     </div>
 
                     {isPolicyExpanded && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-3 border-t border-slate-100 animate-in fade-in slide-in-from-top-2">
+                      <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-3 border-t border-slate-100 animate-in fade-in slide-in-from-top-2">
                         <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl">
                           <span className="text-slate-500 text-[10px] block mb-1 font-bold">شماره بیمه‌نامه شخص ثالث</span>
                           <span className="font-mono font-bold text-slate-900 text-xs" dir="ltr">
@@ -1789,7 +1738,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Pending Reviewer Approval Banner for Customer */}
         {(claimCase.status === 'در انتظار بررسی بازبین' || claimCase.status === 'در انتظار بازبینی' || claimCase.status === 'نیازمند اصلاح کارشناس' || (claimCase.assessment && !claimCase.reviewerApproval?.approved && claimCase.status !== 'در انتظار تایید کاربر' && claimCase.status !== 'تصمیم نهایی - غیرقابل اعتراض' && !claimCase.isFinalDecision && !claimCase.status.includes('پرداخت'))) && (
-          <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 space-y-2 text-slate-800 shadow-sm animate-in fade-in">
+          <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-4 sm:p-5 space-y-2 text-slate-800 shadow-sm animate-in fade-in">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 font-black text-sm text-slate-900">
                 <Clock className="w-5 h-5 text-blue-900 shrink-0" />
@@ -1832,7 +1781,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           // If no completed assessments yet, show clear waiting banner and don't render empty assessment cards
           if (!isFieldAssessmentCompleted && !isDeskAssessmentCompleted) {
             return (
-              <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-5 space-y-2 text-slate-800 shadow-sm animate-in fade-in">
+              <div className="bg-slate-50 border-2 border-slate-200 rounded-3xl p-4 sm:p-5 space-y-2 text-slate-800 shadow-sm animate-in fade-in">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 font-black text-sm text-slate-900">
                     <Clock className="w-5 h-5 text-blue-900 shrink-0" />
@@ -2330,7 +2279,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                             </span>
                           </div>
 
-                          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
                             <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
                               <span className="text-slate-500 block mb-1 font-bold text-[11px]">خسارت فیزیکی و اجرت</span>
                               <span className="font-bold text-slate-800 text-xs sm:text-sm font-mono">
@@ -2651,7 +2600,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                                 </div>
 
                                 {card.photos && card.photos.length > 0 ? (
-                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                                  <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4 gap-2.5">
                                     {card.photos.map((ph: any, phIdx: number) => {
                                       const pSrc = ph.dataUrl || ph.url || '';
                                       return (
@@ -2842,7 +2791,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                             </div>
 
                             {isVictim && claimCase.status !== 'پرداخت شده' && (
-                              <div className="bg-gradient-to-br from-slate-900 to-sky-950 text-white rounded-3xl p-5 sm:p-6 border-2 border-sky-500/30 space-y-4 shadow-xl">
+                              <div className="bg-gradient-to-br from-slate-900 to-sky-950 text-white rounded-3xl p-4 sm:p-5 sm:p-6 border-2 border-sky-500/30 space-y-4 shadow-xl">
                                 <div className="flex items-center justify-between border-b border-sky-800/60 pb-3">
                                   <div className="flex items-center gap-2">
                                     <div className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-400/30 flex items-center justify-center font-black">
@@ -2861,7 +2810,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                                 <div className="bg-white/10 border border-emerald-400/50 rounded-2xl p-4 space-y-3">
                                   <div className="flex items-center gap-2">
                                     <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
-                                      ✓
+                                      <Check className="w-3.5 h-3.5" strokeWidth={3} />
                                     </span>
                                     <h5 className="font-black text-xs sm:text-sm text-emerald-300">
                                       تایید برآورد و ارسال مستقیم به کارتابل مدیر مالی
@@ -2949,36 +2898,36 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                             )}
 
                             {isVictim && claimCase.status !== 'پرداخت شده' && !isWaitingForNewAssessment && (
-                              <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 sm:p-6 border-2 border-indigo-500/30 space-y-4 shadow-xl">
-                                <div className="flex items-center justify-between border-b border-indigo-800/60 pb-3">
+                              <div className="bg-white text-slate-900 rounded-3xl p-4 sm:p-5 sm:p-6 border border-indigo-200 space-y-4 shadow-[0_16px_44px_-22px_rgba(79,70,229,0.35)]">
+                                <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
                                   <div className="flex items-center gap-2">
-                                    <div className="w-8 h-8 rounded-xl bg-indigo-500/20 text-indigo-400 border border-indigo-400/30 flex items-center justify-center font-black">
+                                    <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center font-black">
                                       <Sparkles className="w-4 h-4" />
                                     </div>
                                     <div>
-                                      <h4 className="font-black text-xs sm:text-sm text-white">تصمیم‌گیری زیان‌دیده بر روی برآورد</h4>
-                                      <span className="text-[10px] text-indigo-300">لطفاً یکی از دو اقدام زیر را انتخاب فرمایید:</span>
+                                      <h4 className="font-black text-xs sm:text-sm text-indigo-950">تصمیم‌گیری زیان‌دیده بر روی برآورد</h4>
+                                      <span className="text-[10px] text-indigo-500">لطفاً یکی از دو اقدام زیر را انتخاب فرمایید:</span>
                                     </div>
                                   </div>
-                                  <span className="px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold">
+                                  <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300 text-[10px] font-bold">
                                     مبلغ مصوب: {formatCurrency(card.insurerPayable || insurerPayable || totalClaim || 0)}
                                   </span>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                   {/* Option 1: Approve & Route to Finance */}
-                                  <div className="bg-white/10 hover:bg-white/15 border border-emerald-400/50 hover:border-emerald-400 rounded-2xl p-4 transition-all flex flex-col justify-between space-y-3">
+                                  <div className="bg-emerald-50/60 hover:bg-emerald-50 border border-emerald-300 hover:border-emerald-400 rounded-2xl p-4 transition-all flex flex-col justify-between space-y-3">
                                     <div className="space-y-1.5">
                                       <div className="flex items-center gap-2">
                                         <span className="w-6 h-6 rounded-full bg-emerald-500 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
                                           ۱
                                         </span>
-                                        <h5 className="font-black text-xs sm:text-sm text-emerald-300">
+                                        <h5 className="font-black text-xs sm:text-sm text-emerald-800">
                                           تایید برآورد و دریافت خسارت
                                         </h5>
                                       </div>
-                                      <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
-                                        با تایید این مبلغ و ثبت شماره شبا، پرونده مستقیماً با مبلغ <strong className="text-emerald-200 font-bold">{formatCurrency(card.insurerPayable || insurerPayable || totalClaim || 0)}</strong> به کارتابل مدیر مالی جهت صدور حواله پایا/ساتنا ارسال می‌شود.
+                                      <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                                        با تایید این مبلغ و ثبت شماره شبا، پرونده مستقیماً با مبلغ <strong className="text-emerald-700 font-bold">{formatCurrency(card.insurerPayable || insurerPayable || totalClaim || 0)}</strong> به کارتابل مدیر مالی جهت صدور حواله پایا/ساتنا ارسال می‌شود.
                                       </p>
                                     </div>
 
@@ -3003,17 +2952,17 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                                   </div>
 
                                   {/* Option 2: Sequential Non-Retroactive Objections */}
-                                  <div className="bg-white/10 hover:bg-white/15 border border-rose-400/40 hover:border-rose-400 rounded-2xl p-4 transition-all flex flex-col justify-between space-y-3">
+                                  <div className="bg-rose-50/60 hover:bg-rose-50 border border-rose-200 hover:border-rose-300 rounded-2xl p-4 transition-all flex flex-col justify-between space-y-3">
                                     <div className="space-y-1.5">
                                       <div className="flex items-center gap-2">
                                         <span className="w-6 h-6 rounded-full bg-rose-500 text-white font-black text-xs flex items-center justify-center shrink-0">
                                           ۲
                                         </span>
-                                        <h5 className="font-black text-xs sm:text-sm text-rose-300">
+                                        <h5 className="font-black text-xs sm:text-sm text-rose-800">
                                           اعتراض به ارزیابی کارشناس
                                         </h5>
                                       </div>
-                                      <p className="text-[11px] text-slate-300 leading-relaxed font-medium">
+                                      <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                                         در صورت عدم تایید مبالغ یا قطعات، می‌توانید به این ارزیابی اعتراض نموده و پرونده را به مرحله بعدی کارشناسی ارجاع دهید.
                                       </p>
                                     </div>
@@ -3132,7 +3081,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Bank Account IBAN Input Form Modal/Section */}
         {hasAnyCompletedAssessment && !isCulprit && (showBankForm || claimCase.payoutInfo?.iban || claimCase.status === 'در انتظار پرداخت') && (
-          <div id="iban-section" className="bg-gradient-to-br from-sky-50/90 via-blue-50/50 to-white border-2 border-sky-300 rounded-3xl p-5 sm:p-6 space-y-4 shadow-lg scroll-mt-6">
+          <div id="iban-section" className="bg-gradient-to-br from-sky-50/90 via-blue-50/50 to-white border-2 border-sky-300 rounded-3xl p-4 sm:p-5 sm:p-6 space-y-4 shadow-lg scroll-mt-6">
             <div className="flex items-center justify-between border-b border-sky-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-sky-600 text-white flex items-center justify-center font-black shadow-md shadow-sky-600/20">
@@ -3266,7 +3215,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* If Culprit views case during payment stage */}
         {hasAnyCompletedAssessment && isCulprit && (claimCase.status === 'در انتظار پرداخت' || claimCase.status === 'پرداخت شده') && (
-          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-5 space-y-2 text-slate-800">
+          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-4 sm:p-5 space-y-2 text-slate-800">
             <div className="flex items-center gap-2 font-black text-xs text-slate-900">
               <Info className="w-4.5 h-4.5 text-slate-500 shrink-0" />
               <span>وضعیت پرداخت خسارت به زیان‌دیده</span>
@@ -3279,7 +3228,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Rating Section if case is Paid */}
         {claimCase.status === 'پرداخت شده' && (
-          <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 space-y-3 text-center">
+          <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 sm:p-5 space-y-3 text-center">
             <h4 className="font-extrabold text-amber-900 text-xs">
               نظرسنجی کیفیت رسیدگی به پرونده
             </h4>
@@ -3369,7 +3318,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
 
           {/* Unified Chat Box */}
-          <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
+          <div className="bg-white border-2 border-slate-200 rounded-3xl p-4 sm:p-5 sm:p-6 space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-blue-900" />
@@ -3395,7 +3344,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             {/* Unified Chat Messages Stream */}
             <div className="space-y-3 min-h-[220px] max-h-96 overflow-y-auto pr-1 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-200">
               {unifiedChatMessages.length === 0 ? (
-                <div className="text-center py-10 space-y-2">
+                <div className="text-center py-6 sm:py-10 space-y-2">
                   <MessageSquare className="w-10 h-10 text-slate-300 mx-auto" />
                   <p className="text-xs text-slate-600 font-bold">
                     پیامی در این پرونده ثبت نشده است.
@@ -3546,7 +3495,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
 
           {/* Party Comments Section */}
-          <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
+          <div className="bg-white border-2 border-slate-200 rounded-3xl p-4 sm:p-5 sm:p-6 space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-purple-700" />
@@ -3682,7 +3631,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       {/* ========================================================================= */}
       {mainActiveTab === 'timeline' && (
         <div className="space-y-6 animate-in fade-in duration-200">
-          <div className="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm">
+          <div className="bg-white border-2 border-slate-200 rounded-3xl p-4 sm:p-5 sm:p-6 space-y-4 shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-indigo-600" />
@@ -3726,8 +3675,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
       {/* Central Insurance (SANHAB) Complaint Referral Guide Modal */}
       {showDisputeModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-xl w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 sm:p-7 max-w-xl w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -3749,7 +3698,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 onClick={() => setShowDisputeModal(false)}
                 className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -3942,8 +3891,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       )}
       {/* Customer Complaint Against Expert Modal */}
       {showExpertComplaintModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-amber-600" />
@@ -3954,7 +3903,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 onClick={() => setShowExpertComplaintModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -3962,7 +3911,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             {claimCase.assignedFieldExpert && (
               <div className="space-y-1.5">
                 <span className="block text-[11px] font-bold text-slate-700">شکایت مربوط به کدام کارشناس است؟</span>
-                <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-2xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-100 p-1 rounded-2xl">
                   <button
                     type="button"
                     onClick={() => setComplaintTargetKind('assessor')}
@@ -4057,8 +4006,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
       {/* Objection Stage 1 Modal */}
       {showObjection1Modal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-rose-600" />
@@ -4069,7 +4018,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 onClick={() => setShowObjection1Modal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -4117,8 +4066,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
       {/* Objection Stage 2 Modal */}
       {showObjection2Modal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-amber-600" />
@@ -4129,7 +4078,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 onClick={() => setShowObjection2Modal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -4177,8 +4126,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
       {/* Objection Stage 3 Workshop Info Modal */}
       {showWorkshopModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                 <Building2 className="w-5 h-5 text-indigo-600" />
@@ -4189,7 +4138,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 onClick={() => setShowWorkshopModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -4283,8 +4232,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
       {/* Objection Stage 4 / Final Field Visit & Branch Request Modal */}
       {showFieldVisitModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-extrabold text-sm text-slate-900 flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-purple-600" />
@@ -4295,7 +4244,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 onClick={() => setShowFieldVisitModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -4415,8 +4364,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
       {/* Shared Claim Add Document Modal */}
       {showAddDocModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in zoom-in-95">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center font-bold">
@@ -4437,7 +4386,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 onClick={() => setShowAddDocModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -4538,7 +4487,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 <button
                   type="submit"
                   disabled={(!docFileData && !docNote.trim()) || isUploading}
-                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-extrabold shadow-md shadow-blue-900/20 flex items-center gap-2"
+                  className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-extrabold shadow-md shadow-blue-900/20 flex items-center gap-2"
                 >
                   {isUploading ? (
                     <span>در حال بارگذاری...</span>
@@ -4557,7 +4506,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
       {/* COMPREHENSIVE ASSESSMENT DETAILS MODAL (CLICK-TO-VIEW FULL CARD DETAILS) */}
       {selectedAssessmentModal && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-start sm:items-center justify-center p-3 sm:p-6 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200 my-auto">
             {/* Modal Header */}
             <div className={`p-5 sm:p-6 border-b flex items-center justify-between gap-3 text-white ${
@@ -5010,7 +4959,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                       })}
                     </div>
                   ) : (
-                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-500 text-xs">
+                    <div className="p-5 sm:p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-500 text-xs">
                       تصویری در این بخش یافت نشد.
                     </div>
                   )}
@@ -5121,7 +5070,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
       {/* BANK SUBMISSION & FINANCE QUEUE SUCCESS MODAL */}
       {bankSuccessModal?.isOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-start sm:items-center justify-center p-3 sm:p-5 overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-sky-200 space-y-5 animate-in zoom-in-95 duration-200 my-auto text-slate-800">
             
             {/* Top Success Badge */}
@@ -5166,7 +5115,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               <div className="space-y-2">
                 <div className="flex items-start gap-2.5 p-2 rounded-xl bg-white border border-emerald-200">
                   <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                    ✓
+                    <Check className="w-3.5 h-3.5" strokeWidth={3} />
                   </div>
                   <div className="flex-1 text-[11px]">
                     <strong className="text-emerald-900 font-bold block">۱. ثبت و اعتبارسنجی اطلاعات شماره شبا</strong>
@@ -5176,7 +5125,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
                 <div className="flex items-start gap-2.5 p-2 rounded-xl bg-white border border-emerald-200">
                   <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                    ✓
+                    <Check className="w-3.5 h-3.5" strokeWidth={3} />
                   </div>
                   <div className="flex-1 text-[11px]">
                     <strong className="text-emerald-900 font-bold block">۲. ارسال برخط به سیستم مالی بیمه‌گر</strong>
@@ -5186,7 +5135,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
                 <div className="flex items-start gap-2.5 p-2.5 rounded-xl bg-sky-100/90 border border-sky-300">
                   <div className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 animate-pulse">
-                    ⚡
+                    <Zap className="w-3 h-3" />
                   </div>
                   <div className="flex-1 text-[11px]">
                     <strong className="text-sky-950 font-black block">۳. ارجاع خودکار به کارتابل مدیر مالی و خزانه‌داری</strong>
@@ -5211,7 +5160,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             </div>
 
             {/* Receipt Summary Details */}
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <span className="text-slate-500 font-bold block text-[10px]">مبلغ مصوب پرداختی بیمه</span>
                 <strong className="text-sky-950 font-black text-sm">
@@ -5256,14 +5205,14 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       {previewImageModal && (
         <div
           onClick={() => setPreviewImageModal(null)}
-          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 cursor-pointer"
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 cursor-pointer overflow-y-auto"
         >
           <div className="relative max-w-3xl w-full max-h-[90vh] bg-slate-900 p-2 rounded-3xl overflow-hidden shadow-2xl">
             <button
               onClick={() => setPreviewImageModal(null)}
               className="absolute top-4 left-4 z-10 w-9 h-9 rounded-full bg-slate-800 text-white font-bold text-sm flex items-center justify-center border border-slate-700 hover:bg-slate-700"
             >
-              ✕
+              <X className="w-4 h-4" />
             </button>
             <img src={previewImageModal} alt="Document Preview" className="w-full h-auto max-h-[80vh] object-contain mx-auto rounded-2xl" />
           </div>

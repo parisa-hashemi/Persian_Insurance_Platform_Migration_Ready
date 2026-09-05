@@ -182,7 +182,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/95 text-slate-900 border-b border-slate-200 shadow-2xs backdrop-blur-md" dir="rtl">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+      <div className="w-full max-w-[1880px] mx-auto px-4 sm:px-6 lg:px-8 2xl:px-12 h-16 flex items-center justify-between gap-4">
         
         {/* RIGHT SIDE (Start in RTL): Brand Logo */}
         <div className="flex items-center gap-3">

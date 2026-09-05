@@ -624,20 +624,20 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
     // SMS 1: Dispatch notification for Field Expert containing accident location and nearest branch address
     const fieldExpertSmsText = `کارشناس گرامی ${expert.name}،
 ماموریت ارزیابی میدانی پرونده بیمه بدنه ${selectedBodyCaseForDispatch.id} (${vehicleInfo} - پلاک ${plateInfo}) به شما محول گردید.
-📍 محل حادثه: ${accidentAddress}
-🏢 نزدیک‌ترین شعبه بیمه جهت حضور و هماهنگی: ${branch.name}
-📌 نشانی شعبه: ${branch.address}
-📞 تلفن شعبه: ${branch.phone}
-👤 بیمه‌گذار: ${customerName} (همراه: ${customerPhone})
+محل حادثه: ${accidentAddress}
+نزدیک‌ترین شعبه بیمه جهت حضور و هماهنگی: ${branch.name}
+نشانی شعبه: ${branch.address}
+تلفن شعبه: ${branch.phone}
+بیمه‌گذار: ${customerName} (همراه: ${customerPhone})
 ⏱ زمان پیشنهادی: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
-${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInstructions.trim()}` : ''}
+${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructions.trim()}` : ''}
 لطفاً جهت هماهنگی و حضور در محل یا شعبه اقدام فرمایید.
 شرکت ${insurerName}`;
 
     // SMS 2: Dispatch notification for Customer / Insured containing expert info and nearest branch address
     const customerSmsText = `بیمه‌گذار گرامی ${customerName}،
 پرونده خسارت بدنه شما به شماره ${selectedBodyCaseForDispatch.id} به کارشناس رسمی میدانی جناب آقای/سرکار خانم ${expert.name} (همراه: ${expert.phone || '—'}) محول گردید.
-🏢 نزدیک‌ترین شعبه تخصصی پرداخت خسارت بر اساس آدرس حادثه شما:
+نزدیک‌ترین شعبه تخصصی پرداخت خسارت بر اساس آدرس حادثه شما:
 نام مرکز: ${branch.name}
 نشانی: ${branch.address}
 تلفن تماس: ${branch.phone}
@@ -774,7 +774,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in" dir="rtl">
+    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in" dir="rtl">
       
       {/* DYNAMIC COMPANY BRAND HERO BANNER */}
       <div className={`rounded-3xl p-5 sm:p-6 bg-gradient-to-l ${brand.headerBgGradient} shadow-lg border ${brand.cardBorder} relative overflow-hidden`}>
@@ -1781,7 +1781,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                     onClick={() => setSelectedExpertForComplaints(null)}
                     className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold text-xs"
                   >
-                    ✕
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -1875,7 +1875,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                     onClick={() => setShowAddComplaintModal(false)}
                     className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold text-xs"
                   >
-                    ✕
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -2277,7 +2277,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                     onClick={() => setShowInviteStaffModal(false)}
                     className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer"
                   >
-                    ✕
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
 
@@ -3039,13 +3039,13 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                             </div>
                             {`کارشناس گرامی ${expertObj.name}،
 ماموریت ارزیابی میدانی پرونده بیمه بدنه ${selectedBodyCaseForDispatch.id} (${vName} - پلاک ${pText}) به شما محول گردید.
-📍 محل حادثه: ${accLoc}
-🏢 نزدیک‌ترین شعبه بیمه جهت حضور و هماهنگی: ${branchObj.name}
-📌 نشانی شعبه: ${branchObj.address}
-📞 تلفن شعبه: ${branchObj.phone}
-👤 بیمه‌گذار: ${cName} (همراه: ${cPhone})
+محل حادثه: ${accLoc}
+نزدیک‌ترین شعبه بیمه جهت حضور و هماهنگی: ${branchObj.name}
+نشانی شعبه: ${branchObj.address}
+تلفن شعبه: ${branchObj.phone}
+بیمه‌گذار: ${cName} (همراه: ${cPhone})
 ⏱ زمان پیشنهادی: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
-${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInstructions.trim()}` : ''}
+${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructions.trim()}` : ''}
 لطفاً جهت هماهنگی و حضور در محل یا شعبه اقدام فرمایید.
 شرکت ${getInsurerPersianName(companyCode)}`}
                           </>
@@ -3056,7 +3056,7 @@ ${dispatchInstructions.trim() ? `📝 دستور بیمه‌گر: ${dispatchInst
                             </div>
                             {`بیمه‌گذار گرامی ${cName}،
 پرونده خسارت بدنه شما به شماره ${selectedBodyCaseForDispatch.id} به کارشناس رسمی میدانی جناب آقای/سرکار خانم ${expertObj.name} (همراه: ${expertObj.phone || '—'}) محول گردید.
-🏢 نزدیک‌ترین شعبه تخصصی پرداخت خسارت بر اساس آدرس حادثه شما:
+نزدیک‌ترین شعبه تخصصی پرداخت خسارت بر اساس آدرس حادثه شما:
 نام مرکز: ${branchObj.name}
 نشانی: ${branchObj.address}
 تلفن تماس: ${branchObj.phone}

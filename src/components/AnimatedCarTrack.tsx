@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Sparkles, Zap, Flame, Shield, Compass, RotateCcw, Volume2, VolumeX } from 'lucide-react';
+import { Sparkles, Zap, Flame, Shield, Compass, RotateCcw, Volume2, VolumeX, Car, Moon, Sun } from 'lucide-react';
 
 interface Particle {
   x: number;
@@ -555,7 +555,7 @@ export const AnimatedCarTrack: React.FC = () => {
   const handleTriggerNitro = () => {
     setIsNitro(true);
     playNitroSound();
-    setHonkMessage('شتاب حداکثری توربو نیترو فعال شد! 🚀💨');
+    setHonkMessage('شتاب حداکثری توربو نیترو فعال شد! ');
     setTimeout(() => {
       setIsNitro(false);
       setHonkMessage(null);
@@ -565,7 +565,7 @@ export const AnimatedCarTrack: React.FC = () => {
   // Trigger Honk / Interactive Sound
   const handleHonk = () => {
     playHonkSound();
-    const msgs = ['بیپ بیپ! 🚗💨', 'استعلام هوشمند در حال پردازش ⚡', 'مسیر تسویه سبز و باز است 🟢', 'رانندگی ایمن با بیمه هوشمند ✨'];
+    const msgs = ['بیپ بیپ! ', 'استعلام هوشمند در حال پردازش ', 'مسیر تسویه سبز و باز است ', 'رانندگی ایمن با بیمه هوشمند '];
     const randomMsg = msgs[Math.floor(Math.random() * msgs.length)];
     setHonkMessage(randomMsg);
     setTimeout(() => setHonkMessage(null), 2200);
@@ -605,7 +605,7 @@ export const AnimatedCarTrack: React.FC = () => {
             title="افزایش سرعت و کشیده شدن خطوط ترمز نئونی"
           >
             <Flame className="w-3.5 h-3.5 text-slate-950" />
-            <span>{isNitro ? 'نیترو فعال!' : 'نیترو بوست ⚡'}</span>
+            <span>{isNitro ? 'نیترو فعال!' : 'نیترو بوست '}</span>
           </button>
 
           {/* Honk Horn Button */}
@@ -615,7 +615,7 @@ export const AnimatedCarTrack: React.FC = () => {
             className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700 transition flex items-center gap-1 cursor-pointer active:scale-95"
             title="بوق و پیام تعاملی"
           >
-            <span>🚗 بوق</span>
+            <span className="inline-flex items-center gap-1"><Car className="w-3.5 h-3.5" />بوق</span>
           </button>
 
           {/* Day / Neon Mode Toggle */}
@@ -625,7 +625,7 @@ export const AnimatedCarTrack: React.FC = () => {
             className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold border border-slate-700 transition cursor-pointer"
             title="تغییر تم نئونی شب و روز"
           >
-            {themeMode === 'neon' ? '🌙 شب نئونی' : '☀️ روز'}
+            <span className="inline-flex items-center gap-1">{themeMode === 'neon' ? <><Moon className="w-3.5 h-3.5" />شب نئونی</> : <><Sun className="w-3.5 h-3.5" />روز</>}</span>
           </button>
 
           {/* Sound Toggle */}
@@ -646,7 +646,7 @@ export const AnimatedCarTrack: React.FC = () => {
 
       {/* Main Canvas Area */}
       <div
-        className="relative cursor-pointer w-full h-[180px]"
+        className="relative cursor-pointer w-full h-[140px] sm:h-[180px]"
         onClick={handleTriggerNitro}
         title="برای شتاب و نیترو روی جاده کلیک کنید!"
       >

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { notifyApp } from '../../lib/appNotify';
 import {
   DollarSign,
   CheckCircle2,
@@ -547,7 +548,7 @@ export const FinanceManagerPanel: React.FC<FinanceManagerPanelProps> = ({
     );
 
     if (targetOrders.length === 0) {
-      alert('لطفاً حداقل یک حواله آماده پرداخت را برای ایجاد بسته انتخاب فرمایید.');
+      notifyApp('لطفاً حداقل یک حواله آماده پرداخت را برای ایجاد بسته انتخاب فرمایید.');
       return;
     }
 

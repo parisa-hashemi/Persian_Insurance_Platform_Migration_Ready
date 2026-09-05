@@ -191,20 +191,20 @@ export function dispatchTwoWaySmsNotifications(params: {
   if (isFieldExpert) {
     expertSmsText = `کارشناس رسمی گرامی ${expert.name}،
 ماموریت ارزیابی و بازدید میدانی پرونده ${claim.id} (${vehicleName} - پلاک ${plateText}) توسط سامانه هوشمند AI به شما محول گردید.
-📍 محل حادثه/استقرار: ${accidentLocation}
-🏢 نزدیک‌ترین شعبه بیمه: ${branch.name}
-👤 مشتری: ${customerName} (همراه: ${customerPhone})
-${reason ? `📌 دلیل ارجاع هوشمند: ${reason}` : ''}
-${customNote ? `📝 دستور تکمیلی بیمه‌گر: ${customNote}` : ''}
+محل حادثه/استقرار: ${accidentLocation}
+نزدیک‌ترین شعبه بیمه: ${branch.name}
+مشتری: ${customerName} (همراه: ${customerPhone})
+${reason ? `دلیل ارجاع هوشمند: ${reason}` : ''}
+${customNote ? `دستور تکمیلی بیمه‌گر: ${customNote}` : ''}
 لطفاً جهت هماهنگی و بررسی در کارتابل اقدام فرمایید.
 شرکت ${insurerName}`;
   } else {
     expertSmsText = `کارشناس ارزیاب گرامی ${expert.name}،
 پرونده خسارت خودرو به شماره ${claim.id} (${vehicleName} - پلاک ${plateText}) توسط سامانه توزیع هوشمند AI به کارتابل شما ارجاع گردید.
-🏢 شعبه مرجع: ${branch.name}
-👤 طرف پرونده: ${customerName} (همراه: ${customerPhone})
-${reason ? `📌 علت ارجاع: ${reason}` : ''}
-${customNote ? `📝 دستور تکمیلی بیمه‌گر: ${customNote}` : ''}
+شعبه مرجع: ${branch.name}
+طرف پرونده: ${customerName} (همراه: ${customerPhone})
+${reason ? `علت ارجاع: ${reason}` : ''}
+${customNote ? `دستور تکمیلی بیمه‌گر: ${customNote}` : ''}
 لطفاً جهت بررسی مدارک و ثبت برآورد مالی به سامانه مراجعه فرمایید.
 شرکت ${insurerName}`;
   }
@@ -225,7 +225,7 @@ ${customNote ? `📝 دستور تکمیلی بیمه‌گر: ${customNote}` : '
   if (!suppressCustomerSms) {
     const customerSmsText = `مشتری/بیمه‌گذار گرامی ${customerName}،
 پرونده خسارت شماره ${claim.id} با موفقیت در سامانه ثبت و توسط هوش مصنوعی به کارشناس ارزیاب خسارت جناب آقای/سرکار خانم ${expert.name} (همراه: ${expert.phone || '—'}) ارجاع گردید.
-🏢 شعبه رسیدگی‌کننده: ${branch.name}
+شعبه رسیدگی‌کننده: ${branch.name}
 نشانی: ${branch.address}
 تلفن: ${branch.phone}
 نتیجه ارزیابی آنلاین خسارت متعاقباً از طریق همین سامانه به اطلاع شما خواهد رسید.
@@ -396,7 +396,7 @@ export function autoDispatchClaimWithAI(
     ? `• وضعیت اطلاع‌رسانی مشتری: ارجاع به کارشناس میدانی (انجام هماهنگی حضوری در محل حادثه بدون ارسال پیامک متنی)`
     : `• پیامک مشتری: ارسال موفق به ${claim.victimPhone || 'شماره زیان‌دیده'}`;
 
-  const dispatchHistoryNote = `🤖 ارجاع هوشمند توسط هوش مصنوعی (AI Auto-Dispatcher):
+  const dispatchHistoryNote = `ارجاع هوشمند توسط هوش مصنوعی (AI Auto-Dispatcher):
 • مقصد ارجاع: ${branchInfo.branchName}
 • کارشناس منتخب: ${assignedExpert.name} (${assignedRole})
 • پیامک کارشناس: ارسال موفق به ${assignedExpert.phone || 'شماره ثبت‌شده'}
@@ -694,7 +694,7 @@ export function handleExpertRejectionWithAI(
         time: nowShamsi,
         user: rejectingExpert.name,
         userRole: 'کارشناس ارزیاب',
-        note: `❌ پرونده توسط کارشناس (${rejectingExpert.name}) رد شد. علت رد: «${rejectReason}» (کسر ۰.۲ از امتیاز عملکرد کارشناس در سامانه).`
+        note: `پرونده توسط کارشناس (${rejectingExpert.name}) رد شد. علت رد: «${rejectReason}» (کسر ۰.۲ از امتیاز عملکرد کارشناس در سامانه).`
       }
     ]
   };

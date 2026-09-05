@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { notifyApp } from '../../lib/appNotify';
 import {
   ListChecks,
   MapPin,
@@ -27,6 +28,7 @@ import {
   FileCheck,
   Clock,
   X,
+  AlertTriangle,
   ShieldCheck,
   CreditCard,
   Smartphone,
@@ -124,6 +126,12 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   const [hasKroki, setHasKroki] = useState<boolean | null>(null);
   const [krokiCode, setKrokiCode] = useState('');
   const [futurePolice, setFuturePolice] = useState<boolean | null>(null);
+  // پیام خطای داخل-سامانه‌ای برای مدارک الزامی (به‌جای alert مرورگر)
+  const [requiredDocsError, setRequiredDocsError] = useState<string | null>(null);
+  const showRequiredDocsError = (msg: string) => {
+    setRequiredDocsError(msg);
+    window.setTimeout(() => setRequiredDocsError((cur) => (cur === msg ? null : cur)), 7000);
+  };
   const [croquiData, setCroquiData] = useState<CroquiData | null>(null);
   const [croquiType, setCroquiType] = useState<'paper' | 'electronic'>('paper');
   const [showFuturePoliceModal, setShowFuturePoliceModal] = useState(false);
@@ -261,11 +269,11 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   const startVoiceRecording = async () => {
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        alert('مرورگر شما از ضبط صدا پشتیبانی نمی‌کند.');
+        notifyApp('مرورگر شما از ضبط صدا پشتیبانی نمی‌کند.');
         return;
       }
       if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined') {
-        alert('امکان ضبط صدا در این مرورگر فعال نیست.');
+        notifyApp('امکان ضبط صدا در این مرورگر فعال نیست.');
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -274,7 +282,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         recorder = new MediaRecorder(stream);
       } catch (e) {
         console.error('MediaRecorder instantiation error:', e);
-        alert('امکان ایجاد ضبط‌کننده صدا وجود ندارد.');
+        notifyApp('امکان ایجاد ضبط‌کننده صدا وجود ندارد.');
         return;
       }
       mediaRecorderRef.current = recorder;
@@ -608,13 +616,13 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
     const fltBackLicense = getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`) || files.find(f => f.name?.includes('پشت گواهینامه') && (f.name?.includes('طرف مقابل') || f.name?.includes('مقصر')));
 
     if (!vicFrontLicense || !vicBackLicense) {
-      alert('لطفاً در مرحله ۴، عکس پشت و رو گواهینامه راننده (شما) را بارگذاری نمایید.');
+      showRequiredDocsError('بارگذاری عکس پشت و روی گواهینامه راننده (شما) الزامی است؛ لطفاً در مرحله ۴ تکمیل نمایید.');
       setCurrentStep(4);
       return;
     }
 
     if (!fltFrontLicense || !fltBackLicense) {
-      alert('لطفاً عکس پشت و رو گواهینامه راننده طرف مقابل را بارگذاری نمایید.');
+      showRequiredDocsError('بارگذاری عکس پشت و روی گواهینامه راننده طرف مقابل الزامی است.');
       return;
     }
 
@@ -828,10 +836,35 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in">
+    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in">
+      {/* اعلان الزامی بودن مدارک — داخل سامانه، به‌جای پنجره مرورگر */}
+      {requiredDocsError && (
+        <div
+          className="bg-rose-50 border border-rose-300 text-rose-800 rounded-2xl p-4 flex items-start gap-3 shadow-sm animate-in fade-in slide-in-from-top-2"
+          role="alert"
+          aria-live="assertive"
+        >
+          <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-300 text-rose-600 flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
+          <div className="flex-1 space-y-0.5">
+            <span className="font-black text-xs block">مدرک الزامی بارگذاری نشده است</span>
+            <p className="text-[11px] font-medium leading-relaxed">{requiredDocsError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRequiredDocsError(null)}
+            className="p-1.5 rounded-lg hover:bg-rose-100 text-rose-500 transition-colors"
+            title="بستن"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Wizard Header Progress Bar */}
-      <div className="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-sm space-y-6">
-        <div className="flex items-center justify-between relative">
+      <div className="bg-white p-4 sm:p-6 rounded-3xl border-2 border-slate-200 shadow-sm space-y-6">
+        <div className="flex items-start sm:items-center justify-between relative gap-1">
           <div className="absolute top-1/2 left-0 right-0 h-1.5 bg-slate-200 -translate-y-1/2 z-0 rounded-full" />
           <div
             className="absolute top-1/2 right-0 h-1.5 bg-blue-600 -translate-y-1/2 z-0 rounded-full transition-all duration-300"
@@ -847,15 +880,15 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
           ].map(({ step, label, icon: Icon }) => (
             <div key={step} className="flex flex-col items-center relative z-10">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-all ${
+                className={`w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full flex items-center justify-center font-black text-sm transition-all ${
                   currentStep >= step
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'bg-slate-100 text-slate-500 border-2 border-slate-300'
                 }`}
               >
-                <Icon className="w-5 h-5" />
+                <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <span className="text-[11px] font-extrabold text-slate-800 mt-1.5">{label}</span>
+              <span className="text-[9px] sm:text-[11px] font-extrabold text-slate-800 mt-1.5 text-center leading-tight max-w-[56px] sm:max-w-none">{label}</span>
             </div>
           ))}
         </div>
@@ -912,7 +945,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     آیا پلیس راهور در صحنه تصادف حاضر شده و برگه کروکی صادر کرده است؟
                   </p>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button
                       type="button"
                       onClick={() => {
@@ -1165,7 +1198,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   <label className="block text-xs font-black text-blue-900">
                     بر اساس مدارک فوق، نقش شما در این تصادف چیست؟ <span className="text-rose-600">*</span>
                   </label>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button
                       type="button"
                       onClick={() => setWizardRole('victim')}
@@ -1218,11 +1251,11 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             )}
 
             {/* Navigation Buttons */}
-            <div className="flex justify-between pt-2">
+            <div className="flex flex-wrap gap-3 justify-between pt-2">
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100"
+                className="w-full sm:w-auto justify-center px-5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100"
               >
                 انصراف
               </button>
@@ -1230,7 +1263,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 type="button"
                 disabled={!agreePolicy || hasKroki === null}
                 onClick={() => setCurrentStep(2)}
-                className="px-6 py-2.5 rounded-xl bg-blue-600 disabled:opacity-50 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
+                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 disabled:opacity-50 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
               >
                 تایید و ادامه به مرحله بعد <ArrowLeft className="w-4 h-4" />
               </button>
@@ -1320,14 +1353,14 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <button
                 type="button"
                 onClick={() => setCurrentStep(1)}
-                className="px-5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors"
+                className="w-full sm:w-auto justify-center px-5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors"
               >
                 مرحله قبل
               </button>
               <button
                 type="button"
                 onClick={() => setCurrentStep(3)}
-                className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
+                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
               >
                 تایید موقعیت و ادامه <ArrowLeft className="w-4 h-4" />
               </button>
@@ -1364,7 +1397,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   { id: 'پلاک', label: 'پلاک' },
                   { id: 'جلو', label: 'جلو' },
@@ -1655,14 +1688,14 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
-                className="px-5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors"
+                className="w-full sm:w-auto justify-center px-5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors"
               >
                 مرحله قبل
               </button>
               <button
                 type="button"
                 onClick={() => setCurrentStep(4)}
-                className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
+                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
               >
                 ثبت مستندات و ادامه <ArrowLeft className="w-4 h-4" />
               </button>
@@ -1916,7 +1949,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               </div>
             )}
 
-            <div className="flex justify-between pt-2">
+            <div className="flex flex-wrap gap-3 justify-between pt-2">
               <button
                 type="button"
                 onClick={() => setCurrentStep(3)}
@@ -1930,12 +1963,12 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   const vicFrontLicense = getFileForLabel(`عکس روی گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('روی گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
                   const vicBackLicense = getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('پشت گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
                   if (!vicFrontLicense || !vicBackLicense) {
-                    alert('بارگذاری هر دو تصویر (روی گواهینامه و پشت گواهینامه) برای راننده الزامی است.');
+                    showRequiredDocsError('بارگذاری هر دو تصویر (روی گواهینامه و پشت گواهینامه) برای راننده الزامی است.');
                     return;
                   }
                   setCurrentStep(5);
                 }}
-                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/10 transition-all flex items-center gap-2"
+                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/10 transition-all flex items-center gap-2"
               >
                 ثبت اطلاعات و رفتن به مرحله بعد <ArrowLeft className="w-4 h-4" />
               </button>
@@ -2207,7 +2240,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               </div>
             )}
 
-            <div className="flex justify-between pt-2">
+            <div className="flex flex-wrap gap-3 justify-between pt-2">
               <button
                 type="button"
                 onClick={() => setCurrentStep(4)}
@@ -2218,7 +2251,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <button
                 type="button"
                 onClick={handleFinishWizard}
-                className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-sm shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2 active:scale-95"
+                className="px-4 sm:px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-sm shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2 active:scale-95"
               >
                 <CheckCircle2 className="w-5 h-5" />
                 ثبت نهایی و دریافت کد رهگیری
@@ -2230,7 +2263,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
       {/* Insurance Inquiry Modal (Victim / You) */}
       {vicInquiryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-start sm:items-center justify-center p-3 sm:p-4 animate-in fade-in overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto dir-rtl text-slate-900">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h4 className="text-base font-extrabold text-blue-900 flex items-center gap-2">
@@ -2337,7 +2370,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               {/* Coverage Caps */}
               <div className="sm:col-span-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
                 <p className="font-extrabold text-blue-900 text-xs text-center">سقف پوشش‌ها (ریال)</p>
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-center">
                   <div>
                     <label className="block text-[10px] text-slate-500 font-bold mb-1">مالی</label>
                     <input
@@ -2394,7 +2427,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
       {/* Insurance Inquiry Modal (Culprit / Other Party) */}
       {fltInquiryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-start sm:items-center justify-center p-3 sm:p-4 animate-in fade-in overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto dir-rtl text-slate-900">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h4 className="text-base font-extrabold text-blue-900 flex items-center gap-2">
@@ -2566,7 +2599,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
       {/* Camera VIN Barcode Scanner Simulator Modal */}
       {scannerModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-start sm:items-center justify-center p-3 sm:p-4 animate-in fade-in overflow-y-auto">
           <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center text-slate-900 space-y-5 border border-slate-200 shadow-2xl relative overflow-hidden dir-rtl">
             <button
               type="button"
@@ -2638,8 +2671,8 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
       {/* Future Police / Kroki Inquiry Modal */}
       {showFuturePoliceModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 border border-slate-200 text-slate-900 animate-in zoom-in-95 dir-rtl">
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-5 border border-slate-200 text-slate-900 animate-in zoom-in-95 dir-rtl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-purple-700" />
@@ -2650,7 +2683,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 onClick={() => setShowFuturePoliceModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold text-xs transition-colors"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -2707,8 +2740,8 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
       {/* Chassis Guide Search & Selection Modal */}
       {showChassisGuideModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 border border-slate-200 text-slate-900 animate-in zoom-in-95 dir-rtl">
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-start sm:items-center justify-center p-3 sm:p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl p-4 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 border border-slate-200 text-slate-900 animate-in zoom-in-95 dir-rtl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
                 <Car className="w-5 h-5 text-blue-900" />
@@ -2719,7 +2752,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 onClick={() => setShowChassisGuideModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold text-xs transition-colors"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -2758,7 +2791,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                       className="absolute left-3 top-2.5 text-slate-400 hover:text-rose-600 font-bold text-xs p-0.5 rounded-full hover:bg-slate-100 transition-colors"
                       title="پاک کردن"
                     >
-                      ✕
+                      <X className="w-4 h-4" />
                     </button>
                   )}
                 </div>

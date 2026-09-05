@@ -290,9 +290,83 @@ button, a, input, select, textarea {
               box-shadow .2s ease, color .2s ease, transform .15s ease;
 }
 
-/* جدول‌ها در موبایل: اسکرول افقی به‌جای شکستن صفحه */
-@media (max-width: 768px) {
-  table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* ============================================================
+   مقیاس رابط روی نمایشگرهای پهن
+   به‌جای کشیده‌شدن فیلدها، کل رابط بزرگ‌تر می‌شود: چون اندازه‌ها
+   در Tailwind بر مبنای rem است، افزایش font-size ریشه همه‌چیز را
+   (متن، پدینگ، فاصله‌ها و سقف عرض ۹۲rem) با هم بزرگ می‌کند و
+   حاشیه خالی دو طرف پر می‌شود بدون آنکه چیزی کشیده شود.
+   ============================================================ */
+@media (min-width: 1280px) { html { font-size: 17px; } }
+@media (min-width: 1536px) { html { font-size: 18.5px; } }
+@media (min-width: 1800px) { html { font-size: 20px; } }
+@media (min-width: 2100px) { html { font-size: 21.5px; } }
+@media (min-width: 2500px) { html { font-size: 23px; } }
+
+/* ============================================================
+   عرض کانتینر سراسری
+   شل همه صفحات w-full max-w-[1880px] mx-auto است. چون سقف بر مبنای
+   rem است، با بزرگ‌شدن font-size ریشه در نمایشگرهای پهن، سقف هم
+   بزرگ می‌شود و حاشیه خالی دو طرف پر می‌شود؛ فیلدها کشیده نمی‌شوند.
+   کارت‌ها و مودال‌ها سقف خودشان (max-w-md تا max-w-4xl) را نگه
+   می‌دارند تا فرم‌ها کشیده و ناخوانا نشوند.
+   ============================================================ */
+.krn-shell { width: 100%; max-width: 1880px; margin-inline: auto; }
+
+/* ============================================================
+   لایه ریسپانسیو موبایل — بدون تغییر در منطق کامپوننت‌ها
+   ============================================================ */
+
+/* جدول‌های داده در موبایل به کارت تبدیل می‌شوند */
+@media (max-width: 639px) {
+  table { display: block; width: 100%; border-collapse: separate; }
+  thead { display: none; }
+  tbody, tfoot { display: block; width: 100%; }
+  tr {
+    display: block;
+    width: 100%;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 1rem;
+    padding: .7rem .85rem;
+    margin-bottom: .6rem;
+    box-shadow: 0 1px 2px rgba(15, 38, 87, .04);
+  }
+  td {
+    display: block;
+    width: 100%;
+    border: 0 !important;
+    padding: .2rem 0 !important;
+    text-align: right;
+    white-space: normal !important;
+  }
+  td:first-child {
+    font-weight: 800;
+    color: var(--krn-ink);
+    padding-bottom: .45rem !important;
+    margin-bottom: .3rem;
+    border-bottom: 1px dashed #e2e8f0 !important;
+  }
+  td:empty { display: none; }
+  tfoot tr { background: var(--krn-ice); }
+}
+
+/* اعداد و شناسه‌های بلند صفحه را در موبایل نمی‌شکنند */
+@media (max-width: 639px) {
+  body { overflow-x: hidden; }
+  .font-mono, [class*="tabular"] { overflow-wrap: anywhere; }
+  input, select, textarea { font-size: 16px; } /* جلوگیری از زوم خودکار iOS */
+  img, video, canvas, svg { max-width: 100%; }
+}
+
+/* نوارهای تب و فیلتر: اسکرول افقی نرم و بدون اسکرول‌بار */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+[class*="overflow-x-auto"] { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+
+/* هدف لمسی حداقل ۴۴px در موبایل */
+@media (max-width: 639px) and (pointer: coarse) {
+  button, a[role="button"], [type="button"], [type="submit"] { min-height: 40px; }
 }
 
 /* کاهش حرکت برای کاربرانی که ترجیح می‌دهند */

@@ -135,8 +135,8 @@ export const CustomerTicketModal: React.FC<CustomerTicketModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-xl w-full shadow-2xl border-2 border-slate-200 space-y-5 animate-in zoom-in-95 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto" dir="rtl">
+      <div className="bg-white rounded-3xl p-4 sm:p-6 sm:p-7 max-w-xl w-full shadow-2xl border-2 border-slate-200 space-y-5 animate-in zoom-in-95 max-h-[92vh] overflow-y-auto">
         
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100">
@@ -203,7 +203,7 @@ export const CustomerTicketModal: React.FC<CustomerTicketModalProps> = ({
             <label className="block font-bold text-slate-800 mb-1.5">
               سطح اولویت و فوریت پیگیری <span className="text-rose-500">*</span>
             </label>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4 gap-2">
               {(['عادی', 'مهم', 'فوری', 'بحرانی (شکایت رسمی بیمه مرکزی)'] as const).map((p) => (
                 <button
                   type="button"

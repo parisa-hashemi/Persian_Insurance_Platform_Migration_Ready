@@ -146,7 +146,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-in fade-in"
       dir="rtl"
       onClick={onClose}
     >
@@ -410,7 +410,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
         </div>
 
         {/* DETAILED FINANCIAL CALCULATION BREAKDOWN TABLE */}
-        <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-5 space-y-4">
+        <div className="bg-slate-50 border-2 border-slate-200 rounded-2xl p-4 sm:p-5 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-2">
             <h3 className="font-black text-xs text-blue-900 flex items-center gap-2">
               <FileText className="w-4 h-4 text-blue-900" />

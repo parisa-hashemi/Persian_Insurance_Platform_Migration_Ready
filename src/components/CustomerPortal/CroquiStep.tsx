@@ -175,7 +175,7 @@ export const CroquiStep: React.FC<CroquiStepProps> = ({
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 w-full max-w-[1880px] mx-auto">
       <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-6">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">
@@ -226,7 +226,7 @@ export const CroquiStep: React.FC<CroquiStepProps> = ({
         </div>
 
         {/* File Upload Area */}
-        <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-xl p-8 text-center bg-slate-900/30 transition-colors mb-6">
+        <div className="border-2 border-dashed border-slate-700 hover:border-emerald-500/50 rounded-xl p-5 sm:p-8 text-center bg-slate-900/30 transition-colors mb-6">
           <input
             type="file"
             ref={fileInputRef}
@@ -393,21 +393,21 @@ export const CroquiStep: React.FC<CroquiStepProps> = ({
                 <div className="font-bold text-emerald-400 text-sm mb-2 pb-1 border-b border-slate-800">
                   اطلاعات راننده مقصر حادثه (Fault Driver)
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap gap-3 justify-between">
                   <span className="text-slate-400">نام و نام خانوادگی:</span>
                   <span className="text-slate-200 font-semibold">{data.faultDriver.fullName}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap gap-3 justify-between">
                   <span className="text-slate-400">کد ملی:</span>
                   <span className="text-slate-200 font-mono">
                     {driverRole === 'victim' ? '*** (محرمانه - جهت حفظ حریم خصوصی)' : data.faultDriver.nationalId}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap gap-3 justify-between">
                   <span className="text-slate-400">شماره پلاک:</span>
                   <span className="text-slate-200 font-medium">{data.faultDriver.plateNumber}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap gap-3 justify-between">
                   <span className="text-slate-400">شماره بیمه‌نامه:</span>
                   <span className="text-slate-200 font-mono">{data.faultDriver.insurancePolicyNumber}</span>
                 </div>
@@ -417,21 +417,21 @@ export const CroquiStep: React.FC<CroquiStepProps> = ({
                 <div className="font-bold text-sky-400 text-sm mb-2 pb-1 border-b border-slate-800">
                   اطلاعات راننده زیان‌دیده (Victim Driver)
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap gap-3 justify-between">
                   <span className="text-slate-400">نام و نام خانوادگی:</span>
                   <span className="text-slate-200 font-semibold">{data.victimDriver.fullName}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap gap-3 justify-between">
                   <span className="text-slate-400">کد ملی:</span>
                   <span className="text-slate-200 font-mono">
                     {driverRole === 'at_fault' ? '*** (محرمانه - جهت حفظ حریم خصوصی)' : data.victimDriver.nationalId}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap gap-3 justify-between">
                   <span className="text-slate-400">شماره پلاک:</span>
                   <span className="text-slate-200 font-medium">{data.victimDriver.plateNumber}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex flex-wrap gap-3 justify-between">
                   <span className="text-slate-400">شماره بیمه‌نامه:</span>
                   <span className="text-slate-200 font-mono">{data.victimDriver.insurancePolicyNumber}</span>
                 </div>
@@ -439,7 +439,7 @@ export const CroquiStep: React.FC<CroquiStepProps> = ({
             </div>
 
             {/* General Metadata */}
-            <div className="bg-slate-900/40 border border-slate-800 p-4 rounded-xl grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+            <div className="bg-slate-900/40 border border-slate-800 p-4 rounded-xl grid grid-cols-1 min-[380px]:grid-cols-2 md:grid-cols-4 gap-4 text-xs">
               <div>
                 <span className="text-slate-500 block mb-0.5">شماره گزارش:</span>
                 <span className="font-mono text-slate-200 font-semibold">{data.reportNumber}</span>

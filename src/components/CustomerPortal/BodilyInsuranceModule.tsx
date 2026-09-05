@@ -314,7 +314,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in" dir="rtl">
+    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in" dir="rtl">
       {/* Top Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">
@@ -419,7 +419,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
             </div>
 
             {bodilyCases.length === 0 ? (
-              <div className="py-12 text-center space-y-3">
+              <div className="py-7 sm:py-12 text-center space-y-3">
                 <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
                   <ShieldPlus className="w-8 h-8" />
                 </div>
@@ -429,7 +429,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                 </p>
                 <button
                   onClick={() => setViewState('create_step1')}
-                  className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs shadow-md mt-2 active:scale-95"
+                  className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs shadow-md mt-2 active:scale-95"
                 >
                   ثبت اولین اعلام خسارت بدنه
                 </button>
@@ -575,7 +575,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                   type="button"
                   onClick={() => handleInquirePolicy(nationalId)}
                   disabled={isInquiring || !nationalId.trim()}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-sm flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                  className="w-full sm:w-auto w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-sm flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
                 >
                   {isInquiring ? (
                     <>
@@ -622,7 +622,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div className="bg-white/80 p-3 rounded-xl border border-emerald-200">
                     <span className="text-[10px] text-slate-500 font-bold block">نام بیمه‌گذار:</span>
                     <span className="font-black text-slate-900 mt-0.5 block">{inquiredPolicy.ownerName}</span>
@@ -686,7 +686,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1.5">
                     تاریخ حادثه <span className="text-rose-600">*</span>
@@ -780,7 +780,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                 type="button"
                 onClick={() => setViewState('create_step2')}
                 disabled={!inquiredPolicy || !address.trim() || !incidentDescription.trim()}
-                className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md border border-blue-300 flex items-center gap-2 active:scale-95 disabled:opacity-50"
+                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md border border-blue-300 flex items-center gap-2 active:scale-95 disabled:opacity-50"
               >
                 <span>مرحله بعد: بارگذاری عکس، ویدیو و ضبط صوت</span>
                 <ArrowLeft className="w-4 h-4" />
@@ -834,7 +834,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
             </div>
 
             {/* Photos Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4 gap-3">
               {photos.map((ph, idx) => (
                 <div key={idx} className="relative rounded-2xl overflow-hidden border-2 border-slate-200 group bg-slate-100">
                   <img
@@ -934,7 +934,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
             </div>
 
             {/* Audio Recorder Controls */}
-            <div className="bg-blue-50/70 border-2 border-blue-200 rounded-2xl p-5 space-y-4">
+            <div className="bg-blue-50/70 border-2 border-blue-200 rounded-2xl p-4 sm:p-5 space-y-4">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="space-y-1 text-right">
                   <span className="font-black text-xs text-blue-900 block">
@@ -1004,7 +1004,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
           </div>
 
           {/* Submission Notice & Action */}
-          <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md space-y-4">
+          <div className="bg-slate-900 text-white rounded-3xl p-4 sm:p-6 shadow-md space-y-4">
             <div className="flex items-start gap-3">
               <ShieldCheck className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
               <div>
@@ -1041,7 +1041,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
 
       {/* VIEW STATE 4: SUCCESS CONFIRMATION MODAL / VIEW */}
       {viewState === 'success' && createdCase && (
-        <div className="bg-white rounded-3xl border-2 border-emerald-300 p-8 shadow-xl text-center space-y-6 animate-in zoom-in-95">
+        <div className="bg-white rounded-3xl border-2 border-emerald-300 p-5 sm:p-8 shadow-xl text-center space-y-6 animate-in zoom-in-95">
           <div className="w-20 h-20 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto border-4 border-emerald-300 shadow-md">
             <CheckCircle2 className="w-10 h-10" />
           </div>
@@ -1056,7 +1056,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
           </div>
 
           {/* Routing Notification Box */}
-          <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-5 max-w-xl mx-auto text-right space-y-3">
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 sm:p-5 max-w-xl mx-auto text-right space-y-3">
             <div className="flex items-center gap-2 text-blue-900 font-black text-xs">
               <Building2 className="w-4 h-4 text-blue-900" />
               <span>نتیجه ارجاع هوشمند پرونده:</span>
@@ -1079,7 +1079,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
             <button
               onClick={() => onOpenCaseDetail && onOpenCaseDetail(createdCase.id)}
-              className="px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md flex items-center gap-2 active:scale-95"
+              className="w-full sm:w-auto justify-center px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md flex items-center gap-2 active:scale-95"
             >
               <span>مشاهده و پیگیری زنده پرونده</span>
               <ArrowLeft className="w-4 h-4" />

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { AppToastHost } from './components/AppToastHost';
 import { ClaimCase, UserSession, RoleType } from './types';
 import { loadCasesFromStorage, saveCasesToStorage, loadSession, saveSession, checkAndProcessTimeouts } from './lib/storage';
 
@@ -208,6 +209,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 flex flex-col font-sans selection:bg-blue-600 selection:text-white" dir="rtl">
+      {/* اعلان‌ها و تاییدیه‌های سراسری داخل برنامه */}
+      <AppToastHost />
       {/* Top Navbar */}
       <Navbar
         currentSession={session}
@@ -217,8 +220,14 @@ export default function App() {
         onSelectPortal={(role) => handleSelectPortal(role)}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Main Container — صفحه اول (گیت‌وی) تمام-عرض است؛ بقیه صفحات شل عریض با پدینگ دارند */}
+      <main
+        className={
+          activeView === 'gateway'
+            ? 'flex-1 w-full'
+            : 'flex-1 w-full max-w-[1880px] mx-auto px-4 sm:px-6 lg:px-8 2xl:px-10 py-6'
+        }
+      >
         {/* View 1: Gateway */}
         {activeView === 'gateway' && (
           <PortalGateway

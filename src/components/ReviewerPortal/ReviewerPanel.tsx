@@ -382,7 +382,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
   ];
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-in fade-in" dir="rtl">
+    <div className="w-full max-w-[1880px] mx-auto space-y-6 pb-20 animate-in fade-in" dir="rtl">
       {/* Top Banner Header */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-blue-800/40 flex items-center justify-between flex-wrap gap-4">
         <div className="space-y-2">
@@ -467,7 +467,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
             onClick={() => setActionSuccessMsg(null)}
             className="text-white/80 hover:text-white font-bold text-sm cursor-pointer"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
@@ -2046,7 +2046,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                 onClick={() => setShowApproveModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -2086,7 +2086,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                 onClick={() => setShowRejectModal(false)}
                 className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold cursor-pointer"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 
@@ -2162,7 +2162,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                   }}
                   className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center cursor-pointer transition-colors"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
@@ -2256,7 +2256,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                   onClick={() => setShowSmsModal(false)}
                   className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xs font-bold cursor-pointer"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
               <div className="text-[11px] bg-slate-800/80 px-3 py-1.5 rounded-xl text-slate-300 flex items-center justify-between">
@@ -2351,7 +2351,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                   onClick={() => setShowQuickSearchModal(false)}
                   className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xs font-bold cursor-pointer"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
@@ -2370,7 +2370,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                     onClick={() => setSearchQuery('')}
                     className="w-6 h-6 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-700 absolute left-3 top-3 flex items-center justify-center text-xs font-bold cursor-pointer"
                   >
-                    ✕
+                    <X className="w-4 h-4" />
                   </button>
                 )}
               </div>

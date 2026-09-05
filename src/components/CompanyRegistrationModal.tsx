@@ -1,25 +1,5 @@
 import React, { useState } from 'react';
-import {
-  Building2,
-  FileText,
-  Upload,
-  CheckCircle2,
-  AlertCircle,
-  X,
-  ArrowRight,
-  ArrowLeft,
-  ShieldCheck,
-  Phone,
-  Mail,
-  User,
-  MapPin,
-  Lock,
-  FileCheck,
-  Send,
-  Eye,
-  Trash2,
-  Sparkles
-} from 'lucide-react';
+import { Building2, FileText, Upload, CheckCircle2, AlertCircle, X, ArrowRight, ArrowLeft, ShieldCheck, Phone, Mail, User, MapPin, Lock, FileCheck, Send, Eye, Trash2, Sparkles, Lightbulb } from 'lucide-react';
 import { submitCompanyRegistrationRequest } from '../lib/storage';
 
 interface CompanyRegistrationModalProps {
@@ -166,7 +146,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200" dir="rtl">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto" dir="rtl">
       <div className="bg-white border-2 border-slate-200 rounded-3xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden text-slate-900 font-sans">
         {/* Header */}
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
@@ -284,7 +264,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
               </div>
 
               <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl text-xs text-blue-900 mb-6 max-w-lg text-right font-medium">
-                💡 <span className="font-bold">نکته برای تست و ارزیابی:</span> شما می‌توانید همین حالا وارد پرتال «مدیر کل سامانه» (Super Admin) شوید، در تب «درخواست‌های ثبت شرکت» این درخواست را تایید فرمایید تا حساب مدیر ارشد بلافاصله فعال شود.
+                <Lightbulb className="w-4 h-4 inline-block align-middle text-blue-700" /> <span className="font-bold">نکته برای تست و ارزیابی:</span> شما می‌توانید همین حالا وارد پرتال «مدیر کل سامانه» (Super Admin) شوید، در تب «درخواست‌های ثبت شرکت» این درخواست را تایید فرمایید تا حساب مدیر ارشد بلافاصله فعال شود.
               </div>
 
               <button
