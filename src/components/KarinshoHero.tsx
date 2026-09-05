@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 /**
  * KarinshoHero — هیرو مدرن «کاراینشو»
@@ -7,15 +7,16 @@ import React from 'react';
  * تماماً SVG + CSS (بدون تصویر خارجی) — سبک، شارپ و ریسپانسیو.
  */
 export const KarinshoHero: React.FC = () => {
+  const [turbo, setTurbo] = useState(false);
   return (
-    <section className="krn-hero" dir="rtl" aria-label="کاراینشو — سامانه هوشمند پرداخت و ارزیابی خسارت">
+    <section className={`krn-hero${turbo ? ' krn-turbo' : ''}`} dir="rtl" aria-label="کاراینشو — سامانه هوشمند پرداخت و ارزیابی خسارت">
       <style>{`
         .krn-hero {
           position: relative;
           overflow: hidden;
           background:
             radial-gradient(1200px 480px at 78% -12%, rgba(59,130,246,.16), transparent 60%),
-            radial-gradient(900px 420px at 12% 8%, rgba(99,102,241,.12), transparent 55%),
+            radial-gradient(900px 420px at 12% 8%, rgba(37,99,235,.10), transparent 55%),
             linear-gradient(180deg, #f6f9ff 0%, #eef4fd 42%, #ffffff 100%);
         }
         .krn-hero * { box-sizing: border-box; }
@@ -57,6 +58,19 @@ export const KarinshoHero: React.FC = () => {
           pointer-events: none;
         }
         .krn-dots.krn-dots-b { inset-inline-start: auto; inset-inline-end: 4%; }
+
+        /* skyline continuing up behind the wordmark, so the top band isn't empty */
+        .krn-skyline-top {
+          position: absolute; inset-inline: 0; top: 0;
+          height: clamp(150px, 16vw, 300px);
+          z-index: 0; pointer-events: none;
+          -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.55) 34%, #000 58%, rgba(0,0,0,.55) 82%, transparent 100%);
+          mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.55) 34%, #000 58%, rgba(0,0,0,.55) 82%, transparent 100%);
+        }
+        .krn-skyline-top > svg {
+          position: absolute; inset: 0; width: 100%; height: 100%;
+          display: block; opacity: .42;
+        }
 
         /* ---------- Scene ---------- */
         .krn-scene {
@@ -141,14 +155,133 @@ export const KarinshoHero: React.FC = () => {
         @media (max-width: 900px) { .krn-chip-3 { display: none } }
         @media (max-width: 640px) { .krn-chip-2 { display: none } .krn-chip { font-size: 10.5px; padding: 7px 11px } }
 
+
+        /* ================= حالت تِربو ================= */
+        .krn-turbo-btn {
+          position: absolute; z-index: 7;
+          top: clamp(104px, 10vw, 176px); inset-inline-start: clamp(12px, 3vw, 40px);
+          display: inline-flex; align-items: center; gap: 8px;
+          padding: 10px 18px; border-radius: 999px; cursor: pointer;
+          border: 1px solid rgba(147,197,253,.7);
+          background: rgba(255,255,255,.78);
+          backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+          color: #1e3a8a; font-weight: 900; font-size: 12.5px;
+          box-shadow: 0 14px 34px -14px rgba(37,99,235,.45);
+          transition: transform .18s ease, box-shadow .25s ease, background .25s ease, color .25s ease, border-color .25s ease;
+          user-select: none;
+        }
+        .krn-turbo-btn:hover { transform: translateY(-2px) scale(1.03); }
+        .krn-turbo-btn:active { transform: scale(.96); }
+        .krn-turbo .krn-turbo-btn {
+          background: linear-gradient(120deg, #ff3b5c, #ff7a18);
+          color: #fff; border-color: rgba(255,122,24,.65);
+          box-shadow: 0 16px 40px -12px rgba(255,59,92,.65), 0 0 22px rgba(255,122,24,.45);
+          animation: krn-btnpulse 1.1s ease-in-out infinite;
+        }
+        @keyframes krn-btnpulse { 0%,100% { transform: scale(1) } 50% { transform: scale(1.05) } }
+        @media (max-width: 640px) {
+          .krn-turbo-btn {
+            top: 10px; inset-inline-start: auto; inset-inline-end: 12px;
+            padding: 8px 13px; font-size: 11px;
+          }
+        }
+
+        /* سرعت بیشترِ دنیا + چرخ‌ها در حالت تربو */
+        .krn-turbo .krn-far  { animation-duration: 17s; }
+        .krn-turbo .krn-mid  { animation-duration: 7s; }
+        .krn-turbo .krn-near { animation-duration: 2.2s; }
+        .krn-turbo .krn-rim  { animation-duration: .2s; }
+        .krn-turbo .krn-dust   { animation-duration: .75s; }
+        .krn-turbo .krn-dust-b { animation-duration: .95s; }
+        .krn-turbo .krn-dust-c { animation-duration: .85s; }
+        .krn-turbo .krn-beam { opacity: .95; }
+        .krn-turbo .krn-tail { animation-duration: .5s; }
+
+        /* لرزش نامحسوس بدنه در سرعت بالا */
+        @keyframes krn-shake {
+          0%,100% { transform: translateY(0) }
+          25%     { transform: translateY(-2.4px) }
+          50%     { transform: translateY(.8px) }
+          75%     { transform: translateY(-1.4px) }
+        }
+        .krn-turbo .krn-car { animation: krn-shake .3s linear infinite; }
+
+        /* افکت‌های ویژه تربو: پیش‌فرض پنهان */
+        .krn-turbo-fx { opacity: 0; transition: opacity .35s ease; }
+        .krn-turbo .krn-turbo-fx { opacity: 1; }
+
+        /* دود اگزوز */
+        @keyframes krn-smoke {
+          0%   { transform: translate(0,0) scale(.35); opacity: 0; }
+          12%  { opacity: .55; }
+          100% { transform: translate(165px,-40px) scale(2.3); opacity: 0; }
+        }
+        .krn-smoke   { animation: krn-smoke 1.15s ease-out infinite; }
+        .krn-smoke-b { animation-duration: 1.5s;  animation-delay: .35s; }
+        .krn-smoke-c { animation-duration: 1.3s;  animation-delay: .7s; }
+        .krn-smoke-d { animation-duration: 1.7s;  animation-delay: 1s; }
+
+        /* دونه‌های قرمز (جرقه‌های چراغ عقب) */
+        @keyframes krn-redp-1 { 0% { transform: translate(0,0) scale(1); opacity: 1 } 100% { transform: translate(200px,-14px) scale(.3); opacity: 0 } }
+        @keyframes krn-redp-2 { 0% { transform: translate(0,0) scale(1); opacity: 1 } 100% { transform: translate(230px, 10px) scale(.35); opacity: 0 } }
+        @keyframes krn-redp-3 { 0% { transform: translate(0,0) scale(1); opacity: 1 } 100% { transform: translate(180px, 26px) scale(.3); opacity: 0 } }
+        .krn-redp   { filter: drop-shadow(0 0 6px rgba(255,59,92,.95)); }
+        .krn-redp-a { animation: krn-redp-1 .8s  linear infinite; }
+        .krn-redp-b { animation: krn-redp-2 1.05s linear infinite; animation-delay: .2s; }
+        .krn-redp-c { animation: krn-redp-3 .9s  linear infinite; animation-delay: .45s; }
+        .krn-redp-d { animation: krn-redp-1 1.2s linear infinite; animation-delay: .6s; }
+        .krn-redp-e { animation: krn-redp-2 .75s linear infinite; animation-delay: .85s; }
+
+        /* شعله اگزوز */
+        @keyframes krn-flame {
+          0%,100% { transform: scaleX(1);   opacity: .85; }
+          50%     { transform: scaleX(1.6); opacity: 1;  }
+        }
+        .krn-flame { transform-origin: 336px 130px; animation: krn-flame .18s ease-in-out infinite; }
+
         @media (prefers-reduced-motion: reduce) {
           .krn-far, .krn-mid, .krn-near, .krn-car, .krn-rim, .krn-trail, .krn-trail-2,
           .krn-streak, .krn-streak-b, .krn-streak-c, .krn-dust, .krn-dust-b, .krn-dust-c,
           .krn-beam, .krn-tail, .krn-cloud-a, .krn-cloud-b,
           .krn-aurora, .krn-aurora-b, .krn-spark, .krn-spark-b, .krn-spark-c,
-          .krn-spark-d, .krn-chip { animation: none !important; }
+          .krn-spark-d, .krn-chip, .krn-smoke, .krn-smoke-b, .krn-smoke-c, .krn-smoke-d,
+          .krn-redp-a, .krn-redp-b, .krn-redp-c, .krn-redp-d, .krn-redp-e,
+          .krn-flame, .krn-turbo-btn { animation: none !important; }
         }
       `}</style>
+
+      {/* ادامه‌ی خط آسمان در نوار بالایی، پشت لوگوتایپ */}
+      <div className="krn-skyline-top krn-parallax" data-krn-depth="0.25" aria-hidden="true">
+        <svg viewBox="0 0 1440 200" preserveAspectRatio="none">
+          <g fill="#cddffa">
+            {[-480, 0, 480, 960, 1440].map((ox) => (
+              <g key={ox} transform={`translate(${ox},0)`}>
+                <rect x="14" y="96" width="30" height="104" rx="2" />
+                <rect x="56" y="58" width="38" height="142" rx="3" />
+                <rect x="106" y="122" width="24" height="78" rx="2" />
+                <rect x="146" y="78" width="34" height="122" rx="2" />
+                <rect x="196" y="40" width="44" height="160" rx="3" />
+                <rect x="254" y="110" width="26" height="90" rx="2" />
+                <rect x="296" y="70" width="32" height="130" rx="2" />
+                <rect x="344" y="130" width="22" height="70" rx="2" />
+                <rect x="382" y="88" width="40" height="112" rx="3" />
+                <rect x="436" y="116" width="28" height="84" rx="2" />
+              </g>
+            ))}
+          </g>
+          <g fill="#eaf2ff" opacity=".9">
+            {[-480, 0, 480, 960, 1440].map((ox) => (
+              <g key={ox} transform={`translate(${ox},0)`}>
+                <rect x="64" y="72" width="22" height="3" />
+                <rect x="64" y="86" width="22" height="3" />
+                <rect x="204" y="54" width="28" height="3" />
+                <rect x="204" y="70" width="28" height="3" />
+                <rect x="304" y="84" width="18" height="3" />
+              </g>
+            ))}
+          </g>
+        </svg>
+      </div>
 
       {/* بافت نقطه‌ای گوشه‌ها */}
       <div className="krn-dots" aria-hidden="true" />
@@ -174,7 +307,7 @@ export const KarinshoHero: React.FC = () => {
               <circle cx="35.9" cy="31.6" r="3.4" fill="none" stroke="#1d4ed8" strokeWidth="2.6" />
             </g>
           </svg>
-          <h1 className="krn-wordmark">کاراینـشو</h1>
+          <h1 className="krn-wordmark krn-parallax" data-krn-depth="0.45">کاراینـشو</h1>
         </div>
         <p className="krn-tagline">
           سامانه هوشمند <b>پرداخت و ارزیابی خسارت</b> بیمه خودرو
@@ -183,13 +316,26 @@ export const KarinshoHero: React.FC = () => {
 
       {/* ---------- صحنه‌ی متحرک ---------- */}
       <div className="krn-scene">
+        {/* دکمه حالت تربو */}
+        <button
+          type="button"
+          className="krn-turbo-btn"
+          onClick={() => setTurbo((t) => !t)}
+          aria-pressed={turbo}
+          title={turbo ? 'خاموش کردن حالت تربو' : 'روشن کردن حالت تربو'}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" stroke="none" />
+          </svg>
+          <span>{turbo ? 'تربو فعال! 🔥' : 'حالت تربو'}</span>
+        </button>
         {/* چیپ‌های شیشه‌ای شناور */}
-        <div className="krn-chip" style={{ top: '12%', insetInlineStart: '7%' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
+        <div className="krn-chip krn-parallax" data-krn-depth="1.1" style={{ top: '12%', insetInlineStart: '7%' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
           <span>ارزیابی هوشمند با هوش مصنوعی</span>
         </div>
-        <div className="krn-chip krn-chip-2" style={{ top: '18%', insetInlineEnd: '8%' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        <div className="krn-chip krn-chip-2 krn-parallax" data-krn-depth="0.9" style={{ top: '18%', insetInlineEnd: '8%' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
           <span>تسویه خسارت در ۲۴ ساعت</span>
         </div>
         <svg viewBox="0 0 1440 420" preserveAspectRatio="xMinYMax slice">
@@ -226,6 +372,11 @@ export const KarinshoHero: React.FC = () => {
               <stop offset="0%" stopColor="#0b1e3f" stopOpacity=".28" />
               <stop offset="100%" stopColor="#0b1e3f" stopOpacity="0" />
             </radialGradient>
+            <linearGradient id="krnFlame" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#38bdf8" />
+              <stop offset=".45" stopColor="#ff7a18" />
+              <stop offset="1" stopColor="#ff3b5c" stopOpacity=".15" />
+            </linearGradient>
           </defs>
 
           {/* آسمان و هاله‌ی نور */}
@@ -338,6 +489,27 @@ export const KarinshoHero: React.FC = () => {
           <g transform="translate(300,168)">
             {/* سایه متحرک زیر ماشین */}
             <ellipse cx="180" cy="152" rx="185" ry="17" fill="url(#krnShadow)" />
+
+            {/* ===== افکت‌های حالت تربو: دود اگزوز + شعله + دونه‌های قرمز ===== */}
+            <g className="krn-turbo-fx" aria-hidden="true">
+              {/* شعله اگزوز */}
+              <polygon className="krn-flame" points="336,126 372,131 336,136" fill="url(#krnFlame)" />
+              {/* دود */}
+              <g fill="#b9c8dc">
+                <circle className="krn-smoke"            cx="344" cy="128" r="11" />
+                <circle className="krn-smoke krn-smoke-b" cx="352" cy="134" r="8" />
+                <circle className="krn-smoke krn-smoke-c" cx="348" cy="122" r="9" />
+                <circle className="krn-smoke krn-smoke-d" cx="356" cy="130" r="6.5" />
+              </g>
+              {/* دونه‌های قرمز از چراغ عقب */}
+              <g fill="#ff3b5c">
+                <circle className="krn-redp krn-redp-a" cx="342" cy="74" r="3.4" />
+                <circle className="krn-redp krn-redp-b" cx="344" cy="80" r="2.6" />
+                <circle className="krn-redp krn-redp-c" cx="341" cy="86" r="3" />
+                <circle className="krn-redp krn-redp-d" cx="345" cy="70" r="2.2" />
+                <circle className="krn-redp krn-redp-e" cx="343" cy="78" r="2.8" />
+              </g>
+            </g>
 
             {/* گرد و غبار پشت چرخ‌ها */}
             <g fill="#dbe7f6">

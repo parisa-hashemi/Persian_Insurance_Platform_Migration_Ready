@@ -836,7 +836,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   };
 
   return (
-    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in">
+    <div className="w-full space-y-6 animate-in fade-in">
       {/* اعلان الزامی بودن مدارک — داخل سامانه، به‌جای پنجره مرورگر */}
       {requiredDocsError && (
         <div
@@ -1397,7 +1397,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8 gap-3">
                 {[
                   { id: 'پلاک', label: 'پلاک' },
                   { id: 'جلو', label: 'جلو' },

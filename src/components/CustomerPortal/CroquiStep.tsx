@@ -175,7 +175,7 @@ export const CroquiStep: React.FC<CroquiStepProps> = ({
   };
 
   return (
-    <div className="space-y-6 w-full max-w-[1880px] mx-auto">
+    <div className="space-y-6 w-full">
       <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-6">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-xl font-bold text-slate-100 flex items-center gap-2">

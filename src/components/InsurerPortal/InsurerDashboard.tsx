@@ -774,7 +774,7 @@ ${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructi
   };
 
   return (
-    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in" dir="rtl">
+    <div className="w-full space-y-6 animate-in fade-in" dir="rtl">
       
       {/* DYNAMIC COMPANY BRAND HERO BANNER */}
       <div className={`rounded-3xl p-5 sm:p-6 bg-gradient-to-l ${brand.headerBgGradient} shadow-lg border ${brand.cardBorder} relative overflow-hidden`}>

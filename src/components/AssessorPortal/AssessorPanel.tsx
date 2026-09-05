@@ -1468,7 +1468,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   };
 
   return (
-    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in pb-10 sm:pb-16">
+    <div className="w-full space-y-6 animate-in fade-in pb-10 sm:pb-16">
       
       {/* Top Banner Header */}
       <div className="bg-gradient-to-l from-blue-500 via-indigo-500 to-blue-600 rounded-3xl p-6 sm:p-8 text-white shadow-lg shadow-blue-300/40 flex items-center justify-between flex-wrap gap-4 border border-blue-300/50">
@@ -1524,7 +1524,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
           
           {/* Modern Tab-Based Navigation for Case Statuses */}
           <div className="bg-white rounded-3xl border border-slate-200/90 p-2 sm:p-2.5 shadow-sm">
-            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+            <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
               {[
                 {
                   id: 'all' as const,

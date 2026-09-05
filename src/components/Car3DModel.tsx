@@ -414,7 +414,7 @@ export const Car3DModel: React.FC<Car3DModelProps> = ({
       x.strokeStyle = stroke;
       x.stroke();
       x.fillStyle = glyphColor;
-      x.font = '900 74px Vazirmatn, sans-serif';
+      x.font = '900 74px Estedad, sans-serif';
       x.textAlign = 'center';
       x.textBaseline = 'middle';
       x.fillText(glyph, 64, 70);

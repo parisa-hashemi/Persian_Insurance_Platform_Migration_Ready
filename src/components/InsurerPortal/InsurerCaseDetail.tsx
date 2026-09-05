@@ -1015,7 +1015,7 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
   }, [claimCase, culpritPartyTag, isP1Victim]);
 
   return (
-    <div className="w-full max-w-[1880px] mx-auto space-y-5 animate-in fade-in pb-16">
+    <div className="w-full space-y-5 animate-in fade-in pb-16">
       
       {/* Navigation & Insurer Branding Header */}
       <div className="bg-white border-2 border-slate-200 rounded-2xl p-3.5 shadow-sm flex flex-wrap items-center justify-between gap-3">

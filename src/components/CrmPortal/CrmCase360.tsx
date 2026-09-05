@@ -207,20 +207,6 @@ export const CrmCase360: React.FC<CrmCase360Props> = ({
             <span>مدارک ۳۶۰ درجه</span>
           </button>
           <button
-            onClick={() => onOpenNewFollowUpForCase(claimCase)}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>ایجاد پیگیری</span>
-          </button>
-          <button
-            onClick={() => onOpenNewTicketForCase(claimCase)}
-            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <AlertOctagon className="w-4 h-4" />
-            <span>ثبت شکایت</span>
-          </button>
-          <button
             onClick={() => {
               setSmsText(`زیان‌دیده گرامی؛ پرونده خسارت ${claimCase.id} نیازمند اقدام در پنل کاربری است.`);
               setShowSmsModal(true);

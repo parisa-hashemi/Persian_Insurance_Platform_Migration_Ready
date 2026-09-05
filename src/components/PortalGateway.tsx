@@ -276,20 +276,20 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
       <KarinshoHero />
 
       {/* ================= کارت ورود شناور روی هیرو ================= */}
-      <main className="relative z-10 -mt-16 sm:-mt-24 px-4 sm:px-6 lg:px-8 flex-1 w-full">
-        <div className="w-full max-w-[1880px] mx-auto space-y-8">
+      <main className="relative z-10 -mt-16 sm:-mt-24 px-3 sm:px-5 lg:px-7 flex-1 w-full pb-8">
+        <div className="w-full space-y-8">
 
           {/* کارت اصلی ورود */}
-          <div className="w-full max-w-4xl mx-auto bg-white/90 backdrop-blur-xl rounded-[2rem] border border-slate-200/80 shadow-[0_24px_70px_-24px_rgba(29,78,216,0.28)] p-5 sm:p-8">
+          <div className="w-full max-w-5xl mx-auto bg-white/90 backdrop-blur-xl rounded-[2rem] border border-slate-200/80 shadow-[0_24px_70px_-24px_rgba(29,78,216,0.28)] p-5 sm:p-8">
 
             {/* دو تب اصلی: مشتری / سازمانی */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-100/80 p-1.5 rounded-2xl mb-7 max-w-2xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-100/80 p-1.5 rounded-2xl mb-7 max-w-3xl mx-auto">
               <button
                 type="button"
                 onClick={() => setMainMode('customer')}
                 className={`py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
                   mainMode === 'customer'
-                    ? 'bg-gradient-to-l from-blue-700 to-indigo-600 text-white shadow-lg shadow-blue-600/30'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
                     : 'text-slate-600 hover:text-blue-800'
                 }`}
               >
@@ -302,7 +302,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                 onClick={() => setMainMode('org')}
                 className={`py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
                   mainMode === 'org'
-                    ? 'bg-gradient-to-l from-blue-700 to-indigo-600 text-white shadow-lg shadow-blue-600/30'
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
                     : 'text-slate-600 hover:text-blue-800'
                 }`}
               >
@@ -461,7 +461,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                       <select
                         value={financeId}
                         onChange={(e) => setFinanceId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-emerald-600 shadow-sm"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-blue-600 shadow-sm"
                       >
                         {(financeStaffMap[financeCompany] || []).length > 0 ? (
                           (financeStaffMap[financeCompany] || []).map((s) => (
@@ -486,7 +486,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         value={financePass}
                         onChange={(e) => setFinancePass(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-emerald-600 shadow-sm"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-600 shadow-sm"
                         dir="ltr"
                         required
                       />
@@ -494,7 +494,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                      className="w-full py-3 bg-blue-700 hover:bg-blue-600 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                     >
                       <span>ورود به پنل مالی و خزانه‌داری</span>
                       <ArrowLeft className="w-4 h-4" />
@@ -522,7 +522,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                       <select
                         value={crmId}
                         onChange={(e) => setCrmId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-purple-600 shadow-sm"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-blue-600 shadow-sm"
                       >
                         {(crmStaffMap[crmCompany] || []).length > 0 ? (
                           (crmStaffMap[crmCompany] || []).map((s) => (
@@ -547,7 +547,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         value={crmPass}
                         onChange={(e) => setCrmPass(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-purple-600 shadow-sm"
+                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-600 shadow-sm"
                         dir="ltr"
                         required
                       />
@@ -555,7 +555,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                      className="w-full py-3 bg-blue-700 hover:bg-blue-600 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                     >
                       <span>ورود به پنل امور مشتریان و CRM</span>
                       <ArrowLeft className="w-4 h-4" />
@@ -597,7 +597,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-gradient-to-l from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white font-black rounded-xl text-xs shadow-md border border-amber-300 transition-all flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full py-3 bg-blue-700 hover:bg-blue-600 text-white font-black rounded-xl text-xs shadow-md border border-blue-500 transition-all flex items-center justify-center gap-2 active:scale-95"
                     >
                       <span>ورود به پنل مدیریت ارشد کلان</span>
                       <ArrowLeft className="w-4 h-4" />
@@ -625,7 +625,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
           {/* ================= کارت‌های ویژگی (مثل رفرنس) ================= */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pb-12">
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center space-y-3">
+            <div className="krn-spotlight krn-proximity p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm transition-all text-center space-y-3">
               <div className="w-12 h-12 mx-auto rounded-2xl bg-violet-50 flex items-center justify-center">
                 <ShieldCheck className="w-6 h-6 text-violet-500" />
               </div>
@@ -635,9 +635,9 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
               </p>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 flex items-center justify-center">
-                <Zap className="w-6 h-6 text-amber-500" />
+            <div className="krn-spotlight krn-proximity p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm transition-all text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl krn-accent-sand flex items-center justify-center">
+                <Zap className="w-6 h-6" />
               </div>
               <h4 className="font-black text-sm text-slate-900">سریع و هوشمند</h4>
               <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
@@ -645,9 +645,9 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
               </p>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-emerald-50 flex items-center justify-center">
-                <FileCheck className="w-6 h-6 text-emerald-500" />
+            <div className="krn-spotlight krn-proximity p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm transition-all text-center space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-2xl krn-accent-sage flex items-center justify-center">
+                <FileCheck className="w-6 h-6" />
               </div>
               <h4 className="font-black text-sm text-slate-900">شفاف و دقیق</h4>
               <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
@@ -655,7 +655,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
               </p>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all text-center space-y-3">
+            <div className="krn-spotlight krn-proximity p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm transition-all text-center space-y-3">
               <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-50 flex items-center justify-center">
                 <Headphones className="w-6 h-6 text-blue-500" />
               </div>
@@ -671,7 +671,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
       {/* Footer */}
       <footer className="border-t border-slate-200 bg-white py-5 text-center text-xs text-slate-500 font-bold">
-        <div className="w-full max-w-[1880px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="w-full px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p>© ۱۴۰۵ کاراینـشو — تمام حقوق محفوظ است.</p>
           <p className="text-blue-800 font-black">
             سامانه هوشمند پرداخت و ارزیابی خسارت بیمه خودرو

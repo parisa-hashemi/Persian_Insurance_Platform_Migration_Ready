@@ -382,7 +382,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
   ];
 
   return (
-    <div className="w-full max-w-[1880px] mx-auto space-y-6 pb-20 animate-in fade-in" dir="rtl">
+    <div className="w-full space-y-6 pb-20 animate-in fade-in" dir="rtl">
       {/* Top Banner Header */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-900 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-blue-800/40 flex items-center justify-between flex-wrap gap-4">
         <div className="space-y-2">

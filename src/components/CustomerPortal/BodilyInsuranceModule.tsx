@@ -314,7 +314,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
   };
 
   return (
-    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in" dir="rtl">
+    <div className="w-full space-y-6 animate-in fade-in" dir="rtl">
       {/* Top Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-sm">
         <div className="flex items-center gap-3">

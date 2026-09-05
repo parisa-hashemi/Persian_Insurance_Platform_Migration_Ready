@@ -1,0 +1,323 @@
+/* ============================================================
+   KAR INSHO DESIGN SYSTEM  —  WHITE + BLUE + NEUTRAL
+   لایه‌ی بصری سراسری. هیچ منطقی را تغییر نمی‌دهد؛ فقط ظاهر،
+   تایپوگرافی، حرکت و تعامل را یکپارچه می‌کند.
+   ============================================================ */
+
+:root {
+  /* Blues */
+  --krn-blue-primary: #2563eb;
+  --krn-blue-deep:    #173b8f;
+  --krn-blue-electric:#3b82f6;
+  --krn-blue-light:   #eff6ff;
+  --krn-blue-faint:   #f5f9ff;
+
+  /* Neutrals */
+  --krn-bg:      #f8fafc;
+  --krn-white:   #ffffff;
+  --krn-text:    #0f172a;
+  --krn-text-2:  #64748b;
+  --krn-border:  #e2e8f0;
+
+  /* Semantic */
+  --krn-danger:  #dc2626;
+  --krn-success: #16a34a;
+  --krn-warning: #d97706;
+
+  /* لهجه‌های ملایم — برای تفکیک نقش‌ها و دسته‌ها، نه برای هیاهو */
+  --krn-sand:      #f6efdc;  --krn-sand-ink:  #7c5c14;  /* زرد ملایم */
+  --krn-sage:      #e9f2ea;  --krn-sage-ink:  #35603f;  /* سبز ملایم */
+  --krn-mist:      #e8eef7;  --krn-mist-ink:  #33507e;  /* آبی خاکستری */
+  --krn-clay:      #f7ece8;  --krn-clay-ink:  #8a4b3a;  /* گرم ملایم */
+  --krn-lilac:     #eeecf8;  --krn-lilac-ink: #4b4380;  /* بنفش خاکستری */
+
+  /* Radius */
+  --krn-r-xs: 8px;  --krn-r-sm: 12px; --krn-r-md: 16px;
+  --krn-r-lg: 20px; --krn-r-xl: 28px; --krn-r-pill: 999px;
+
+  /* Elevation — restrained, blue-tinted */
+  --krn-e1: 0 1px 2px rgba(15,23,42,.04);
+  --krn-e2: 0 2px 8px -2px rgba(23,59,143,.08), 0 1px 2px rgba(15,23,42,.04);
+  --krn-e3: 0 12px 32px -14px rgba(23,59,143,.22), 0 2px 6px -2px rgba(15,23,42,.05);
+  --krn-e4: 0 28px 70px -30px rgba(23,59,143,.32);
+
+  /* Motion */
+  --krn-ease: cubic-bezier(.22,.61,.36,1);
+  --krn-ease-out: cubic-bezier(.16,1,.3,1);
+  --krn-fast: .16s; --krn-base: .28s; --krn-slow: .5s;
+}
+
+/* ---------- Typography: editorial, controlled weights ---------- */
+html { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+body { font-variation-settings: 'wght' 400; letter-spacing: -0.004em; line-height: 1.75; }
+h1, h2, h3, h4 { letter-spacing: -0.022em; line-height: 1.28; text-wrap: pretty; }
+p, li { text-wrap: pretty; }
+
+.krn-display {
+  font-size: clamp(2.1rem, 5.2vw, 4.1rem);
+  font-weight: 800; line-height: 1.06; letter-spacing: -0.035em;
+  color: var(--krn-text);
+}
+.krn-title    { font-size: clamp(1.35rem,2.3vw,2rem); font-weight: 700; letter-spacing: -0.024em; }
+.krn-eyebrow  {
+  font-size: .72rem; font-weight: 700; letter-spacing: .16em;
+  color: var(--krn-blue-primary); text-transform: uppercase;
+}
+.krn-lede     { font-size: clamp(1rem,1.15vw,1.15rem); color: var(--krn-text-2); line-height: 1.9; max-width: 62ch; }
+/* عدد بزرگ ادیتوریال برای داشبورد */
+.krn-figure   {
+  font-size: clamp(2.2rem,3.4vw,3.4rem); font-weight: 800;
+  letter-spacing: -0.04em; line-height: 1; color: var(--krn-blue-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Purple is retired: existing purple utilities become blue ---------- */
+.purple-rotating-border::before {
+  background: conic-gradient(from 0deg, transparent 0deg 240deg,
+    #bfdbfe 290deg, var(--krn-blue-electric) 325deg,
+    var(--krn-blue-primary) 350deg, var(--krn-blue-deep) 360deg) !important;
+}
+.purple-field-beam::before {
+  background: conic-gradient(from 0deg, transparent 0deg 200deg,
+    #dbeafe 250deg, #93c5fd 290deg, var(--krn-blue-primary) 330deg,
+    var(--krn-blue-deep) 360deg) !important;
+}
+.purple-tab-active::before {
+  background: conic-gradient(from 0deg, transparent 0deg 220deg,
+    #bfdbfe 270deg, var(--krn-blue-primary) 320deg, var(--krn-blue-deep) 360deg) !important;
+}
+.purple-input-glow:focus,
+.purple-input-glow:focus-within {
+  border-color: var(--krn-blue-primary) !important;
+  box-shadow: 0 0 0 3px rgba(37,99,235,.16) !important;
+  background-color: var(--krn-white) !important;
+}
+.green-rotating-border::before {
+  background: conic-gradient(from 0deg, transparent 0deg 230deg,
+    #bbf7d0 275deg, var(--krn-success) 330deg, #14532d 360deg) !important;
+}
+
+/* ---------- MOTION TRAIL — امضای بصری کاراینشو ---------- */
+/* خط آبی نازکی که وضعیت‌ها را به هم وصل می‌کند */
+.krn-trail {
+  position: relative; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, transparent, #bfdbfe 12%, #bfdbfe 88%, transparent);
+  overflow: hidden;
+}
+.krn-trail::after {
+  content: ''; position: absolute; inset-block: 0; inline-size: 26%;
+  background: linear-gradient(90deg, transparent, var(--krn-blue-electric), transparent);
+  animation: krn-trail-run 2.8s var(--krn-ease) infinite;
+}
+@keyframes krn-trail-run { 0% { transform: translateX(-120%) } 100% { transform: translateX(520%) } }
+
+/* حالت عمودی برای تایم‌لاین پرونده */
+.krn-trail-v {
+  position: relative; width: 2px; border-radius: 2px;
+  background: linear-gradient(180deg, transparent, #bfdbfe 10%, #bfdbfe 90%, transparent);
+}
+
+/* خط زیرین ناوبری که با هاور کشیده می‌شود */
+.krn-underline { position: relative; }
+.krn-underline::after {
+  content: ''; position: absolute; inset-inline: 10%; bottom: -3px; height: 2px;
+  background: var(--krn-blue-primary); border-radius: 2px;
+  transform: scaleX(0); transform-origin: right;
+  transition: transform var(--krn-base) var(--krn-ease-out);
+}
+.krn-underline:hover::after,
+.krn-underline[data-active="true"]::after { transform: scaleX(1); }
+
+/* ---------- Surfaces ---------- */
+.krn-surface {
+  background: var(--krn-white);
+  border: 1px solid var(--krn-border);
+  border-radius: var(--krn-r-lg);
+  box-shadow: var(--krn-e2);
+  transition: box-shadow var(--krn-base) var(--krn-ease),
+              border-color var(--krn-base) var(--krn-ease),
+              transform var(--krn-base) var(--krn-ease-out);
+}
+.krn-surface:hover { box-shadow: var(--krn-e3); border-color: #cddffa; }
+.krn-quiet { background: var(--krn-blue-faint); border: 1px solid #e8f0fe; border-radius: var(--krn-r-md); }
+.krn-rule  { height: 1px; background: linear-gradient(90deg, transparent, var(--krn-border) 18%, var(--krn-border) 82%, transparent); border: 0; }
+
+/* ---------- Buttons ---------- */
+.krn-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  padding: .72rem 1.35rem; border-radius: var(--krn-r-sm);
+  font-weight: 700; font-size: .9rem; line-height: 1; border: 1px solid transparent;
+  transition: background-color var(--krn-fast) var(--krn-ease),
+              color var(--krn-fast) var(--krn-ease),
+              box-shadow var(--krn-base) var(--krn-ease),
+              transform var(--krn-fast) var(--krn-ease-out);
+  will-change: transform;
+}
+.krn-btn-primary {
+  background: var(--krn-blue-primary); color: #fff;
+  box-shadow: 0 10px 24px -14px rgba(37,99,235,.9);
+}
+.krn-btn-primary:hover { background: #1d4ed8; box-shadow: 0 16px 34px -16px rgba(37,99,235,.95); }
+.krn-btn-primary:active { transform: translateY(1px) scale(.994); }
+.krn-btn-ghost {
+  background: var(--krn-white); color: var(--krn-blue-deep); border-color: var(--krn-border);
+}
+.krn-btn-ghost:hover { border-color: #bfdbfe; background: var(--krn-blue-faint); }
+
+/* ---------- Inputs ---------- */
+.krn-input {
+  width: 100%; padding: .78rem 1rem; border-radius: var(--krn-r-sm);
+  background: var(--krn-white); border: 1.5px solid var(--krn-border);
+  color: var(--krn-text); font-weight: 500;
+  transition: border-color var(--krn-fast) var(--krn-ease), box-shadow var(--krn-base) var(--krn-ease);
+}
+.krn-input:hover { border-color: #cddffa; }
+.krn-input:focus { outline: none; border-color: var(--krn-blue-primary); box-shadow: 0 0 0 3px rgba(37,99,235,.14); }
+
+/* ---------- Tabs ---------- */
+.krn-tab {
+  position: relative; padding: .6rem 1.1rem; border-radius: var(--krn-r-sm);
+  font-weight: 700; color: var(--krn-text-2);
+  transition: color var(--krn-fast) var(--krn-ease), background-color var(--krn-fast) var(--krn-ease);
+}
+.krn-tab:hover { color: var(--krn-blue-deep); background: var(--krn-blue-faint); }
+.krn-tab[aria-selected="true"], .krn-tab[data-active="true"] { color: #fff; background: var(--krn-blue-primary); }
+
+/* ---------- Tables: subtle row response ---------- */
+tbody tr { transition: background-color var(--krn-fast) var(--krn-ease), box-shadow var(--krn-base) var(--krn-ease); }
+@media (min-width: 640px) and (hover: hover) {
+  tbody tr:hover { background: var(--krn-blue-faint); box-shadow: inset 2px 0 0 var(--krn-blue-primary); }
+}
+
+/* ---------- Status ---------- */
+.krn-status {
+  display: inline-flex; align-items: center; gap: .4rem;
+  padding: .3rem .7rem; border-radius: var(--krn-r-pill);
+  font-size: .75rem; font-weight: 700;
+  background: var(--krn-blue-light); color: var(--krn-blue-deep);
+}
+.krn-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.krn-status[data-tone="success"] { background: #ecfdf5; color: #14532d; }
+.krn-status[data-tone="danger"]  { background: #fef2f2; color: #7f1d1d; }
+.krn-status[data-tone="warning"] { background: #fffbeb; color: #78350f; }
+
+/* لهجه‌های ملایم به‌صورت کلاس آماده */
+.krn-accent-sand  { background: var(--krn-sand);  color: var(--krn-sand-ink);  }
+.krn-accent-sage  { background: var(--krn-sage);  color: var(--krn-sage-ink);  }
+.krn-accent-mist  { background: var(--krn-mist);  color: var(--krn-mist-ink);  }
+.krn-accent-clay  { background: var(--krn-clay);  color: var(--krn-clay-ink);  }
+.krn-accent-lilac { background: var(--krn-lilac); color: var(--krn-lilac-ink); }
+.krn-accent-sand, .krn-accent-sage, .krn-accent-mist,
+.krn-accent-clay, .krn-accent-lilac { border: 1px solid rgba(15,23,42,.06); }
+
+/* ---------- Loading / skeleton ---------- */
+.krn-skeleton {
+  background: linear-gradient(90deg, #eef2f8 25%, #f7fafe 50%, #eef2f8 75%);
+  background-size: 220% 100%; animation: krn-shimmer 1.5s linear infinite;
+  border-radius: var(--krn-r-sm);
+}
+@keyframes krn-shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+
+/* ---------- Empty state ---------- */
+.krn-empty { text-align: center; padding: clamp(2rem,5vw,4rem) 1.25rem; color: var(--krn-text-2); }
+.krn-empty .krn-empty-mark {
+  width: 56px; height: 56px; margin-inline: auto; margin-bottom: 1rem; border-radius: var(--krn-r-md);
+  background: var(--krn-blue-light); display: grid; place-items: center; color: var(--krn-blue-primary);
+}
+
+/* ============================================================
+   POINTER-REACTIVE LAYER — مقادیر را pointer.ts تغذیه می‌کند
+   ============================================================ */
+
+/* آهن‌ربایی: دکمه‌های اصلی کمی به سمت نشانگر می‌آیند */
+.krn-magnetic {
+  will-change: transform;
+  transform: translate3d(var(--krn-mx, 0px), var(--krn-my, 0px), 0);
+  transition: transform .45s var(--krn-ease-out);
+}
+.krn-magnetic[data-krn-active="1"] { transition: transform .09s linear; }
+
+/* پارالاکس لایه‌ای: عمق را با data-krn-depth تعیین کنید */
+.krn-parallax {
+  will-change: transform;
+  transform: translate3d(var(--krn-px, 0px), var(--krn-py, 0px), 0);
+  transition: transform .6s var(--krn-ease-out);
+}
+
+/* نور آبی که زیر نشانگر روی سطح می‌لغزد */
+.krn-spotlight { isolation: isolate; }
+/* فقط عناصر استاتیک position:relative بگیرند؛ پاپ‌آورها/دراپ‌داون‌های absolute دست‌نخورده بمانند */
+.krn-spotlight:not(.absolute):not(.fixed):not(.sticky) { position: relative; }
+.krn-spotlight::before {
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  border-radius: inherit;
+  background: radial-gradient(240px circle at var(--krn-sx, 50%) var(--krn-sy, 50%),
+              rgba(37,99,235,.09), transparent 65%);
+  opacity: 0; transition: opacity var(--krn-base) var(--krn-ease);
+}
+.krn-spotlight[data-krn-active="1"]::before { opacity: 1; }
+/* فقط فرزندانِ جریان عادی position:relative بگیرند؛
+   عناصر تزئینی absolute/fixed نباید وارد layout شوند (باعث بادکردن کارت‌ها می‌شد) */
+.krn-spotlight > :not(.absolute):not(.fixed):not(.sticky) { position: relative; z-index: 1; }
+.krn-spotlight > .absolute { z-index: 0; }
+
+/* نزدیکی نشانگر: هرچه نزدیک‌تر، حضور بصری بیشتر */
+.krn-proximity {
+  will-change: transform;
+  transform: translate3d(0,0,0) scale(calc(1 + var(--krn-near, 0) * .012));
+  box-shadow: 0 calc(var(--krn-near, 0) * 18px) calc(var(--krn-near, 0) * 34px + 2px) -18px rgba(23,59,143,.45);
+  transition: transform .4s var(--krn-ease-out), box-shadow .4s var(--krn-ease);
+}
+
+/* کرسر سفارشی: نقطه‌ی آبی کوچک و آرام */
+.krn-cursor {
+  position: fixed; top: 0; left: 0; z-index: 2147483000; pointer-events: none;
+  width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%;
+  background: var(--krn-blue-primary); opacity: 0;
+  transform: translate3d(var(--krn-cx, 0px), var(--krn-cy, 0px), 0) scale(var(--krn-cs, 1));
+  transition: opacity .25s var(--krn-ease), width .25s var(--krn-ease),
+              height .25s var(--krn-ease), background-color .25s var(--krn-ease);
+  mix-blend-mode: normal;
+}
+.krn-cursor[data-krn-on="1"] { opacity: .9; }
+.krn-cursor[data-krn-kind="link"] {
+  width: 30px; height: 30px; margin: -15px 0 0 -15px;
+  background: rgba(37,99,235,.14); border: 1.5px solid var(--krn-blue-primary);
+}
+.krn-cursor[data-krn-kind="cta"] {
+  width: 42px; height: 42px; margin: -21px 0 0 -21px;
+  background: rgba(37,99,235,.10); border: 1.5px solid var(--krn-blue-electric);
+}
+
+/* ---------- ورود بخش‌ها هنگام اسکرول ---------- */
+.krn-reveal {
+  opacity: 0; transform: translateY(16px);
+  transition: opacity .6s var(--krn-ease-out), transform .6s var(--krn-ease-out);
+}
+.krn-reveal[data-krn-in="1"] { opacity: 1; transform: none; }
+
+/* ---------- گذار نرم بین صفحات ---------- */
+@keyframes krn-page-in { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+.krn-page-in { animation: krn-page-in .34s var(--krn-ease-out) both; }
+
+/* ---------- تبلت: شدت تعامل کمتر ---------- */
+@media (max-width: 1023px) {
+  .krn-magnetic, .krn-parallax { transform: none !important; }
+  .krn-proximity { transform: none !important; box-shadow: var(--krn-e2); }
+}
+
+/* ---------- موبایل و دستگاه لمسی: تعامل نشانگر خاموش ---------- */
+@media (hover: none), (pointer: coarse) {
+  .krn-cursor { display: none !important; }
+  .krn-spotlight::before { display: none; }
+  .krn-magnetic, .krn-parallax, .krn-proximity { transform: none !important; }
+  .krn-surface:active { transform: scale(.994); }
+}
+
+/* ---------- احترام به prefers-reduced-motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .krn-cursor { display: none !important; }
+  .krn-trail::after { animation: none; }
+  .krn-magnetic, .krn-parallax, .krn-proximity { transform: none !important; }
+  .krn-reveal { opacity: 1 !important; transform: none !important; }
+}

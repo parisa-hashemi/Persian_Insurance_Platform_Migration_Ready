@@ -313,7 +313,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   };
 
   return (
-    <div className="w-full max-w-[1880px] mx-auto space-y-6 animate-in fade-in" dir="rtl">
+    <div className="w-full space-y-6 animate-in fade-in" dir="rtl">
       
       {/* Iranian Enterprise Portal User Header Card */}
       <div className="bg-white border-2 border-blue-200 rounded-3xl p-4 sm:p-6 text-slate-900 shadow-md relative overflow-hidden">
