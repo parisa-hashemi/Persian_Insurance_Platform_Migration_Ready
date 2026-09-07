@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { notifyApp } from '../../lib/appNotify';
-import { ArrowLeft, UserPlus, ShieldCheck, Building2, Clock, AlertTriangle, CreditCard, Printer, CheckCircle2, FileText, UserCheck, RotateCcw, Sparkles, Info, MapPin, User, X, ExternalLink, Search, Maximize2, FileBadge, Phone, Hash, Shield, Car, ClipboardCheck, ChevronDown, ChevronUp, Lock, DollarSign, ImageOff, Compass, Camera, CheckSquare, ShieldAlert, RefreshCw, Send, Navigation, MessageSquare, PhoneCall, Bot, Star } from 'lucide-react';
+import { ArrowLeft, UserPlus, ShieldCheck, Building2, Clock, AlertTriangle, CreditCard, Printer, CheckCircle2, FileText, UserCheck, RotateCcw, Sparkles, Info, MapPin, User, X, ExternalLink, Search, Maximize2, FileBadge, Phone, Hash, Shield, Car, ClipboardCheck, ChevronDown, ChevronUp, Lock, DollarSign, ImageOff, Compass, Camera, CheckSquare, ShieldAlert, RefreshCw, Send, Navigation, MessageSquare, PhoneCall, Bot, Star, Mic, Video, Volume2 } from 'lucide-react';
 import { ClaimCase, UserSession, StaffMember, AssessorNotification, CustomerNotification } from '../../types';
 import { INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS } from '../../data/mockData';
 import { findBestMatchingBranch, INSURANCE_BRANCHES, InsuranceBranch, getRankedFieldExpertsForAccidentLocation, RankedFieldExpertItem } from '../../data/bodyInsuranceData';
@@ -16,6 +16,7 @@ import {
   addCustomerNotification,
   loadCasesFromStorage
 } from '../../lib/storage';
+import { normalizeMediaUrl, isAudioMedia, isVideoMedia } from '../../lib/mediaUtils';
 import { autoDispatchClaimWithAI } from '../../lib/ai/aiDispatcher';
 import { calculateClaimDamageWithPolicyLimits, performPolicySanhabInquiry } from '../../lib/policyLimitCalculator';
 import { Car3DViewer } from '../Car3DViewer';
@@ -92,6 +93,73 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
     claimCase.status === 'پرداخت شده' ||
     claimCase.payoutState === 'PAID' ||
     claimCase.status === 'تسویه شده';
+
+  // Determine if assessment is already completed and forwarded to reviewer or user/customer
+  const isAssessmentCompletedOrForwarded = useMemo(() => {
+    // If case has been returned to assessor for corrections, it's back in active assessment
+    if (
+      claimCase.status === 'در حال ارزیابی (عودت به کارشناس)' ||
+      claimCase.status === 'عودت به کارشناس' ||
+      Boolean(claimCase.reviewerReturn)
+    ) {
+      return false;
+    }
+
+    // 1. Sent to reviewer (بازبین)
+    if (
+      claimCase.status === 'در انتظار بررسی بازبین' ||
+      claimCase.status === 'در انتظار تایید بازبین' ||
+      claimCase.status === 'تایید شده توسط بازبین' ||
+      (typeof claimCase.status === 'string' && claimCase.status.includes('بازبین'))
+    ) {
+      return true;
+    }
+
+    // 2. Sent to user / customer (کاربر / زیان‌دیده)
+    if (
+      claimCase.status === 'در انتظار تایید کاربر' ||
+      claimCase.status === 'تایید شده توسط کاربر' ||
+      (typeof claimCase.status === 'string' && claimCase.status.includes('کاربر'))
+    ) {
+      return true;
+    }
+
+    // 3. Field assessment completed and forwarded to insurer/settlement
+    if (
+      claimCase.status === 'ارزیابی میدانی تکمیل شد - در انتظار صدور حواله پرداخت بیمه‌گر' ||
+      (typeof claimCase.status === 'string' && claimCase.status.includes('ارزیابی میدانی تکمیل شد'))
+    ) {
+      return true;
+    }
+
+    // 4. In payment queue or paid / settled
+    if (
+      claimCase.status === 'در انتظار پرداخت' ||
+      claimCase.status === 'پرداخت شده' ||
+      claimCase.status === 'تسویه شده' ||
+      claimCase.status === 'مختومه - پرداخت شد' ||
+      (typeof claimCase.status === 'string' && claimCase.status.includes('پرداخت')) ||
+      claimCase.payoutState === 'PAID' ||
+      claimCase.payoutState === 'PENDING' ||
+      claimCase.payoutState === 'PROCESSING'
+    ) {
+      return true;
+    }
+
+    // 5. Assessment object has been submitted/published and case is not in active evaluation
+    if (
+      claimCase.assessment &&
+      (claimCase.assessment.status === 'SUBMITTED' || claimCase.assessment.status === 'PUBLISHED') &&
+      claimCase.status !== 'در حال ارزیابی' &&
+      claimCase.status !== 'در حال بازدید کارشناس میدانی' &&
+      claimCase.status !== 'در انتظار بازدید کارشناس میدانی' &&
+      claimCase.status !== 'در انتظار ارجاع به ارزیاب'
+    ) {
+      return true;
+    }
+
+    return false;
+  }, [claimCase.status, claimCase.payoutState, claimCase.assessment, claimCase.reviewerReturn]);
 
   const allStoredCases = useMemo(() => loadCasesFromStorage(), []);
 
@@ -561,19 +629,27 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
 
     const updated: ClaimCase = {
       ...claimCase,
-      status: 'نیازمند اصلاح کارشناس',
+      status: 'رد شده از بازبین',
+      reviewerReturnReason: reviewerReturnReason.trim(),
       reviewerReturn: {
         reason: reviewerReturnReason.trim(),
         returnedBy: session.name || 'بازبین ارشد بیمه',
-        returnedAt: new Date().toLocaleString('fa-IR')
+        returnedAt: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
       },
+      assessment: claimCase.assessment
+        ? {
+            ...claimCase.assessment,
+            status: 'RETURNED',
+            reviewerReturnReason: reviewerReturnReason.trim()
+          }
+        : undefined,
       history: [
         ...(claimCase.history || []),
         {
-          status: 'نیازمند اصلاح کارشناس',
+          status: 'رد شده از بازبین',
           time: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
           user: session.name || 'بازبین ارشد بیمه',
-          note: `عدم تایید ارزیابی و عودت به کارشناس خسارت جهت اصلاح. دلیل عودت: «${reviewerReturnReason.trim()}»`
+          note: `عدم تایید ارزیابی و عودت به کارشناس خسارت جهت اصلاح (رد شده از بازبین). دلیل عودت: «${reviewerReturnReason.trim()}»`
         }
       ]
     };
@@ -630,7 +706,7 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
 نام مرکز: ${branch.name}
 نشانی: ${branch.address}
 تلفن تماس: ${branch.phone}
-⏱ ساعت کاری: ${branch.operatingHours || 'شنبه تا چهارشنبه ۸:۰۰ الی ۱۶:۰۰'}
+ساعت کاری: ${branch.operatingHours || 'شنبه تا چهارشنبه ۸:۰۰ الی ۱۶:۰۰'}
 لطفاً جهت رویت خودرو و ارائه اصل مدارک، در زمان مقرر در محل حادثه یا شعبه مذکور حاضر باشید یا با کارشناس هماهنگ فرمایید.
 شرکت ${insurerName}`;
 
@@ -801,6 +877,10 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
   const [noteSentFeedback, setNoteSentFeedback] = useState<string | null>(null);
 
   const handleSendInsurerInstruction = (customText?: string) => {
+    if (isAssessmentCompletedOrForwarded) {
+      notifyApp('ارزیابی خسارت این پرونده انجام شده و به بازبین یا کاربر ارسال گردیده است؛ امکان ارسال دستورالعمل جدید توسط بیمه‌گر مسدود و قفل می‌باشد.');
+      return;
+    }
     const textToSend = (customText || insurerSupplementalNote).trim();
     if (!textToSend) return;
 
@@ -920,62 +1000,60 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
         }] : [])
       ];
 
-  // Genuine incident photos & media uploaded by parties
+  // Genuine incident photos & media uploaded by parties (Strictly Deduplicated)
   const incidentPhotos: Array<{ url: string; title: string; uploader?: string; date?: string }> = useMemo(() => {
     const list: Array<{ url: string; title: string; uploader?: string; date?: string }> = [];
+    const seenUrls = new Set<string>();
 
-    // From initial claim registration files (Wizard)
+    const krokiUrl = normalizeMediaUrl(claimCase.customerKrokiPhoto) || normalizeMediaUrl(claimCase.croquiData?.fileUrl);
+
+    const addUnique = (url: string, title: string, uploader?: string, date?: string) => {
+      const cleanUrl = normalizeMediaUrl(url);
+      if (!cleanUrl) return;
+      if (seenUrls.has(cleanUrl)) return;
+      // Do not duplicate kroki photo in incidentPhotos if it is already displayed in the dedicated kroki card
+      if (krokiUrl && cleanUrl === krokiUrl) return;
+      seenUrls.add(cleanUrl);
+      list.push({
+        url: cleanUrl,
+        title: title || 'تصویر صحنه تصادف',
+        uploader,
+        date
+      });
+    };
+
+    // 1. From initial claim registration files (Wizard)
     if (claimCase.files && claimCase.files.length > 0) {
       claimCase.files.forEach((f: any, idx: number) => {
+        if (isAudioMedia(f) || isVideoMedia(f)) return;
         const title = typeof f === 'string' ? f : (f?.name || f?.fileName || `تصویر صحنه تصادف ${idx + 1}`);
-        const url = typeof f === 'object' ? f?.dataUrl : undefined;
-        if (url && (f?.type === 'image' || !f?.type || f?.type === 'video')) {
-          list.push({
-            url,
-            title,
-            uploader: 'ثبت‌کننده اولیه (طرف اول)'
-          });
+        const url = typeof f === 'object' ? f?.dataUrl : (typeof f === 'string' ? f : undefined);
+        if (url) {
+          addUnique(url, title, 'ثبت‌کننده اولیه (طرف اول)');
         }
       });
     }
 
-    // From additional documents uploaded by parties
+    // 2. From additional documents uploaded by parties
     if (claimCase.additionalDocs && claimCase.additionalDocs.length > 0) {
       claimCase.additionalDocs.forEach((doc) => {
-        if (doc.dataUrl && (doc.fileType === 'image' || doc.fileType === 'video')) {
-          list.push({
-            url: doc.dataUrl,
-            title: doc.title || doc.docType,
-            uploader: `${doc.uploadedBy || 'کاربر'} (${doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول' : 'طرف دوم')})`,
-            date: doc.uploadedAt
-          });
+        if (isAudioMedia(doc) || isVideoMedia(doc)) return;
+        if (doc.dataUrl) {
+          addUnique(
+            doc.dataUrl,
+            doc.title || doc.docType || 'مدرک ارسالی',
+            `${doc.uploadedBy || 'کاربر'} (${doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول' : 'طرف دوم')})`,
+            doc.uploadedAt
+          );
         }
       });
     }
 
-    // From Kroki official upload
-    if (claimCase.customerKrokiPhoto) {
-      list.push({
-        url: claimCase.customerKrokiPhoto,
-        title: 'تصویر برگه رسمی کروکی راهور',
-        uploader: 'پلیس راهور / مشتری'
-      });
-    } else if (claimCase.croquiData?.fileUrl) {
-      list.push({
-        url: claimCase.croquiData.fileUrl,
-        title: 'برگه کروکی رسمی راهور',
-        uploader: 'پلیس راهور'
-      });
-    }
-
-    // From explicit case images array if present (e.g. seeded mock data)
+    // 3. From explicit case images array if present (e.g. seeded mock data)
     if (claimCase.images && claimCase.images.length > 0) {
       claimCase.images.forEach((img) => {
-        if (img.url && !list.some(p => p.url === img.url)) {
-          list.push({
-            url: img.url,
-            title: img.title || 'تصویر تصادف'
-          });
+        if (img.url) {
+          addUnique(img.url, img.title || 'تصویر تصادف');
         }
       });
     }
@@ -983,12 +1061,98 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
     return list;
   }, [claimCase]);
 
-  // Genuine documents uploaded by or for Victim
+  // Unique driver audio explanation (Voice Note)
+  const driverAudioNote = useMemo(() => {
+    const seenUrls = new Set<string>();
+    if (claimCase.audioExplanation) {
+      const url = normalizeMediaUrl(claimCase.audioExplanation);
+      if (url) {
+        seenUrls.add(url);
+        return {
+          url,
+          title: (typeof claimCase.audioExplanation === 'object' && claimCase.audioExplanation?.name) || 'توضیحات صوتی راننده (Voice Note)',
+          uploadedAt: claimCase.date || 'ثبت اولیه'
+        };
+      }
+    }
+    const fileAudio = claimCase.files?.find(f => isAudioMedia(f));
+    if (fileAudio) {
+      const url = normalizeMediaUrl(fileAudio);
+      if (url && !seenUrls.has(url)) {
+        seenUrls.add(url);
+        return {
+          url,
+          title: fileAudio.name || fileAudio.fileName || 'توضیحات صوتی راننده (Voice Note)',
+          uploadedAt: claimCase.date || 'ثبت اولیه'
+        };
+      }
+    }
+    const docAudio = claimCase.additionalDocs?.find(d => isAudioMedia(d));
+    if (docAudio) {
+      const url = normalizeMediaUrl(docAudio);
+      if (url && !seenUrls.has(url)) {
+        seenUrls.add(url);
+        return {
+          url,
+          title: docAudio.title || docAudio.docType || 'توضیحات صوتی راننده (Voice Note)',
+          uploadedAt: docAudio.uploadedAt || claimCase.date || 'ثبت اولیه'
+        };
+      }
+    }
+    return null;
+  }, [claimCase]);
+
+  // Unique driver video of accident scene
+  const driverVideoNote = useMemo(() => {
+    const seenUrls = new Set<string>();
+    if (claimCase.videoExplanation) {
+      const url = normalizeMediaUrl(claimCase.videoExplanation);
+      if (url) {
+        seenUrls.add(url);
+        return {
+          url,
+          title: (typeof claimCase.videoExplanation === 'object' && claimCase.videoExplanation?.name) || 'ویدیوی صحنه تصادف',
+          uploadedAt: claimCase.date || 'ثبت اولیه'
+        };
+      }
+    }
+    const fileVideo = claimCase.files?.find(f => isVideoMedia(f));
+    if (fileVideo) {
+      const url = normalizeMediaUrl(fileVideo);
+      if (url && !seenUrls.has(url)) {
+        seenUrls.add(url);
+        return {
+          url,
+          title: fileVideo.name || fileVideo.fileName || 'ویدیوی صحنه تصادف',
+          uploadedAt: claimCase.date || 'ثبت اولیه'
+        };
+      }
+    }
+    const docVideo = claimCase.additionalDocs?.find(d => isVideoMedia(d));
+    if (docVideo) {
+      const url = normalizeMediaUrl(docVideo);
+      if (url && !seenUrls.has(url)) {
+        seenUrls.add(url);
+        return {
+          url,
+          title: docVideo.title || docVideo.docType || 'ویدیوی صحنه تصادف',
+          uploadedAt: docVideo.uploadedAt || claimCase.date || 'ثبت اولیه'
+        };
+      }
+    }
+    return null;
+  }, [claimCase]);
+
+  // Genuine documents uploaded by or for Victim (Strictly Deduplicated)
   const isP1Victim = claimCase.partyOneRole !== 'مقصر';
   const victimPartyTag = isP1Victim ? 'PARTY_ONE' : 'PARTY_TWO';
 
   const victimDocuments = useMemo(() => {
-    return (claimCase.additionalDocs || []).filter(doc => {
+    const list: Array<{ id: string; title: string; docType?: string; dataUrl?: string; fileType?: string; uploadedAt?: string; note?: string }> = [];
+    const seenUrls = new Set<string>();
+    const seenTitles = new Set<string>();
+
+    const candidateDocs = (claimCase.additionalDocs || []).filter(doc => {
       return (
         doc.uploaderParty === victimPartyTag ||
         doc.uploaderRole?.includes('زیان‌دیده') ||
@@ -997,13 +1161,70 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
         (doc.uploadedBy && doc.uploadedBy === claimCase.victimName)
       );
     });
+
+    candidateDocs.forEach((doc, idx) => {
+      const url = normalizeMediaUrl(doc);
+      const title = (doc.title || doc.docType || `مدرک زیان‌دیده ${idx + 1}`).trim();
+      if (url && seenUrls.has(url)) return;
+      if (title && seenTitles.has(title)) return;
+      if (url) seenUrls.add(url);
+      if (title) seenTitles.add(title);
+
+      list.push({
+        id: doc.id || `vic-doc-${idx}`,
+        title,
+        docType: doc.docType,
+        dataUrl: url || doc.dataUrl,
+        fileType: isAudioMedia(doc) ? 'audio' : isVideoMedia(doc) ? 'video' : (doc.fileType || 'image'),
+        uploadedAt: doc.uploadedAt,
+        note: doc.note
+      });
+    });
+
+    // Also include victim license photos if available on case and not already in list
+    if (claimCase.victimLicenseFrontPhoto) {
+      const url = normalizeMediaUrl(claimCase.victimLicenseFrontPhoto);
+      if (url && !seenUrls.has(url) && !seenTitles.has('عکس روی گواهینامه راننده زیان‌دیده')) {
+        seenUrls.add(url);
+        seenTitles.add('عکس روی گواهینامه راننده زیان‌دیده');
+        list.push({
+          id: 'vic-license-front',
+          title: 'عکس روی گواهینامه راننده زیان‌دیده',
+          docType: 'گواهینامه رانندگی',
+          dataUrl: url,
+          fileType: 'image',
+          uploadedAt: claimCase.date || 'ثبت اولیه'
+        });
+      }
+    }
+    if (claimCase.victimLicenseBackPhoto) {
+      const url = normalizeMediaUrl(claimCase.victimLicenseBackPhoto);
+      if (url && !seenUrls.has(url) && !seenTitles.has('عکس پشت گواهینامه راننده زیان‌دیده')) {
+        seenUrls.add(url);
+        seenTitles.add('عکس پشت گواهینامه راننده زیان‌دیده');
+        list.push({
+          id: 'vic-license-back',
+          title: 'عکس پشت گواهینامه راننده زیان‌دیده',
+          docType: 'گواهینامه رانندگی',
+          dataUrl: url,
+          fileType: 'image',
+          uploadedAt: claimCase.date || 'ثبت اولیه'
+        });
+      }
+    }
+
+    return list;
   }, [claimCase, victimPartyTag, isP1Victim]);
 
-  // Genuine documents uploaded by or for Culprit
+  // Genuine documents uploaded by or for Culprit (Strictly Deduplicated)
   const culpritPartyTag = isP1Victim ? 'PARTY_TWO' : 'PARTY_ONE';
 
   const culpritDocuments = useMemo(() => {
-    return (claimCase.additionalDocs || []).filter(doc => {
+    const list: Array<{ id: string; title: string; docType?: string; dataUrl?: string; fileType?: string; uploadedAt?: string; note?: string }> = [];
+    const seenUrls = new Set<string>();
+    const seenTitles = new Set<string>();
+
+    const candidateDocs = (claimCase.additionalDocs || []).filter(doc => {
       return (
         doc.uploaderParty === culpritPartyTag ||
         doc.uploaderRole?.includes('مقصر') ||
@@ -1012,7 +1233,82 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
         (doc.uploadedBy && doc.uploadedBy === claimCase.culpritName)
       );
     });
+
+    candidateDocs.forEach((doc, idx) => {
+      const url = normalizeMediaUrl(doc);
+      const title = (doc.title || doc.docType || `مدرک مقصر ${idx + 1}`).trim();
+      if (url && seenUrls.has(url)) return;
+      if (title && seenTitles.has(title)) return;
+      if (url) seenUrls.add(url);
+      if (title) seenTitles.add(title);
+
+      list.push({
+        id: doc.id || `culprit-doc-${idx}`,
+        title,
+        docType: doc.docType,
+        dataUrl: url || doc.dataUrl,
+        fileType: isAudioMedia(doc) ? 'audio' : isVideoMedia(doc) ? 'video' : (doc.fileType || 'image'),
+        uploadedAt: doc.uploadedAt,
+        note: doc.note
+      });
+    });
+
+    if (claimCase.culpritLicenseFrontPhoto) {
+      const url = normalizeMediaUrl(claimCase.culpritLicenseFrontPhoto);
+      if (url && !seenUrls.has(url) && !seenTitles.has('عکس روی گواهینامه راننده مقصر')) {
+        seenUrls.add(url);
+        seenTitles.add('عکس روی گواهینامه راننده مقصر');
+        list.push({
+          id: 'culprit-license-front',
+          title: 'عکس روی گواهینامه راننده مقصر',
+          docType: 'گواهینامه رانندگی',
+          dataUrl: url,
+          fileType: 'image',
+          uploadedAt: claimCase.date || 'ثبت اولیه'
+        });
+      }
+    }
+    if (claimCase.culpritLicenseBackPhoto) {
+      const url = normalizeMediaUrl(claimCase.culpritLicenseBackPhoto);
+      if (url && !seenUrls.has(url) && !seenTitles.has('عکس پشت گواهینامه راننده مقصر')) {
+        seenUrls.add(url);
+        seenTitles.add('عکس پشت گواهینامه راننده مقصر');
+        list.push({
+          id: 'culprit-license-back',
+          title: 'عکس پشت گواهینامه راننده مقصر',
+          docType: 'گواهینامه رانندگی',
+          dataUrl: url,
+          fileType: 'image',
+          uploadedAt: claimCase.date || 'ثبت اولیه'
+        });
+      }
+    }
+
+    return list;
   }, [claimCase, culpritPartyTag, isP1Victim]);
+
+  // Overall unique count of distinct documents across the entire claim case
+  const totalUniqueDocsCount = useMemo(() => {
+    const allSeen = new Set<string>();
+    let count = 0;
+    const addIfUnique = (val?: string) => {
+      const u = normalizeMediaUrl(val);
+      if (u && !allSeen.has(u)) {
+        allSeen.add(u);
+        count++;
+      }
+    };
+
+    if (claimCase.customerKrokiPhoto) addIfUnique(claimCase.customerKrokiPhoto);
+    if (claimCase.croquiData?.fileUrl) addIfUnique(claimCase.croquiData.fileUrl);
+    incidentPhotos.forEach(p => addIfUnique(p.url));
+    if (driverAudioNote) addIfUnique(driverAudioNote.url);
+    if (driverVideoNote) addIfUnique(driverVideoNote.url);
+    victimDocuments.forEach(d => addIfUnique(d.dataUrl));
+    culpritDocuments.forEach(d => addIfUnique(d.dataUrl));
+
+    return Math.max(count, incidentPhotos.length);
+  }, [claimCase, incidentPhotos, driverAudioNote, driverVideoNote, victimDocuments, culpritDocuments]);
 
   return (
     <div className="w-full space-y-5 animate-in fade-in pb-16">
@@ -1286,88 +1582,161 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
                     <FileText className="w-4.5 h-4.5 text-blue-900" />
                     <h4 className="font-black text-slate-900 text-sm">نکات تکمیلی و دستورالعمل نظارتی</h4>
                   </div>
-                  <span className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] rounded-full font-bold border border-slate-200">
-                    ابلاغ به کارشناس
+                  <span className={`px-2.5 py-0.5 text-[10px] rounded-full font-black border ${
+                    isAssessmentCompletedOrForwarded
+                      ? 'bg-amber-100 text-amber-900 border-amber-300 flex items-center gap-1'
+                      : 'bg-slate-100 text-slate-700 border-slate-200'
+                  }`}>
+                    {isAssessmentCompletedOrForwarded ? (
+                      <>
+                        <Lock className="w-3 h-3 text-amber-700" />
+                        <span>قفل شده (اتمام ارزیابی)</span>
+                      </>
+                    ) : (
+                      'ابلاغ به کارشناس'
+                    )}
                   </span>
                 </div>
 
-                <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
-                  می‌توانید نکات فنی، دستور کنترل شاسی، داغی قطعات یا تطبیق با کروکی را برای کارشناس پرونده ارسال نمایید.
-                </p>
-
-                {/* Existing Note Display if present */}
-                {(claimCase.insurerInstruction || claimCase.insurerAssignmentNote) && (
-                  <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5 text-right">
-                    <div className="flex items-center justify-between text-[10px] text-slate-700 font-black">
-                      <span className="flex items-center gap-1">
-                        <FileText className="w-3.5 h-3.5 text-blue-900" />
-                        <span>آخرین دستورالعمل ثبت‌شده بیمه‌گر:</span>
-                      </span>
-                      {claimCase.insurerNoteDate && (
-                        <span className="text-slate-500 font-mono">{claimCase.insurerNoteDate}</span>
-                      )}
+                {isAssessmentCompletedOrForwarded ? (
+                  /* Locked State View when assessment is completed and sent to reviewer/user */
+                  <div className="p-4 bg-slate-50 border-2 border-slate-200 rounded-2xl space-y-3 animate-in fade-in text-right">
+                    <div className="flex items-center gap-2.5 text-slate-800 border-b border-slate-200 pb-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-slate-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h5 className="font-black text-xs text-slate-900 flex items-center gap-1.5">
+                          <span>بخش ارسال پیام و دستورالعمل قفل می‌باشد</span>
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 border border-amber-200">
+                            ارزیابی انجام شده
+                          </span>
+                        </h5>
+                        <span className="text-[10px] text-slate-500 font-bold block">
+                          ارسال شده جهت بررسی و تایید به {
+                            claimCase.status?.includes('بازبین')
+                              ? 'بازبین کیفی'
+                              : (claimCase.status?.includes('کاربر')
+                                ? 'کاربر / زیان‌دیده'
+                                : (claimCase.status?.includes('پرداخت') || claimCase.status?.includes('حواله')
+                                  ? 'امور مالی و پرداخت'
+                                  : 'مراحل نهایی رسیدگی'))
+                          }
+                        </span>
+                      </div>
                     </div>
-                    <p className="text-xs text-slate-900 font-bold leading-relaxed">
-                      «{claimCase.insurerInstruction || claimCase.insurerAssignmentNote}»
+
+                    <p className="text-[11px] text-slate-700 font-bold leading-relaxed">
+                      فرآیند ارزیابی خسارت این پرونده توسط کارشناس مربوطه انجام پذیرفته و گزارش کارشناسی به بازبین / کاربر ارسال شده است؛ بنابراین به دلیل اتمام ارزیابی، امکان ارسال پیام، یادداشت نظارتی یا دستورالعمل جدید توسط بیمه‌گر مسدود و قفل می‌باشد.
                     </p>
-                    {claimCase.insurerNoteAuthor && (
-                      <span className="text-[10px] text-slate-500 block text-left font-medium">
-                        ثبت‌کننده: {claimCase.insurerNoteAuthor}
+
+                    <div className="flex items-center justify-between text-[11px] bg-white p-2.5 rounded-xl border border-slate-200">
+                      <span className="text-slate-500 font-bold">وضعیت فعلی پرونده:</span>
+                      <span className="font-black text-blue-900 bg-blue-50 px-2.5 py-0.5 rounded-lg border border-blue-200">
+                        {claimCase.status}
                       </span>
+                    </div>
+
+                    {(claimCase.insurerInstruction || claimCase.insurerAssignmentNote) && (
+                      <div className="pt-2 border-t border-slate-200 space-y-1">
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 font-bold">
+                          <span>آخرین دستورالعمل ابلاغ‌شده بیمه‌گر (آرشیو):</span>
+                          {claimCase.insurerNoteDate && (
+                            <span className="font-mono">{claimCase.insurerNoteDate}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-800 font-bold bg-white p-2.5 rounded-xl border border-slate-200 leading-relaxed">
+                          «{claimCase.insurerInstruction || claimCase.insurerAssignmentNote}»
+                        </p>
+                        {claimCase.insurerNoteAuthor && (
+                          <span className="text-[10px] text-slate-400 block text-left font-medium">
+                            ثبت‌کننده: {claimCase.insurerNoteAuthor}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
+                ) : (
+                  <>
+                    <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                      می‌توانید نکات فنی، دستور کنترل شاسی، داغی قطعات یا تطبیق با کروکی را برای کارشناس پرونده ارسال نمایید.
+                    </p>
 
-                {/* Textarea for new instructions */}
-                <div className="space-y-2">
-                  <textarea
-                    rows={3}
-                    value={insurerSupplementalNote}
-                    onChange={(e) => setInsurerSupplementalNote(e.target.value)}
-                    placeholder="نکات تکمیلی، دستور بررسی داغی قطعات، کنترل شاسی و انطباق با کروکی را اینجا تایپ کنید..."
-                    className="w-full p-3 rounded-2xl border border-slate-200 bg-slate-50/50 text-slate-900 text-xs font-bold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-400"
-                  />
+                    {/* Existing Note Display if present */}
+                    {(claimCase.insurerInstruction || claimCase.insurerAssignmentNote) && (
+                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-1.5 text-right">
+                        <div className="flex items-center justify-between text-[10px] text-slate-700 font-black">
+                          <span className="flex items-center gap-1">
+                            <FileText className="w-3.5 h-3.5 text-blue-900" />
+                            <span>آخرین دستورالعمل ثبت‌شده بیمه‌گر:</span>
+                          </span>
+                          {claimCase.insurerNoteDate && (
+                            <span className="text-slate-500 font-mono">{claimCase.insurerNoteDate}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-900 font-bold leading-relaxed">
+                          «{claimCase.insurerInstruction || claimCase.insurerAssignmentNote}»
+                        </p>
+                        {claimCase.insurerNoteAuthor && (
+                          <span className="text-[10px] text-slate-500 block text-left font-medium">
+                            ثبت‌کننده: {claimCase.insurerNoteAuthor}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Quick Suggestion Chips */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-slate-500 font-bold block">پیشنهادهای سریع:</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {[
-                        'بررسی انطباق دقیق با کروکی راهور و زاویه برخورد',
-                        'بررسی سلامت شاسی و هم‌پوشانی رنگ قطعات',
-                        'استعلام قیمت روز از نمایندگی مجاز و رویت داغی',
-                        'محاسبه دقیق افت قیمت بر اساس مدل و سوابق'
-                      ].map((chip, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => {
-                            setInsurerSupplementalNote(prev => prev ? `${prev} - ${chip}` : chip);
-                          }}
-                          className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-[10px] font-bold transition-all border border-slate-200"
-                        >
-                          + {chip}
-                        </button>
-                      ))}
+                    {/* Textarea for new instructions */}
+                    <div className="space-y-2">
+                      <textarea
+                        rows={3}
+                        value={insurerSupplementalNote}
+                        onChange={(e) => setInsurerSupplementalNote(e.target.value)}
+                        placeholder="نکات تکمیلی، دستور بررسی داغی قطعات، کنترل شاسی و انطباق با کروکی را اینجا تایپ کنید..."
+                        className="w-full p-3 rounded-2xl border border-slate-200 bg-slate-50/50 text-slate-900 text-xs font-bold focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all placeholder:text-slate-400"
+                      />
+
+                      {/* Quick Suggestion Chips */}
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-slate-500 font-bold block">پیشنهادهای سریع:</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            'بررسی انطباق دقیق با کروکی راهور و زاویه برخورد',
+                            'بررسی سلامت شاسی و هم‌پوشانی رنگ قطعات',
+                            'استعلام قیمت روز از نمایندگی مجاز و رویت داغی',
+                            'محاسبه دقیق افت قیمت بر اساس مدل و سوابق'
+                          ].map((chip, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => {
+                                setInsurerSupplementalNote(prev => prev ? `${prev} - ${chip}` : chip);
+                              }}
+                              className="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-[10px] font-bold transition-all border border-slate-200"
+                            >
+                              + {chip}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleSendInsurerInstruction()}
+                        disabled={!insurerSupplementalNote.trim()}
+                        className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-2xl font-black text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2"
+                      >
+                        <Send className="w-4 h-4" />
+                        <span>ارسال نکات تکمیلی به کارشناس ارزیاب</span>
+                      </button>
                     </div>
-                  </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleSendInsurerInstruction()}
-                    disabled={!insurerSupplementalNote.trim()}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-2xl font-black text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span>ارسال نکات تکمیلی به کارشناس ارزیاب</span>
-                  </button>
-                </div>
-
-                {noteSentFeedback && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl text-emerald-950 text-xs font-bold flex items-center gap-2 animate-in zoom-in-95">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>{noteSentFeedback}</span>
-                  </div>
+                    {noteSentFeedback && (
+                      <div className="p-3 bg-emerald-50 border border-emerald-300 rounded-2xl text-emerald-950 text-xs font-bold flex items-center gap-2 animate-in zoom-in-95">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{noteSentFeedback}</span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
@@ -1437,7 +1806,7 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
                   </span>
                 )}
                 <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                  {incidentPhotos.length + (claimCase.additionalDocs?.length || 0)} مستند
+                  {totalUniqueDocsCount} مدرک و مستند
                 </span>
               </div>
             </div>
@@ -2577,6 +2946,48 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
                     </div>
                   </div>
 
+                  {/* Audio Explanation from Driver (Voice Note) */}
+                  {driverAudioNote && (
+                    <div className="bg-sky-50/80 border border-sky-200 rounded-2xl p-4 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-xs">
+                            <Mic className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h5 className="font-black text-sky-950 text-xs">{driverAudioNote.title}</h5>
+                            <p className="text-[10px] text-sky-800 font-medium">شرح صوتی ضبط‌شده پیرامون چگونگی وقوع سانحه و خسارات</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-sky-700 bg-white/90 px-2.5 py-0.5 rounded-full border border-sky-200 font-mono">
+                          {driverAudioNote.uploadedAt}
+                        </span>
+                      </div>
+                      <audio src={driverAudioNote.url} controls className="w-full h-10 rounded-xl" />
+                    </div>
+                  )}
+
+                  {/* Scene Video from Driver */}
+                  {driverVideoNote && (
+                    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 text-white space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-red-600 text-white flex items-center justify-center shadow-xs">
+                            <Video className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h5 className="font-black text-white text-xs">{driverVideoNote.title}</h5>
+                            <p className="text-[10px] text-slate-300 font-medium">ویدیوی ارسالی از موقعیت خودروها در لحظه تصادف</p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] text-slate-300 bg-slate-800 px-2.5 py-0.5 rounded-full font-mono">
+                          {driverVideoNote.uploadedAt}
+                        </span>
+                      </div>
+                      <video src={driverVideoNote.url} controls className="w-full max-h-60 rounded-xl bg-black object-contain" />
+                    </div>
+                  )}
+
                   {/* Images of Incident */}
                   <div className="space-y-3 pt-2 border-t border-slate-100">
                     <h4 className="font-extrabold text-slate-900 text-xs flex items-center gap-1.5">
@@ -2684,18 +3095,28 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
                           <div key={doc.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-2.5 space-y-2">
                             {doc.dataUrl ? (
                               <div className="relative h-36 rounded-xl overflow-hidden group bg-slate-200">
-                                {doc.fileType === 'video' ? (
+                                {isAudioMedia(doc) ? (
+                                  <div className="w-full h-full bg-sky-50 flex flex-col items-center justify-center p-3 text-center space-y-2">
+                                    <div className="w-10 h-10 rounded-full bg-sky-600 text-white flex items-center justify-center shadow-xs">
+                                      <Mic className="w-5 h-5" />
+                                    </div>
+                                    <span className="text-[10px] font-bold text-sky-950 truncate max-w-full">صوت ضبط‌شده</span>
+                                    <audio src={doc.dataUrl} controls className="w-full h-8" />
+                                  </div>
+                                ) : isVideoMedia(doc) ? (
                                   <video src={doc.dataUrl} controls className="w-full h-full object-cover" />
                                 ) : (
-                                  <img src={doc.dataUrl} alt={doc.title} className="w-full h-full object-cover" />
+                                  <>
+                                    <img src={doc.dataUrl} alt={doc.title} className="w-full h-full object-cover" />
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewImage(doc.dataUrl!)}
+                                      className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs"
+                                    >
+                                      مشاهده تصویر
+                                    </button>
+                                  </>
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={() => setPreviewImage(doc.dataUrl!)}
-                                  className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs"
-                                >
-                                  مشاهده تصویر
-                                </button>
                               </div>
                             ) : (
                               <div className="h-36 rounded-xl bg-white border border-slate-200 flex flex-col items-center justify-center p-3 text-center">
@@ -2806,18 +3227,28 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
                           <div key={doc.id} className="bg-slate-50 rounded-2xl border border-slate-200 p-2.5 space-y-2">
                             {doc.dataUrl ? (
                               <div className="relative h-36 rounded-xl overflow-hidden group bg-slate-200">
-                                {doc.fileType === 'video' ? (
+                                {isAudioMedia(doc) ? (
+                                  <div className="w-full h-full bg-sky-50 flex flex-col items-center justify-center p-3 text-center space-y-2">
+                                    <div className="w-10 h-10 rounded-full bg-sky-600 text-white flex items-center justify-center shadow-xs">
+                                      <Mic className="w-5 h-5" />
+                                    </div>
+                                    <span className="text-[10px] font-bold text-sky-950 truncate max-w-full">صوت ضبط‌شده</span>
+                                    <audio src={doc.dataUrl} controls className="w-full h-8" />
+                                  </div>
+                                ) : isVideoMedia(doc) ? (
                                   <video src={doc.dataUrl} controls className="w-full h-full object-cover" />
                                 ) : (
-                                  <img src={doc.dataUrl} alt={doc.title} className="w-full h-full object-cover" />
+                                  <>
+                                    <img src={doc.dataUrl} alt={doc.title} className="w-full h-full object-cover" />
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreviewImage(doc.dataUrl!)}
+                                      className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs"
+                                    >
+                                      مشاهده تصویر
+                                    </button>
+                                  </>
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={() => setPreviewImage(doc.dataUrl!)}
-                                  className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs"
-                                >
-                                  مشاهده تصویر
-                                </button>
                               </div>
                             ) : (
                               <div className="h-36 rounded-xl bg-white border border-slate-200 flex flex-col items-center justify-center p-3 text-center">

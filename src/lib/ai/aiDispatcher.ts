@@ -308,6 +308,25 @@ export function autoDispatchClaimWithAI(
 ): DispatchResult {
   const branchInfo = determineBranchByLocation(claim.address || claim.accidentLocation, claim.lat, claim.lng);
   const hasKroki = !!(claim.hasKroki || claim.sceneReportCode || claim.croquiData || (claim as any).croquiNumber || (claim as any).isOnlineCroqui);
+
+  // اگر پرونده در حالت ثبت موقت و در انتظار کروکی باشد، تا زمان ورود کروکی توسط مشتری نباید به کارشناس ارجاع شود
+  const isPendingKrokiDraft =
+    claim.status === 'ثبت موقت - در انتظار افزودن کروکی' ||
+    (claim.futurePoliceExpected === true && !hasKroki);
+
+  if (isPendingKrokiDraft && !options?.forceDeskExpert && !options?.forceFieldExpert) {
+    return {
+      updatedCase: {
+        ...claim,
+        status: 'ثبت موقت - در انتظار افزودن کروکی',
+        assignedExpert: undefined,
+        assignedFieldExpert: undefined
+      },
+      branch: branchInfo,
+      rationale: 'پرونده در حالت ثبت موقت (در انتظار افزودن کروکی توسط متقاضی) است و تا زمان ورود کروکی به کارشناس ارجاع نمی‌شود.'
+    };
+  }
+
   const nowShamsi = new Date().toLocaleDateString('fa-IR') + ' - ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
   const companyCode = (claim.culpritInsurer || claim.insurerCode || 'dana').toLowerCase();
 

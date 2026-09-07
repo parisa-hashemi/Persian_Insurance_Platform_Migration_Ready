@@ -81,6 +81,7 @@ import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
 import { UnifiedDocumentsCard } from './UnifiedDocumentsCard';
 import { handleExpertRejectionWithAI } from '../../lib/ai/aiDispatcher';
 import { AIAssessmentDraftCard } from '../AI/AIAssessmentDraftCard';
+import { getExactPersianPartName, getPartKeyFromPersianName } from '../../lib/ai/aiDraftGenerator';
 import { AIChatCopilotModal } from '../AI/AIChatCopilotModal';
 import { AIResult, EvidenceIntelligenceResult } from '../../lib/ai/types';
 
@@ -92,9 +93,11 @@ interface AssessorPanelProps {
 }
 
 export const PART_OPTIONS = [
+  'درب موتور (کاپوت)',
   'کاپوت',
   'سپر جلو',
   'سپر عقب',
+  'سقف خودرو',
   'گلگیر جلو راست',
   'گلگیر جلو چپ',
   'گلگیر عقب راست',
@@ -103,7 +106,20 @@ export const PART_OPTIONS = [
   'درب جلو چپ',
   'درب عقب راست',
   'درب عقب چپ',
+  'درب صندوق عقب',
   'درب صندوق',
+  'رکاب راست',
+  'رکاب چپ',
+  'ستون جلو راست (ستون A)',
+  'ستون جلو چپ (ستون A)',
+  'ستون وسط راست (ستون B)',
+  'ستون وسط چپ (ستون B)',
+  'ستون عقب راست (ستون C)',
+  'ستون عقب چپ (ستون C)',
+  'سرشاسی و سینی جلو راست',
+  'سرشاسی و سینی جلو چپ',
+  'سرشاسی و سینی عقب راست',
+  'سرشاسی و سینی عقب چپ',
   'چراغ جلو راست',
   'چراغ جلو چپ',
   'چراغ عقب',
@@ -224,6 +240,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     reviewerPhone?: string;
     caseId: string;
     payable: number;
+    isResubmission?: boolean;
   } | null>(null);
   const [smsNotifications, setSmsNotifications] = useState<AssessorNotification[]>(() => loadAssessorNotifications());
 
@@ -320,6 +337,15 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     setShowSmsInboxModal(true);
   };
 
+  // Helper to check if a case is pending croqui in temporary registration
+  const isCasePendingCroquiDraft = (c?: ClaimCase | null) => {
+    if (!c) return false;
+    return (
+      c.status === 'ثبت موقت - در انتظار افزودن کروکی' ||
+      (c.futurePoliceExpected === true && !c.hasKroki && !c.sceneReportCode)
+    );
+  };
+
   // Helper to check if a case is rejected, timed out, or unaccepted after SMS/deadline
   const isCaseRejected = (c?: ClaimCase | null) => {
     if (!c) return false;
@@ -334,9 +360,11 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     );
   };
 
-  // Helper for "جدید و ارزیابی‌نشده / ثبت موقت" (قبل از 72 ساعت)
+  // Helper for "ارزیابی‌نشده‌ها" (قبل از 72 ساعت)
   const isCaseUnassessedOrDraft = (c: ClaimCase) => {
     if (isCaseRejected(c)) return false;
+    // Exclude pending croqui (not sent to assessor until croqui is provided)
+    if (isCasePendingCroquiDraft(c)) return false;
     // Exclude submitted/completed
     if (
       c.status === 'ارزیابی شده' ||
@@ -347,23 +375,50 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     ) {
       return false;
     }
+    // If expert accepted for later, it stays in the unassessed card
+    if (c.expertAcceptance === 'later' && c.status !== 'ارزیابی شده') {
+      return true;
+    }
     // Exclude active in-progress
     if (c.status === 'در حال ارزیابی') return false;
     // Exclude customer correction request
     if (c.status === 'نیازمند اصلاح اطلاعات مشتری') return false;
-    // Includes: 'ثبت موقت', 'ثبت اولیه', 'محول شده به کارشناس', 'جدید', 'ارزیابی‌نشده', etc. before 72 hours
+    // Includes: 'ثبت اولیه', 'محول شده به کارشناس', 'جدید', 'ارزیابی‌نشده', etc. before 72 hours
     return true;
   };
 
   // Helper for "در حال ارزیابی"
   const isCaseInProgress = (c: ClaimCase) => {
     if (isCaseRejected(c)) return false;
+    // If accepted for later and still in unassessed status, it's not in progress yet
+    if (c.expertAcceptance === 'later' && c.status === 'ارزیابی‌نشده') return false;
     return c.status === 'در حال ارزیابی';
+  };
+
+  // Helper for "رد شده از بازبین / نیازمند اصلاح ارزیابی"
+  const isCaseReturnedByReviewer = (c: ClaimCase) => {
+    if (isCaseRejected(c)) return false;
+    return (
+      c.status === 'رد شده از بازبین' ||
+      c.status === 'رد شده از سمت بازبین' ||
+      c.status === 'نیازمند اصلاح کارشناس' ||
+      c.status === 'نیازمند اصلاح توسط کارشناس' ||
+      c.status === 'عودت داده شده به کارشناس' ||
+      Boolean(
+        (c.reviewerReturn || c.reviewerReturnReason || c.assessment?.reviewerReturnReason) &&
+        c.status !== 'ارزیابی شده' &&
+        c.status !== 'در انتظار بررسی بازبین' &&
+        c.status !== 'در انتظار تایید کاربر' &&
+        c.status !== 'پرداخت شده' &&
+        c.assessment?.status !== 'SUBMITTED'
+      )
+    );
   };
 
   // Helper for "ارزیابی‌شده و ارسالی"
   const isCaseEvaluated = (c: ClaimCase) => {
     if (isCaseRejected(c)) return false;
+    if (isCaseReturnedByReviewer(c)) return false;
     return (
       c.status === 'ارزیابی شده' ||
       c.status === 'در انتظار بررسی بازبین' ||
@@ -380,7 +435,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   };
 
   // Interactive Quick Filter Cards
-  const [quickFilter, setQuickFilter] = useState<'all' | 'unassessed' | 'inprogress' | 'evaluated' | 'correction' | 'rejected'>('all');
+  const [quickFilter, setQuickFilter] = useState<'all' | 'unassessed' | 'inprogress' | 'returned_reviewer' | 'evaluated' | 'correction' | 'rejected' | 'pending_croqui'>('all');
 
   // Search Bar State
   const [searchAny, setSearchAny] = useState('');
@@ -446,9 +501,28 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
   const companyCode = session.company || 'dana';
 
+  // Cases that are in temporary draft pending customer croqui
+  // (These are locked and not assigned for assessment until customer enters croqui)
+  const companyPendingCroquiCases = useMemo(() => {
+    return cases.filter((c) => {
+      const matchesCompany =
+        c.culpritInsurer === companyCode ||
+        c.victimInsurer === companyCode ||
+        getInsurerPersianName(c.culpritInsurer) === getInsurerPersianName(companyCode);
+
+      return matchesCompany && isCasePendingCroquiDraft(c);
+    });
+  }, [cases, companyCode]);
+
   // Filter cases assigned to current expert, rejected/timed-out cases, or unassigned for current insurer
+  // Excludes temporary cases pending croqui (which must not go to assessor)
   const assignedCases = useMemo(() => {
     return cases.filter((c) => {
+      // Pending croqui cases are locked and do NOT go to the assessor's actionable queue
+      if (isCasePendingCroquiDraft(c)) {
+        return false;
+      }
+
       const matchesCompany =
         c.culpritInsurer === companyCode ||
         c.victimInsurer === companyCode ||
@@ -486,16 +560,22 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
   // Filtered cases based on search and quick cards
   const filteredCases = useMemo(() => {
-    return assignedCases.filter((c) => {
+    const sourcePool = quickFilter === 'pending_croqui' ? companyPendingCroquiCases : assignedCases;
+
+    return sourcePool.filter((c) => {
       const rejected = isCaseRejected(c);
 
       // 1. Quick Card Filter
-      if (quickFilter === 'rejected') {
+      if (quickFilter === 'pending_croqui') {
+        // Pool is already filtered to companyPendingCroquiCases
+      } else if (quickFilter === 'rejected') {
         if (!isCaseRejected(c)) return false;
       } else if (quickFilter === 'unassessed') {
         if (!isCaseUnassessedOrDraft(c)) return false;
       } else if (quickFilter === 'inprogress') {
         if (!isCaseInProgress(c)) return false;
+      } else if (quickFilter === 'returned_reviewer') {
+        if (!isCaseReturnedByReviewer(c)) return false;
       } else if (quickFilter === 'evaluated') {
         if (!isCaseEvaluated(c)) return false;
       } else if (quickFilter === 'correction') {
@@ -520,7 +600,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
       return true;
     });
-  }, [assignedCases, quickFilter, searchAny, searchProvince, searchCity, searchType, searchStatus]);
+  }, [assignedCases, companyPendingCroquiCases, quickFilter, searchAny, searchProvince, searchCity, searchType, searchStatus]);
 
   const activeCase = cases.find((c) => c.id === selectedCaseId);
 
@@ -617,27 +697,33 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   // Default AI Findings
   const defaultAiFindings: AIDecisionLine[] = useMemo(() => {
     if (!activeCase) return [];
-    if (activeCase.aiDecisions && activeCase.aiDecisions.length > 0) return activeCase.aiDecisions;
+    if (activeCase.aiDecisions && activeCase.aiDecisions.length > 0) {
+      return activeCase.aiDecisions.map((item) => ({
+        ...item,
+        part: getExactPersianPartName(item.part || item.label || item.findingId),
+        label: getExactPersianPartName(item.label || item.part || item.findingId)
+      }));
+    }
     return [
       {
         findingId: 'front_bumper',
         label: 'سپر جلو',
         part: 'سپر جلو',
-        type: 'خراش و سایش رنگ',
+        type: 'خراشیدگی و شکستگی دیاق',
         severity: '۲ از ۵',
-        operation: 'رنگ‌آمیزی',
+        operation: 'صافکاری و نقاشی',
         confidence: 'بالا',
         explanation: 'ناحیه آسیب در کادربندی زوایای جلو و کلوزآپ تطبیق داده شده است.'
       },
       {
-        findingId: 'left_front_door',
+        findingId: 'door_fl',
         label: 'درب جلو چپ',
         part: 'درب جلو چپ',
-        type: 'فرورفتگی بدنه',
-        severity: '۳ از ۵',
-        operation: 'صافکاری و نقاشی',
-        confidence: 'متوسط',
-        explanation: 'الگوی فرورفتگی با برخورد جانبی سازگار بوده اما انحنای لولا نیازمند بازبینی کارشناس است.'
+        type: 'دفرمگی شدید کلاف و پارگی ورق',
+        severity: '۴ از ۵',
+        operation: 'تعویض کامل قطعه',
+        confidence: 'خیلی بالا',
+        explanation: 'الگوی فرورفتگی شدید و شکستگی اتصالات با برخورد جانبی سازگار بوده و نیازمند تعویض پوسته درب است.'
       }
     ];
   }, [activeCase]);
@@ -747,22 +833,26 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     );
 
     if (!finding) return;
+    const exactPartName = getExactPersianPartName(finding.part || finding.label || finding.findingId);
     const opType: 'replace' | 'repair' = (finding.operation || '').includes('تعویض') ? 'replace' : 'repair';
 
     if (decision === 'APPROVED') {
       // با تایید نظر هوش مصنوعی، دقیقاً همان قطعه با همان نام و نوع عملیات
       // به جدول قیمت‌گذاری پایین اضافه می‌شود؛ کارشناس فقط قیمت و داغی را تعیین می‌کند.
       setParts((prev) => {
-        const existingIdx = prev.findIndex((pp) => pp.name.trim() === finding.part.trim());
+        const existingIdx = prev.findIndex((pp) => {
+          const pExact = getExactPersianPartName(pp.name);
+          return pExact === exactPartName || pp.name.trim() === finding.part.trim() || pp.name.trim() === exactPartName;
+        });
         if (existingIdx >= 0) {
           const copy = [...prev];
-          copy[existingIdx] = { ...copy[existingIdx], type: opType };
+          copy[existingIdx] = { ...copy[existingIdx], name: exactPartName, type: opType, salvageNeeded: opType === 'replace' };
           return copy;
         }
         return [
           ...prev,
           {
-            name: finding.part,
+            name: exactPartName,
             type: opType,
             partPrice: 0,
             repairPrice: 0,
@@ -771,19 +861,58 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
           }
         ];
       });
-      showPartAddedToast(`✓ قطعه «${finding.part}» (${opType === 'replace' ? 'تعویضی' : 'تعمیری'}) به جدول قیمت‌گذاری پایین اضافه شد — فقط قیمت و داغی را تعیین کنید.`);
+
+      // نمایش همزمان و علامت‌گذاری روی مدل ۲ بعدی و ۳ بعدی خودرو
+      const partKey = getPartKeyFromPersianName(finding.part || finding.label || finding.findingId);
+      const isReplace = opType === 'replace';
+      const existing = carDamageSpotsState[partKey];
+      const updatedSpots: Record<string, CarDamageSpot> = {
+        ...carDamageSpotsState,
+        [partKey]: {
+          type: finding.type || existing?.type || (isReplace ? 'شکستگی و دفرمگی شدید بدنه' : 'خراشیدگی و دفرمگی'),
+          severity: (isReplace ? 'major' : (existing?.severity || 'minor')) as 'minor' | 'moderate' | 'major',
+          operation: isReplace ? 'تعویض کامل قطعه' : 'صافکاری و نقاشی',
+          color: isReplace ? 'red' : 'yellow',
+          note: finding.explanation || existing?.note || `تاییدشده از تحلیل هوش مصنوعی: ${exactPartName}`
+        }
+      };
+
+      setCarDamageSpotsState(updatedSpots);
+
+      if (activeCase) {
+        onUpdateCase({
+          ...activeCase,
+          carDamageSpots: updatedSpots
+        });
+      }
+
+      showPartAddedToast(`✓ قطعه «${exactPartName}» (${opType === 'replace' ? 'تعویضی' : 'تعمیری'}) به لیست قطعات و مدل ۲ بعدی و ۳ بعدی خودرو اضافه شد.`);
     } else if (decision === 'REJECTED') {
       // در صورت رد، اگر همین قطعه قبلاً به‌صورت خودکار (بدون قیمت) اضافه شده بود، حذف می‌شود
       setParts((prev) =>
-        prev.filter(
-          (pp) =>
-            !(
-              pp.name.trim() === finding.part.trim() &&
-              (pp.partPrice || 0) === 0 &&
-              (pp.repairPrice || 0) === 0
-            )
-        )
+        prev.filter((pp) => {
+          const pExact = getExactPersianPartName(pp.name);
+          return !(
+            (pExact === exactPartName || pp.name.trim() === finding.part.trim()) &&
+            (pp.partPrice || 0) === 0 &&
+            (pp.repairPrice || 0) === 0
+          );
+        })
       );
+
+      // حذف نقطه از روی مدل ۲ بعدی و ۳ بعدی در صورت رد
+      const partKey = getPartKeyFromPersianName(finding.part || finding.label || finding.findingId);
+      if (carDamageSpotsState[partKey]) {
+        const updated = { ...carDamageSpotsState };
+        delete updated[partKey];
+        setCarDamageSpotsState(updated);
+        if (activeCase) {
+          onUpdateCase({
+            ...activeCase,
+            carDamageSpots: updated
+          });
+        }
+      }
     }
   };
 
@@ -799,9 +928,11 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
           ...copy[existingIdx],
           type: operationType
         };
+        showPartAddedToast(`وضعیت قطعه «${partName}» به ${operationType === 'replace' ? 'تعویضی' : 'تعمیری'} به‌روزرسانی شد.`);
         return copy;
       }
       // Add new part with 0 prices so assessor just fills in the price
+      showPartAddedToast(`قطعه «${partName}» به عنوان ${operationType === 'replace' ? 'تعویضی' : 'تعمیری'} به لیست قطعات افزوده شد.`);
       return [
         ...prev,
         {
@@ -887,22 +1018,89 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const handleApplyAiDraftParts = (draftParts: PartItem[], gross: number, salvage: number, technicalNote?: string) => {
     if (!activeCase || isCaseRejected(activeCase)) return;
 
-    // قطعات تاییدشده‌ی هوش مصنوعی با همان نام و نوع (تعویضی/تعمیری) به لیست پایین
-    // «اضافه» می‌شوند (نه جایگزینی) تا کارشناس فقط قیمت و داغی هر مورد را ثبت کند.
+    // قطعات تاییدشده‌ی هوش مصنوعی با همان نام دقیق فارسی و نوع عملیات (تعویضی/تعمیری)
+    // بدون هیچ تغییر ناخواسته به لیست قطعات اضافه/به‌روزرسانی می‌شوند
     let addedCount = 0;
+    let updatedCount = 0;
+    const appliedNames: string[] = [];
+
     setParts((prev) => {
       const merged = [...prev];
       draftParts.forEach((dp) => {
-        const idx = merged.findIndex((pp) => pp.name.trim() === dp.name.trim());
+        const exactName = getExactPersianPartName(dp.name);
+        appliedNames.push(exactName);
+
+        const idx = merged.findIndex((pp) => {
+          const pExact = getExactPersianPartName(pp.name);
+          return (
+            pExact === exactName ||
+            pp.name.trim() === dp.name.trim() ||
+            pp.name.trim() === exactName
+          );
+        });
+
         if (idx >= 0) {
-          merged[idx] = { ...merged[idx], type: dp.type, salvageNeeded: dp.salvageNeeded };
+          merged[idx] = {
+            ...merged[idx],
+            name: exactName,
+            type: dp.type,
+            salvageNeeded: dp.type === 'replace'
+          };
+          updatedCount++;
         } else {
-          merged.push(dp);
+          merged.push({
+            name: exactName,
+            type: dp.type,
+            partPrice: dp.partPrice || 0,
+            repairPrice: dp.repairPrice || 0,
+            salvageNeeded: dp.type === 'replace',
+            salvageValue: dp.salvageValue || 0
+          });
           addedCount++;
         }
       });
       return merged;
     });
+
+    // نمایش و علامت‌گذاری همزمان قطعات تاییدشده بر روی مدل ۲ بعدی و ۳ بعدی خودرو
+    const updatedSpots: Record<string, CarDamageSpot> = { ...carDamageSpotsState };
+
+    draftParts.forEach((dp) => {
+      const partKey = getPartKeyFromPersianName(dp.name);
+      const isReplace = dp.type === 'replace';
+      const exactName = getExactPersianPartName(dp.name);
+      const existing = updatedSpots[partKey];
+
+      updatedSpots[partKey] = {
+        type: existing?.type || (isReplace ? 'شکستگی و دفرمگی شدید بدنه' : 'خراشیدگی و آسیب نیازمند ترمیم'),
+        severity: (isReplace ? 'major' : (existing?.severity || 'minor')) as 'minor' | 'moderate' | 'major',
+        operation: isReplace ? 'تعویض کامل قطعه' : 'صافکاری و نقاشی',
+        color: isReplace ? 'red' : 'yellow',
+        note: existing?.note || `ثبت خودکار از پیش‌نویس هوش مصنوعی: ${exactName} (${isReplace ? 'تعویض' : 'تعمیر'})`
+      };
+    });
+
+    setCarDamageSpotsState(updatedSpots);
+
+    // ذخیره در وضعیت پرونده جهت ماندگاری
+    if (activeCase) {
+      onUpdateCase({
+        ...activeCase,
+        carDamageSpots: updatedSpots
+      });
+    }
+
+    // به‌روزرسانی جدول تصمیمات هوش مصنوعی به وضعیت تایید شده
+    setAiDecisionsState((prev) =>
+      prev.map((item) => {
+        const exactItemName = getExactPersianPartName(item.part || item.label || item.findingId);
+        const matchesDraft = draftParts.some((dp) => {
+          const exactDpName = getExactPersianPartName(dp.name);
+          return exactDpName === exactItemName;
+        });
+        return matchesDraft ? { ...item, decision: 'APPROVED' } : item;
+      })
+    );
 
     // فقط اگر مقادیر واقعی ارسال شده باشد جمع‌ها را به‌روزرسانی کن (حالت بدون قیمت: دست نمی‌زنیم)
     if (gross > 0) setGrossInput(String(gross));
@@ -911,11 +1109,13 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       setNoteInput(technicalNote);
     }
 
+    const appliedSummary = draftParts
+      .map((p) => `«${getExactPersianPartName(p.name)}» (${p.type === 'replace' ? 'تعویضی' : 'تعمیری'})`)
+      .join('، ');
+
     window.setTimeout(() => {
       showPartAddedToast(
-        addedCount > 0
-          ? `✓ ${addedCount} قطعه پیشنهادی هوش مصنوعی با همان نام و نوع عملیات به جدول قیمت‌گذاری اضافه شد — قیمت و داغی هر مورد را تعیین کنید.`
-          : '✓ قطعات پیشنهادی از قبل در جدول قیمت‌گذاری موجود بودند؛ نوع عملیات آن‌ها به‌روزرسانی شد.'
+        `✓ پیش‌نویس هوش مصنوعی تایید شد: قطعات ${appliedSummary} به جدول قطعات و مدل ۲ بعدی و ۳ بعدی خودرو اضافه شدند.`
       );
     }, 0);
   };
@@ -1057,12 +1257,16 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       company: compKey
     };
 
+    const isResubmission = isCaseReturnedByReviewer(activeCase);
+
     const sysNoticeMsg = {
       id: `MSG-${Date.now()}`,
       from: 'system' as const,
       senderParty: 'SYSTEM' as const,
       by: 'سیستم ارجاع خودکار',
-      text: `اطلاعیه سیستم: پرونده جهت بررسی نهایی و تایید به بازبین کیفی (${autoReviewer.name}) ارجاع داده شد.`,
+      text: isResubmission
+        ? `اطلاعیه سیستم: ارزیابی اصلاح‌شده با اعمال نظرات بازبین مجدداً جهت بررسی به بازبین کیفی (${autoReviewer.name}) ارجاع داده شد.`
+        : `اطلاعیه سیستم: پرونده جهت بررسی نهایی و تایید به بازبین کیفی (${autoReviewer.name}) ارجاع داده شد.`,
       at: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
     };
 
@@ -1071,6 +1275,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       status: 'در انتظار بررسی بازبین',
       assignedReviewer: autoReviewer,
       reviewerReturn: undefined, // Clear return reason on re-submission
+      reviewerReturnReason: undefined,
       aiDecisions: aiDecisionsState,
       carDamageSpots: carDamageSpotsState,
       docChat: [...(activeCase.docChat || []), sysNoticeMsg],
@@ -1089,6 +1294,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
         submittedBy: session.name || 'کارشناس خسارت',
         submittedAt: new Date().toLocaleString('fa-IR'),
         reviewerNote: noteInput,
+        reviewerReturnReason: undefined,
         parts
       },
       assessments: updatedAssessments,
@@ -1098,7 +1304,9 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
           status: 'در انتظار بررسی بازبین',
           time: new Date().toLocaleString('fa-IR'),
           user: session.name || 'کارشناس خسارت',
-          note: `ثبت نهایی برآورد خسارت توسط کارشناس (${currentRoundLabel}) — ارجاع خودکار به بازبین کیفی (${autoReviewer.name}). (مبلغ: ${formatCurrency(payable)})`
+          note: isResubmission
+            ? `ارسال مجدد ارزیابی اصلاح‌شده به بازبین کیفی (${autoReviewer.name}) پس از اعمال تغییرات در برآورد و پاسخ به نظرات بازبین. (مبلغ: ${formatCurrency(payable)})`
+            : `ثبت نهایی برآورد خسارت توسط کارشناس (${currentRoundLabel}) — ارجاع خودکار به بازبین کیفی (${autoReviewer.name}). (مبلغ: ${formatCurrency(payable)})`
         }
       ]
     };
@@ -1109,7 +1317,8 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       reviewerName: autoReviewer.name,
       reviewerPhone: autoReviewer.phone || '۰۹۱۲۲۱۴۵۶۷۸',
       caseId: activeCase.id,
-      payable
+      payable,
+      isResubmission
     });
   };
 
@@ -1285,7 +1494,8 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const handleAcceptLater = (c: ClaimCase) => {
     const updated: ClaimCase = {
       ...c,
-      status: 'در حال ارزیابی',
+      status: 'ارزیابی‌نشده',
+      expertAcceptance: 'later',
       assignedExpert: {
         id: session.id,
         name: session.name || 'رضا تهرانی',
@@ -1295,16 +1505,17 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       history: [
         ...(c.history || []),
         {
-          status: 'در حال ارزیابی',
+          status: 'ارزیابی‌نشده',
           time: new Date().toLocaleString('fa-IR'),
           user: session.name || 'کارشناس خسارت',
-          note: 'پرونده توسط کارشناس پذیرفته شد و در لیست پرونده‌های در حال ارزیابی قرار گرفت.'
+          note: 'پرونده توسط کارشناس پذیرفته شد و در کارت «ارزیابی‌نشده‌ها» جهت ارزیابی در زمان مناسب قرار گرفت.'
         }
       ]
     };
     onUpdateCase(updated);
     setAcceptModalCase(null);
-    notifyApp('پرونده با موفقیت پذیرفته شد و وضعیت آن به «در حال ارزیابی» تغییر یافت.');
+    setQuickFilter('unassessed');
+    notifyApp('پرونده با موفقیت پذیرفته شد و در کارت «ارزیابی‌نشده‌ها» قرار گرفت. می‌توانید هر زمان با ورود به این کارت، ارزیابی آن را آغاز فرمایید.');
   };
 
   // Handler for Rejecting Assignment (Red Cross button opens modal)
@@ -1535,7 +1746,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 },
                 {
                   id: 'unassessed' as const,
-                  label: 'جدید و ارزیابی‌نشده (ثبت موقت)',
+                  label: 'ارزیابی‌نشده‌ها (جدید و معوق)',
                   count: assignedCases.filter(isCaseUnassessedOrDraft).length,
                   icon: Clock,
                   accentColor: 'amber'
@@ -1546,6 +1757,13 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   count: assignedCases.filter(isCaseInProgress).length,
                   icon: Edit3,
                   accentColor: 'blue'
+                },
+                {
+                  id: 'returned_reviewer' as const,
+                  label: 'رد شده از بازبین',
+                  count: assignedCases.filter(isCaseReturnedByReviewer).length,
+                  icon: RotateCcw,
+                  accentColor: 'rose'
                 },
                 {
                   id: 'evaluated' as const,
@@ -1567,6 +1785,13 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   count: assignedCases.filter(isCaseRejected).length,
                   icon: Lock,
                   accentColor: 'red'
+                },
+                {
+                  id: 'pending_croqui' as const,
+                  label: 'در انتظار کروکی (ارزیابی قفل)',
+                  count: companyPendingCroquiCases.length,
+                  icon: Lock,
+                  accentColor: 'amber'
                 }
               ].map((tab) => {
                 const IconComp = tab.icon;
@@ -1578,7 +1803,11 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     onClick={() => setQuickFilter(tab.id)}
                     className={`flex items-center gap-2 px-3.5 sm:px-4 py-2.5 rounded-2xl text-xs font-black transition-all whitespace-nowrap cursor-pointer shrink-0 ${
                       isActive
-                        ? 'bg-purple-900 text-white shadow-md shadow-purple-950/20'
+                        ? tab.id === 'returned_reviewer'
+                          ? 'bg-rose-700 text-white shadow-md shadow-rose-900/20'
+                          : 'bg-purple-900 text-white shadow-md shadow-purple-950/20'
+                        : tab.id === 'returned_reviewer' && tab.count > 0
+                        ? 'bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 bg-transparent'
                     }`}
                   >
@@ -1604,6 +1833,8 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       className={`px-2 py-0.5 rounded-full text-[11px] font-bold font-mono transition-colors ${
                         isActive
                           ? 'bg-white/20 text-white border border-white/20'
+                          : tab.id === 'returned_reviewer' && tab.count > 0
+                          ? 'bg-rose-600 text-white shadow-2xs'
                           : tab.count > 0
                           ? 'bg-slate-100 text-slate-800 border border-slate-200'
                           : 'bg-slate-50 text-slate-400 border border-slate-100'
@@ -1702,12 +1933,16 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     {quickFilter === 'all'
                       ? 'همه پرونده‌ها'
                       : quickFilter === 'unassessed'
-                      ? 'جدید و ارزیابی‌نشده'
+                      ? 'ارزیابی‌نشده‌ها (جدید و معوق)'
                       : quickFilter === 'inprogress'
                       ? 'در حال ارزیابی / پیش‌نویس'
+                      : quickFilter === 'returned_reviewer'
+                      ? 'رد شده از بازبین (نیازمند اصلاح ارزیابی)'
                       : quickFilter === 'evaluated'
                       ? 'ارزیابی‌شده و ارسالی'
-                      : 'نیازمند اصلاح مدارک مشتری'}
+                      : quickFilter === 'correction'
+                      ? 'نیازمند اصلاح مدارک مشتری'
+                      : 'رد شده / سلب صلاحیت'}
                   </span>
                 </span>
               </div>
@@ -1848,6 +2083,26 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                                 );
                               }
 
+                              if (isCaseReturnedByReviewer(c)) {
+                                const returnReason = c.reviewerReturn?.reason || c.reviewerReturnReason || c.assessment?.reviewerReturnReason;
+                                return (
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <span className="inline-flex items-center gap-1 justify-center px-2.5 py-1 rounded-full text-[11px] font-extrabold whitespace-nowrap bg-rose-600 text-white shadow-xs">
+                                      <RotateCcw className="w-3 h-3 stroke-[2.5]" />
+                                      <span>رد شده از بازبین</span>
+                                    </span>
+                                    {returnReason && (
+                                      <span
+                                        className="text-[10px] text-rose-700 font-bold max-w-[130px] truncate"
+                                        title={returnReason}
+                                      >
+                                        علت: {returnReason}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              }
+
                               const isDraft = c.assessment?.status === 'DRAFT' || c.status === 'ثبت موقت';
                               const isSubmitted = c.assessment?.status === 'SUBMITTED' || c.status === 'ارزیابی شده' || c.status === 'در انتظار بررسی بازبین' || c.status === 'در انتظار تایید کاربر';
                               
@@ -1855,6 +2110,15 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                                 return (
                                   <span className="inline-flex items-center justify-center px-3 py-1 rounded-full text-[11px] font-extrabold whitespace-nowrap bg-amber-500 text-white shadow-xs">
                                     ثبت موقت
+                                  </span>
+                                );
+                              }
+
+                              if (c.expertAcceptance === 'later' || (c.status === 'ارزیابی‌نشده' && Boolean(c.acceptedByExpertAt))) {
+                                return (
+                                  <span className="inline-flex items-center gap-1 justify-center px-3 py-1 rounded-full text-[11px] font-extrabold whitespace-nowrap bg-amber-500 text-white shadow-xs">
+                                    <Clock className="w-3 h-3" />
+                                    <span>ارزیابی‌نشده (پذیرفته‌شده)</span>
                                   </span>
                                 );
                               }
@@ -1897,6 +2161,52 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                                 );
                               }
 
+                              if (isCaseReturnedByReviewer(c)) {
+                                return (
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedCaseId(c.id);
+                                        setActiveTab('parts');
+                                        notifyApp(`ورود به ارزیابی جهت اعمال اصلاحات نظر بازبین برای پرونده ${c.id}`);
+                                      }}
+                                      className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-black shadow-md hover:shadow-rose-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                      title="مشاهده نظر بازبین و اصلاح برآورد خسارت"
+                                    >
+                                      <RotateCcw className="w-3.5 h-3.5" />
+                                      <span>مشاهده نظر بازبین و اصلاح</span>
+                                      <ArrowLeft className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              if (isCasePendingCroquiDraft(c)) {
+                                return (
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <div
+                                      className="px-2.5 py-1.5 bg-amber-50 text-amber-900 border border-amber-300 rounded-xl text-[11px] font-black flex items-center gap-1"
+                                      title="ارزیابی قفل است؛ تا زمان ورود اطلاعات کروکی توسط مشتری امکان ارزیابی وجود ندارد"
+                                    >
+                                      <Lock className="w-3.5 h-3.5 text-amber-700" />
+                                      <span>ارزیابی قفل (در انتظار کروکی)</span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedCaseId(c.id);
+                                        setActiveTab('summary');
+                                      }}
+                                      className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 flex items-center justify-center transition-all cursor-pointer"
+                                      title="مشاهده اطلاعات پرونده ثبت موقت"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                );
+                              }
+
                               const isSubmitted = c.assessment?.status === 'SUBMITTED' || c.status === 'ارزیابی شده' || c.status === 'در انتظار بررسی بازبین' || c.status === 'در انتظار تایید کاربر' || c.status === 'پرداخت شده';
                               
                               if (isSubmitted) {
@@ -1905,6 +2215,51 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" />
                                     <span>ارزیابی شده</span>
                                   </span>
+                                );
+                              }
+
+                              // Case accepted for later: show "ارزیابی پرونده" action button and preview button
+                              if (c.expertAcceptance === 'later' || (c.status === 'ارزیابی‌نشده' && Boolean(c.acceptedByExpertAt))) {
+                                return (
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const updated: ClaimCase = {
+                                          ...c,
+                                          status: 'در حال ارزیابی',
+                                          expertAcceptance: 'now',
+                                          history: [
+                                            ...(c.history || []),
+                                            {
+                                              status: 'در حال ارزیابی',
+                                              time: new Date().toLocaleString('fa-IR'),
+                                              user: session.name || 'کارشناس خسارت',
+                                              note: 'آغاز فرآیند ارزیابی پرونده پذیرفته‌شده از کارت ارزیابی‌نشده‌ها.'
+                                            }
+                                          ]
+                                        };
+                                        onUpdateCase(updated);
+                                        setSelectedCaseId(c.id);
+                                        setActiveTab('parts');
+                                        notifyApp(`ورود به کارتابل ارزیابی پرونده ${c.id}`);
+                                      }}
+                                      className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black shadow-md hover:shadow-purple-600/30 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                      title="شروع ارزیابی پرونده پذیرفته‌شده"
+                                    >
+                                      <Edit3 className="w-3.5 h-3.5" />
+                                      <span>ارزیابی پرونده</span>
+                                      <ArrowLeft className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPreliminaryCheckCase(c)}
+                                      className="w-7 h-7 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 flex items-center justify-center transition-all cursor-pointer"
+                                      title="بررسی اولیه اطلاعات پرونده و کروکی"
+                                    >
+                                      <Eye className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                 );
                               }
 
@@ -2006,6 +2361,57 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 </div>
               )}
 
+              {/* Reviewer Return Banner - Highest Priority for Assessor Correction */}
+              {isCaseReturnedByReviewer(activeCase) && (
+                <div className="p-4 bg-rose-50 border-2 border-rose-400 rounded-2xl flex items-start gap-3 shadow-sm animate-in fade-in">
+                  <div className="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+                    <RotateCcw className="w-5 h-5 stroke-[2.5]" />
+                  </div>
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-sm text-rose-950 flex items-center gap-1.5">
+                          <AlertTriangle className="w-4 h-4 text-rose-600" />
+                          <span>پرونده عودت‌داده‌شده توسط بازبین کیفیت (رد شده از بازبین)</span>
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-200 text-rose-900 border border-rose-300">
+                          نیازمند اعمال اصلاحات کارشناس
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-rose-800 font-bold flex items-center gap-2">
+                        <span>بازبین: {activeCase.reviewerReturn?.returnedBy || activeCase.assignedReviewer?.name || 'بازبین کیفی بیمه‌گر'}</span>
+                        {activeCase.reviewerReturn?.returnedAt && (
+                          <span className="font-mono text-slate-500">({activeCase.reviewerReturn.returnedAt})</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="bg-white/90 p-3.5 rounded-xl border border-rose-200 shadow-2xs space-y-1.5">
+                      <div className="font-black text-xs text-rose-900 flex items-center gap-1">
+                        <span>توضیحات و دستورات اصلاحی بازبین:</span>
+                      </div>
+                      <p className="text-xs text-slate-800 font-bold leading-relaxed whitespace-pre-wrap">
+                        {activeCase.reviewerReturn?.reason || activeCase.reviewerReturnReason || activeCase.assessment?.reviewerReturnReason || 'برآورد هزینه و اقلام ارزیابی نیازمند اصلاح و بازنگری مجدد است.'}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between flex-wrap gap-2 pt-1 text-[11px] font-bold text-rose-900">
+                      <span>لطفاً تغییرات مورد نظر را در برگه قطعات و هزینه‌ها اعمال کرده و مجدداً ارزیابی را جهت بررسی بازبین ثبت نمایید.</span>
+                      {activeTab !== 'parts' && (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('parts')}
+                          className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-black flex items-center gap-1 transition-all cursor-pointer shadow-xs"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>ورود به بخش قطعات و اصلاح</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Insurer Note / Instructions Banner for Assessor */}
               {activeCase.insurerInstruction && (
                 <div className="p-4 bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 border-2 border-indigo-200 rounded-2xl flex items-start gap-3 shadow-xs animate-in fade-in">
@@ -2025,6 +2431,35 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     <p className="text-xs text-indigo-900 font-bold leading-relaxed bg-white/70 p-2.5 rounded-xl border border-indigo-100">
                       «{activeCase.insurerInstruction}»
                     </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Notice for Temporary Registration Pending Croqui (Locked) */}
+              {isCasePendingCroquiDraft(activeCase) && (
+                <div className="p-4 sm:p-5 rounded-3xl bg-amber-50 border-2 border-amber-300 text-amber-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-200 border border-amber-300 flex items-center justify-center text-amber-800 shrink-0 shadow-xs">
+                      <Lock className="w-6 h-6 stroke-[2.5]" />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-black text-sm text-amber-950">
+                          ارزیابی این پرونده قفل و غیرفعال است (ثبت موقت - در انتظار افزودن کروکی)
+                        </h3>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 border border-amber-300">
+                          فرآیند متوقف
+                        </span>
+                      </div>
+                      <p className="text-xs text-amber-900 font-medium leading-relaxed max-w-2xl">
+                        این پرونده در حالت «ثبت موقت» ثبت گردیده و متقاضی هنوز کروکی الکترونیک پلیس یا گزارش فیزیکی کارشناس را وارد نکرده است.
+                        جهت جلوگیری از ارزیابی ناقص، بخش قطعات و برآورد مالی مسدود می‌باشد و به محض ورود کروکی توسط مشتری فرآیند ارزیابی فعال خواهد شد.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="px-3.5 py-2 rounded-xl bg-amber-100 border border-amber-300 text-amber-900 text-xs font-black flex items-center gap-1.5 shrink-0 self-start sm:self-auto">
+                    <Clock className="w-4 h-4 text-amber-700" />
+                    <span>در انتظار ثبت کروکی توسط مشتری</span>
                   </div>
                 </div>
               )}
@@ -2051,21 +2486,41 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('parts')}
-                    className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
-                      activeTab === 'parts' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-600 hover:bg-white/60'
+                    onClick={() => {
+                      if (!isCasePendingCroquiDraft(activeCase)) {
+                        setActiveTab('parts');
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                      isCasePendingCroquiDraft(activeCase)
+                        ? 'text-slate-400 bg-slate-200/60 cursor-not-allowed'
+                        : activeTab === 'parts'
+                        ? 'bg-purple-600 text-white shadow-md cursor-pointer'
+                        : 'text-slate-600 hover:bg-white/60 cursor-pointer'
                     }`}
+                    title={isCasePendingCroquiDraft(activeCase) ? 'ارزیابی قفل است؛ ابتدا مشتری باید کروکی را ثبت کند' : undefined}
                   >
-                    ارزیابی هوشمند و انتخاب قطعات
+                    {isCasePendingCroquiDraft(activeCase) && <Lock className="w-3.5 h-3.5 text-amber-600" />}
+                    <span>ارزیابی هوشمند و انتخاب قطعات {isCasePendingCroquiDraft(activeCase) ? '(قفل)' : ''}</span>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setActiveTab('money')}
-                    className={`px-4 py-2 rounded-xl transition-all cursor-pointer ${
-                      activeTab === 'money' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-600 hover:bg-white/60'
+                    onClick={() => {
+                      if (!isCasePendingCroquiDraft(activeCase)) {
+                        setActiveTab('money');
+                      }
+                    }}
+                    className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                      isCasePendingCroquiDraft(activeCase)
+                        ? 'text-slate-400 bg-slate-200/60 cursor-not-allowed'
+                        : activeTab === 'money'
+                        ? 'bg-purple-600 text-white shadow-md cursor-pointer'
+                        : 'text-slate-600 hover:bg-white/60 cursor-pointer'
                     }`}
+                    title={isCasePendingCroquiDraft(activeCase) ? 'برآورد مالی قفل است' : undefined}
                   >
-                    برآورد نهایی و ثبت
+                    {isCasePendingCroquiDraft(activeCase) && <Lock className="w-3.5 h-3.5 text-amber-600" />}
+                    <span>برآورد نهایی و ثبت {isCasePendingCroquiDraft(activeCase) ? '(قفل)' : ''}</span>
                   </button>
 
                   {/* Button to request CRM Support to call customer */}
@@ -2098,6 +2553,29 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
               {/* 72-Hour SLA Countdown Gauge & Warning Widget */}
               {(() => {
+                if (isCasePendingCroquiDraft(activeCase)) {
+                  return (
+                    <div className="p-4 rounded-2xl border-2 border-amber-200 bg-amber-50/80 text-amber-950 transition-all flex items-center gap-3 shadow-2xs">
+                      <div className="w-10 h-10 rounded-xl bg-amber-200 text-amber-900 flex items-center justify-center shrink-0">
+                        <Lock className="w-5 h-5 stroke-[2.5]" />
+                      </div>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-black text-xs text-amber-950">
+                            مهلت ۷۲ ساعته رسیدگی متوقف است (ثبت موقت - در انتظار کروکی)
+                          </h4>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-200 text-amber-900 border border-amber-300">
+                            فرآیند متوقف
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-900 font-medium">
+                          با توجه به عدم ثبت اطلاعات یا تصویر کروکی توسط مشتری، محاسبه زمان قانونی رسیدگی و مهلت ارزیابی متوقف است و پس از تکمیل کروکی توسط مشتری آغاز خواهد شد.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+
                 const sla = calculateAssessorSlaDetail(activeCase);
                 const isSubmitted = activeCase.assessment?.status === 'SUBMITTED' || activeCase.status === 'ارزیابی شده' || activeCase.status === 'در انتظار بررسی بازبین' || activeCase.status === 'در انتظار تایید کاربر';
 
@@ -2687,6 +3165,8 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     claim={activeCase}
                     aiResult={evidenceAiMap[activeCase.id]}
                     isAiLoading={isEvidenceAiLoading}
+                    onUpdateCase={onUpdateCase}
+                    reviewerName={session?.name || 'کارشناس ارزیاب'}
                     onRefreshAi={() => {
                       setIsEvidenceAiLoading(true);
                       AIService.getInstance()
@@ -2865,14 +3345,21 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     </div>
 
                     <div className="pt-2 flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('parts')}
-                        className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-md flex items-center gap-1.5 transition-all"
-                      >
-                        <span>مرحله بعدی: ارزیابی هوشمند و انتخاب قطعات</span>
-                        <ArrowLeft className="w-4 h-4" />
-                      </button>
+                      {isCasePendingCroquiDraft(activeCase) ? (
+                        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-black flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                          <span>فرآیند ارزیابی قفل است: این پرونده در حالت ثبت موقت بوده و تا زمان ثبت کروکی توسط کاربر، امکان ورود به بخش قطعات وجود ندارد.</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('parts')}
+                          className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-md flex items-center gap-1.5 transition-all"
+                        >
+                          <span>مرحله بعدی: ارزیابی هوشمند و انتخاب قطعات</span>
+                          <ArrowLeft className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2880,11 +3367,33 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
               {/* UNIFIED TAB 2: AI Analysis, 3D Model & Parts Selection Combined */}
               {activeTab === 'parts' && (
+                isCasePendingCroquiDraft(activeCase) ? (
+                  <div className="bg-white rounded-3xl border-2 border-amber-300 p-8 sm:p-14 text-center space-y-4 shadow-sm animate-in fade-in">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center mx-auto shadow-xs">
+                      <Lock className="w-8 h-8 stroke-[2.5]" />
+                    </div>
+                    <div className="max-w-lg mx-auto space-y-2">
+                      <h3 className="text-base font-black text-slate-900">
+                        فرآیند ارزیابی خسارت و جدول قطعات قفل است
+                      </h3>
+                      <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                        این پرونده در وضعیت «ثبت موقت - در انتظار افزودن کروکی» قرار دارد. با توجه به اینکه مشتری هنوز شماره سریال کروکی الکترونیک پلیس یا فایل گزارش قضایی را بارگذاری نکرده است، ارزیابی خسارت و ثبت اقلام تا تکمیل کروکی مسدود می‌باشد.
+                      </p>
+                      <div className="pt-3">
+                        <span className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-xs font-black">
+                          <Clock className="w-4 h-4 text-amber-700" />
+                          به محض ورود کروکی توسط مشتری در پورتال، فرآیند ارزیابی فعال خواهد شد.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
                 <div className="space-y-6 animate-in fade-in">
 
                   {/* AI Comprehensive Assessment Draft & Smart Copilot Card */}
                   <AIAssessmentDraftCard
                     claim={activeCase}
+                    carDamageSpots={carDamageSpotsState}
                     onApplyParts={handleApplyAiDraftParts}
                     onSendMessageToCustomer={handleSendAiDraftMessageToCustomer}
                     onAppendNote={handleAppendAiNote}
@@ -3220,10 +3729,26 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     </button>
                   </div>
                 </div>
+                )
               )}
 
               {/* TAB 3: Final Assessment & Money */}
               {activeTab === 'money' && (
+                isCasePendingCroquiDraft(activeCase) ? (
+                  <div className="bg-white rounded-3xl border-2 border-amber-300 p-8 sm:p-14 text-center space-y-4 shadow-sm animate-in fade-in">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center mx-auto shadow-xs">
+                      <Lock className="w-8 h-8 stroke-[2.5]" />
+                    </div>
+                    <div className="max-w-lg mx-auto space-y-2">
+                      <h3 className="text-base font-black text-slate-900">
+                        برآورد مالی و ثبت نهایی قفل است
+                      </h3>
+                      <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                        این پرونده در وضعیت «ثبت موقت - در انتظار افزودن کروکی» است. امکان صدور برآورد مالی و ارسال به بازبین برای پرونده‌هایی که کروکی آنها هنوز ثبت نشده وجود ندارد.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
                 <div className="space-y-6 animate-in fade-in">
                   <div className="bg-emerald-50/80 border border-emerald-200 rounded-3xl p-6 space-y-5">
                     <div className="flex items-center justify-between flex-wrap gap-2">
@@ -3344,10 +3869,23 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                         <button
                           type="button"
                           onClick={handleFinalizeAssessment}
-                          className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-extrabold text-xs shadow-md shadow-emerald-600/30 transition-all flex items-center gap-1.5 active:scale-95 mr-auto"
+                          className={`px-6 py-2.5 ${
+                            isCaseReturnedByReviewer(activeCase)
+                              ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/30'
+                              : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/30'
+                          } text-white rounded-xl font-extrabold text-xs shadow-md transition-all flex items-center gap-1.5 active:scale-95 mr-auto cursor-pointer`}
                         >
-                          <CheckCircle2 className="w-4 h-4" />
-                          تایید نهایی کارشناس و ارسال به بیمه‌گر
+                          {isCaseReturnedByReviewer(activeCase) ? (
+                            <>
+                              <RotateCcw className="w-4 h-4 stroke-[2.5]" />
+                              <span>تایید اصلاحات و ارسال مجدد به بازبین</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-4 h-4" />
+                              <span>تایید نهایی کارشناس و ارسال به بازبین</span>
+                            </>
+                          )}
                         </button>
                       </div>
                     ) : (
@@ -3361,6 +3899,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     )}
                   </div>
                 </div>
+                )
               )}
             </div>
           </div>
@@ -3653,6 +4192,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   const updated: ClaimCase = {
                     ...currentCase,
                     status: 'در حال ارزیابی',
+                    expertAcceptance: 'now',
                     assignedExpert: {
                       id: session.id,
                       name: session.name || 'رضا تهرانی',
@@ -3673,7 +4213,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   setAcceptModalCase(null);
                   setPreliminaryCheckCase(updated);
                 }}
-                className="p-5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/30 text-right space-y-2 transition-all group flex flex-col justify-between"
+                className="p-5 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-600/30 text-right space-y-2 transition-all group flex flex-col justify-between cursor-pointer"
               >
                 <div>
                   <h4 className="font-extrabold text-sm mb-1">الان ارزیابی می‌کنم</h4>
@@ -3690,16 +4230,17 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
               <button
                 type="button"
                 onClick={() => handleAcceptLater(acceptModalCase)}
-                className="p-5 rounded-2xl bg-white hover:bg-slate-50 border-2 border-slate-200 hover:border-purple-300 text-slate-900 text-right space-y-2 transition-all flex flex-col justify-between"
+                className="p-5 rounded-2xl bg-white hover:bg-slate-50 border-2 border-slate-200 hover:border-purple-300 text-slate-900 text-right space-y-2 transition-all flex flex-col justify-between cursor-pointer"
               >
                 <div>
                   <h4 className="font-extrabold text-sm mb-1 text-slate-900">بعداً ارزیابی می‌کنم</h4>
                   <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                    پرونده قبول می‌شود و در بخش ارزیابی‌نشده باقی می‌ماند.
+                    پرونده با تأیید پذیرش شما در کارت «ارزیابی‌نشده‌ها» قرار می‌گیرد تا در فرصت مناسب ارزیابی آن را آغاز نمایید.
                   </p>
                 </div>
-                <div className="mt-4 inline-flex items-center gap-1 text-[11px] font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-xl w-fit">
-                  ثبت در صف ارزیابی
+                <div className="mt-4 inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-xl w-fit">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  انتقال به کارت ارزیابی‌نشده‌ها
                 </div>
               </button>
             </div>
@@ -4102,24 +4643,54 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-3 border-t border-slate-100">
               
               {/* Green Button: شروع ارزیابی */}
-              <button
-                type="button"
-                onClick={() => {
-                  const caseId = preliminaryCheckCase.id;
-                  setPreliminaryCheckCase(null);
-                  setSelectedCaseId(caseId);
-                  setActiveTab('ai');
-                }}
-                className="p-4 rounded-2xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-right space-y-1 transition-all group"
-              >
-                <div className="flex items-center gap-2 font-black text-sm text-emerald-950">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                  <span>شروع ارزیابی</span>
+              {isCasePendingCroquiDraft(preliminaryCheckCase) ? (
+                <div
+                  className="p-4 rounded-2xl bg-slate-100 border border-slate-300 text-slate-500 text-right space-y-1 cursor-not-allowed opacity-75"
+                  title="ارزیابی قفل است؛ این پرونده ثبت موقت در انتظار کروکی است"
+                >
+                  <div className="flex items-center gap-2 font-black text-sm text-slate-700">
+                    <Lock className="w-5 h-5 text-amber-600" />
+                    <span>ارزیابی قفل (در انتظار کروکی)</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    تا زمان ثبت اطلاعات کروکی توسط مشتری امکان ارزیابی وجود ندارد
+                  </p>
                 </div>
-                <p className="text-[11px] text-emerald-800 font-medium">
-                  ورود به جدول AI و فرم قیمت نهایی کارشناس
-                </p>
-              </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const caseId = preliminaryCheckCase.id;
+                    const updated: ClaimCase = {
+                      ...preliminaryCheckCase,
+                      status: 'در حال ارزیابی',
+                      expertAcceptance: 'now',
+                      history: [
+                        ...(preliminaryCheckCase.history || []),
+                        {
+                          status: 'در حال ارزیابی',
+                          time: new Date().toLocaleString('fa-IR'),
+                          user: session.name || 'کارشناس خسارت',
+                          note: 'تأیید بررسی اولیه و آغاز فرآیند ارزیابی تخصصی خسارت و قطعات.'
+                        }
+                      ]
+                    };
+                    onUpdateCase(updated);
+                    setPreliminaryCheckCase(null);
+                    setSelectedCaseId(caseId);
+                    setActiveTab('parts');
+                  }}
+                  className="p-4 rounded-2xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 text-emerald-900 text-right space-y-1 transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-2 font-black text-sm text-emerald-950">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    <span>شروع ارزیابی</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 font-medium">
+                    ورود به جدول قطعات و فرم قیمت نهایی کارشناس
+                  </p>
+                </button>
+              )}
 
               {/* Yellow Button: مغایرت مدارک */}
               <button
@@ -4199,7 +4770,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
             {/* Modal 1: Accident Details */}
             {cardDetailModal === 'accident' && (() => {
-              // Aggregate all media items for the preliminary check case
+              // Aggregate all media items for the preliminary check case with strict deduplication
               const allMediaItems: Array<{
                 id: string;
                 name: string;
@@ -4211,33 +4782,27 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 note?: string;
               }> = [];
 
-              // 1. Files from initial wizard
-              (preliminaryCheckCase.files || []).forEach((f: any, idx: number) => {
-                const name = typeof f === 'string' ? f : (f?.name || f?.fileName || `مدرک ${idx + 1}`);
-                const url = typeof f === 'object' ? (f?.dataUrl || f?.preview || f?.url) : undefined;
-                const explicitType = typeof f === 'object' ? f?.type : undefined;
-                const isAudio = explicitType === 'audio' || name.toLowerCase().includes('صوت') || name.toLowerCase().includes('voice') || name.toLowerCase().includes('audio');
-                const isVideo = explicitType === 'video' || name.toLowerCase().includes('ویدیو') || name.toLowerCase().includes('video') || name.toLowerCase().includes('film');
+              const seenUrls = new Set<string>();
+              const seenTitles = new Set<string>();
+              let hasRecordedAudio = false;
+              let hasRecordedVideo = false;
 
-                if (url) {
-                  allMediaItems.push({
-                    id: `init-${idx}`,
-                    name,
-                    url,
-                    type: isAudio ? 'audio' : isVideo ? 'video' : 'image',
-                    category: (typeof f === 'object' && f?.category) || (isAudio ? 'توضیحات صوتی' : isVideo ? 'فیلم حادثه' : 'عکس خسارت اولیه'),
-                    uploader: (typeof f === 'object' && f?.uploader) || 'زیان‌دیده (ثبت اولیه)',
-                    date: preliminaryCheckCase.date
-                  });
-                }
-              });
+              const normalizeUrl = (raw: any): string => {
+                if (!raw) return '';
+                if (typeof raw === 'string') return raw.trim();
+                return (raw.dataUrl || raw.url || raw.preview || '').trim();
+              };
 
-              // 2. Audio Explanation if separate
-              if (preliminaryCheckCase.audioExplanation) {
+              // 1. Audio Explanation if separate
+              const mainAudioUrl = normalizeUrl(preliminaryCheckCase.audioExplanation);
+              if (mainAudioUrl) {
+                seenUrls.add(mainAudioUrl);
+                seenTitles.add('توضیحات صوتی');
+                hasRecordedAudio = true;
                 allMediaItems.push({
                   id: 'audio-exp',
-                  name: 'توضیحات صوتی راننده / زیان‌دیده',
-                  url: preliminaryCheckCase.audioExplanation,
+                  name: (typeof preliminaryCheckCase.audioExplanation === 'object' && preliminaryCheckCase.audioExplanation?.name) || 'توضیحات صوتی راننده / زیان‌دیده',
+                  url: mainAudioUrl,
                   type: 'audio',
                   category: 'شرح صوتی حادثه',
                   uploader: 'راننده / زیان‌دیده',
@@ -4245,12 +4810,16 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 });
               }
 
-              // 3. Video Explanation if separate
-              if (preliminaryCheckCase.videoExplanation) {
+              // 2. Video Explanation if separate
+              const mainVideoUrl = normalizeUrl(preliminaryCheckCase.videoExplanation);
+              if (mainVideoUrl) {
+                seenUrls.add(mainVideoUrl);
+                seenTitles.add('فیلم صحنه تصادف');
+                hasRecordedVideo = true;
                 allMediaItems.push({
                   id: 'video-exp',
                   name: 'ویدیوی ضبط‌شده از صحنه تصادف',
-                  url: preliminaryCheckCase.videoExplanation,
+                  url: mainVideoUrl,
                   type: 'video',
                   category: 'فیلم صحنه تصادف',
                   uploader: 'راننده / زیان‌دیده',
@@ -4258,23 +4827,27 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 });
               }
 
-              // 4. Kroki Photo
-              if (preliminaryCheckCase.customerKrokiPhoto) {
+              // 3. Kroki Photo
+              const krokiUrl = normalizeUrl(preliminaryCheckCase.customerKrokiPhoto);
+              if (krokiUrl) {
+                seenUrls.add(krokiUrl);
                 allMediaItems.push({
                   id: 'kroki-photo',
                   name: 'برگه رسمی کروکی پلیس راهور',
-                  url: preliminaryCheckCase.customerKrokiPhoto,
+                  url: krokiUrl,
                   type: 'kroki',
                   category: 'کروکی رسمی راهور',
                   uploader: 'پلیس / راننده',
                   date: preliminaryCheckCase.date
                 });
               }
-              if (preliminaryCheckCase.croquiData?.fileUrl && preliminaryCheckCase.croquiData.fileUrl !== preliminaryCheckCase.customerKrokiPhoto) {
+              const croquiDataUrl = normalizeUrl(preliminaryCheckCase.croquiData?.fileUrl);
+              if (croquiDataUrl && !seenUrls.has(croquiDataUrl)) {
+                seenUrls.add(croquiDataUrl);
                 allMediaItems.push({
                   id: 'croqui-data-file',
                   name: 'ترسیم دیجیتال / برگه کروکی سازمانی',
-                  url: preliminaryCheckCase.croquiData.fileUrl,
+                  url: croquiDataUrl,
                   type: 'kroki',
                   category: 'کروکی سیستمی',
                   uploader: 'راهور ناجا',
@@ -4282,33 +4855,79 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 });
               }
 
+              // 4. Files from initial wizard
+              (preliminaryCheckCase.files || []).forEach((f: any, idx: number) => {
+                const name = typeof f === 'string' ? f : (f?.name || f?.fileName || `مدرک ${idx + 1}`);
+                const url = normalizeUrl(f);
+                const explicitType = typeof f === 'object' ? f?.type : undefined;
+                const isAudio = explicitType === 'audio' || name.toLowerCase().includes('صوت') || name.toLowerCase().includes('voice') || name.toLowerCase().includes('audio');
+                const isVideo = explicitType === 'video' || name.toLowerCase().includes('ویدیو') || name.toLowerCase().includes('video') || name.toLowerCase().includes('film');
+
+                // Skip if this audio or video was already added as main explanation
+                if (isAudio && hasRecordedAudio) return;
+                if (isVideo && hasRecordedVideo) return;
+                if (url && seenUrls.has(url)) return;
+                if (url) seenUrls.add(url);
+
+                const itemKey = `${name}_${isAudio ? 'audio' : isVideo ? 'video' : 'image'}`;
+                if (seenTitles.has(itemKey)) return;
+                seenTitles.add(itemKey);
+
+                if (isAudio) hasRecordedAudio = true;
+                if (isVideo) hasRecordedVideo = true;
+
+                allMediaItems.push({
+                  id: `init-${idx}`,
+                  name,
+                  url,
+                  type: isAudio ? 'audio' : isVideo ? 'video' : 'image',
+                  category: (typeof f === 'object' && f?.category) || (isAudio ? 'توضیحات صوتی' : isVideo ? 'فیلم حادثه' : 'عکس خسارت اولیه'),
+                  uploader: (typeof f === 'object' && f?.uploader) || 'زیان‌دیده (ثبت اولیه)',
+                  date: preliminaryCheckCase.date
+                });
+              });
+
               // 5. Culprit Files
               (preliminaryCheckCase.culpritFiles || []).forEach((cf: any, idx: number) => {
                 const name = typeof cf === 'string' ? cf : (cf?.name || `مستند طرف دوم ${idx + 1}`);
-                const url = typeof cf === 'object' ? (cf?.dataUrl || cf?.preview || cf?.url) : undefined;
-                if (url) {
-                  allMediaItems.push({
-                    id: `culprit-${idx}`,
-                    name,
-                    url,
-                    type: 'image',
-                    category: 'مدارک و عکس‌های طرف دوم (مقصر)',
-                    uploader: 'طرف دوم (مقصر)',
-                    date: preliminaryCheckCase.date
-                  });
-                }
+                const url = normalizeUrl(cf);
+                if (!url || seenUrls.has(url)) return;
+                seenUrls.add(url);
+
+                allMediaItems.push({
+                  id: `culprit-${idx}`,
+                  name,
+                  url,
+                  type: 'image',
+                  category: 'مدارک و عکس‌های طرف دوم (مقصر)',
+                  uploader: 'طرف دوم (مقصر)',
+                  date: preliminaryCheckCase.date
+                });
               });
 
               // 6. Additional Docs
               (preliminaryCheckCase.additionalDocs || []).forEach((doc: AdditionalDocItem) => {
+                const url = normalizeUrl(doc);
                 const isAudio = doc.fileType === 'audio' || (doc as any).type === 'audio' || doc.title?.includes('صوت') || doc.title?.includes('voice');
                 const isVideo = doc.fileType === 'video' || (doc as any).type === 'video' || doc.title?.includes('ویدیو') || doc.title?.includes('فیلم');
                 const isDoc = doc.fileType === 'pdf' || doc.fileType === 'document' || doc.docType === 'سند / مدرک';
 
+                if (isAudio && hasRecordedAudio) return;
+                if (isVideo && hasRecordedVideo) return;
+                if (url && seenUrls.has(url)) return;
+                if (url) seenUrls.add(url);
+
+                const itemKey = `${doc.title}_${doc.id}`;
+                if (seenTitles.has(itemKey)) return;
+                seenTitles.add(itemKey);
+
+                if (isAudio) hasRecordedAudio = true;
+                if (isVideo) hasRecordedVideo = true;
+
                 allMediaItems.push({
                   id: doc.id,
                   name: doc.title,
-                  url: doc.dataUrl || '',
+                  url,
                   type: isAudio ? 'audio' : isVideo ? 'video' : isDoc ? 'document' : 'image',
                   category: doc.docType || (isAudio ? 'فایل صوتی' : isVideo ? 'ویدیوی تکمیلی' : 'مستند تکمیلی'),
                   uploader: doc.uploaderRole || (doc.uploaderParty === 'PARTY_ONE' ? 'طرف اول (زیان‌دیده)' : 'طرف دوم (مقصر)'),
@@ -5370,12 +5989,14 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 border border-slate-200 text-slate-900 animate-in zoom-in-95" dir="rtl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                  <CheckCircle2 className="w-6 h-6" />
+                <div className={`w-10 h-10 rounded-2xl ${assignmentSuccessModal.isResubmission ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'} flex items-center justify-center font-bold`}>
+                  {assignmentSuccessModal.isResubmission ? <RotateCcw className="w-6 h-6 stroke-[2.5]" /> : <CheckCircle2 className="w-6 h-6" />}
                 </div>
                 <div>
                   <h3 className="font-black text-sm text-slate-900">
-                    برآورد خسارت ثبت و ارجاع داده شد
+                    {assignmentSuccessModal.isResubmission
+                      ? 'ارزیابی اصلاح‌شده با موفقیت مجدداً به بازبین ارسال شد'
+                      : 'برآورد خسارت ثبت و ارجاع داده شد'}
                   </h3>
                   <p className="text-[11px] text-slate-500 font-mono">
                     شماره پرونده: {assignmentSuccessModal.caseId}
@@ -5391,18 +6012,22 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-2">
-                <div className="flex items-center gap-2 font-black text-emerald-950">
-                  <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
-                  <span>پرونده شما به بازبین کیفی زیر ارجاع شد:</span>
+              <div className={`p-4 ${assignmentSuccessModal.isResubmission ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'} rounded-2xl border space-y-2`}>
+                <div className={`flex items-center gap-2 font-black ${assignmentSuccessModal.isResubmission ? 'text-rose-950' : 'text-emerald-950'}`}>
+                  <ShieldCheck className={`w-4 h-4 ${assignmentSuccessModal.isResubmission ? 'text-rose-700' : 'text-emerald-700'} shrink-0`} />
+                  <span>
+                    {assignmentSuccessModal.isResubmission
+                      ? 'پرونده پس از اعمال تغییرات به بازبین ارجاع شد:'
+                      : 'پرونده شما به بازبین کیفی زیر ارجاع شد:'}
+                  </span>
                 </div>
-                <div className="bg-white p-3 rounded-xl border border-emerald-100 space-y-1">
+                <div className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-1">
                   <div className="flex justify-between">
                     <span className="text-slate-500">نام بازبین اختصاصی:</span>
                     <strong className="text-slate-900">{assignmentSuccessModal.reviewerName}</strong>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">مبلغ خالص قابل پرداخت:</span>
+                    <span className="text-slate-500">مبلغ خالص قابل پرداخت پس از اصلاح:</span>
                     <strong className="font-mono text-emerald-800">{formatCurrency(assignmentSuccessModal.payable)}</strong>
                   </div>
                 </div>
@@ -5416,7 +6041,15 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                 </div>
                 <div className="bg-white p-3 rounded-xl border border-blue-100 text-[11px] font-medium text-slate-800 leading-relaxed font-sans space-y-1">
                   <p>
-                    «بازبین محترم ({assignmentSuccessModal.reviewerName})، پرونده خسارت شماره <strong>{assignmentSuccessModal.caseId}</strong> ارزیابی گردید و جهت بازبینی کیفی به شما واگذار شد. پورتال خسارت بیمه»
+                    {assignmentSuccessModal.isResubmission ? (
+                      <>
+                        «بازبین محترم ({assignmentSuccessModal.reviewerName})، اصلاحات پرونده خسارت شماره <strong>{assignmentSuccessModal.caseId}</strong> توسط کارشناس انجام گردید و جهت بازبینی مجدد ارسال شد. پورتال خسارت بیمه»
+                      </>
+                    ) : (
+                      <>
+                        «بازبین محترم ({assignmentSuccessModal.reviewerName})، پرونده خسارت شماره <strong>{assignmentSuccessModal.caseId}</strong> ارزیابی گردید و جهت بازبینی کیفی به شما واگذار شد. پورتال خسارت بیمه»
+                      </>
+                    )}
                   </p>
                   <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400 font-mono border-t border-slate-100">
                     <span>گیرنده: {assignmentSuccessModal.reviewerPhone || '۰۹۱۲۲۱۴۵۶۷۸'}</span>

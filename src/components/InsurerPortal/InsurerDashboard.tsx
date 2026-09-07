@@ -629,7 +629,7 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
 نشانی شعبه: ${branch.address}
 تلفن شعبه: ${branch.phone}
 بیمه‌گذار: ${customerName} (همراه: ${customerPhone})
-⏱ زمان پیشنهادی: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
+زمان پیشنهادی: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
 ${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructions.trim()}` : ''}
 لطفاً جهت هماهنگی و حضور در محل یا شعبه اقدام فرمایید.
 شرکت ${insurerName}`;
@@ -641,7 +641,7 @@ ${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructi
 نام مرکز: ${branch.name}
 نشانی: ${branch.address}
 تلفن تماس: ${branch.phone}
-⏱ زمان پیشنهادی مراجعه: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
+زمان پیشنهادی مراجعه: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
 لطفاً جهت رویت خودرو و تشکیل پرونده فیزیکی در محل حادثه یا شعبه مذکور حاضر باشید یا با کارشناس هماهنگ فرمایید.
 شرکت ${insurerName}`;
 
@@ -3044,7 +3044,7 @@ ${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructi
 نشانی شعبه: ${branchObj.address}
 تلفن شعبه: ${branchObj.phone}
 بیمه‌گذار: ${cName} (همراه: ${cPhone})
-⏱ زمان پیشنهادی: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
+زمان پیشنهادی: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
 ${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructions.trim()}` : ''}
 لطفاً جهت هماهنگی و حضور در محل یا شعبه اقدام فرمایید.
 شرکت ${getInsurerPersianName(companyCode)}`}
@@ -3060,7 +3060,7 @@ ${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructi
 نام مرکز: ${branchObj.name}
 نشانی: ${branchObj.address}
 تلفن تماس: ${branchObj.phone}
-⏱ زمان پیشنهادی مراجعه: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
+زمان پیشنهادی مراجعه: ${scheduledVisitDate} ساعت ${scheduledVisitTime}
 لطفاً جهت رویت خودرو و تشکیل پرونده فیزیکی در محل حادثه یا شعبه مذکور حاضر باشید یا با کارشناس هماهنگ فرمایید.
 شرکت ${getInsurerPersianName(companyCode)}`}
                           </>

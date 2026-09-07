@@ -1,6 +1,7 @@
 import { ClaimCase, UserSession, ThresholdProfile, DepreciationConfig, StaffMember, ExpertComplaint, AssessorNotification, CustomerNotification, PaymentOrder, PaymentBatch, CustomerCallLog, CustomerTicket, CrmSatisfactionSurvey, CrmFollowUpTask, InsurerInfo, CompanyRegistrationRequest, StaffRoleCategory } from '../types';
 import { INITIAL_CASES, DEFAULT_THRESHOLDS, DEFAULT_DEPRECIATION_TABLES, INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS, INITIAL_EXPERT_COMPLAINTS, INITIAL_FINANCE_STAFF, INITIAL_CRM_STAFF, INITIAL_REVIEWERS, INSURER_COMPANIES, INITIAL_COMPANY_REQUESTS } from '../data/mockData';
 import { sanitizeMediaForStorage } from './imageCompressor';
+import { sanitizeCaseMedia } from './mediaUtils';
 
 const STORAGE_KEYS = {
   CASES: 'claimflow_cases',
@@ -167,7 +168,8 @@ export function loadCasesFromStorage(): ClaimCase[] {
             merged.push(seed);
           }
         });
-        return stripEmojiDeep(merged);
+        const sanitized = merged.map(c => sanitizeCaseMedia(c));
+        return stripEmojiDeep(sanitized);
       }
     }
   } catch (e) {
@@ -978,7 +980,7 @@ export function checkAndProcessTimeouts(cases: ClaimCase[]): {
   const updatedCases = cases.map((c) => {
     // Check if case is assigned and pending action (not yet evaluated/approved/rejected)
     const isAssignedPending =
-      (c.status === 'محول شده' || c.status === 'محول شده به کارشناس' || c.status === 'در حال ارزیابی' || c.status === 'در انتظار ارجاع به ارزیاب') &&
+      (c.status === 'محول شده' || c.status === 'محول شده به کارشناس' || c.status === 'در حال ارزیابی' || c.status === 'در انتظار ارجاع به ارزیاب' || c.status === 'ارزیابی‌نشده') &&
       Boolean(c.assignedExpert?.id) &&
       (!c.assessment || (c.assessment.status !== 'SUBMITTED' && c.assessment.status !== 'REVIEWED' && c.assessment.status !== 'ACCEPTED'));
 
@@ -1464,7 +1466,8 @@ export function approveCompanyRegistrationRequest(
     defaultPassword: '1234',
     brandColor: brandColor,
     licenseNumber: req.licenseNumber || `LIC-${req.companyCode.toUpperCase()}-1403`,
-    sanhabCode: `SNH-${req.companyCode.toUpperCase()}-5050`,
+    sanhabCode: req.sanhabCode ? String(req.sanhabCode) : `SNH-${req.companyCode.toUpperCase()}-5050`,
+    insuranceLines: req.insuranceLines && req.insuranceLines.length > 0 ? req.insuranceLines : ['بیمه شخص ثالث خودرو', 'بیمه بدنه خودرو'],
     economicCode: req.economicCode,
     registrationNumber: req.registrationNumber,
     adminName: req.adminName,

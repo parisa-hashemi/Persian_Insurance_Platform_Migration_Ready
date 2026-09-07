@@ -51,6 +51,7 @@ import { Car3DViewer, ALL_INSPECTION_PARTS } from '../Car3DViewer';
 import { AIAssessmentDraftCard } from '../AI/AIAssessmentDraftCard';
 import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
 import { handleExpertRejectionWithAI } from '../../lib/ai/aiDispatcher';
+import { getExactPersianPartName, getPartKeyFromPersianName } from '../../lib/ai/aiDraftGenerator';
 
 interface FieldExpertPanelProps {
   session: UserSession;
@@ -644,11 +645,12 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   const handleApplyAIPartsToField = (parts: PartItem[], gross: number, salvage: number, note?: string) => {
     if (isCaseReadOnly) return;
     const newItems = parts.map((p, idx) => {
+      const exactName = getExactPersianPartName(p.name);
       const isReplace = String(p.type).toLowerCase() === 'replace';
       return {
         id: `ai-part-${idx}-${Date.now()}`,
-        partName: p.name,
-        partKey: (p as any).partKey || '',
+        partName: exactName,
+        partKey: getPartKeyFromPersianName(p.name),
         operationType: (isReplace ? 'تعویض کامل' : 'صافکاری و نقاشی') as any,
         partPrice: Number(p.partPrice) || 0,
         wagePrice: Number(p.repairPrice) || 0,
@@ -659,10 +661,37 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
     });
 
     setFieldParts(newItems);
+
+    // به‌روزرسانی همزمان نقاط آسیب روی مدل ۲ بعدی و ۳ بعدی
+    const updated: Record<string, CarDamageSpot> = { ...carDamageSpotsState };
+    parts.forEach((p) => {
+      const partKey = getPartKeyFromPersianName(p.name);
+      const isReplace = String(p.type).toLowerCase() === 'replace';
+      const exactName = getExactPersianPartName(p.name);
+      const existing = updated[partKey];
+
+      updated[partKey] = {
+        type: existing?.type || (isReplace ? 'شکستگی و له‌شدگی شدید' : 'خراشیدگی و آسیب سطحی'),
+        severity: (isReplace ? 'major' : (existing?.severity || 'minor')) as 'minor' | 'moderate' | 'major',
+        operation: isReplace ? 'تعویض کامل قطعه' : 'صافکاری و نقاشی',
+        color: isReplace ? 'red' : 'yellow',
+        note: existing?.note || `ثبت خودکار از پیش‌نویس هوش مصنوعی: ${exactName} (${isReplace ? 'تعویض' : 'تعمیر'})`
+      };
+    });
+
+    setCarDamageSpotsState(updated);
+
+    if (selectedCase) {
+      onUpdateCase({
+        ...selectedCase,
+        carDamageSpots: updated
+      });
+    }
+
     if (note && note.trim()) {
       setFieldReportText(prev => prev ? `${prev}\n\n[تحلیل فنی و هوشمند خسارت]:\n${note}` : `[تحلیل فنی و هوشمند خسارت]:\n${note}`);
     }
-    setActionSuccessMsg('برآورد هوشمند قطعات و اجرت‌ها با موفقیت در فرم ارزیابی میدانی درج شد.');
+    setActionSuccessMsg('برآورد هوشمند قطعات با موفقیت در فرم و مدل ۲ بعدی و ۳ بعدی خودرو درج شد.');
     setTimeout(() => setActionSuccessMsg(null), 4000);
   };
 
@@ -1924,6 +1953,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
               {/* AI Damage & Pricing Intelligence Card (with customer messages suppressed for field inspections) */}
               <AIAssessmentDraftCard
                 claim={selectedCase}
+                carDamageSpots={carDamageSpotsState}
                 isFieldExpert={true}
                 hideCustomerMessages={true}
                 readOnly={isCaseReadOnly}

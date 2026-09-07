@@ -38,6 +38,7 @@ interface NavbarProps {
   onGoHome: () => void;
   onOpenPublicTrack: () => void;
   onSelectPortal?: (role: RoleType) => void;
+  onOpenCompanyRegistration?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -45,7 +46,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onLogout,
   onGoHome,
   onOpenPublicTrack,
-  onSelectPortal
+  onSelectPortal,
+  onOpenCompanyRegistration
 }) => {
   const [showNotifs, setShowNotifs] = useState(false);
   const [customerNotifs, setCustomerNotifs] = useState<CustomerNotification[]>([]);
@@ -225,7 +227,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Quick Track Button */}
           <button
             onClick={onOpenPublicTrack}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-2xs active:scale-95 border border-blue-300"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition-all shadow-2xs active:scale-95 border border-blue-300 cursor-pointer"
             title="پیگیری بدون ورود"
           >
             <Search className="w-4 h-4 text-white" />

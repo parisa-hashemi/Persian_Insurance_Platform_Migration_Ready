@@ -52,13 +52,15 @@ import {
 interface PortalGatewayProps {
   onSelectPortal: (role: RoleType, payload?: any) => void;
   onOpenPublicTrack: () => void;
+  onOpenCompanyRegistration?: () => void;
 }
 
 export type MainLoginType = 'customer' | 'org';
 
 export const PortalGateway: React.FC<PortalGatewayProps> = ({
   onSelectPortal,
-  onOpenPublicTrack
+  onOpenPublicTrack,
+  onOpenCompanyRegistration
 }) => {
   // Main Login Mode: 'customer' or 'org'
   const [mainMode, setMainMode] = useState<MainLoginType>('customer');
@@ -92,11 +94,27 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
     };
   }, []);
 
-  // Organizational Role selected from Dropdown
-  const [orgRole, setOrgRole] = useState<RoleType>('insurer');
-
   // Company Registration Modal State
   const [isCompanyRegModalOpen, setIsCompanyRegModalOpen] = useState(false);
+
+  const handleOpenCompanyModal = () => {
+    if (onOpenCompanyRegistration) {
+      onOpenCompanyRegistration();
+    } else {
+      setIsCompanyRegModalOpen(true);
+    }
+  };
+
+  useEffect(() => {
+    const handleOpen = () => handleOpenCompanyModal();
+    window.addEventListener('claimflow_open_company_reg', handleOpen);
+    return () => {
+      window.removeEventListener('claimflow_open_company_reg', handleOpen);
+    };
+  }, [onOpenCompanyRegistration]);
+
+  // Organizational Role selected from Dropdown
+  const [orgRole, setOrgRole] = useState<RoleType>('insurer');
 
   // Form states for Insurer
   const [insurerCompany, setInsCompany] = useState('dana');
@@ -282,6 +300,21 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
           {/* کارت اصلی ورود */}
           <div className="w-full max-w-5xl mx-auto bg-white/90 backdrop-blur-xl rounded-[2rem] border border-slate-200/80 shadow-[0_24px_70px_-24px_rgba(29,78,216,0.28)] p-5 sm:p-8">
 
+            {/* دکمه ثبت‌نام شرکت بیمه جدید و درخواست صدور پنل */}
+            <div className="flex items-center justify-center mb-6">
+              <button
+                type="button"
+                onClick={handleOpenCompanyModal}
+                className="group inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-2xl bg-blue-50 border-2 border-blue-400 text-blue-950 font-black text-xs sm:text-sm shadow-sm hover:shadow-md hover:border-blue-600 hover:bg-blue-100/90 hover:-translate-y-0.5 transition-all active:scale-95 cursor-pointer"
+              >
+                <span className="w-7 h-7 rounded-xl bg-blue-600 text-white flex items-center justify-center group-hover:scale-105 transition-all shadow-xs">
+                  <Building2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                </span>
+                <span>ثبت‌نام شرکت بیمه جدید و درخواست صدور پنل</span>
+                <ArrowLeft className="w-4 h-4 text-blue-800 transition-transform group-hover:-translate-x-1" />
+              </button>
+            </div>
+
             {/* دو تب اصلی: مشتری / سازمانی */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-100/80 p-1.5 rounded-2xl mb-7 max-w-3xl mx-auto">
               <button
@@ -391,20 +424,6 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                       <span>ورود به پنل مدیریت شرکت بیمه</span>
                       <ArrowLeft className="w-4 h-4" />
                     </button>
-
-                    <div className="pt-2 border-t border-slate-200 text-center">
-                      <p className="text-[11px] text-slate-600 mb-2">
-                        شرکت بیمه شما هنوز در سامانه ثبت نشده است؟
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setIsCompanyRegModalOpen(true)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-900 text-xs font-bold border border-blue-200 transition active:scale-95 cursor-pointer"
-                      >
-                        <Building2 className="w-4 h-4 text-blue-700" />
-                        <span>ثبت‌نام شرکت بیمه جدید و درخواست صدور پنل</span>
-                      </button>
-                    </div>
                   </form>
                 )}
 
@@ -613,7 +632,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
           <div className="flex justify-center">
             <button
               onClick={onOpenPublicTrack}
-              className="group inline-flex items-center gap-2.5 px-6 py-3 rounded-2xl bg-white border border-blue-200 text-blue-800 font-black text-xs shadow-sm hover:shadow-lg hover:border-blue-400 hover:-translate-y-0.5 transition-all cursor-pointer"
+              className="group inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-white border border-blue-200 text-blue-900 font-black text-xs shadow-sm hover:shadow-lg hover:border-blue-400 hover:-translate-y-0.5 transition-all cursor-pointer"
             >
               <span className="w-7 h-7 rounded-xl bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                 <Search className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -679,15 +698,17 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
         </div>
       </footer>
 
-      {/* Insurance Company Registration Modal */}
-      <CompanyRegistrationModal
-        isOpen={isCompanyRegModalOpen}
-        onClose={() => setIsCompanyRegModalOpen(false)}
-        onSuccess={() => {
-          refreshDynamicData();
-          setIsCompanyRegModalOpen(false);
-        }}
-      />
+      {/* Insurance Company Registration Modal (standalone fallback) */}
+      {!onOpenCompanyRegistration && (
+        <CompanyRegistrationModal
+          isOpen={isCompanyRegModalOpen}
+          onClose={() => setIsCompanyRegModalOpen(false)}
+          onSuccess={() => {
+            refreshDynamicData();
+            setIsCompanyRegModalOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 };

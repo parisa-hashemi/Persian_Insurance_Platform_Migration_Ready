@@ -562,17 +562,17 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
           {/* Quick Financial Debt/Receivable Spotlight Banner */}
           {(totalReceivablesFromCulprit > 0 || totalDebtsToVictim > 0 || totalReceivablesFromInsurer > 0) && (
-            <div className="bg-gradient-to-r from-slate-900 via-blue-600 to-indigo-600 text-white rounded-3xl p-4 sm:p-6 shadow-md border border-slate-800 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-4">
+            <div className="bg-gradient-to-br from-white via-slate-50/60 to-blue-50/30 rounded-3xl p-4 sm:p-6 shadow-xs border border-slate-200/90 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/70 pb-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-2xl bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                    <Scale className="w-6 h-6" />
+                  <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-200/70">
+                    <Scale className="w-5 h-5 sm:w-6 sm:h-6" />
                   </div>
                   <div>
-                    <h3 className="text-base sm:text-lg font-black text-white">
+                    <h3 className="text-base sm:text-lg font-black text-slate-900">
                       تراز مالی، بدهی‌ها و مطالبات پرونده‌های شما
                     </h3>
-                    <p className="text-xs text-slate-300">
+                    <p className="text-xs text-slate-500 font-medium">
                       خلاصه مبالغ قابل وصول از مقصران، شرکت‌های بیمه‌گر و بدهی‌های مازاد
                     </p>
                   </div>
@@ -584,7 +584,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     setActiveTab('cases');
                     setFinancialFilter('debts_and_receivables');
                   }}
-                  className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs rounded-xl shadow transition-all flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer active:scale-95"
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer active:scale-95"
                 >
                   <span>مشاهده جزئیات و تماس با طرفین</span>
                   <ArrowLeft className="w-3.5 h-3.5" />
@@ -594,58 +594,58 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 
                 {/* 1. Receivables from Culprits */}
-                <div className="bg-white/10 border border-white/10 p-3.5 rounded-2xl space-y-1">
-                  <div className="flex items-center justify-between text-emerald-300 font-bold text-[11px]">
-                    <span className="flex items-center gap-1">
-                      <TrendingUp className="w-3.5 h-3.5" />
+                <div className="bg-emerald-50/60 border border-emerald-200/70 p-4 rounded-2xl space-y-1.5">
+                  <div className="flex items-center justify-between text-emerald-800 font-bold text-[11px]">
+                    <span className="flex items-center gap-1.5">
+                      <TrendingUp className="w-4 h-4 text-emerald-600" />
                       طلب شما از مقصران حادثه:
                     </span>
-                    <span className="text-[10px] bg-emerald-500/20 px-2 py-0.5 rounded text-emerald-200">
+                    <span className="text-[10px] bg-emerald-100/90 px-2 py-0.5 rounded-md text-emerald-800 font-bold border border-emerald-200/60">
                       مازاد تعهد
                     </span>
                   </div>
-                  <div className="text-xl font-black font-mono text-white tracking-tight">
+                  <div className="text-xl font-black font-mono text-emerald-900 tracking-tight">
                     {formatCurrency(totalReceivablesFromCulprit)}
                   </div>
-                  <span className="text-[10px] text-slate-300 block">
+                  <span className="text-[10px] text-slate-500 block font-medium">
                     قابل وصول مستقیم از رانندگان مقصر
                   </span>
                 </div>
 
                 {/* 2. Receivables from Insurers */}
-                <div className="bg-white/10 border border-white/10 p-3.5 rounded-2xl space-y-1">
-                  <div className="flex items-center justify-between text-sky-300 font-bold text-[11px]">
-                    <span className="flex items-center gap-1">
-                      <Building2 className="w-3.5 h-3.5" />
+                <div className="bg-sky-50/60 border border-sky-200/70 p-4 rounded-2xl space-y-1.5">
+                  <div className="flex items-center justify-between text-sky-800 font-bold text-[11px]">
+                    <span className="flex items-center gap-1.5">
+                      <Building2 className="w-4 h-4 text-sky-600" />
                       سهم پرداختی شرکت‌های بیمه:
                     </span>
-                    <span className="text-[10px] bg-sky-500/20 px-2 py-0.5 rounded text-sky-200">
+                    <span className="text-[10px] bg-sky-100/90 px-2 py-0.5 rounded-md text-sky-800 font-bold border border-sky-200/60">
                       واریز به شبا
                     </span>
                   </div>
-                  <div className="text-xl font-black font-mono text-white tracking-tight">
+                  <div className="text-xl font-black font-mono text-sky-900 tracking-tight">
                     {formatCurrency(totalReceivablesFromInsurer)}
                   </div>
-                  <span className="text-[10px] text-slate-300 block">
+                  <span className="text-[10px] text-slate-500 block font-medium">
                     در انتظار واریز به حساب شبای شما
                   </span>
                 </div>
 
                 {/* 3. Debts to Victims */}
-                <div className="bg-white/10 border border-white/10 p-3.5 rounded-2xl space-y-1">
-                  <div className="flex items-center justify-between text-rose-300 font-bold text-[11px]">
-                    <span className="flex items-center gap-1">
-                      <TrendingDown className="w-3.5 h-3.5" />
+                <div className="bg-rose-50/60 border border-rose-200/70 p-4 rounded-2xl space-y-1.5">
+                  <div className="flex items-center justify-between text-rose-800 font-bold text-[11px]">
+                    <span className="flex items-center gap-1.5">
+                      <TrendingDown className="w-4 h-4 text-rose-600" />
                       بدهی شما به زیان‌دیدگان:
                     </span>
-                    <span className="text-[10px] bg-rose-500/20 px-2 py-0.5 rounded text-rose-200">
+                    <span className="text-[10px] bg-rose-100/90 px-2 py-0.5 rounded-md text-rose-800 font-bold border border-rose-200/60">
                       بدهکاری
                     </span>
                   </div>
-                  <div className="text-xl font-black font-mono text-rose-200 tracking-tight">
+                  <div className="text-xl font-black font-mono text-rose-800 tracking-tight">
                     {formatCurrency(totalDebtsToVictim)}
                   </div>
-                  <span className="text-[10px] text-slate-300 block">
+                  <span className="text-[10px] text-slate-500 block font-medium">
                     مازاد تعهد بیمه‌نامه شما به عنوان مقصر
                   </span>
                 </div>

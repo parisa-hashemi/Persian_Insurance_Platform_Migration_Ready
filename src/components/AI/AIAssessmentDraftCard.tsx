@@ -28,6 +28,7 @@ import { generateAIAssessmentDraft, AIDraftAssessmentPackage, AIDraftCustomerMes
 
 interface AIAssessmentDraftCardProps {
   claim: ClaimCase;
+  carDamageSpots?: Record<string, any>;
   onApplyParts: (parts: PartItem[], gross: number, salvage: number, note?: string) => void;
   onSendMessageToCustomer?: (msg: { target: string; targetParty: 'PARTY_ONE' | 'PARTY_TWO'; text: string; docType?: string }) => void;
   onAppendNote: (note: string) => void;
@@ -44,6 +45,7 @@ const severityOf = (type: 'replace' | 'repair') =>
 
 export const AIAssessmentDraftCard: React.FC<AIAssessmentDraftCardProps> = ({
   claim,
+  carDamageSpots,
   onApplyParts,
   onSendMessageToCustomer,
   onAppendNote,
@@ -53,7 +55,14 @@ export const AIAssessmentDraftCard: React.FC<AIAssessmentDraftCardProps> = ({
 }) => {
   const isFieldMode = isFieldExpert || hideCustomerMessages || claim.status?.includes('میدانی') || claim.needsCulpritFieldVisit;
   const [isExpanded, setIsExpanded] = useState(true);
-  const [draft] = useState<AIDraftAssessmentPackage>(() => generateAIAssessmentDraft(claim));
+
+  // محاسبه پیش‌نویس با استفاده از نقاط آسیب خودرو و خودروی پرونده با اسامی دقیق و استاندارد فارسی
+  const effectiveSpots = carDamageSpots || claim.carDamageSpots;
+  const draft = React.useMemo(
+    () => generateAIAssessmentDraft(claim, effectiveSpots),
+    [claim, effectiveSpots]
+  );
+
   const [selectedPartIds, setSelectedPartIds] = useState<string[]>(() => draft.parts.map(p => p.id));
   const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
   const [editedMsgText, setEditedMsgText] = useState<string>('');
@@ -61,6 +70,12 @@ export const AIAssessmentDraftCard: React.FC<AIAssessmentDraftCardProps> = ({
   const [appliedPartsStatus, setAppliedPartsStatus] = useState<boolean>(false);
   const [appliedNoteStatus, setAppliedNoteStatus] = useState<boolean>(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+
+  // همگام‌سازی انتخاب قطعات در صورت تغییر پیش‌نویس
+  React.useEffect(() => {
+    setSelectedPartIds(draft.parts.map(p => p.id));
+    setAppliedPartsStatus(false);
+  }, [draft]);
 
   const togglePartSelection = (id: string) => {
     setSelectedPartIds(prev =>
@@ -150,12 +165,12 @@ export const AIAssessmentDraftCard: React.FC<AIAssessmentDraftCardProps> = ({
               className="px-4 py-2 rounded-xl bg-gradient-to-l from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs shadow-md shadow-blue-300/60 transition-all flex items-center gap-1.5 active:scale-95 disabled:opacity-60"
             >
               <Check className="w-4 h-4" />
-              <span>تایید پیش‌نویس و انتقال برای قیمت‌گذاری</span>
+              <span>تایید به عنوان پیش‌نویس (افزودن به لیست قطعات و مدل ۲ بعدی و ۳ بعدی)</span>
             </button>
           ) : (
             <span className="px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-300 font-black text-xs flex items-center gap-1.5">
               <CheckCircle2 className="w-4 h-4" />
-              به جدول قیمت‌گذاری کارشناس منتقل شد
+              تایید شد — به لیست قطعات و مدل ۲ بعدی و ۳ بعدی افزوده شد
             </span>
           )}
 
@@ -187,7 +202,7 @@ export const AIAssessmentDraftCard: React.FC<AIAssessmentDraftCardProps> = ({
                 onClick={handleApplySelectedParts}
                 className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] transition-colors disabled:opacity-60"
               >
-                انتقال موارد انتخابی برای قیمت‌گذاری ({selectedPartIds.length} قلم)
+                تایید و افزودن به لیست قطعات و مدل خودرو ({selectedPartIds.length} قلم)
               </button>
             </div>
 

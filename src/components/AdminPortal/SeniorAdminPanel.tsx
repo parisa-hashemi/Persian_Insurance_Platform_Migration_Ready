@@ -1202,6 +1202,14 @@ export const SeniorAdminPanel: React.FC<SeniorAdminPanelProps> = ({
                           <span className="text-slate-800 font-mono font-bold">{req.registrationNumber}</span>
                         </div>
                         <div className="flex justify-between text-slate-500 font-medium">
+                          <span>کد اختصاصی سنهاب:</span>
+                          <span className="text-blue-900 font-mono font-black bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">{req.sanhabCode || '—'}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-500 font-medium">
+                          <span>رشته‌های مجاز:</span>
+                          <span className="text-slate-900 font-bold text-[11px]">{req.insuranceLines?.join('، ') || 'شخص ثالث و بدنه'}</span>
+                        </div>
+                        <div className="flex justify-between text-slate-500 font-medium">
                           <span>پروانه بیمه مرکزی:</span>
                           <span className="text-slate-800 font-mono font-bold">{req.licenseNumber || 'استعلام برخط'}</span>
                         </div>

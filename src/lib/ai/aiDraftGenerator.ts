@@ -74,98 +74,213 @@ function getPriceMultiplier(carType: string = ''): number {
   return 1.0;
 }
 
-export function generateAIAssessmentDraft(claim: ClaimCase): AIDraftAssessmentPackage {
+export const PART_NAMES_MAP_FA: Record<string, string> = {
+  front_bumper: 'سپر جلو',
+  hood: 'درب موتور (کاپوت)',
+  roof: 'سقف خودرو',
+  trunk: 'درب صندوق عقب',
+  rear_bumper: 'سپر عقب',
+  fender_fl: 'گلگیر جلو چپ',
+  door_fl: 'درب جلو چپ',
+  door_rl: 'درب عقب چپ',
+  fender_rl: 'گلگیر عقب چپ',
+  rocker_l: 'رکاب چپ',
+  fender_fr: 'گلگیر جلو راست',
+  door_fr: 'درب جلو راست',
+  door_rr: 'درب عقب راست',
+  fender_rr: 'گلگیر عقب راست',
+  rocker_r: 'رکاب راست',
+  chassis_front_l: 'سرشاسی و سینی جلو چپ',
+  chassis_front_r: 'سرشاسی و سینی جلو راست',
+  chassis_rear_l: 'سرشاسی و سینی عقب چپ',
+  chassis_rear_r: 'سرشاسی و سینی عقب راست',
+  pillar_a_l: 'ستون جلو چپ (ستون A)',
+  pillar_b_l: 'ستون وسط چپ (ستون B)',
+  pillar_c_l: 'ستون عقب چپ (ستون C)',
+  pillar_a_r: 'ستون جلو راست (ستون A)',
+  pillar_b_r: 'ستون وسط راست (ستون B)',
+  pillar_c_r: 'ستون عقب راست (ستون C)',
+};
+
+/**
+ * تبدیل کلید یا نام فنی قطعه به نام دقیق و استاندارد فارسی
+ */
+export function getExactPersianPartName(keyOrName: string): string {
+  if (!keyOrName) return 'قطعه بدنه';
+  const clean = keyOrName.trim();
+  if (PART_NAMES_MAP_FA[clean]) return PART_NAMES_MAP_FA[clean];
+
+  const lower = clean.toLowerCase();
+  if (PART_NAMES_MAP_FA[lower]) return PART_NAMES_MAP_FA[lower];
+
+  // Specific side + part matches
+  if (lower === 'door_fl' || lower.includes('door_fl') || (lower.includes('door') && lower.includes('fl')) || (lower.includes('درب') && lower.includes('جلو') && lower.includes('چپ'))) return 'درب جلو چپ';
+  if (lower === 'door_fr' || lower.includes('door_fr') || (lower.includes('door') && lower.includes('fr')) || (lower.includes('درب') && lower.includes('جلو') && lower.includes('راست'))) return 'درب جلو راست';
+  if (lower === 'door_rl' || lower.includes('door_rl') || (lower.includes('door') && lower.includes('rl')) || (lower.includes('درب') && lower.includes('عقب') && lower.includes('چپ'))) return 'درب عقب چپ';
+  if (lower === 'door_rr' || lower.includes('door_rr') || (lower.includes('door') && lower.includes('rr')) || (lower.includes('درب') && lower.includes('عقب') && lower.includes('راست'))) return 'درب عقب راست';
+
+  if (lower === 'fender_fl' || lower.includes('fender_fl') || (lower.includes('گلگیر') && lower.includes('جلو') && lower.includes('چپ'))) return 'گلگیر جلو چپ';
+  if (lower === 'fender_fr' || lower.includes('fender_fr') || (lower.includes('گلگیر') && lower.includes('جلو') && lower.includes('راست'))) return 'گلگیر جلو راست';
+  if (lower === 'fender_rl' || lower.includes('fender_rl') || (lower.includes('گلگیر') && lower.includes('عقب') && lower.includes('چپ'))) return 'گلگیر عقب چپ';
+  if (lower === 'fender_rr' || lower.includes('fender_rr') || (lower.includes('گلگیر') && lower.includes('عقب') && lower.includes('راست'))) return 'گلگیر عقب راست';
+
+  if (lower === 'front_bumper' || (lower.includes('bumper') && lower.includes('front')) || (lower.includes('سپر') && lower.includes('جلو'))) return 'سپر جلو';
+  if (lower === 'rear_bumper' || (lower.includes('bumper') && lower.includes('rear')) || (lower.includes('سپر') && lower.includes('عقب'))) return 'سپر عقب';
+  if (lower === 'hood' || lower.includes('کاپوت') || lower.includes('درب موتور')) return 'درب موتور (کاپوت)';
+  if (lower === 'roof' || lower.includes('سقف')) return 'سقف خودرو';
+  if (lower === 'trunk' || lower.includes('صندوق')) return 'درب صندوق عقب';
+
+  if (lower.includes('rocker_l') || (lower.includes('رکاب') && lower.includes('چپ'))) return 'رکاب چپ';
+  if (lower.includes('rocker_r') || (lower.includes('رکاب') && lower.includes('راست'))) return 'رکاب راست';
+
+  if (lower.includes('chassis_front_l')) return 'سرشاسی و سینی جلو چپ';
+  if (lower.includes('chassis_front_r')) return 'سرشاسی و سینی جلو راست';
+  if (lower.includes('chassis_rear_l')) return 'سرشاسی و سینی عقب چپ';
+  if (lower.includes('chassis_rear_r')) return 'سرشاسی و سینی عقب راست';
+
+  if (lower.includes('pillar_a_l')) return 'ستون جلو چپ (ستون A)';
+  if (lower.includes('pillar_b_l')) return 'ستون وسط چپ (ستون B)';
+  if (lower.includes('pillar_c_l')) return 'ستون عقب چپ (ستون C)';
+  if (lower.includes('pillar_a_r')) return 'ستون جلو راست (ستون A)';
+  if (lower.includes('pillar_b_r')) return 'ستون وسط راست (ستون B)';
+  if (lower.includes('pillar_c_r')) return 'ستون عقب راست (ستون C)';
+
+  // If already standard Persian without english letters, return it cleanly
+  if (!/[a-zA-Z_]/.test(clean)) return clean;
+  return clean.replace(/_/g, ' ');
+}
+
+/**
+ * نگاشت معکوس: تبدیل نام فارسی قطعه به کلید فنی نقشه ۲ بعدی و ۳ بعدی (مانند front_bumper یا door_fl)
+ */
+export function getPartKeyFromPersianName(nameOrKey: string): string {
+  if (!nameOrKey) return 'front_bumper';
+  const clean = nameOrKey.trim();
+  const lower = clean.toLowerCase();
+
+  // اگر کلید انگلیسی معتبر است
+  if (PART_NAMES_MAP_FA[clean] || PART_NAMES_MAP_FA[lower]) return PART_NAMES_MAP_FA[clean] ? clean : lower;
+
+  // بررسی تطابق دقیق در مقادیر نقشه فارسی
+  for (const [key, faName] of Object.entries(PART_NAMES_MAP_FA)) {
+    if (faName === clean) return key;
+  }
+
+  // بررسی الگوی نام فارسی
+  if (clean.includes('سپر') && (clean.includes('جلو') || lower.includes('front'))) return 'front_bumper';
+  if (clean.includes('سپر') && (clean.includes('عقب') || lower.includes('rear'))) return 'rear_bumper';
+  if (clean.includes('کاپوت') || clean.includes('موتور') || lower.includes('hood')) return 'hood';
+  if (clean.includes('صندوق') || lower.includes('trunk')) return 'trunk';
+  if (clean.includes('سقف') || lower.includes('roof')) return 'roof';
+
+  if (clean.includes('درب') || clean.includes('در') || lower.includes('door')) {
+    if (clean.includes('جلو') && clean.includes('چپ')) return 'door_fl';
+    if (clean.includes('جلو') && clean.includes('راست')) return 'door_fr';
+    if (clean.includes('عقب') && clean.includes('چپ')) return 'door_rl';
+    if (clean.includes('عقب') && clean.includes('راست')) return 'door_rr';
+  }
+
+  if (clean.includes('گلگیر') || lower.includes('fender')) {
+    if (clean.includes('جلو') && clean.includes('چپ')) return 'fender_fl';
+    if (clean.includes('جلو') && clean.includes('راست')) return 'fender_fr';
+    if (clean.includes('عقب') && clean.includes('چپ')) return 'fender_rl';
+    if (clean.includes('عقب') && clean.includes('راست')) return 'fender_rr';
+  }
+
+  if (clean.includes('رکاب') || lower.includes('rocker')) {
+    if (clean.includes('چپ')) return 'rocker_l';
+    if (clean.includes('راست')) return 'rocker_r';
+  }
+
+  if (clean.includes('شاسی') || clean.includes('سینی') || lower.includes('chassis')) {
+    if (clean.includes('جلو') && clean.includes('چپ')) return 'chassis_front_l';
+    if (clean.includes('جلو') && clean.includes('راست')) return 'chassis_front_r';
+    if (clean.includes('عقب') && clean.includes('چپ')) return 'chassis_rear_l';
+    if (clean.includes('عقب') && clean.includes('راست')) return 'chassis_rear_r';
+  }
+
+  if (clean.includes('ستون') || lower.includes('pillar')) {
+    if (clean.includes('a') || clean.includes('A') || clean.includes('جلو')) return clean.includes('راست') ? 'pillar_a_r' : 'pillar_a_l';
+    if (clean.includes('b') || clean.includes('B') || clean.includes('وسط')) return clean.includes('راست') ? 'pillar_b_r' : 'pillar_b_l';
+    if (clean.includes('c') || clean.includes('C') || clean.includes('عقب')) return clean.includes('راست') ? 'pillar_c_r' : 'pillar_c_l';
+  }
+
+  return clean.replace(/\s+/g, '_');
+}
+
+export function generateAIAssessmentDraft(
+  claim: ClaimCase,
+  damageSpotsOverride?: Record<string, any>
+): AIDraftAssessmentPackage {
   const car = claim.carType || claim.culpritCarType || 'پژو ۲۰۶';
   const mult = getPriceMultiplier(car);
   const isCulprit = claim.partyOneRole === 'مقصر';
 
   const parts: AIDraftPartItem[] = [];
 
-  // Inspect damage spots if available
-  const spots = claim.carDamageSpots || {};
-  const hasSpots = Object.keys(spots).length > 0;
+  // Inspect damage spots (from override or claim)
+  const spots = damageSpotsOverride || claim.carDamageSpots || {};
+  const spotKeys = Object.keys(spots);
+  const hasSpots = spotKeys.length > 0;
 
-  if (hasSpots) {
-    Object.entries(spots).forEach(([key, spot], idx) => {
-      const isReplace = spot.operation === 'replace';
-      let partName = key.replace(/_/g, ' ');
-      if (key.includes('bumper') || key.includes('سپر')) partName = 'پوسته و دیاق سپر';
-      else if (key.includes('door') || key.includes('درب')) partName = 'پوسته درب و کلاف جانبی';
-      else if (key.includes('fender') || key.includes('گلگیر')) partName = 'گلگیر و شلگیر چرخ';
-      else if (key.includes('hood') || key.includes('کاپوت')) partName = 'درب موتور (کاپوت)';
-      else if (key.includes('trunk') || key.includes('صندوق')) partName = 'درب صندوق عقب';
+  // Use explicit spots if present, otherwise default to typical collision spots (سپر جلو و درب جلو چپ)
+  const effectiveSpots: Record<string, any> = hasSpots
+    ? spots
+    : {
+        front_bumper: {
+          type: 'خراشیدگی و شکستگی موضعی دیاق',
+          severity: 'minor',
+          operation: 'صافکاری و نقاشی',
+          color: 'yellow',
+          note: 'سپر جلو از سمت راست دچار خط و خش عمیق و شکستگی موضعی دیاق است.'
+        },
+        door_fl: {
+          type: 'دفرمگی شدید کلاف و پارگی ورق',
+          severity: 'major',
+          operation: 'تعویض کامل قطعه',
+          color: 'red',
+          note: 'درب جلو چپ دچار له‌شدگی شدید شده و غیرقابل ترمیم است.'
+        }
+      };
 
-      const basePartPrice = isReplace ? Math.round(32000000 * mult) : 0;
-      const baseLaborPrice = isReplace ? Math.round(8500000 * mult) : Math.round(14500000 * mult);
-      const salvage = isReplace ? Math.round(basePartPrice * 0.12) : 0;
-      const depreciation = isReplace ? Math.round(basePartPrice * 0.05) : 0;
-      const totalRow = basePartPrice + baseLaborPrice - salvage - depreciation;
+  Object.entries(effectiveSpots).forEach(([key, spot]: [string, any], idx) => {
+    const rawOp = String(spot.operation || '').toLowerCase();
+    const isReplace =
+      rawOp === 'replace' ||
+      rawOp.includes('تعویض') ||
+      rawOp.includes('اسقاط') ||
+      spot.severity === 'major';
 
-      parts.push({
-        id: `ai-part-${idx}`,
-        name: partName,
-        type: isReplace ? 'replace' : 'repair',
-        partPrice: basePartPrice,
-        repairPrice: baseLaborPrice,
-        salvageValue: salvage,
-        depreciation,
-        totalRow,
-        confidence: 0.92,
-        reasonFa: isReplace ? 'شدت شکستگی دیاق و پارگی بدنه بیش از حد استاندارد صافکاری است.' : 'انحنای دفرمگی با صافکاری PDR و نقاشی کوره قابل رفع است.'
-      });
-    });
-  } else {
-    // Default smart parts estimation based on vehicle and typical collision
-    const p1Part = Math.round(28500000 * mult);
-    const p1Labor = Math.round(7500000 * mult);
-    const p1Salvage = Math.round(p1Part * 0.10);
-    const p1Deprec = Math.round(p1Part * 0.05);
+    const partName = getExactPersianPartName(key);
 
-    parts.push({
-      id: 'ai-part-1',
-      name: 'سپر عقب و دیاق محافظ',
-      type: 'replace',
-      partPrice: p1Part,
-      repairPrice: p1Labor,
-      salvageValue: p1Salvage,
-      depreciation: p1Deprec,
-      totalRow: p1Part + p1Labor - p1Salvage - p1Deprec,
-      confidence: 0.94,
-      reasonFa: 'شکستگی بست‌ها و تغییر شکل پلاستیک سپر مانع از ترمیم باکیفیت است.'
-    });
+    const basePartPrice = isReplace ? Math.round(32000000 * mult) : 0;
+    const baseLaborPrice = isReplace ? Math.round(8500000 * mult) : Math.round(14500000 * mult);
+    const salvage = isReplace ? Math.round(basePartPrice * 0.12) : 0;
+    const depreciation = isReplace ? Math.round(basePartPrice * 0.05) : 0;
+    const totalRow = basePartPrice + baseLaborPrice - salvage - depreciation;
 
-    const p2Labor = Math.round(16000000 * mult);
-    parts.push({
-      id: 'ai-part-2',
-      name: 'درب صندوق عقب و سینی کف',
-      type: 'repair',
-      partPrice: 0,
-      repairPrice: p2Labor,
-      salvageValue: 0,
-      depreciation: 0,
-      totalRow: p2Labor,
-      confidence: 0.89,
-      reasonFa: 'فرورفتگی لبه پایین درب صندوق بدون پارگی ورق؛ قابل صافکاری و رنگ‌آمیزی.'
-    });
-
-    const p3Part = Math.round(14000000 * mult);
-    const p3Labor = Math.round(3500000 * mult);
-    const p3Salvage = Math.round(p3Part * 0.15);
-    const p3Deprec = Math.round(p3Part * 0.05);
+    let reasonFa = '';
+    if (spot.note && spot.note.trim().length > 3) {
+      reasonFa = spot.note.trim();
+    } else if (isReplace) {
+      reasonFa = `شدت آسیب و شکستگی اتصالات ${partName} فراتر از آستانه صافکاری بوده و نیازمند تعویض فابریک شرکتی است.`;
+    } else {
+      reasonFa = `دفرمگی و خط و خش ${partName} بدون پارگی کلاف بوده و با صافکاری PDR و رنگ‌آمیزی کوره‌ای قابل ترمیم است.`;
+    }
 
     parts.push({
-      id: 'ai-part-3',
-      name: 'مجموعه چراغ عقب سمت راست',
-      type: 'replace',
-      partPrice: p3Part,
-      repairPrice: p3Labor,
-      salvageValue: p3Salvage,
-      depreciation: p3Deprec,
-      totalRow: p3Part + p3Labor - p3Salvage - p3Deprec,
-      confidence: 0.96,
-      reasonFa: 'شکستگی طلق و پایه نگهدارنده چراغ ناشی از ضربه زاویه‌ای.'
+      id: `ai-part-${key || idx}`,
+      name: partName,
+      type: isReplace ? 'replace' : 'repair',
+      partPrice: basePartPrice,
+      repairPrice: baseLaborPrice,
+      salvageValue: salvage,
+      depreciation,
+      totalRow,
+      confidence: isReplace ? 0.94 : 0.91,
+      reasonFa
     });
-  }
+  });
 
   // Calculate totals
   let grossParts = 0;

@@ -327,17 +327,8 @@ export const KarinshoHero: React.FC = () => {
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" stroke="none" />
           </svg>
-          <span>{turbo ? 'تربو فعال! 🔥' : 'حالت تربو'}</span>
+          <span>{turbo ? 'تربو فعال' : 'حالت تربو'}</span>
         </button>
-        {/* چیپ‌های شیشه‌ای شناور */}
-        <div className="krn-chip krn-parallax" data-krn-depth="1.1" style={{ top: '12%', insetInlineStart: '7%' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8-5-3.6-5 3.6 1.9-5.8L4 8.8h6.1z"/></svg>
-          <span>ارزیابی هوشمند با هوش مصنوعی</span>
-        </div>
-        <div className="krn-chip krn-chip-2 krn-parallax" data-krn-depth="0.9" style={{ top: '18%', insetInlineEnd: '8%' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-          <span>تسویه خسارت در ۲۴ ساعت</span>
-        </div>
         <svg viewBox="0 0 1440 420" preserveAspectRatio="xMinYMax slice">
           <defs>
             {/* sky glow */}

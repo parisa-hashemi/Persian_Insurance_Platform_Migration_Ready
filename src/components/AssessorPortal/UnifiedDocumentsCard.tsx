@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { FileText, Image as ImageIcon, Mic, Film, Maximize2, ChevronDown, ChevronUp, Sparkles, Volume2, VolumeX, Play, Pause, ExternalLink, ShieldCheck, Calendar, User, HardDrive, Eye, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import { FileText, Image as ImageIcon, Mic, Film, Maximize2, ChevronDown, ChevronUp, Lock, Volume2, VolumeX, Play, Pause, ExternalLink, ShieldCheck, Calendar, User, HardDrive, Eye, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { ClaimCase, MediaFile, AdditionalDocItem } from '../../types';
 import { AIResult, EvidenceIntelligenceResult } from '../../lib/ai/types';
 import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
@@ -41,6 +41,8 @@ interface UnifiedDocumentsCardProps {
     uploader?: string;
     note?: string;
   }) => void;
+  onUpdateCase?: (updatedCase: ClaimCase) => void;
+  reviewerName?: string;
 }
 
 export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
@@ -49,6 +51,8 @@ export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
   isAiLoading = false,
   onRefreshAi,
   onPreviewMedia,
+  onUpdateCase,
+  reviewerName = 'کارشناس خسارت',
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeFilter, setActiveFilter] = useState<'all' | 'image' | 'audio' | 'kroki' | 'video'>('all');
@@ -60,34 +64,49 @@ export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
   const allDocs = useMemo<UnifiedDocItem[]>(() => {
     const list: UnifiedDocItem[] = [];
     const seenUrls = new Set<string>();
+    const seenTitles = new Set<string>();
+    let hasAddedDriverAudio = false;
+    let hasAddedDriverVideo = false;
+
+    const normalizeUrl = (raw: any): string => {
+      if (!raw) return '';
+      if (typeof raw === 'string') return raw.trim();
+      return (raw.dataUrl || raw.url || raw.preview || '').trim();
+    };
 
     // 1. Audio Explanation from Driver
-    if (claim.audioExplanation) {
-      seenUrls.add(claim.audioExplanation);
+    const audioUrl = normalizeUrl(claim.audioExplanation);
+    if (audioUrl) {
+      seenUrls.add(audioUrl);
+      seenTitles.add('شرح صوتی راننده / زیان‌دیده');
+      hasAddedDriverAudio = true;
       list.push({
         id: 'driver-audio-explanation',
-        title: 'شرح صوتی راننده / زیان‌دیده',
+        title: (typeof claim.audioExplanation === 'object' && claim.audioExplanation?.name) || 'شرح صوتی راننده / زیان‌دیده',
         type: 'audio',
-        url: claim.audioExplanation,
+        url: audioUrl,
         source: 'CUSTOMER_EXPLANATION',
         uploader: claim.victimName || 'زیان‌دیده',
         uploaderRole: 'زیان‌دیده (راننده)',
         uploaderParty: 'PARTY_ONE',
         uploadedAt: claim.date || 'ثبت اولیه',
-        fileSize: '1.2 MB',
+        fileSize: (typeof claim.audioExplanation === 'object' && claim.audioExplanation?.fileSize) || '1.2 MB',
         category: 'توضیحات صوتی وقوع حادثه',
         note: 'صدای ضبط‌شده راننده در هنگام ثبت برخط پرونده',
       });
     }
 
     // 2. Video Explanation from Driver
-    if (claim.videoExplanation) {
-      seenUrls.add(claim.videoExplanation);
+    const videoUrl = normalizeUrl(claim.videoExplanation);
+    if (videoUrl) {
+      seenUrls.add(videoUrl);
+      seenTitles.add('فیلم صحنه تصادف و خسارت');
+      hasAddedDriverVideo = true;
       list.push({
         id: 'driver-video-explanation',
         title: 'فیلم صحنه تصادف و خسارت',
         type: 'video',
-        url: claim.videoExplanation,
+        url: videoUrl,
         source: 'CUSTOMER_EXPLANATION',
         uploader: claim.victimName || 'زیان‌دیده',
         uploaderRole: 'زیان‌دیده (راننده)',
@@ -100,9 +119,10 @@ export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
     }
 
     // 3. Official Police Croqui
-    const croquiUrl = claim.customerKrokiPhoto || claim.croquiData?.fileUrl;
+    const croquiUrl = normalizeUrl(claim.customerKrokiPhoto || claim.croquiData?.fileUrl);
     if (croquiUrl) {
       seenUrls.add(croquiUrl);
+      seenTitles.add('برگه کروکی رسمی پلیس راهور');
       list.push({
         id: 'police-croqui-doc',
         title: 'برگه کروکی رسمی پلیس راهور',
@@ -123,23 +143,32 @@ export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
     // 4. Additional Documents Uploaded by Parties
     if (claim.additionalDocs && Array.isArray(claim.additionalDocs)) {
       claim.additionalDocs.forEach((doc, idx) => {
-        const url = doc.dataUrl || doc.url || '';
-        if (url && seenUrls.has(url)) return; // Deduplicate
-        if (url) seenUrls.add(url);
-
+        const url = normalizeUrl(doc);
+        const title = doc.title || 'مستند تکمیلی';
         const isAudio =
           doc.fileType === 'audio' ||
           doc.type === 'audio' ||
-          doc.title?.includes('صوت') ||
-          doc.title?.includes('voice');
+          title.includes('صوت') ||
+          title.toLowerCase().includes('voice');
         const isVideo =
           doc.fileType === 'video' ||
           doc.type === 'video' ||
-          doc.title?.includes('ویدیو');
+          title.includes('ویدیو') ||
+          title.toLowerCase().includes('video');
+
+        // Deduplicate audio if already added as driver audio
+        if (isAudio && hasAddedDriverAudio) return;
+        if (isVideo && hasAddedDriverVideo) return;
+        if (url && seenUrls.has(url)) return;
+        if (url) seenUrls.add(url);
+
+        const titleKey = `${title}_${isAudio ? 'audio' : isVideo ? 'video' : 'doc'}`;
+        if (seenTitles.has(titleKey)) return;
+        seenTitles.add(titleKey);
 
         list.push({
           id: doc.id || `add-doc-${idx}`,
-          title: doc.title || 'مستند تکمیلی',
+          title,
           type: isAudio ? 'audio' : isVideo ? 'video' : 'image',
           url,
           source: 'PARTY_DOC',
@@ -159,18 +188,31 @@ export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
     if (claim.files && Array.isArray(claim.files)) {
       claim.files.forEach((f: any, idx: number) => {
         const fileName = typeof f === 'string' ? f : f?.name || f?.fileName || `تصویر شماره ${idx + 1}`;
-        const dataUrl = typeof f === 'object' ? f?.dataUrl || f?.url : undefined;
-        if (dataUrl && seenUrls.has(dataUrl)) return; // Deduplicate
-        if (dataUrl) seenUrls.add(dataUrl);
+        const dataUrl = normalizeUrl(f);
 
         const isAudio =
           fileName?.includes('صوت') ||
-          fileName?.includes('voice') ||
-          f?.type === 'audio';
+          fileName?.toLowerCase().includes('voice') ||
+          f?.type === 'audio' ||
+          f?.fileType === 'audio';
         const isVideo =
           fileName?.includes('ویدیو') ||
-          fileName?.includes('video') ||
-          f?.type === 'video';
+          fileName?.toLowerCase().includes('video') ||
+          f?.type === 'video' ||
+          f?.fileType === 'video';
+
+        // Do not re-add driver audio or video if already processed
+        if (isAudio && hasAddedDriverAudio) return;
+        if (isVideo && hasAddedDriverVideo) return;
+        if (dataUrl && seenUrls.has(dataUrl)) return;
+        if (dataUrl) seenUrls.add(dataUrl);
+
+        const titleKey = `${fileName}_${isAudio ? 'audio' : isVideo ? 'video' : 'image'}`;
+        if (seenTitles.has(titleKey)) return;
+        seenTitles.add(titleKey);
+
+        if (isAudio) hasAddedDriverAudio = true;
+        if (isVideo) hasAddedDriverVideo = true;
 
         list.push({
           id: `initial-file-${idx}`,
@@ -183,7 +225,7 @@ export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
           uploaderParty: 'PARTY_ONE',
           uploadedAt: claim.date || 'ثبت اولیه',
           fileSize: f?.fileSize || '1.8 MB',
-          category: 'عکس خسارت ثبت اولیه',
+          category: isAudio ? 'توضیحات صوتی' : isVideo ? 'فیلم حادثه' : 'عکس خسارت ثبت اولیه',
         });
       });
     }
@@ -378,27 +420,61 @@ export const UnifiedDocumentsCard: React.FC<UnifiedDocumentsCardProps> = ({
               )}
             </div>
 
-            {/* AI Evidence Intelligence Accordion Button */}
-            <button
-              type="button"
-              onClick={() => setShowAiAnalysis(!showAiAnalysis)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                showAiAnalysis
-                  ? 'bg-purple-100 text-purple-900 border border-purple-300 shadow-2xs'
-                  : 'bg-white text-purple-700 border border-purple-200 hover:bg-purple-50'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-              <span>تحلیل هوشمند مدارک و OCR</span>
-              {showAiAnalysis ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
+            {/* AI Evidence Intelligence Accordion Button / Locked for pending croqui */}
+            {(() => {
+              const isPendingKrokiDraft =
+                claim.status === 'ثبت موقت - در انتظار افزودن کروکی' ||
+                (claim.futurePoliceExpected === true && !claim.hasKroki);
+
+              if (isPendingKrokiDraft) {
+                return (
+                  <div className="px-3 py-1.5 rounded-lg text-xs font-black bg-amber-50 text-amber-900 border border-amber-200 flex items-center gap-1.5 shrink-0">
+                    <Lock className="w-3.5 h-3.5 text-amber-700" />
+                    <span>تحلیل مدارک و OCR قفل است (در انتظار کروکی مشتری)</span>
+                  </div>
+                );
+              }
+
+              return (
+                <button
+                  type="button"
+                  onClick={() => setShowAiAnalysis(!showAiAnalysis)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                    showAiAnalysis
+                      ? 'bg-purple-100 text-purple-900 border border-purple-300 shadow-2xs'
+                      : 'bg-white text-purple-700 border border-purple-200 hover:bg-purple-50'
+                  }`}
+                >
+                  <span>تحلیل هوشمند مدارک و OCR</span>
+                  {claim.aiIntelligence?.ocrReview?.status === 'ACCEPTED' && (
+                    <span className="text-[10px] font-black px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-md border border-emerald-300">
+                      تأیید شد
+                    </span>
+                  )}
+                  {claim.aiIntelligence?.ocrReview?.status === 'MODIFIED' && (
+                    <span className="text-[10px] font-black px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded-md border border-amber-300">
+                      اصلاح شد
+                    </span>
+                  )}
+                  {claim.aiIntelligence?.ocrReview?.status === 'REJECTED' && (
+                    <span className="text-[10px] font-black px-1.5 py-0.5 bg-rose-100 text-rose-800 rounded-md border border-rose-300">
+                      رد شد
+                    </span>
+                  )}
+                  {showAiAnalysis ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+              );
+            })()}
           </div>
 
-          {/* AI Evidence Intelligence Panel (Collapsible) */}
-          {showAiAnalysis && (
+          {/* AI Evidence Intelligence Panel (Collapsible, only when not pending kroki) */}
+          {showAiAnalysis && !(claim.status === 'ثبت موقت - در انتظار افزودن کروکی' || (claim.futurePoliceExpected === true && !claim.hasKroki)) && (
             <div className="pt-1 pb-2 animate-in fade-in duration-150">
               <EvidenceIntelligenceCard
                 claimId={claim.id}
+                claim={claim}
+                onUpdateCase={onUpdateCase}
+                reviewerName={reviewerName}
                 aiResult={aiResult}
                 isLoading={isAiLoading}
                 userRole="ASSESSOR"

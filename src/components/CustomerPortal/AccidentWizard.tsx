@@ -36,7 +36,8 @@ import {
   Building2,
   Lock,
   HelpCircle,
-  Loader2
+  Loader2,
+  ChevronDown
 } from 'lucide-react';
 import L from 'leaflet';
 import { ClaimCase, UserSession, MediaFile, CaseStatus, CroquiData, DriverRole } from '../../types';
@@ -49,6 +50,11 @@ import { AIService } from '../../lib/ai/aiService';
 import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
 import { AIResult, EvidenceIntelligenceResult } from '../../lib/ai/types';
 import { autoDispatchClaimWithAI } from '../../lib/ai/aiDispatcher';
+
+export interface WizardValidationError {
+  field: string;
+  message: string;
+}
 
 interface AccidentWizardProps {
   session: UserSession;
@@ -133,7 +139,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
     window.setTimeout(() => setRequiredDocsError((cur) => (cur === msg ? null : cur)), 7000);
   };
   const [croquiData, setCroquiData] = useState<CroquiData | null>(null);
-  const [croquiType, setCroquiType] = useState<'paper' | 'electronic'>('paper');
+  const [croquiType, setCroquiType] = useState<'paper' | 'electronic' | 'judicial'>('electronic');
   const [showFuturePoliceModal, setShowFuturePoliceModal] = useState(false);
   const [showChassisGuideModal, setShowChassisGuideModal] = useState(false);
   const [isAnalyzingCroqui, setIsAnalyzingCroqui] = useState(false);
@@ -258,11 +264,26 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         ...prev.filter((f) => f.name !== label),
         {
           name: label,
-          type: file.type.startsWith('image/') ? 'image' : 'video',
+          type: file.type.startsWith('image/') ? 'image' : (file.type === 'application/pdf' ? 'pdf' : 'video'),
           dataUrl,
           fileName: file.name
         }
       ]);
+      // Clear relevant validation errors when user uploads
+      setValidationErrors((prev) =>
+        prev.filter((err) => {
+          if (label === 'پلاک' && err.field === 'photo_plate') return false;
+          if (['خسارت ۱', 'خسارت ۲', 'جلو', 'عقب', 'راست', 'چپ', 'سقف'].includes(label) && err.field === 'photo_damage') return false;
+          if ((label === 'عکس کارت ماشین' || label === 'عکس از شماره شاسی') && err.field === 'vehicle_card') return false;
+          if (label.includes('روی گواهینامه') && label.includes('طرف مقابل') && err.field === 'fltFrontLicense') return false;
+          if (label.includes('پشت گواهینامه') && label.includes('طرف مقابل') && err.field === 'fltBackLicense') return false;
+          if (label.includes('روی گواهینامه') && !label.includes('طرف مقابل') && err.field === 'vicFrontLicense') return false;
+          if (label.includes('پشت گواهینامه') && !label.includes('طرف مقابل') && err.field === 'vicBackLicense') return false;
+          if ((label === 'عکس کروکی' || label === 'عکس برگه گزارش پلیس') && err.field === 'paperCroqui') return false;
+          if (['بارگذاری تصویر/PDF گزارش کارشناس', 'گزارش کارشناس دادگستری', 'عکس کروکی', 'عکس برگه گزارش پلیس'].includes(label) && err.field === 'judicialCroqui') return false;
+          return true;
+        })
+      );
     }
   };
 
@@ -340,6 +361,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         }
       ]);
     }
+    clearFieldError('description');
     setIsRecordingVoice(false);
     if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
   };
@@ -395,6 +417,201 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   const [fltInquired, setFltInquired] = useState(false);
   const [fltInquiryModalOpen, setFltInquiryModalOpen] = useState(false);
   const [fltInquiring, setFltInquiring] = useState(false);
+
+  // Field validation and warning state
+  const [validationErrors, setValidationErrors] = useState<WizardValidationError[]>([]);
+
+  const getFieldError = (fieldName: string): string | undefined => {
+    return validationErrors.find((e) => e.field === fieldName)?.message;
+  };
+
+  const clearFieldError = (fieldName: string) => {
+    setValidationErrors((prev) => prev.filter((e) => e.field !== fieldName));
+  };
+
+  const clearFieldErrors = (fieldNames: string[]) => {
+    setValidationErrors((prev) => prev.filter((e) => !fieldNames.includes(e.field)));
+  };
+
+  const validateStep = (step: number): WizardValidationError[] => {
+    const errors: WizardValidationError[] = [];
+
+    if (step === 1) {
+      if (!agreePolicy) {
+        errors.push({ field: 'agreePolicy', message: 'پذیرش شرایط و قوانین عمومی ثبت آنلاین خسارت الزامی است.' });
+      }
+      if (hasKroki === null) {
+        errors.push({ field: 'hasKroki', message: 'مشخص نمودن وضعیت کروکی پلیس راهور (دارد یا ندارد) الزامی است.' });
+      } else if (hasKroki === true) {
+        if (croquiType === 'electronic') {
+          if (!krokiCode.trim()) {
+            errors.push({ field: 'krokiCode', message: 'شماره سریال کروکی / کد پیگیری پیامک‌شده الزامی است.' });
+          }
+        } else if (croquiType === 'judicial' || croquiType === 'paper') {
+          const hasJudicialDoc =
+            !!getFileForLabel('بارگذاری تصویر/PDF گزارش کارشناس') ||
+            !!getFileForLabel('گزارش کارشناس دادگستری') ||
+            !!getFileForLabel('عکس کروکی') ||
+            !!getFileForLabel('عکس برگه گزارش پلیس') ||
+            !!croquiData ||
+            files.some((f) => f.name?.includes('کارشناس') || f.name?.includes('قضایی') || f.name?.includes('دادگستری'));
+          if (!hasJudicialDoc) {
+            errors.push({ field: 'judicialCroqui', message: 'بارگذاری تصویر/PDF گزارش کارشناس الزامی است.' });
+          }
+        }
+      }
+    }
+
+    if (step === 2) {
+      if (!accidentDateTime || !accidentDateTime.trim()) {
+        errors.push({ field: 'accidentDateTime', message: 'ثبت تاریخ و ساعت دقیق وقوع تصادف الزامی است.' });
+      }
+      if (!address || address.trim().length < 5) {
+        errors.push({ field: 'address', message: 'ورود آدرس دقیق محل وقوع تصادف (حداقل ۵ حرف) الزامی است.' });
+      }
+    }
+
+    if (step === 3) {
+      const hasPlate = !!getFileForLabel('پلاک');
+      if (!hasPlate) {
+        errors.push({ field: 'photo_plate', message: 'بارگذاری تصویر واضح از پلاک خودرو الزامی است.' });
+      }
+      const hasDamage = ['خسارت ۱', 'خسارت ۲', 'جلو', 'عقب', 'راست', 'چپ', 'سقف'].some((lbl) => !!getFileForLabel(lbl));
+      if (!hasDamage) {
+        errors.push({
+          field: 'photo_damage',
+          message: 'بارگذاری حداقل یک تصویر از زوایای خودرو و محل آسیب‌دیدگی الزامی است.'
+        });
+      }
+      const hasDoc = !!getFileForLabel('عکس کارت ماشین') || !!getFileForLabel('عکس از شماره شاسی');
+      if (!hasDoc) {
+        errors.push({ field: 'vehicle_card', message: 'بارگذاری تصویر کارت خودرو (یا برگ سبز) الزامی است.' });
+      }
+      const hasVoice = !!audioUrl || files.some((f) => f.type === 'audio' || f.name?.includes('صوت'));
+      const hasReport = writtenReport.trim().length >= 8;
+      if (!hasVoice && !hasReport) {
+        errors.push({
+          field: 'description',
+          message: 'ارائه توضیحات نحوه وقوع حادثه (به‌صورت صوتی یا ثبت متن توضیحات) الزامی است.'
+        });
+      }
+    }
+
+    if (step === 4) {
+      if (!vicName.trim() || vicName.trim().length < 2) {
+        errors.push({ field: 'vicName', message: 'نام و نام خانوادگی مالک / شما الزامی است.' });
+      }
+      const cleanPhone = vicPhone.replace(/\D/g, '');
+      if (!vicPhone.trim() || cleanPhone.length < 10) {
+        errors.push({ field: 'vicPhone', message: 'شماره تلفن همراه معتبر (۱۱ رقمی با فرمت 09...) الزامی است.' });
+      }
+      if (!vicIsDriverSameOwner) {
+        if (!vicNationalId.trim()) {
+          errors.push({ field: 'vicNationalId', message: 'کد ملی مالک الزامی است.' });
+        }
+        const cleanDriverPhone = vicDriverPhone.replace(/\D/g, '');
+        if (!vicDriverPhone.trim() || cleanDriverPhone.length < 10) {
+          errors.push({ field: 'vicDriverPhone', message: 'شماره موبایل راننده زمان حادثه الزامی است.' });
+        }
+        if (!vicDriverNationalId.trim()) {
+          errors.push({ field: 'vicDriverNationalId', message: 'کد ملی راننده زمان حادثه الزامی است.' });
+        }
+      }
+      const vicPlateFilled =
+        vicP1.trim().length >= 2 &&
+        vicPLetter.trim().length >= 1 &&
+        vicP2.trim().length >= 3 &&
+        vicP3.trim().length >= 2;
+      if (!vicPlateFilled) {
+        errors.push({ field: 'vicPlate', message: 'تکمیل تمامی ۴ بخش شماره پلاک خودروی شما الزامی است.' });
+      }
+      const vicFrontLicense =
+        getFileForLabel(`عکس روی گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) ||
+        files.find((f) => f.name?.includes('روی گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
+      if (!vicFrontLicense) {
+        errors.push({ field: 'vicFrontLicense', message: 'بارگذاری تصویر روی گواهینامه راننده (شما) الزامی است.' });
+      }
+      const vicBackLicense =
+        getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) ||
+        files.find((f) => f.name?.includes('پشت گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
+      if (!vicBackLicense) {
+        errors.push({ field: 'vicBackLicense', message: 'بارگذاری تصویر پشت گواهینامه راننده (شما) الزامی است.' });
+      }
+    }
+
+    if (step === 5) {
+      if (!fltName.trim() || fltName.trim().length < 2) {
+        errors.push({ field: 'fltName', message: 'نام مالک یا راننده طرف مقابل الزامی است.' });
+      }
+      const cleanFltPhone = fltPhone.replace(/\D/g, '');
+      if (!fltPhone.trim() || cleanFltPhone.length < 10) {
+        errors.push({
+          field: 'fltPhone',
+          message: 'شماره تلفن همراه طرف مقابل (جهت اتصال به پرونده مشترک) الزامی است.'
+        });
+      }
+      if (!fltIsDriverSameOwner) {
+        if (!fltNationalId.trim()) {
+          errors.push({ field: 'fltNationalId', message: 'کد ملی مالک طرف مقابل الزامی است.' });
+        }
+        const cleanFltDriverPhone = fltDriverPhone.replace(/\D/g, '');
+        if (!fltDriverPhone.trim() || cleanFltDriverPhone.length < 10) {
+          errors.push({ field: 'fltDriverPhone', message: 'شماره موبایل راننده طرف مقابل الزامی است.' });
+        }
+        if (!fltDriverNationalId.trim()) {
+          errors.push({ field: 'fltDriverNationalId', message: 'کد ملی راننده طرف مقابل الزامی است.' });
+        }
+      }
+      const fltPlateFilled =
+        fltP1.trim().length >= 2 &&
+        fltPLetter.trim().length >= 1 &&
+        fltP2.trim().length >= 3 &&
+        fltP3.trim().length >= 2;
+      if (!fltPlateFilled) {
+        errors.push({ field: 'fltPlate', message: 'تکمیل تمامی ۴ بخش پلاک خودروی طرف مقابل الزامی است.' });
+      }
+      const fltFrontLicense =
+        getFileForLabel(`عکس روی گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`) ||
+        files.find((f) => f.name?.includes('روی گواهینامه') && (f.name?.includes('طرف مقابل') || f.name?.includes('مقصر')));
+      if (!fltFrontLicense) {
+        errors.push({
+          field: 'fltFrontLicense',
+          message: 'بارگذاری تصویر روی گواهینامه راننده طرف مقابل الزامی است.'
+        });
+      }
+      const fltBackLicense =
+        getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`) ||
+        files.find((f) => f.name?.includes('پشت گواهینامه') && (f.name?.includes('طرف مقابل') || f.name?.includes('مقصر')));
+      if (!fltBackLicense) {
+        errors.push({
+          field: 'fltBackLicense',
+          message: 'بارگذاری تصویر پشت گواهینامه راننده طرف مقابل الزامی است.'
+        });
+      }
+    }
+
+    return errors;
+  };
+
+  const handleProceedToStep = (targetStep: number) => {
+    const errors = validateStep(currentStep);
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      showRequiredDocsError(`امکان رفتن به مرحله بعد وجود ندارد؛ لطفاً ${toFaDigits(errors.length)} مورد الزامی مشخص‌شده را تکمیل فرمایید.`);
+      notifyApp(`لطفاً ${toFaDigits(errors.length)} مورد الزامی مشخص‌شده را تکمیل کنید.`, 'error');
+      const el = document.getElementById('wizard-validation-alert') || document.getElementById('wizard-header-container');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else window.scrollTo({ top: 80, behavior: 'smooth' });
+      return;
+    }
+
+    setValidationErrors([]);
+    setRequiredDocsError(null);
+    setCurrentStep(targetStep);
+    const el = document.getElementById('wizard-header-container');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else window.scrollTo({ top: 80, behavior: 'smooth' });
+  };
 
   // Central Inquiry Trigger for Party One (Victim / You)
   const handleOpenVicInquiry = () => {
@@ -588,10 +805,10 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       const file = e.target.files[0];
       const dataUrl = await compressImageFile(file, 1000, 0.7);
       setFiles((prev) => [
-        ...prev,
+        ...prev.filter((f) => f.name !== label),
         {
           name: label,
-          type: file.type.startsWith('image/') ? 'image' : 'video',
+          type: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'image',
           dataUrl,
           fileName: file.name
         }
@@ -608,6 +825,21 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   };
 
   const handleFinishWizard = () => {
+    // Validate all Step 5 fields
+    const errors = validateStep(5);
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      showRequiredDocsError(`امکان ثبت نهایی وجود ندارد؛ لطفاً ${toFaDigits(errors.length)} مورد الزامی مشخص‌شده را تکمیل فرمایید.`);
+      notifyApp(`لطفاً ${toFaDigits(errors.length)} مورد الزامی مشخص‌شده را تکمیل کنید.`, 'error');
+      const el = document.getElementById('wizard-validation-alert') || document.getElementById('wizard-header-container');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      else window.scrollTo({ top: 80, behavior: 'smooth' });
+      return;
+    }
+
+    setValidationErrors([]);
+    setRequiredDocsError(null);
+
     // Validate driver license photos for both parties (mandatory)
     const vicFrontLicense = getFileForLabel(`عکس روی گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('روی گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
     const vicBackLicense = getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('پشت گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
@@ -780,30 +1012,65 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         inquiryDate: `${new Date().toLocaleDateString('fa-IR')} ۱۱:۱۰ (برخط)`
       } : undefined,
       writtenReport: writtenReport,
-      files: files,
+      files: (() => {
+        const seenUrls = new Set<string>();
+        const seenNames = new Set<string>();
+        return files.filter(f => {
+          if (!f) return false;
+          const url = (f.dataUrl || '').trim();
+          const name = (f.name || f.fileName || '').trim();
+          if (url && seenUrls.has(url)) return false;
+          if (name && seenNames.has(name)) return false;
+          if (url) seenUrls.add(url);
+          if (name) seenNames.add(name);
+          return true;
+        });
+      })(),
       audioExplanation: files.find(f => f.type === 'audio' || f.name?.includes('صوتی')) || (audioUrl ? { name: 'توضیحات صوتی', type: 'audio', dataUrl: audioUrl, fileName: 'voice_description.webm' } : undefined),
       videoExplanation: files.find(f => f.type === 'video' || f.name?.includes('ویدیو')),
-      customerKrokiPhoto: croquiData?.fileUrl || files.find(f => f.name?.includes('کروکی'))?.dataUrl || undefined,
+      customerKrokiPhoto: croquiData?.fileUrl || files.find(f => f.name?.includes('کارشناس') || f.name?.includes('دادگستری') || f.name?.includes('کروکی'))?.dataUrl || undefined,
+      customerPoliceReportFile: files.find(f => f.name?.includes('کارشناس') || f.name?.includes('دادگستری') || f.name?.includes('پلیس'))?.dataUrl || undefined,
       victimLicenseFrontPhoto: isCulprit ? fltFrontLicense?.dataUrl : vicFrontLicense?.dataUrl,
       victimLicenseBackPhoto: isCulprit ? fltBackLicense?.dataUrl : vicBackLicense?.dataUrl,
       culpritLicenseFrontPhoto: isCulprit ? vicFrontLicense?.dataUrl : fltFrontLicense?.dataUrl,
       culpritLicenseBackPhoto: isCulprit ? vicBackLicense?.dataUrl : fltBackLicense?.dataUrl,
-      additionalDocs: [
-        ...files.map((f, idx) => ({
-          id: `wiz-doc-${idx}-${Date.now()}`,
-          title: f.name || f.fileName || `مدرک ${idx + 1}`,
-          docType: f.type === 'audio' ? 'توضیحات صوتی' : f.type === 'video' ? 'ویدیو صحنه تصادف' : (f.name || 'مدرک ضمیمه'),
-          dataUrl: f.dataUrl,
-          url: f.dataUrl,
-          uploadedBy: session.name || p1Name || 'ثبت‌کننده اولیه',
-          uploaderRole: p1Role || 'زیان‌دیده',
-          uploaderParty: 'PARTY_ONE' as const,
-          uploadedAt: new Date().toLocaleDateString('fa-IR'),
-          fileType: f.type as any,
-          fileName: f.fileName,
-          visibility: 'SHARED' as const
-        }))
-      ],
+      additionalDocs: (() => {
+        const seenDocUrls = new Set<string>();
+        const seenDocNames = new Set<string>();
+        const docs: any[] = [];
+
+        files.forEach((f, idx) => {
+          if (!f) return;
+          const url = (f.dataUrl || '').trim();
+          const name = (f.name || f.fileName || `مدرک ${idx + 1}`).trim();
+          if (url && seenDocUrls.has(url)) return;
+          if (name && seenDocNames.has(name)) return;
+          if (url) seenDocUrls.add(url);
+          if (name) seenDocNames.add(name);
+
+          const isPartyTwo = name.includes('طرف مقابل') || name.includes('مقابل');
+          const uploaderParty = isPartyTwo ? ('PARTY_TWO' as const) : ('PARTY_ONE' as const);
+          const uploaderRole = isPartyTwo ? (p2Role || 'طرف دوم') : (p1Role || 'طرف اول');
+          const uploadedBy = isPartyTwo ? (p2Name || 'طرف مقابل') : (session.name || p1Name || 'ثبت‌کننده اولیه');
+
+          docs.push({
+            id: `wiz-doc-${idx}-${Date.now()}`,
+            title: name,
+            docType: f.type === 'audio' ? 'توضیحات صوتی' : f.type === 'video' ? 'ویدیو صحنه تصادف' : (f.name || 'مدرک ضمیمه'),
+            dataUrl: f.dataUrl,
+            url: f.dataUrl,
+            uploadedBy: uploadedBy,
+            uploaderRole: uploaderRole,
+            uploaderParty: uploaderParty,
+            uploadedAt: new Date().toLocaleDateString('fa-IR'),
+            fileType: f.type as any,
+            fileName: f.fileName,
+            visibility: 'SHARED' as const
+          });
+        });
+
+        return docs;
+      })(),
       createdAt: new Date().toISOString(),
       history: [
         {
@@ -837,60 +1104,134 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
   return (
     <div className="w-full space-y-6 animate-in fade-in">
-      {/* اعلان الزامی بودن مدارک — داخل سامانه، به‌جای پنجره مرورگر */}
-      {requiredDocsError && (
+      {/* اعلان و هشدار خطاهای اعتبارسنجی فیلدهای الزامی */}
+      {(validationErrors.length > 0 || requiredDocsError) && (
         <div
-          className="bg-rose-50 border border-rose-300 text-rose-800 rounded-2xl p-4 flex items-start gap-3 shadow-sm animate-in fade-in slide-in-from-top-2"
+          id="wizard-validation-alert"
+          className="bg-rose-50 border-2 border-rose-400 text-rose-900 rounded-3xl p-5 space-y-3 shadow-md animate-in fade-in slide-in-from-top-2"
           role="alert"
           aria-live="assertive"
         >
-          <div className="w-9 h-9 rounded-xl bg-rose-100 border border-rose-300 text-rose-600 flex items-center justify-center shrink-0">
-            <AlertTriangle className="w-5 h-5" />
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-black text-sm text-rose-900">
+                    امکان رفتن به مرحله بعد وجود ندارد
+                  </h4>
+                  {validationErrors.length > 0 && (
+                    <span className="bg-rose-200 text-rose-900 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-rose-300">
+                      {toFaDigits(validationErrors.length)} فیلد الزامی باقی‌مانده
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-rose-700 font-bold leading-relaxed">
+                  {requiredDocsError || 'جهت ادامه روند ثبت خسارت، باید فیلدهای مشخص‌شده زیر را تکمیل فرمایید:'}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setRequiredDocsError(null);
+                setValidationErrors([]);
+              }}
+              className="p-1.5 rounded-xl hover:bg-rose-200 text-rose-700 transition-colors shrink-0"
+              title="بستن هشدار"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <div className="flex-1 space-y-0.5">
-            <span className="font-black text-xs block">مدرک الزامی بارگذاری نشده است</span>
-            <p className="text-[11px] font-medium leading-relaxed">{requiredDocsError}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setRequiredDocsError(null)}
-            className="p-1.5 rounded-lg hover:bg-rose-100 text-rose-500 transition-colors"
-            title="بستن"
-          >
-            <X className="w-4 h-4" />
-          </button>
+
+          {/* لیست موارد ناقص در صورت وجود */}
+          {validationErrors.length > 0 && (
+            <div className="bg-white/90 backdrop-blur-xs rounded-2xl p-3.5 border border-rose-200 space-y-1.5 shadow-xs">
+              <span className="text-[11px] font-black text-rose-950 block">موارد نیازمند تکمیل:</span>
+              <div className="divide-y divide-rose-100">
+                {validationErrors.map((err, idx) => (
+                  <div key={idx} className="py-1.5 first:pt-0 last:pb-0 flex items-center gap-2 text-xs font-bold text-rose-800">
+                    <div className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                    <span>{err.message}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Wizard Header Progress Bar */}
-      <div className="bg-white p-4 sm:p-6 rounded-3xl border-2 border-slate-200 shadow-sm space-y-6">
-        <div className="flex items-start sm:items-center justify-between relative gap-1">
-          <div className="absolute top-1/2 left-0 right-0 h-1.5 bg-slate-200 -translate-y-1/2 z-0 rounded-full" />
-          <div
-            className="absolute top-1/2 right-0 h-1.5 bg-blue-600 -translate-y-1/2 z-0 rounded-full transition-all duration-300"
-            style={{ width: `${((currentStep - 1) / 4) * 100}%` }}
-          />
+      <div id="wizard-header-container" className="bg-white p-4 sm:p-6 rounded-3xl border-2 border-slate-200 shadow-sm space-y-6">
+        <div className="w-full">
+          {/* Row of Circles & Connecting Line Segments */}
+          <div className="flex items-center justify-between">
+            {[
+              { step: 1, label: 'شرایط و نقش', icon: ListChecks },
+              { step: 2, label: 'موقعیت', icon: MapPin },
+              { step: 3, label: 'مستندات', icon: Camera },
+              { step: 4, label: wizardRole === 'culprit' ? 'اطلاعات شما (مقصر)' : 'اطلاعات شما (زیان‌دیده)', icon: User },
+              { step: 5, label: wizardRole === 'culprit' ? 'طرف مقابل (زیان‌دیده)' : 'طرف مقابل (مقصر)', icon: Users }
+            ].map(({ step, icon: Icon }, index, arr) => (
+              <React.Fragment key={step}>
+                {/* Step Circle Button */}
+                <button
+                  type="button"
+                  disabled={step > currentStep}
+                  onClick={() => step < currentStep && setCurrentStep(step)}
+                  className={`w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full flex items-center justify-center font-black text-sm transition-all relative z-10 ${
+                    currentStep >= step
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-500 border-2 border-slate-300'
+                  } ${step < currentStep ? 'cursor-pointer hover:bg-blue-700 active:scale-95' : 'cursor-default'}`}
+                  title={step < currentStep ? 'بازگشت به این مرحله' : undefined}
+                >
+                  <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                </button>
 
-          {[
-            { step: 1, label: 'شرایط و نقش', icon: ListChecks },
-            { step: 2, label: 'موقعیت', icon: MapPin },
-            { step: 3, label: 'مستندات', icon: Camera },
-            { step: 4, label: wizardRole === 'culprit' ? 'اطلاعات شما (مقصر)' : 'اطلاعات شما (زیان‌دیده)', icon: User },
-            { step: 5, label: wizardRole === 'culprit' ? 'طرف مقابل (زیان‌دیده)' : 'طرف مقابل (مقصر)', icon: Users }
-          ].map(({ step, label, icon: Icon }) => (
-            <div key={step} className="flex flex-col items-center relative z-10">
-              <div
-                className={`w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full flex items-center justify-center font-black text-sm transition-all ${
-                  currentStep >= step
-                    ? 'bg-blue-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-500 border-2 border-slate-300'
-                }`}
-              >
-                <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
-              </div>
-              <span className="text-[9px] sm:text-[11px] font-extrabold text-slate-800 mt-1.5 text-center leading-tight max-w-[56px] sm:max-w-none">{label}</span>
-            </div>
-          ))}
+                {/* Connecting Line between steps */}
+                {index < arr.length - 1 && (
+                  <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden mx-1.5 sm:mx-2.5">
+                    <div
+                      className="h-full bg-blue-600 transition-all duration-300 rounded-full"
+                      style={{ width: currentStep > step ? '100%' : '0%' }}
+                    />
+                  </div>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {/* Row of Step Labels */}
+          <div className="flex justify-between items-start mt-2">
+            {[
+              { step: 1, label: 'شرایط و نقش' },
+              { step: 2, label: 'موقعیت' },
+              { step: 3, label: 'مستندات' },
+              { step: 4, label: wizardRole === 'culprit' ? 'اطلاعات شما (مقصر)' : 'اطلاعات شما (زیان‌دیده)' },
+              { step: 5, label: wizardRole === 'culprit' ? 'طرف مقابل (زیان‌دیده)' : 'طرف مقابل (مقصر)' }
+            ].map(({ step, label }, index, arr) => {
+              const alignClass =
+                index === 0
+                  ? 'text-right items-start'
+                  : index === arr.length - 1
+                  ? 'text-left items-end'
+                  : 'text-center items-center';
+
+              return (
+                <div
+                  key={step}
+                  className={`flex flex-col ${alignClass} w-16 sm:w-24`}
+                >
+                  <span className="text-[9px] sm:text-[11px] font-extrabold text-slate-800 leading-tight">
+                    {label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Step 1: Conditions, Policy Acceptance, Croqui & Role */}
@@ -915,17 +1256,34 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </div>
 
             {/* Checkbox for accepting terms */}
-            <label className="flex items-center gap-3 cursor-pointer bg-slate-50 p-4 rounded-2xl border-2 border-slate-300 hover:border-blue-400 transition-all">
-              <input
-                type="checkbox"
-                checked={agreePolicy}
-                onChange={(e) => setAgreePolicy(e.target.checked)}
-                className="w-5 h-5 text-blue-900 rounded focus:ring-blue-300"
-              />
-              <span className="text-xs font-black text-blue-900">
-                قوانین و مقررات حریم خصوصی و صحت اطلاعات وارد شده را می‌پذیرم.
-              </span>
-            </label>
+            <div className="space-y-1">
+              <label
+                className={`flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 transition-all ${
+                  getFieldError('agreePolicy')
+                    ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-200 shadow-xs'
+                    : 'bg-slate-50 border-slate-300 hover:border-blue-400'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={agreePolicy}
+                  onChange={(e) => {
+                    setAgreePolicy(e.target.checked);
+                    if (e.target.checked) clearFieldError('agreePolicy');
+                  }}
+                  className="w-5 h-5 text-blue-900 rounded focus:ring-blue-300"
+                />
+                <span className="text-xs font-black text-blue-900">
+                  قوانین و مقررات حریم خصوصی و صحت اطلاعات وارد شده را می‌پذیرم. <span className="text-rose-600">*</span>
+                </span>
+              </label>
+              {getFieldError('agreePolicy') && (
+                <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-2 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {getFieldError('agreePolicy')}
+                </p>
+              )}
+            </div>
 
             {/* 2. Croqui Section - Shown after accepting terms */}
             {agreePolicy ? (
@@ -945,162 +1303,321 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     آیا پلیس راهور در صحنه تصادف حاضر شده و برگه کروکی صادر کرده است؟
                   </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHasKroki(true);
-                        setFuturePolice(null);
-                      }}
-                      className={`p-3.5 rounded-xl text-xs font-black border-2 transition-all flex items-center justify-center gap-2 ${
-                        hasKroki === true
-                          ? 'bg-purple-700 border-purple-800 text-white shadow-sm scale-[1.01]'
-                          : 'bg-white border-slate-200 text-slate-800 hover:bg-purple-50/60 font-bold'
+                  <div className="space-y-1.5">
+                    <div
+                      className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-1 rounded-2xl transition-all ${
+                        getFieldError('hasKroki')
+                          ? 'border-2 border-rose-500 bg-rose-50/50 p-2 rounded-2xl ring-2 ring-rose-200'
+                          : ''
                       }`}
                     >
-                      <CheckCircle2 className={`w-4 h-4 ${hasKroki === true ? 'text-white' : 'text-purple-700'}`} />
-                      بله، کروکی کشیده شد
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setHasKroki(false);
-                        setCroquiData(null);
-                        setShowFuturePoliceModal(true);
-                      }}
-                      className={`p-3.5 rounded-xl text-xs font-black border-2 transition-all flex items-center justify-center gap-2 ${
-                        hasKroki === false
-                          ? 'bg-purple-700 border-purple-800 text-white shadow-sm scale-[1.01]'
-                          : 'bg-white border-slate-200 text-slate-800 hover:bg-purple-50/60 font-bold'
-                      }`}
-                    >
-                      <X className={`w-4 h-4 ${hasKroki === false ? 'text-white' : 'text-purple-700'}`} />
-                      خیر، کروکی کشیده نشد
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHasKroki(true);
+                          setFuturePolice(null);
+                          clearFieldError('hasKroki');
+                        }}
+                        className={`p-3.5 rounded-xl text-xs font-black border-2 transition-all flex items-center justify-center gap-2 ${
+                          hasKroki === true
+                            ? 'bg-purple-700 border-purple-800 text-white shadow-sm scale-[1.01]'
+                            : 'bg-white border-slate-200 text-slate-800 hover:bg-purple-50/60 font-bold'
+                        }`}
+                      >
+                        <CheckCircle2 className={`w-4 h-4 ${hasKroki === true ? 'text-white' : 'text-purple-700'}`} />
+                        بله، کروکی کشیده شد
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHasKroki(false);
+                          setCroquiData(null);
+                          setShowFuturePoliceModal(true);
+                          clearFieldError('hasKroki');
+                        }}
+                        className={`p-3.5 rounded-xl text-xs font-black border-2 transition-all flex items-center justify-center gap-2 ${
+                          hasKroki === false
+                            ? 'bg-purple-700 border-purple-800 text-white shadow-sm scale-[1.01]'
+                            : 'bg-white border-slate-200 text-slate-800 hover:bg-purple-50/60 font-bold'
+                        }`}
+                      >
+                        <X className={`w-4 h-4 ${hasKroki === false ? 'text-white' : 'text-purple-700'}`} />
+                        خیر، کروکی کشیده نشد
+                      </button>
+                    </div>
+                    {getFieldError('hasKroki') && (
+                      <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-2 animate-in fade-in">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                        {getFieldError('hasKroki')}
+                      </p>
+                    )}
                   </div>
 
                   {/* If Kroki was drawn */}
                   {hasKroki === true && (
                     <div className="space-y-4 pt-3 border-t border-purple-200 animate-in fade-in">
-                      {/* Kroki Type */}
-                      <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-purple-200">
-                        <span className="text-xs font-black text-purple-950">نوع کروکی:</span>
-                        <button
-                          type="button"
-                          onClick={() => setCroquiType('paper')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            croquiType === 'paper'
-                              ? 'bg-purple-700 text-white shadow-xs'
-                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          }`}
-                        >
-                          کروکی کاغذی
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setCroquiType('electronic')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                            croquiType === 'electronic'
-                              ? 'bg-purple-700 text-white shadow-xs'
-                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                          }`}
-                        >
-                          کروکی الکترونیکی
-                        </button>
-                      </div>
-
-                      {/* Kroki Code Input */}
-                      <div>
-                        <label className="block text-xs font-black text-purple-950 mb-1">
-                          کد یا شماره گزارش کروکی پلیس <span className="text-rose-600">*</span>
+                      {/* Dropdown: نوع کروکی */}
+                      <div className="bg-purple-50/60 p-3.5 sm:p-4 rounded-2xl border-2 border-purple-200 space-y-2">
+                        <label htmlFor="croqui-type-select" className="block text-xs font-black text-purple-950">
+                          نوع کروکی <span className="text-rose-600">*</span>
                         </label>
-                        <input
-                          type="text"
-                          value={krokiCode}
-                          onChange={(e) => setKrokiCode(e.target.value)}
-                          placeholder="مثال: CRQ-1403-88492"
-                          className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-300 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 uppercase tracking-wider focus:outline-none focus:border-purple-700 focus:ring-1 focus:ring-purple-700"
-                          dir="ltr"
-                        />
+                        <div className="relative">
+                          <select
+                            id="croqui-type-select"
+                            value={croquiType === 'paper' ? 'judicial' : croquiType}
+                            onChange={(e) => {
+                              const val = e.target.value as 'electronic' | 'judicial';
+                              setCroquiType(val);
+                              clearFieldError('krokiCode');
+                              clearFieldError('judicialCroqui');
+                            }}
+                            className="w-full px-4 py-3 rounded-xl border-2 border-purple-300 text-xs font-black text-purple-950 bg-white shadow-xs focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-200 transition-all cursor-pointer appearance-none pl-10"
+                          >
+                            <option value="electronic">کروکی الکترونیک راهور (سیستمی)</option>
+                            <option value="judicial">کروکی قضایی / گزارش کارشناس دادگستری (فیزیکی)</option>
+                          </select>
+                          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-purple-700">
+                            <ChevronDown className="w-4 h-4" />
+                          </div>
+                        </div>
                       </div>
 
-                      {/* AI Croqui Sample Evaluation Option */}
-                      <div className="bg-white p-4 rounded-xl border-2 border-purple-200 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-black text-purple-950 flex items-center gap-1.5">
-                            <Sparkles className="w-4 h-4 text-purple-700" />
-                            ارزیابی و پردازش تصویر کروکی با هوش مصنوعی (AI OCR):
-                          </span>
-                        </div>
-
-                        <p className="text-[11px] text-slate-600 font-bold">
-                          می‌توانید تصویر کروکی را بارگذاری کنید یا یکی از کروکی‌های نمونه زیر را برای ارزیابی هوشمند تست نمایید:
-                        </p>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          {sampleCroquis.map((sample, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              disabled={isAnalyzingCroqui}
-                              onClick={() => handleAnalyzeCroquiSample(idx)}
-                              className={`p-2.5 rounded-xl border-2 text-right transition-all text-xs font-extrabold flex flex-col justify-between h-20 ${
-                                selectedCroquiSampleIdx === idx && croquiData
-                                  ? 'border-purple-700 bg-purple-100/70 text-purple-950 shadow-xs'
-                                  : 'border-slate-200 bg-slate-50 hover:bg-purple-50/50 text-slate-800'
+                      {/* Option 1: Electronic Kroki */}
+                      {croquiType === 'electronic' && (
+                        <div className="space-y-4 animate-in fade-in">
+                          {/* Mandatory Field: شماره سریال کروکی / کد پیگیری پیامک‌شده */}
+                          <div id="field-krokiCode">
+                            <label className="block text-xs font-black text-purple-950 mb-1">
+                              شماره سریال کروکی / کد پیگیری پیامک‌شده <span className="text-rose-600">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={krokiCode}
+                              onChange={(e) => {
+                                setKrokiCode(e.target.value);
+                                if (e.target.value.trim()) clearFieldError('krokiCode');
+                              }}
+                              placeholder="مثال: CRQ-1403-88492 یا کد پیگیری ۱۶ رقمی پیامک‌شده"
+                              className={`w-full px-4 py-3 rounded-xl border-2 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 uppercase tracking-wider focus:outline-none transition-all ${
+                                getFieldError('krokiCode')
+                                  ? 'border-rose-500 bg-rose-50/30 ring-2 ring-rose-200'
+                                  : 'border-purple-300 focus:border-purple-700 focus:ring-1 focus:ring-purple-700'
                               }`}
-                            >
-                              <span className="line-clamp-2 text-[11px]">{sample.title}</span>
-                              <span className="text-[10px] font-mono font-bold text-purple-700">
-                                {sample.reportNumber}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
+                              dir="ltr"
+                            />
+                            {getFieldError('krokiCode') && (
+                              <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                {getFieldError('krokiCode')}
+                              </p>
+                            )}
+                          </div>
 
-                        {/* Upload Kroki photo slot */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                          {[
-                            { label: 'عکس کروکی', icon: FileText },
-                            { label: 'عکس برگه گزارش پلیس', icon: Camera }
-                          ].map((item, idx) => {
-                            const uploaded = getFileForLabel(item.label);
-                            return (
-                              <div key={idx} className="relative">
-                                {uploaded ? (
-                                  <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl flex items-center justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <CheckCircle2 className="w-5 h-5 text-emerald-700" />
-                                      <span className="text-xs font-bold text-emerald-950">{item.label} بارگذاری شد</span>
+                          {/* AI Croqui Sample Evaluation Option & Optional Photo */}
+                          <div className="bg-white p-4 rounded-xl border-2 border-purple-200 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-black text-purple-950 flex items-center gap-1.5">
+                                <Sparkles className="w-4 h-4 text-purple-700" />
+                                استعلام و ارزیابی نمونه کروکی با هوش مصنوعی (اختیاری):
+                              </span>
+                              <span className="text-[10px] text-purple-700 font-extrabold bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200">
+                                اختیاری
+                              </span>
+                            </div>
+
+                            <p className="text-[11px] text-slate-600 font-bold">
+                              برای استعلام خودکار می‌توانید از نمونه‌های زیر جهت پر کردن فرم استفاده کنید، یا در صورت تمایل تصویر برگه/رسید کروکی را اضافه نمایید:
+                            </p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              {sampleCroquis.map((sample, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  disabled={isAnalyzingCroqui}
+                                  onClick={() => handleAnalyzeCroquiSample(idx)}
+                                  className={`p-2.5 rounded-xl border-2 text-right transition-all text-xs font-extrabold flex flex-col justify-between h-20 ${
+                                    selectedCroquiSampleIdx === idx && croquiData
+                                      ? 'border-purple-700 bg-purple-100/70 text-purple-950 shadow-xs'
+                                      : 'border-slate-200 bg-slate-50 hover:bg-purple-50/50 text-slate-800'
+                                  }`}
+                                >
+                                  <span className="line-clamp-2 text-[11px]">{sample.title}</span>
+                                  <span className="text-[10px] font-mono font-bold text-purple-700">
+                                    {sample.reportNumber}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Optional photo slot */}
+                            <div className="space-y-2 pt-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-black text-purple-950">
+                                  بارگذاری تصویر یا رسید پیامک کروکی (اختیاری):
+                                </span>
+                                <span className="text-[10px] text-purple-700 font-bold bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md">
+                                  اختیاری
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {[
+                                  { label: 'عکس کروکی', icon: FileText },
+                                  { label: 'عکس برگه گزارش پلیس', icon: Camera }
+                                ].map((item, idx) => {
+                                  const uploaded = getFileForLabel(item.label);
+                                  return (
+                                    <div key={idx} className="relative">
+                                      {uploaded ? (
+                                        <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl flex items-center justify-between">
+                                          <div className="flex items-center gap-2">
+                                            <CheckCircle2 className="w-5 h-5 text-emerald-700" />
+                                            <span className="text-xs font-bold text-emerald-950">{item.label} بارگذاری شد</span>
+                                          </div>
+                                          <button
+                                            type="button"
+                                            onClick={() => removeFileForLabel(item.label)}
+                                            className="p-1 bg-rose-100 text-rose-700 rounded-lg cursor-pointer"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <label className="border-2 border-dashed border-purple-300 bg-purple-50/30 rounded-xl p-3 flex items-center justify-between cursor-pointer hover:border-purple-600 hover:bg-purple-100/50 transition-all">
+                                          <div className="flex items-center gap-2">
+                                            <item.icon className="w-4 h-4 text-purple-800" />
+                                            <div>
+                                              <span className="text-xs font-black text-purple-950 block">{item.label}</span>
+                                              <span className="text-[10px] text-purple-700 font-bold block">افزودن تصویر (اختیاری)</span>
+                                            </div>
+                                          </div>
+                                          <Upload className="w-4 h-4 text-purple-800" />
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={(e) => handleFileUploadForLabel(e, item.label)}
+                                          />
+                                        </label>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Option 2: Judicial Croqui / Forensic Report (Physical) */}
+                      {(croquiType === 'judicial' || croquiType === 'paper') && (
+                        <div className="space-y-4 animate-in fade-in" id="field-judicialCroqui">
+                          {/* Mandatory Field: بارگذاری تصویر/PDF گزارش کارشناس */}
+                          <div className={`p-4 rounded-2xl border-2 transition-all ${
+                            getFieldError('judicialCroqui')
+                              ? 'bg-rose-50/40 border-rose-400 ring-2 ring-rose-200'
+                              : 'bg-white border-purple-300'
+                          }`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-xs font-black text-purple-950 flex items-center gap-1.5">
+                                <FileText className="w-4 h-4 text-purple-700" />
+                                بارگذاری تصویر/PDF گزارش کارشناس <span className="text-rose-600">*</span>
+                              </label>
+                              <span className="text-[10px] font-black bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md border border-rose-200">
+                                الزامی
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 font-medium mb-3">
+                              تصویر خوانا یا فایل PDF از نظریه کارشناس رسمی دادگستری یا برگه گزارش قضایی را بارگذاری فرمایید.
+                            </p>
+
+                            {(() => {
+                              const uploadedJudicial =
+                                getFileForLabel('بارگذاری تصویر/PDF گزارش کارشناس') ||
+                                getFileForLabel('گزارش کارشناس دادگستری') ||
+                                getFileForLabel('عکس کروکی') ||
+                                files.find((f) => f.name?.includes('کارشناس') || f.name?.includes('دادگستری'));
+
+                              if (uploadedJudicial) {
+                                return (
+                                  <div className="p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-xl flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                      <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+                                      <div>
+                                        <span className="text-xs font-black text-emerald-950 block">
+                                          {uploadedJudicial.fileName || uploadedJudicial.name}
+                                        </span>
+                                        <span className="text-[10px] text-emerald-800 font-bold block">
+                                          {uploadedJudicial.type === 'pdf' ? 'فایل سند PDF' : 'تصویر سند گزارش'} — بارگذاری با موفقیت انجام شد
+                                        </span>
+                                      </div>
                                     </div>
                                     <button
                                       type="button"
-                                      onClick={() => removeFileForLabel(item.label)}
-                                      className="p-1 bg-rose-100 text-rose-700 rounded-lg"
+                                      onClick={() => {
+                                        removeFileForLabel('بارگذاری تصویر/PDF گزارش کارشناس');
+                                        removeFileForLabel('گزارش کارشناس دادگستری');
+                                        removeFileForLabel('عکس کروکی');
+                                      }}
+                                      className="p-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition-colors cursor-pointer"
+                                      title="حذف فایل"
                                     >
-                                      <Trash2 className="w-3.5 h-3.5" />
+                                      <Trash2 className="w-4 h-4" />
                                     </button>
                                   </div>
-                                ) : (
-                                  <label className="border-2 border-dashed border-purple-300 bg-purple-50/30 rounded-xl p-3 flex items-center justify-between cursor-pointer hover:border-purple-600 hover:bg-purple-100/50 transition-all">
-                                    <div className="flex items-center gap-2">
-                                      <item.icon className="w-4 h-4 text-purple-800" />
-                                      <span className="text-xs font-black text-purple-950">{item.label}</span>
-                                    </div>
-                                    <Upload className="w-4 h-4 text-purple-800" />
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      className="hidden"
-                                      onChange={(e) => handleFileUploadForLabel(e, item.label)}
-                                    />
-                                  </label>
-                                )}
-                              </div>
-                            );
-                          })}
+                                );
+                              }
+
+                              return (
+                                <label className="border-2 border-dashed border-purple-400 bg-purple-50/40 rounded-xl p-5 flex flex-col items-center justify-center gap-2.5 cursor-pointer hover:border-purple-600 hover:bg-purple-100/50 transition-all text-center">
+                                  <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center shadow-2xs">
+                                    <Upload className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <span className="text-xs font-black text-purple-950 block">
+                                      برای انتخاب فایل تصویر یا PDF کلیک کنید
+                                    </span>
+                                    <span className="text-[11px] text-slate-500 font-bold block mt-0.5">
+                                      فرمت‌های مجاز: JPG, PNG, PDF (حداکثر ۲۰ مگابایت)
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      handleFileUploadForLabel(e, 'بارگذاری تصویر/PDF گزارش کارشناس');
+                                      clearFieldError('judicialCroqui');
+                                    }}
+                                  />
+                                </label>
+                              );
+                            })()}
+
+                            {getFieldError('judicialCroqui') && (
+                              <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-2 pr-1 animate-in fade-in">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                {getFieldError('judicialCroqui')}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Optional Field: شماره کلاسه پرونده یا بایگانی دادگستری */}
+                          <div>
+                            <label className="block text-xs font-black text-purple-950 mb-1">
+                              شماره بایگانی / کلاسه پرونده قضایی <span className="text-slate-500 font-bold text-[11px]">(اختیاری)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={krokiCode}
+                              onChange={(e) => setKrokiCode(e.target.value)}
+                              placeholder="در صورت درج در گزارش کارشناس، وارد نمایید..."
+                              className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-300 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 focus:border-purple-700 focus:ring-1 focus:ring-purple-700 focus:outline-none transition-all"
+                              dir="ltr"
+                            />
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Display Analysis Results if available */}
                       {isAnalyzingCroqui && (
@@ -1261,9 +1778,8 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               </button>
               <button
                 type="button"
-                disabled={!agreePolicy || hasKroki === null}
-                onClick={() => setCurrentStep(2)}
-                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 disabled:opacity-50 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
+                onClick={() => handleProceedToStep(2)}
+                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
               >
                 تایید و ادامه به مرحله بعد <ArrowLeft className="w-4 h-4" />
               </button>
@@ -1332,19 +1848,32 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <label className="text-[11px] font-black text-blue-900">
-                    آدرس محل تصادف (تولید خودکار بر اساس GPS / قابل ویرایش):
+                    آدرس محل تصادف <span className="text-rose-600">*</span>:
                   </label>
                   <span className="text-[10px] text-sky-950 font-black bg-sky-100 border border-sky-300 px-2 py-0.5 rounded-md">
-                    استخراج خودکار
+                    استخراج خودکار با GPS / دستی
                   </span>
                 </div>
                 <textarea
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
+                  onChange={(e) => {
+                    setAddress(e.target.value);
+                    if (e.target.value.trim()) clearFieldError('address');
+                  }}
                   rows={2}
                   placeholder="آدرس دقیق محل تصادف..."
-                  className="w-full px-4 py-3 rounded-2xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:border-blue-500 transition-all shadow-xs placeholder:text-slate-400"
+                  className={`w-full px-4 py-3 rounded-2xl border-2 text-xs font-bold text-slate-900 bg-white focus:outline-none transition-all shadow-xs placeholder:text-slate-400 ${
+                    getFieldError('address')
+                      ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                      : 'border-slate-300 focus:border-blue-500'
+                  }`}
                 />
+                {getFieldError('address') && (
+                  <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 pr-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {getFieldError('address')}
+                  </p>
+                )}
               </div>
 
             </div>
@@ -1359,7 +1888,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setCurrentStep(3)}
+                onClick={() => handleProceedToStep(3)}
                 className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
               >
                 تایید موقعیت و ادامه <ArrowLeft className="w-4 h-4" />
@@ -1442,14 +1971,30 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           </div>
                         </div>
                       ) : (
-                        <label className="aspect-square border-2 border-dashed border-slate-300 rounded-2xl flex flex-col items-center justify-center text-slate-500 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all p-2 text-center group/label bg-white">
-                          <div className="w-9 h-9 rounded-xl bg-slate-100 group-hover/label:bg-blue-100 text-slate-600 group-hover/label:text-blue-900 flex items-center justify-center mb-1.5 transition-colors">
+                        <label
+                          className={`aspect-square border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all p-2 text-center group/label ${
+                            getFieldError(`media_${slot.label}`)
+                              ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-200 shadow-xs'
+                              : 'border-slate-300 text-slate-500 hover:border-blue-400 hover:bg-blue-50 bg-white'
+                          }`}
+                        >
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 transition-colors ${
+                            getFieldError(`media_${slot.label}`)
+                              ? 'bg-rose-100 text-rose-700'
+                              : 'bg-slate-100 group-hover/label:bg-blue-100 text-slate-600 group-hover/label:text-blue-900'
+                          }`}>
                             <Camera className="w-5 h-5" />
                           </div>
-                          <span className="text-[11px] font-extrabold text-slate-800 group-hover/label:text-blue-900 transition-colors">
-                            {slot.label}
+                          <span className={`text-[11px] font-extrabold transition-colors ${
+                            getFieldError(`media_${slot.label}`) ? 'text-rose-800' : 'text-slate-800 group-hover/label:text-blue-900'
+                          }`}>
+                            {slot.label} {['عکس جلو خودرو شما', 'عکس عقب خودرو شما', 'عکس محل آسیب خودرو'].includes(slot.label) && <span className="text-rose-600">*</span>}
                           </span>
-                          <span className="text-[9px] text-slate-500 font-bold mt-0.5">افزودن تصویر</span>
+                          <span className={`text-[9px] font-bold mt-0.5 ${
+                            getFieldError(`media_${slot.label}`) ? 'text-rose-600' : 'text-slate-500'
+                          }`}>
+                            {getFieldError(`media_${slot.label}`) ? 'بارگذاری الزامی است' : 'افزودن تصویر'}
+                          </span>
                           <input
                             type="file"
                             accept="image/*"
@@ -1462,6 +2007,22 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   );
                 })}
               </div>
+              {(getFieldError('photo_plate') || getFieldError('photo_damage')) && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1 animate-in fade-in">
+                  {getFieldError('photo_plate') && (
+                    <p className="text-[11px] font-bold text-rose-700 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {getFieldError('photo_plate')}
+                    </p>
+                  )}
+                  {getFieldError('photo_damage') && (
+                    <p className="text-[11px] font-bold text-rose-700 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {getFieldError('photo_damage')}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 2. Chassis VIN Lookup & Vehicle Documentation */}
@@ -1561,6 +2122,12 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   );
                 })}
               </div>
+              {getFieldError('vehicle_card') && (
+                <p className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl flex items-center gap-1.5 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {getFieldError('vehicle_card')}
+                </p>
+              )}
             </div>
 
             {/* 3. Video from Accident Scene */}
@@ -1661,14 +2228,27 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
               {/* Text Description Textarea */}
               <div className="space-y-1">
-                <label className="text-[11px] font-black text-blue-900">یا به صورت متنی شرح دهید (اختیاری):</label>
+                <label className="text-[11px] font-black text-blue-900">یا به صورت متنی شرح دهید (اختیاری در صورت داشتن صوت):</label>
                 <textarea
                   value={writtenReport}
-                  onChange={(e) => setWrittenReport(e.target.value)}
+                  onChange={(e) => {
+                    setWrittenReport(e.target.value);
+                    if (e.target.value.trim().length >= 8) clearFieldError('description');
+                  }}
                   rows={3}
                   placeholder="توضیح کامل درباره نحوه وقوع تصادف، خسارت‌ها بنویسید..."
-                  className="w-full px-4 py-3 rounded-2xl border-2 border-slate-300 text-xs font-bold text-slate-900 bg-white focus:outline-none focus:border-blue-500 shadow-xs placeholder:text-slate-400"
+                  className={`w-full px-4 py-3 rounded-2xl border-2 text-xs font-bold text-slate-900 bg-white focus:outline-none shadow-xs placeholder:text-slate-400 transition-all ${
+                    getFieldError('description')
+                      ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                      : 'border-slate-300 focus:border-blue-500'
+                  }`}
                 />
+                {getFieldError('description') && (
+                  <p className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl flex items-center gap-1.5 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {getFieldError('description')}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -1694,7 +2274,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setCurrentStep(4)}
+                onClick={() => handleProceedToStep(4)}
                 className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
               >
                 ثبت مستندات و ادامه <ArrowLeft className="w-4 h-4" />
@@ -1739,13 +2319,28 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             {/* Fields grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">نام مالک</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  نام مالک <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={vicName}
-                  onChange={(e) => setVicName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                  onChange={(e) => {
+                    setVicName(e.target.value);
+                    if (e.target.value.trim()) clearFieldError('vicName');
+                  }}
+                  className={`w-full px-4 py-2.5 rounded-xl border text-xs font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all ${
+                    getFieldError('vicName')
+                      ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                      : 'border-slate-200 focus:border-blue-600'
+                  }`}
                 />
+                {getFieldError('vicName') && (
+                  <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {getFieldError('vicName')}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -1755,10 +2350,23 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 <input
                   type="tel"
                   value={vicPhone}
-                  onChange={(e) => setVicPhone(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                  onChange={(e) => {
+                    setVicPhone(e.target.value);
+                    if (e.target.value.trim()) clearFieldError('vicPhone');
+                  }}
+                  className={`w-full px-4 py-2.5 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all ${
+                    getFieldError('vicPhone')
+                      ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                      : 'border-slate-200 focus:border-blue-600'
+                  }`}
                   dir="ltr"
                 />
+                {getFieldError('vicPhone') && (
+                  <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {getFieldError('vicPhone')}
+                  </p>
+                )}
               </div>
 
               {!vicIsDriverSameOwner && (
@@ -1787,11 +2395,24 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                         <input
                           type="tel"
                           value={vicDriverPhone}
-                          onChange={(e) => setVicDriverPhone(e.target.value)}
+                          onChange={(e) => {
+                            setVicDriverPhone(e.target.value);
+                            if (e.target.value.trim()) clearFieldError('vicDriverPhone');
+                          }}
                           placeholder="مثال: 09121112233"
-                          className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
+                          className={`w-full px-3.5 py-2 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none placeholder:text-slate-400 transition-all ${
+                            getFieldError('vicDriverPhone')
+                              ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                              : 'border-slate-200 focus:border-blue-600'
+                          }`}
                           dir="ltr"
                         />
+                        {getFieldError('vicDriverPhone') && (
+                          <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            {getFieldError('vicDriverPhone')}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">
@@ -1857,19 +2478,45 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           </button>
                         </div>
                       ) : (
-                        <label className="border-2 border-dashed border-slate-300 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer hover:border-blue-600 hover:bg-blue-50/70 transition-all bg-white group/license">
+                        <label
+                          className={`border-2 border-dashed rounded-2xl p-3.5 flex items-center justify-between cursor-pointer transition-all bg-white group/license ${
+                            (idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
+                              ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-200 shadow-xs'
+                              : 'border-slate-300 hover:border-blue-600 hover:bg-blue-50/70'
+                          }`}
+                        >
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-blue-50 group-hover/license:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors shrink-0">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
+                              (idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
+                                ? 'bg-rose-100 text-rose-700'
+                                : 'bg-blue-50 group-hover/license:bg-blue-100 text-blue-600'
+                            }`}>
                               <CreditCard className="w-5 h-5" />
                             </div>
                             <div>
-                              <span className="text-xs font-extrabold text-slate-800 block group-hover/license:text-blue-900 transition-colors">
+                              <span className={`text-xs font-extrabold block transition-colors ${
+                                (idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
+                                  ? 'text-rose-800'
+                                  : 'text-slate-800 group-hover/license:text-blue-900'
+                              }`}>
                                 {item.shortLabel} <span className="text-rose-500">*</span>
                               </span>
-                              <span className="text-[10px] text-slate-500 font-bold block">برای بارگذاری کلیک کنید</span>
+                              <span className={`text-[10px] font-bold block ${
+                                (idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
+                                  ? 'text-rose-600'
+                                  : 'text-slate-500'
+                              }`}>
+                                {(idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
+                                  ? 'بارگذاری این تصویر الزامی است'
+                                  : 'برای بارگذاری کلیک کنید'}
+                              </span>
                             </div>
                           </div>
-                          <Upload className="w-4 h-4 text-slate-400 group-hover/license:text-blue-600 shrink-0" />
+                          <Upload className={`w-4 h-4 shrink-0 ${
+                            (idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
+                              ? 'text-rose-600'
+                              : 'text-slate-400 group-hover/license:text-blue-600'
+                          }`} />
                           <input
                             type="file"
                             accept="image/*"
@@ -1889,16 +2536,24 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <label className="block text-xs font-bold text-slate-700 text-center mb-1">
                 پلاک خودرو <span className="text-rose-500">*</span>
               </label>
-              <IranianPlateInput
-                p1={vicP1}
-                pLetter={vicPLetter}
-                p2={vicP2}
-                p3={vicP3}
-                onChangeP1={setVicP1}
-                onChangePLetter={setVicPLetter}
-                onChangeP2={setVicP2}
-                onChangeP3={setVicP3}
-              />
+              <div className={getFieldError('vicPlate') ? 'p-1 rounded-2xl border-2 border-rose-500 bg-rose-50/40 ring-2 ring-rose-200' : ''}>
+                <IranianPlateInput
+                  p1={vicP1}
+                  pLetter={vicPLetter}
+                  p2={vicP2}
+                  p3={vicP3}
+                  onChangeP1={(v) => { setVicP1(v); clearFieldError('vicPlate'); }}
+                  onChangePLetter={(v) => { setVicPLetter(v); clearFieldError('vicPlate'); }}
+                  onChangeP2={(v) => { setVicP2(v); clearFieldError('vicPlate'); }}
+                  onChangeP3={(v) => { setVicP3(v); clearFieldError('vicPlate'); }}
+                />
+              </div>
+              {getFieldError('vicPlate') && (
+                <p className="text-[11px] font-bold text-rose-600 flex items-center justify-center gap-1 mt-1 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {getFieldError('vicPlate')}
+                </p>
+              )}
             </div>
 
             {/* VIN Barcode Scanner */}
@@ -1959,16 +2614,8 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  const vicFrontLicense = getFileForLabel(`عکس روی گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('روی گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
-                  const vicBackLicense = getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('پشت گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
-                  if (!vicFrontLicense || !vicBackLicense) {
-                    showRequiredDocsError('بارگذاری هر دو تصویر (روی گواهینامه و پشت گواهینامه) برای راننده الزامی است.');
-                    return;
-                  }
-                  setCurrentStep(5);
-                }}
-                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/10 transition-all flex items-center gap-2"
+                onClick={() => handleProceedToStep(5)}
+                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/10 transition-all flex items-center gap-2 active:scale-95"
               >
                 ثبت اطلاعات و رفتن به مرحله بعد <ArrowLeft className="w-4 h-4" />
               </button>
@@ -2012,13 +2659,28 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             {/* Fields grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">نام مالک طرف مقابل</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  نام مالک طرف مقابل <span className="text-rose-500">*</span>
+                </label>
                 <input
                   type="text"
                   value={fltName}
-                  onChange={(e) => setFltName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                  onChange={(e) => {
+                    setFltName(e.target.value);
+                    if (e.target.value.trim()) clearFieldError('fltName');
+                  }}
+                  className={`w-full px-4 py-2.5 rounded-xl border text-xs font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all ${
+                    getFieldError('fltName')
+                      ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                      : 'border-slate-200 focus:border-blue-600'
+                  }`}
                 />
+                {getFieldError('fltName') && (
+                  <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {getFieldError('fltName')}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -2029,11 +2691,24 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 <input
                   type="tel"
                   value={fltPhone}
-                  onChange={(e) => setFltPhone(e.target.value)}
+                  onChange={(e) => {
+                    setFltPhone(e.target.value);
+                    if (e.target.value.trim()) clearFieldError('fltPhone');
+                  }}
                   placeholder="۰۹۱۲..."
-                  className="w-full px-4 py-2.5 rounded-xl border-2 border-blue-200 text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600 shadow-xs"
+                  className={`w-full px-4 py-2.5 rounded-xl border-2 text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all shadow-xs ${
+                    getFieldError('fltPhone')
+                      ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                      : 'border-blue-200 focus:border-blue-600'
+                  }`}
                   dir="ltr"
                 />
+                {getFieldError('fltPhone') && (
+                  <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {getFieldError('fltPhone')}
+                  </p>
+                )}
                 <p className="text-[11px] text-blue-800 mt-1 font-medium">
                   این شماره موبایل جهت اتصال طرف دوم به همین پرونده استفاده می‌شود تا امکان بارگذاری مستندات توسط وی فراهم گردد.
                 </p>
@@ -2065,11 +2740,24 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                         <input
                           type="tel"
                           value={fltDriverPhone}
-                          onChange={(e) => setFltDriverPhone(e.target.value)}
+                          onChange={(e) => {
+                            setFltDriverPhone(e.target.value);
+                            if (e.target.value.trim()) clearFieldError('fltDriverPhone');
+                          }}
                           placeholder="مثال: 09123334455"
-                          className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
+                          className={`w-full px-3.5 py-2 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none placeholder:text-slate-400 transition-all ${
+                            getFieldError('fltDriverPhone')
+                              ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                              : 'border-slate-200 focus:border-blue-600'
+                          }`}
                           dir="ltr"
                         />
+                        {getFieldError('fltDriverPhone') && (
+                          <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            {getFieldError('fltDriverPhone')}
+                          </p>
+                        )}
                       </div>
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">
@@ -2135,19 +2823,45 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           </button>
                         </div>
                       ) : (
-                        <label className="border-2 border-dashed border-slate-300 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer hover:border-blue-600 hover:bg-blue-50/70 transition-all bg-white group/license">
+                        <label
+                          className={`border-2 border-dashed rounded-2xl p-3.5 flex items-center justify-between cursor-pointer transition-all bg-white group/license ${
+                            (idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
+                              ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-200 shadow-xs'
+                              : 'border-slate-300 hover:border-blue-600 hover:bg-blue-50/70'
+                          }`}
+                        >
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-blue-50 group-hover/license:bg-blue-100 text-blue-600 flex items-center justify-center transition-colors shrink-0">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
+                              (idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
+                                ? 'bg-rose-100 text-rose-700'
+                                : 'bg-blue-50 group-hover/license:bg-blue-100 text-blue-600'
+                            }`}>
                               <CreditCard className="w-5 h-5" />
                             </div>
                             <div>
-                              <span className="text-xs font-extrabold text-slate-800 block group-hover/license:text-blue-900 transition-colors">
+                              <span className={`text-xs font-extrabold block transition-colors ${
+                                (idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
+                                  ? 'text-rose-800'
+                                  : 'text-slate-800 group-hover/license:text-blue-900'
+                              }`}>
                                 {item.shortLabel} <span className="text-rose-500">*</span>
                               </span>
-                              <span className="text-[10px] text-slate-500 font-bold block">برای بارگذاری کلیک کنید</span>
+                              <span className={`text-[10px] font-bold block ${
+                                (idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
+                                  ? 'text-rose-600'
+                                  : 'text-slate-500'
+                              }`}>
+                                {(idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
+                                  ? 'بارگذاری این تصویر الزامی است'
+                                  : 'برای بارگذاری کلیک کنید'}
+                              </span>
                             </div>
                           </div>
-                          <Upload className="w-4 h-4 text-slate-400 group-hover/license:text-blue-600 shrink-0" />
+                          <Upload className={`w-4 h-4 shrink-0 ${
+                            (idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
+                              ? 'text-rose-600'
+                              : 'text-slate-400 group-hover/license:text-blue-600'
+                          }`} />
                           <input
                             type="file"
                             accept="image/*"
@@ -2167,16 +2881,24 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <label className="block text-xs font-bold text-slate-700 text-center mb-1">
                 پلاک خودرو طرف مقابل <span className="text-rose-500">*</span>
               </label>
-              <IranianPlateInput
-                p1={fltP1}
-                pLetter={fltPLetter}
-                p2={fltP2}
-                p3={fltP3}
-                onChangeP1={setFltP1}
-                onChangePLetter={setFltPLetter}
-                onChangeP2={setFltP2}
-                onChangeP3={setFltP3}
-              />
+              <div className={getFieldError('fltPlate') ? 'p-1 rounded-2xl border-2 border-rose-500 bg-rose-50/40 ring-2 ring-rose-200' : ''}>
+                <IranianPlateInput
+                  p1={fltP1}
+                  pLetter={fltPLetter}
+                  p2={fltP2}
+                  p3={fltP3}
+                  onChangeP1={(v) => { setFltP1(v); clearFieldError('fltPlate'); }}
+                  onChangePLetter={(v) => { setFltPLetter(v); clearFieldError('fltPlate'); }}
+                  onChangeP2={(v) => { setFltP2(v); clearFieldError('fltPlate'); }}
+                  onChangeP3={(v) => { setFltP3(v); clearFieldError('fltPlate'); }}
+                />
+              </div>
+              {getFieldError('fltPlate') && (
+                <p className="text-[11px] font-bold text-rose-600 flex items-center justify-center gap-1 mt-1 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  {getFieldError('fltPlate')}
+                </p>
+              )}
             </div>
 
             {/* VIN Barcode Scanner */}

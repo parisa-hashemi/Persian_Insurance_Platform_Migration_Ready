@@ -11,6 +11,9 @@ export type CaseStatus =
   | 'محول شده به کارشناس'
   | 'در حال ارزیابی'
   | 'در حال بازبینی'
+  | 'در انتظار بررسی بازبین'
+  | 'رد شده از بازبین'
+  | 'نیازمند اصلاح کارشناس'
   | 'در انتظار تایید کاربر'
   | 'در انتظار تایید ثانویه کاربر'
   | 'در حال ارزیابی سوم'
@@ -98,7 +101,7 @@ export interface CarDamageSpot {
 export interface PoliceReport {
   code: string;
   reportNumber?: string;
-  croquiType?: 'paper' | 'electronic';
+  croquiType?: 'paper' | 'electronic' | 'judicial';
   officerName: string;
   officerCode: string;
   unit: string;
@@ -246,7 +249,7 @@ export interface ClaimCase {
   pendingApprovalRole?: string | null;
   approved?: boolean;
   hasKroki?: boolean;
-  croquiType?: 'paper' | 'electronic';
+  croquiType?: 'paper' | 'electronic' | 'judicial';
   futurePoliceExpected?: boolean | null;
   needsCulpritFieldVisit?: boolean;
   inPersonVisitAddress?: string;
@@ -492,6 +495,7 @@ export interface ClaimCase {
     returnedBy: string;
     returnedAt: string;
   };
+  reviewerReturnReason?: string;
   isFinalDecision?: boolean;
   assessments?: Array<{
     round: string;
@@ -671,6 +675,8 @@ export interface CompanyRegistrationRequest {
   economicCode: string;
   registrationNumber: string;
   licenseNumber?: string;
+  sanhabCode: string; // کد اختصاصی/عددی شرکت در سامانه سنهاب بیمه مرکزی (اجباری)
+  insuranceLines: string[]; // رشته‌های بیمه‌ای مجاز (شخص ثالث، بدنه)
   province: string;
   city: string;
   address: string;
@@ -700,7 +706,8 @@ export interface InsurerInfo {
   logoUrl?: string;
   brandColor?: string;
   licenseNumber?: string; // شماره پروانه بیمه مرکزی
-  sanhabCode?: string; // کد اتصال وب‌سرویس سنهاب
+  sanhabCode?: string; // کد اتصال وب‌سرویس سنهاب / کد عددی شرکت در سنهاب
+  insuranceLines?: string[]; // رشته‌های بیمه‌ای مجاز
   phone?: string;
   email?: string;
   address?: string;
@@ -797,7 +804,7 @@ export interface DriverInfo {
 }
 
 export interface CroquiData {
-  croquiType: 'paper' | 'electronic';
+  croquiType: 'paper' | 'electronic' | 'judicial';
   fileUrl?: string;
   isValidDocument: boolean;
   confidenceScore: number;

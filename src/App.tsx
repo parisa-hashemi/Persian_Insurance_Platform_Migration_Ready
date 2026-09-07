@@ -36,10 +36,12 @@ import { CrmSupportPanel } from './components/CrmPortal/CrmSupportPanel';
 
 // Senior Admin & System Management Component
 import { SeniorAdminPanel } from './components/AdminPortal/SeniorAdminPanel';
+import { CompanyRegistrationModal } from './components/CompanyRegistrationModal';
 
 export default function App() {
   const [cases, setCases] = useState<ClaimCase[]>(() => loadCasesFromStorage());
   const [session, setSession] = useState<UserSession | null>(() => loadSession());
+  const [isCompanyRegModalOpen, setIsCompanyRegModalOpen] = useState(false);
   const [activeView, setActiveView] = useState<string>(() => {
     const s = loadSession();
     if (!s) return 'gateway';
@@ -217,6 +219,7 @@ export default function App() {
         onLogout={handleLogout}
         onGoHome={() => setActiveView('gateway')}
         onOpenPublicTrack={() => setActiveView('publicTrack')}
+        onOpenCompanyRegistration={() => setIsCompanyRegModalOpen(true)}
         onSelectPortal={(role) => handleSelectPortal(role)}
       />
 
@@ -233,6 +236,7 @@ export default function App() {
           <PortalGateway
             onSelectPortal={(role, payload) => handleSelectPortal(role, payload)}
             onOpenPublicTrack={() => setActiveView('publicTrack')}
+            onOpenCompanyRegistration={() => setIsCompanyRegModalOpen(true)}
           />
         )}
 
@@ -462,6 +466,16 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* مدال ثبت‌نام شرکت بیمه جدید و درخواست صدور پنل */}
+      <CompanyRegistrationModal
+        isOpen={isCompanyRegModalOpen}
+        onClose={() => setIsCompanyRegModalOpen(false)}
+        onSuccess={() => {
+          setIsCompanyRegModalOpen(false);
+          window.dispatchEvent(new CustomEvent('claimflow_insurers_updated'));
+        }}
+      />
     </div>
   );
 }

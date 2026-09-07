@@ -3,7 +3,7 @@ import { getInsurerPersianName } from './storage';
 
 export interface StandardPoliceReportData {
   hasCroqui: boolean;
-  croquiType: 'paper' | 'electronic';
+  croquiType: 'paper' | 'electronic' | 'judicial';
   croquiTypePersian: string;
   reportCode: string;
   incidentDateTime: string;
@@ -47,7 +47,7 @@ export function getStandardPoliceReport(claimCase: ClaimCase): StandardPoliceRep
   const hasCroqui = !!(claimCase.hasKroki || claimCase.sceneReportCode || claimCase.croquiData || claimCase.policeReport || claimCase.customerKrokiPhoto);
   
   // Determine croquiType: customer registration is primary source
-  let croquiType: 'paper' | 'electronic' = 'electronic';
+  let croquiType: 'paper' | 'electronic' | 'judicial' = 'electronic';
   if (claimCase.croquiType) {
     croquiType = claimCase.croquiType;
   } else if (claimCase.croquiData?.croquiType) {
@@ -55,11 +55,13 @@ export function getStandardPoliceReport(claimCase: ClaimCase): StandardPoliceRep
   } else if (claimCase.policeReport?.croquiType) {
     croquiType = claimCase.policeReport.croquiType;
   } else if (claimCase.customerKrokiPhoto) {
-    croquiType = 'paper';
+    croquiType = 'judicial';
   }
 
   const croquiTypePersian = croquiType === 'electronic'
-    ? 'کروکی الکترونیکی پلیس راهور (ثبت برخط فراجا)'
+    ? 'کروکی الکترونیک راهور (سیستمی)'
+    : croquiType === 'judicial'
+    ? 'کروکی قضایی / گزارش کارشناس دادگستری (فیزیکی)'
     : 'کروکی کاغذی ترسیمی (دست‌نویس و تصویربرداری شده)';
 
   const reportCode =

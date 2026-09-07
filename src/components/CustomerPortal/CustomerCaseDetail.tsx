@@ -124,12 +124,51 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   }, [claimCase.id]);
 
   // Kroki submission state for temporary cases
+  const [detailCroquiType, setDetailCroquiType] = useState<'electronic' | 'judicial'>(
+    claimCase.croquiType === 'judicial' ? 'judicial' : 'electronic'
+  );
   const [krokiInputCode, setKrokiInputCode] = useState(claimCase.sceneReportCode || '');
+  const [detailCroquiFile, setDetailCroquiFile] = useState<{ name: string; dataUrl: string; type: string; size?: string } | null>(null);
+  const [detailCroquiError, setDetailCroquiError] = useState<string | null>(null);
   const [krokiSuccessMsg, setKrokiSuccessMsg] = useState<string | null>(null);
+
+  const handleDetailCroquiFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setDetailCroquiError(null);
+      let dataUrl = '';
+      if (file.type.startsWith('image/')) {
+        dataUrl = await compressImageFile(file, 1200, 0.8);
+      } else {
+        dataUrl = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string) || '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(file);
+        });
+      }
+      setDetailCroquiFile({
+        name: file.name,
+        dataUrl,
+        type: file.type.startsWith('image/') ? 'image' : (file.type === 'application/pdf' ? 'pdf' : 'doc'),
+        size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+      });
+    }
+  };
 
   const handleAddKrokiCode = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!krokiInputCode.trim()) return;
+    setDetailCroquiError(null);
+
+    if (detailCroquiType === 'electronic' && !krokiInputCode.trim()) {
+      setDetailCroquiError('لطفاً شماره سریال کروکی / کد پیگیری پیامک‌شده را وارد نمایید.');
+      return;
+    }
+
+    if (detailCroquiType === 'judicial' && !detailCroquiFile && !claimCase.customerKrokiPhoto && !claimCase.customerPoliceReportFile) {
+      setDetailCroquiError('لطفاً تصویر یا فایل PDF گزارش کارشناس دادگستری را بارگذاری نمایید.');
+      return;
+    }
 
     const targetInsurer = getInsurerPersianName(claimCase.culpritInsurer);
     const updatedStatus: CaseStatus = 'در انتظار ارجاع به ارزیاب';
@@ -138,7 +177,19 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       ...claimCase,
       status: updatedStatus,
       hasKroki: true,
-      sceneReportCode: krokiInputCode.trim(),
+      croquiType: detailCroquiType,
+      sceneReportCode: krokiInputCode.trim() || (detailCroquiType === 'judicial' ? `EXP-${Math.floor(100000 + Math.random() * 900000)}` : undefined),
+      customerKrokiPhoto: detailCroquiFile?.dataUrl || claimCase.customerKrokiPhoto,
+      customerPoliceReportFile: detailCroquiFile?.dataUrl || claimCase.customerPoliceReportFile,
+      files: detailCroquiFile ? [
+        ...(claimCase.files || []).filter(f => f.name !== 'گزارش کارشناس دادگستری'),
+        {
+          id: `croqui-doc-${Date.now()}`,
+          name: detailCroquiType === 'judicial' ? 'گزارش کارشناس دادگستری' : 'مدرک کروکی',
+          dataUrl: detailCroquiFile.dataUrl,
+          type: detailCroquiFile.type === 'image' ? 'image' : 'pdf'
+        }
+      ] : claimCase.files,
       futurePoliceExpected: false,
       history: [
         ...(claimCase.history || []),
@@ -146,7 +197,9 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           status: updatedStatus,
           time: new Date().toLocaleString('fa-IR'),
           user: session.name || 'مشتری',
-          note: `ورود کد کروکی (${krokiInputCode.trim()}) توسط مشتری؛ پرونده از حالت ثبت موقت خارج و جهت ارزیابی به ${targetInsurer} ارجاع گردید.`
+          note: detailCroquiType === 'electronic'
+            ? `ورود شماره سریال کروکی الکترونیک راهور (${krokiInputCode.trim()}) توسط کاربر؛ پرونده از حالت ثبت موقت خارج و جهت ارزیابی به ${targetInsurer} ارجاع گردید.`
+            : `بارگذاری تصویر/PDF گزارش کارشناس دادگستری (${detailCroquiFile?.name || 'فایل مستندات'}) توسط کاربر؛ پرونده از حالت ثبت موقت خارج و جهت ارزیابی به ${targetInsurer} ارجاع گردید.`
         }
       ]
     };
@@ -157,7 +210,9 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
     onUpdateCase(dispatchedCase);
     setKrokiSuccessMsg(
-      `کد کروکی با موفقیت ثبت شد؛ هوش مصنوعی پرونده را بر اساس موقعیت حادثه به کارشناس خسارت «${assignedExpertName || 'کارشناس ارزیاب'}» در ${targetInsurer} محول کرد.`
+      detailCroquiType === 'electronic'
+        ? `کروکی الکترونیک راهور با موفقیت ثبت شد؛ هوش مصنوعی پرونده را بر اساس موقعیت حادثه به کارشناس خسارت «${assignedExpertName || 'کارشناس ارزیاب'}» در ${targetInsurer} محول کرد.`
+        : `گزارش کارشناس دادگستری با موفقیت بارگذاری و ثبت گردید؛ پرونده جهت بررسی و ارزیابی به ${targetInsurer} محول شد.`
     );
   };
 
@@ -1415,42 +1470,155 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                   پرونده در حالت «ثبت موقت - در انتظار افزودن کروکی» می‌باشد
                 </h3>
                 <p className="text-xs text-amber-900 leading-relaxed font-medium">
-                  این پرونده تا زمان صدور برگه کروکی توسط پلیس راهور به صورت موقت ذخیره شده است. پس از دریافت کد کروکی، می‌توانید آن را در کادر زیر وارد کنید تا پرونده جهت ارزیابی به بیمه‌گر مقصر ارجاع شود.
+                  این پرونده تا زمان دریافت کروکی پلیس یا گزارش کارشناس به صورت موقت ذخیره شده است. لطفاً نوع کروکی را انتخاب نموده و اطلاعات مورد نیاز را تکمیل نمایید تا پرونده جهت ارزیابی به بیمه‌گر مقصر ارجاع گردد.
                 </p>
               </div>
             </div>
 
             {krokiSuccessMsg ? (
               <div className="p-4 bg-emerald-100 border border-emerald-300 rounded-2xl text-emerald-900 text-xs font-bold flex items-center gap-2">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
                 <span>{krokiSuccessMsg}</span>
               </div>
             ) : (
-              <form onSubmit={handleAddKrokiCode} className="bg-white p-4 sm:p-5 rounded-2xl border border-amber-200 space-y-3">
-                <div>
-                  <label className="block text-xs font-extrabold text-slate-800 mb-1.5">
-                    کد کروکی پلیس راهور <span className="text-rose-500">*</span>
+              <form onSubmit={handleAddKrokiCode} className="bg-white p-4 sm:p-5 rounded-2xl border border-amber-200 space-y-4">
+                {/* Dropdown: نوع کروکی */}
+                <div className="bg-amber-50/60 p-3.5 rounded-xl border border-amber-200 space-y-1.5">
+                  <label htmlFor="detail-croqui-type-select" className="block text-xs font-black text-slate-800">
+                    نوع کروکی <span className="text-rose-600">*</span>
                   </label>
-                  <div className="purple-field-beam">
-                    <input
-                      type="text"
-                      value={krokiInputCode}
-                      onChange={(e) => setKrokiInputCode(e.target.value)}
-                      placeholder="مثال: KR-994821"
-                      className="w-full px-4 py-2.5 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 uppercase tracking-wider focus:outline-none"
-                      dir="ltr"
-                      required
-                    />
+                  <div className="relative">
+                    <select
+                      id="detail-croqui-type-select"
+                      value={detailCroquiType}
+                      onChange={(e) => {
+                        setDetailCroquiType(e.target.value as 'electronic' | 'judicial');
+                        setDetailCroquiError(null);
+                      }}
+                      className="w-full px-4 py-2.5 rounded-xl border-2 border-amber-300 text-xs font-black text-slate-900 bg-white shadow-2xs focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-200 transition-all cursor-pointer appearance-none pl-10"
+                    >
+                      <option value="electronic">کروکی الکترونیک راهور (سیستمی)</option>
+                      <option value="judicial">کروکی قضایی / گزارش کارشناس دادگستری (فیزیکی)</option>
+                    </select>
+                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-600">
+                      <ChevronDown className="w-4 h-4" />
+                    </div>
                   </div>
                 </div>
 
+                {/* Case 1: Electronic Kroki */}
+                {detailCroquiType === 'electronic' && (
+                  <div className="space-y-1.5 animate-in fade-in">
+                    <label className="block text-xs font-black text-slate-800">
+                      شماره سریال کروکی / کد پیگیری پیامک‌شده <span className="text-rose-600">*</span>
+                    </label>
+                    <div className="purple-field-beam">
+                      <input
+                        type="text"
+                        value={krokiInputCode}
+                        onChange={(e) => {
+                          setKrokiInputCode(e.target.value);
+                          if (e.target.value.trim()) setDetailCroquiError(null);
+                        }}
+                        placeholder="مثال: CRQ-1403-88492 یا کد پیگیری ۱۶ رقمی پیامک‌شده"
+                        className="w-full px-4 py-2.5 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 uppercase tracking-wider focus:outline-none"
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Case 2: Judicial / Physical Expert Report */}
+                {detailCroquiType === 'judicial' && (
+                  <div className="space-y-3 animate-in fade-in">
+                    {/* Mandatory File Upload */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                          <FileText className="w-4 h-4 text-purple-700" />
+                          بارگذاری تصویر/PDF گزارش کارشناس <span className="text-rose-600">*</span>
+                        </label>
+                        <span className="text-[10px] font-black bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md border border-rose-200">
+                          الزامی
+                        </span>
+                      </div>
+
+                      {detailCroquiFile ? (
+                        <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+                            <div>
+                              <span className="text-xs font-black text-emerald-950 block">
+                                {detailCroquiFile.name}
+                              </span>
+                              <span className="text-[10px] text-emerald-800 font-bold block">
+                                {detailCroquiFile.type === 'pdf' ? 'سند PDF' : 'تصویر گزارش'} ({detailCroquiFile.size || 'آماده ارسال'})
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setDetailCroquiFile(null)}
+                            className="p-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition-colors cursor-pointer"
+                            title="حذف فایل"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="border-2 border-dashed border-amber-300 bg-amber-50/30 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-purple-600 hover:bg-purple-50/50 transition-all text-center">
+                          <div className="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center">
+                            <Upload className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-black text-purple-950 block">
+                              برای بارگذاری تصویر یا فایل PDF گزارش کارشناس کلیک کنید
+                            </span>
+                            <span className="text-[11px] text-slate-500 font-bold block mt-0.5">
+                              فرمت‌های مجاز: JPG, PNG, PDF (حداکثر ۲۰ مگابایت)
+                            </span>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*,application/pdf"
+                            className="hidden"
+                            onChange={handleDetailCroquiFileUpload}
+                          />
+                        </label>
+                      )}
+                    </div>
+
+                    {/* Optional Case/Archive Code */}
+                    <div>
+                      <label className="block text-xs font-black text-slate-800 mb-1">
+                        شماره بایگانی / کلاسه پرونده قضایی <span className="text-slate-500 font-bold text-[11px]">(اختیاری)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={krokiInputCode}
+                        onChange={(e) => setKrokiInputCode(e.target.value)}
+                        placeholder="در صورت درج در گزارش کارشناس، وارد نمایید..."
+                        className="w-full px-4 py-2.5 rounded-xl border-2 border-slate-200 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 focus:border-purple-700 focus:outline-none transition-all"
+                        dir="ltr"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Validation error display */}
+                {detailCroquiError && (
+                  <p className="text-xs font-bold text-rose-600 flex items-center gap-1.5 p-2 bg-rose-50 border border-rose-200 rounded-xl animate-in fade-in">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    {detailCroquiError}
+                  </p>
+                )}
+
                 <button
                   type="submit"
-                  disabled={!krokiInputCode.trim()}
-                  className="w-full py-3 bg-purple-700 hover:bg-purple-600 disabled:opacity-50 text-white font-extrabold rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                  className="w-full py-3 bg-purple-700 hover:bg-purple-600 text-white font-extrabold rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                 >
                   <CheckCircle2 className="w-4 h-4" />
-                  ثبت کد کروکی و ارجاع پرونده به شرکت بیمه مقصر (بیمه دانا)
+                  ثبت کروکی و ارجاع پرونده به شرکت بیمه مقصر ({getInsurerPersianName(claimCase.culpritInsurer)})
                 </button>
               </form>
             )}

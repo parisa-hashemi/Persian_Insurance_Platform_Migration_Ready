@@ -141,6 +141,7 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
   );
 
   const rejectedCases = companyCases.filter((c) =>
+    c.status === 'رد شده از بازبین' ||
     c.status === 'نیازمند اصلاح توسط کارشناس' ||
     c.status === 'عودت داده شده به کارشناس' ||
     c.reviewerReturnReason ||
@@ -167,6 +168,8 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
       if (!isApproved) return false;
     } else if (filterTab === 'rejected') {
       const isRejected =
+        c.status === 'رد شده از بازبین' ||
+        c.status === 'نیازمند اصلاح کارشناس' ||
         c.status === 'نیازمند اصلاح توسط کارشناس' ||
         c.status === 'عودت داده شده به کارشناس' ||
         c.status === 'در حال ارزیابی' ||
@@ -257,6 +260,8 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
   );
   const isCaseReturned = !!activeCase && (
     !isCaseApproved && (
+      activeCase.status === 'رد شده از بازبین' ||
+      activeCase.status === 'نیازمند اصلاح کارشناس' ||
       activeCase.status === 'نیازمند اصلاح توسط کارشناس' ||
       activeCase.status === 'عودت داده شده به کارشناس' ||
       activeCase.status === 'در حال ارزیابی' ||
@@ -332,9 +337,14 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
 
     const updatedCase: ClaimCase = {
       ...activeCase,
-      status: 'در حال ارزیابی',
+      status: 'رد شده از بازبین',
       approvedByReviewer: false,
       reviewerReturnReason: reasonText,
+      reviewerReturn: {
+        reason: reasonText,
+        returnedBy: reviewerName,
+        returnedAt: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
+      },
       assessment: activeCase.assessment
         ? {
             ...activeCase.assessment,
@@ -349,17 +359,17 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
           from: 'system',
           senderParty: 'SYSTEM',
           by: reviewerName,
-          text: `هشدار بازبین به کارشناس خسارت: پرونده جهت اصلاح ارجاع داده شد. علت: ${reasonText}`,
+          text: `هشدار بازبین به کارشناس خسارت: پرونده رد شده و جهت اصلاح ارجاع داده شد. علت: ${reasonText}`,
           at: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
         }
       ],
       history: [
         ...(activeCase.history || []),
         {
-          status: 'در حال ارزیابی (عودت به کارشناس)',
+          status: 'رد شده از بازبین',
           time: new Date().toLocaleString('fa-IR'),
           user: reviewerName,
-          note: `عودت پرونده به کارشناس خسارت توسط بازبین (${reviewerName}). دلیل عدم تایید: ${reasonText}`
+          note: `عدم تایید ارزیابی و عودت به کارشناس خسارت توسط بازبین (${reviewerName}). دلیل عدم تایید: ${reasonText}`
         }
       ]
     };

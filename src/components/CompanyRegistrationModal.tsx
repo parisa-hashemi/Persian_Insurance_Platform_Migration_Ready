@@ -21,11 +21,21 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
   const [economicCode, setEconomicCode] = useState('');
   const [registrationNumber, setRegistrationNumber] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
+  const [sanhabCode, setSanhabCode] = useState('');
+  const [insuranceLines, setInsuranceLines] = useState<string[]>(['بیمه شخص ثالث خودرو', 'بیمه بدنه خودرو']);
   const [province, setProvince] = useState('تهران');
   const [city, setCity] = useState('تهران');
   const [address, setAddress] = useState('');
   const [companyPhone, setCompanyPhone] = useState('');
   const [companyEmail, setCompanyEmail] = useState('');
+
+  const toggleInsuranceLine = (line: string) => {
+    if (insuranceLines.includes(line)) {
+      setInsuranceLines(insuranceLines.filter((item) => item !== line));
+    } else {
+      setInsuranceLines([...insuranceLines, line]);
+    }
+  };
 
   // Step 2: Senior Admin Info
   const [adminName, setAdminName] = useState('');
@@ -77,8 +87,12 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
   const handleNextStep1 = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
-    if (!companyName.trim() || !economicCode.trim() || !registrationNumber.trim() || !companyPhone.trim()) {
-      setErrorMsg('لطفاً فیلدهای الزامی مشخصات شرکت (نام، شناسه اقتصادی، شماره ثبت و تلفن) را تکمیل نمایید.');
+    if (!companyName.trim() || !economicCode.trim() || !registrationNumber.trim() || !companyPhone.trim() || !sanhabCode.trim()) {
+      setErrorMsg('لطفاً فیلدهای الزامی مشخصات شرکت (نام، شناسه اقتصادی، شماره ثبت، تلفن و کد اختصاصی سنهاب) را تکمیل نمایید.');
+      return;
+    }
+    if (insuranceLines.length === 0) {
+      setErrorMsg('لطفاً حداقل یک رشته بیمه‌ای مجاز (بیمه شخص ثالث یا بیمه بدنه خودرو) را انتخاب فرمایید.');
       return;
     }
     // Auto-generate code if empty
@@ -118,6 +132,8 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
         economicCode: economicCode.trim(),
         registrationNumber: registrationNumber.trim(),
         licenseNumber: licenseNumber.trim() || `LIC-${registrationNumber}-1403`,
+        sanhabCode: sanhabCode.trim(),
+        insuranceLines: insuranceLines,
         province,
         city,
         address: address.trim() || 'دفتر مرکزی شرکت',
@@ -254,6 +270,14 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                   <span>شماره تماس سازمانی:</span>
                   <span className="text-slate-900 font-mono font-bold">{adminPhone}</span>
                 </div>
+                <div className="flex justify-between text-slate-600 font-medium">
+                  <span>کد شرکت در سنهاب:</span>
+                  <span className="text-blue-900 font-mono font-black bg-blue-50 px-2 py-0.5 rounded border border-blue-200">{sanhabCode}</span>
+                </div>
+                <div className="flex justify-between text-slate-600 font-medium">
+                  <span>رشته‌های بیمه‌ای مجاز:</span>
+                  <span className="text-slate-900 font-bold">{insuranceLines.join(' • ')}</span>
+                </div>
                 <div className="flex justify-between text-slate-600 pt-2 border-t border-slate-200 font-medium">
                   <span>وضعیت فعلی:</span>
                   <span className="text-amber-800 font-bold flex items-center gap-1">
@@ -305,7 +329,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1">
                     شناسه ملی / کد اقتصادی <span className="text-rose-600">*</span>
@@ -316,7 +340,7 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={economicCode}
                     onChange={(e) => setEconomicCode(e.target.value)}
                     placeholder="مثال: 411492019482"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
                   />
                 </div>
                 <div>
@@ -329,7 +353,21 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={registrationNumber}
                     onChange={(e) => setRegistrationNumber(e.target.value)}
                     placeholder="مثال: 44819"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">
+                    کد اختصاصی در سنهاب <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={4}
+                    value={sanhabCode}
+                    onChange={(e) => setSanhabCode(e.target.value.replace(/[^0-9]/g, ''))}
+                    placeholder="مثال: 26 یا 4 یا 1"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-black focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
                   />
                 </div>
                 <div>
@@ -341,8 +379,74 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     value={licenseNumber}
                     onChange={(e) => setLicenseNumber(e.target.value)}
                     placeholder="مثال: LIC-1392-SRM"
-                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
+                    className="w-full bg-white border-2 border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
                   />
+                </div>
+              </div>
+
+              {/* یادداشت راهنمای سنهاب */}
+              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-start gap-2.5 text-[11px] text-slate-600 font-medium">
+                <ShieldCheck className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="leading-relaxed">
+                  <span className="font-black text-blue-900">کد اختصاصی شرکت بیمه در سنهاب (کد شرکت): </span>
+                  بیمه مرکزی به هر شرکت بیمه یک کد اختصاصی یک تا دو رقمی می‌دهد (مثلاً بیمه ایران ۱، بیمه آسیا ۲، بیمه دانا ۴، بیمه سرمد ۲۶، بیمه کوثر ۲۴، بیمه ما ۲۳ و...). ثبت این کد جهت اتصال وب‌سرویس‌های استعلام و ثبت خسارت سنهاب اجباری است.
+                </div>
+              </div>
+
+              {/* انتخاب رشته‌های بیمه‌ای مجاز */}
+              <div className="pt-2 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-slate-900">
+                    انتخاب رشته‌های بیمه‌ای مجاز جهت فعالیت در پلتفرم <span className="text-rose-600">*</span>
+                  </label>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    (حداقل یک مورد باید انتخاب شود)
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div
+                    onClick={() => toggleInsuranceLine('بیمه شخص ثالث خودرو')}
+                    className={`p-3.5 rounded-2xl border-2 cursor-pointer transition select-none flex items-start gap-3 ${
+                      insuranceLines.includes('بیمه شخص ثالث خودرو')
+                        ? 'bg-blue-50/80 border-blue-500 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={insuranceLines.includes('بیمه شخص ثالث خودرو')}
+                      onChange={() => {}}
+                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer pointer-events-none"
+                    />
+                    <div>
+                      <div className="text-xs font-black text-slate-900">بیمه شخص ثالث خودرو</div>
+                      <div className="text-[11px] text-slate-500 leading-relaxed mt-0.5 font-medium">
+                        ارزیابی و پرداخت آنلاین خسارت مالی وارده به شخص ثالث زیان‌دیده (با کروکی و بدون کروکی)
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => toggleInsuranceLine('بیمه بدنه خودرو')}
+                    className={`p-3.5 rounded-2xl border-2 cursor-pointer transition select-none flex items-start gap-3 ${
+                      insuranceLines.includes('بیمه بدنه خودرو')
+                        ? 'bg-blue-50/80 border-blue-500 shadow-xs'
+                        : 'bg-white border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={insuranceLines.includes('بیمه بدنه خودرو')}
+                      onChange={() => {}}
+                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer pointer-events-none"
+                    />
+                    <div>
+                      <div className="text-xs font-black text-slate-900">بیمه بدنه خودرو</div>
+                      <div className="text-[11px] text-slate-500 leading-relaxed mt-0.5 font-medium">
+                        تشکیل پرونده، کارشناسی آنلاین و پرداخت خسارت بدنه خودروی بیمه‌گذار (با اعمال فرانشیز و استهلاک)
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -467,9 +571,13 @@ export const CompanyRegistrationModal: React.FC<CompanyRegistrationModalProps> =
                     placeholder="09121112233"
                     className="w-full bg-white border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-blue-500 font-mono text-left placeholder-slate-400"
                   />
-                  <span className="text-[11px] text-slate-500 mt-1 block font-medium">
-                    کد فعال‌سازی و رمز یکبار مصرف به این شماره ارسال خواهد شد.
-                  </span>
+                  <div className="mt-2 p-2.5 bg-amber-50 border border-amber-300/80 rounded-xl flex items-start gap-2 text-[11px] text-amber-950 font-medium">
+                    <AlertCircle className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                    <div className="leading-relaxed">
+                      <span className="font-black text-amber-900">تطابق کد ملی و شماره همراه (الزام سامانه شاهکار): </span>
+                      شماره همراه باید حتماً به نام شخص مدیر ارشد (صاحب کد ملی ثبت شده در این فرم) باشد؛ زیرا در فرآیند احراز هویت و تطابق هویت در سامانه شاهکار به این شماره پیامک اعتبارسنجی ارسال خواهد شد و در صورت عدم تطابق با خطا مواجه خواهید شد.
+                    </div>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-800 mb-1">

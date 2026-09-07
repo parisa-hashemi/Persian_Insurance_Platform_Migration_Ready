@@ -333,7 +333,7 @@ export const CrmComplaintManager: React.FC<CrmComplaintManagerProps> = ({
 نام شعبه: ${branch.name}
 آدرس: ${branch.address}
 تلفن شعبه: ${branch.phone}
-⏰ زمان مراجعه: ${referralDate}
+زمان مراجعه: ${referralDate}
 
 مدارک الزامی همراه داشتن:
 ${referralRequiredDocs.map(d => `• ${d}`).join('\n')}
