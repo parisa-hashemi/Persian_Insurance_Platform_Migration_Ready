@@ -481,6 +481,41 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const [salvageInput, setSalvageInput] = useState('0');
   const [noteInput, setNoteInput] = useState('خسارت شامل رنگ‌آمیزی سپر جلو و صافکاری جزئی درب چپ جلو است.');
 
+  // محاسبات مالی تفکیکی قطعات، اجرت و ارزش داغی
+  // ۱. جمع ناخالص کل خسارت (قیمت قطعات نو تعویضی + کلیه اجرت‌های تعمیر و تعویض)
+  const computePartsGross = (items: PartItem[] = parts) => {
+    return items.reduce((sum, p) => {
+      const partCost = p.type === 'replace' ? parseMoneyNumber(p.partPrice) : 0;
+      const repairCost = parseMoneyNumber(p.repairPrice);
+      return sum + partCost + repairCost;
+    }, 0);
+  };
+
+  // ۲. جمع ارزش داغی قطعات تعویضی مستهلک
+  const computePartsSalvage = (items: PartItem[] = parts) => {
+    return items.reduce((sum, p) => {
+      if (p.type === 'replace' && p.salvageNeeded) {
+        return sum + parseMoneyNumber(p.salvageValue);
+      }
+      return sum;
+    }, 0);
+  };
+
+  // ۳. مبلغ خالص کارشناسی پس از کسر ارزش داغی
+  const computePartsNet = (items: PartItem[] = parts) => {
+    return Math.max(0, computePartsGross(items) - computePartsSalvage(items));
+  };
+
+  // سازگاری با محاسبات قبلی (جمع ناخالص کل خسارت)
+  const computePartsTotal = (items: PartItem[] = parts) => computePartsGross(items);
+
+  // فهرست قطعاتی که ارزش داغی برای آنها ثبت شده است
+  const partsWithSalvage = useMemo(() => {
+    return parts.filter(
+      (p) => p.type === 'replace' && p.salvageNeeded && parseMoneyNumber(p.salvageValue) > 0
+    );
+  }, [parts]);
+
   // Car Damage Spots State (for 2D Blueprint / 3D model)
   const [carDamageSpotsState, setCarDamageSpotsState] = useState<Record<string, CarDamageSpot>>({
     front_bumper: {
@@ -681,10 +716,13 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
   const handleCopyPrevAssessmentToCurrent = (prevItem: any) => {
     if (prevItem.parts && prevItem.parts.length > 0) {
-      setParts(JSON.parse(JSON.stringify(prevItem.parts)));
-      setGrossInput(String(prevItem.gross || 0));
+      const clonedParts = JSON.parse(JSON.stringify(prevItem.parts));
+      setParts(clonedParts);
+      const computedGross = computePartsGross(clonedParts);
+      const computedSalvage = computePartsSalvage(clonedParts);
+      setGrossInput(String(prevItem.gross || computedGross || 0));
       setDeductionsInput(String(prevItem.deductions || 0));
-      setSalvageInput(String(prevItem.salvage || 0));
+      setSalvageInput(String(prevItem.salvage !== undefined && prevItem.salvage !== null && Number(prevItem.salvage) > 0 ? prevItem.salvage : (computedSalvage || 0)));
       if (prevItem.reviewerNote) {
         setNoteInput(`[بر مبنای بازبینی ارزیابی کارشناس قبل (${prevItem.expertName})]: ` + prevItem.reviewerNote);
       }
@@ -783,20 +821,44 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   React.useEffect(() => {
     if (activeCase) {
       setAiDecisionsState(activeCase.aiDecisions && activeCase.aiDecisions.length > 0 ? activeCase.aiDecisions : defaultAiFindings);
+      
+      const loadedParts = (activeCase.assessment?.parts && activeCase.assessment.parts.length > 0)
+        ? activeCase.assessment.parts
+        : parts;
+
       if (activeCase.assessment?.parts && activeCase.assessment.parts.length > 0) {
         setParts(activeCase.assessment.parts);
       }
+
+      const calculatedGross = computePartsGross(loadedParts);
+      const calculatedSalvage = computePartsSalvage(loadedParts);
+
       if (activeCase.assessment?.gross) {
         setGrossInput(String(activeCase.assessment.gross));
+      } else if (calculatedGross > 0) {
+        setGrossInput(String(calculatedGross));
+      } else {
+        setGrossInput('0');
       }
+
       if (activeCase.assessment?.deductions) {
         setDeductionsInput(String(activeCase.assessment.deductions));
+      } else {
+        setDeductionsInput('0');
       }
-      if (activeCase.assessment?.salvage) {
+
+      if (activeCase.assessment?.salvage !== undefined && activeCase.assessment.salvage !== null && Number(activeCase.assessment.salvage) > 0) {
         setSalvageInput(String(activeCase.assessment.salvage));
+      } else if (calculatedSalvage > 0) {
+        setSalvageInput(String(calculatedSalvage));
+      } else {
+        setSalvageInput('0');
       }
+
       if (activeCase.assessment?.reviewerNote) {
         setNoteInput(activeCase.assessment.reviewerNote);
+      } else {
+        setNoteInput('خسارت بر اساس ارزیابی کارشناس و قطعات انتخابی تنظیم گردید.');
       }
       if (activeCase.carDamageSpots && Object.keys(activeCase.carDamageSpots).length > 0) {
         setCarDamageSpotsState(activeCase.carDamageSpots);
@@ -960,14 +1022,25 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     if (isCaseRejected(activeCase)) return;
     setParts((prev) => [
       ...prev,
-      { name: 'گلگیر جلو راست', type: 'replace', partPrice: 0, repairPrice: 0, salvageNeeded: false, salvageValue: 0 }
+      { name: 'گلگیر جلو راست', type: 'replace', partPrice: 0, repairPrice: 0, salvageNeeded: true, salvageValue: 0 }
     ]);
-    showPartAddedToast('قطعه جدید به لیست ارزیابی افزوده شد — نام قطعه و نوع عملیات را در ردیف جدید ویرایش کنید.');
+    showPartAddedToast('قطعه جدید به لیست ارزیابی افزوده شد — نام قطعه، قیمت و ارزش داغی را در ردیف جدید تکمیل کنید.');
   };
 
   const handleRemovePart = (index: number) => {
     if (isCaseRejected(activeCase)) return;
-    setParts((prev) => prev.filter((_, i) => i !== index));
+    setParts((prev) => {
+      const nextParts = prev.filter((_, i) => i !== index);
+      const newGross = computePartsGross(nextParts);
+      const newSalvage = computePartsSalvage(nextParts);
+      if (newGross > 0) {
+        setGrossInput(String(newGross));
+      } else {
+        setGrossInput('0');
+      }
+      setSalvageInput(String(newSalvage));
+      return nextParts;
+    });
   };
 
   const handleUpdatePart = (index: number, field: keyof PartItem, val: any) => {
@@ -987,7 +1060,8 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
           copy[index] = {
             ...copy[index],
             type: 'replace',
-            repairPrice: 0
+            repairPrice: 0,
+            salvageNeeded: true
           };
         }
       } else if (field === 'salvageNeeded') {
@@ -999,20 +1073,17 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       } else {
         copy[index] = { ...copy[index], [field]: val };
       }
+
+      // همگام‌سازی خودکار مبلغ ناخالص و ارزش داغی با جدول قطعات
+      const newGross = computePartsGross(copy);
+      const newSalvage = computePartsSalvage(copy);
+      if (newGross > 0) {
+        setGrossInput(String(newGross));
+      }
+      setSalvageInput(String(newSalvage));
+
       return copy;
     });
-  };
-
-  const computePartsTotal = () => {
-    return parts.reduce((sum, p) => {
-      if (p.type === 'repair') {
-        return sum + parseMoneyNumber(p.repairPrice);
-      }
-      const partCost = parseMoneyNumber(p.partPrice);
-      const repairCost = parseMoneyNumber(p.repairPrice);
-      const salvage = p.salvageNeeded ? parseMoneyNumber(p.salvageValue) : 0;
-      return sum + Math.max(0, partCost + repairCost - salvage);
-    }, 0);
   };
 
   const handleApplyAiDraftParts = (draftParts: PartItem[], gross: number, salvage: number, technicalNote?: string) => {
@@ -1168,8 +1239,10 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       notifyApp('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و امکان ذخیره پیش‌نویس وجود ندارد.');
       return;
     }
-    const gross = parseMoneyNumber(grossInput) || computePartsTotal();
-    const salvage = parseMoneyNumber(salvageInput);
+    const calculatedGross = computePartsGross();
+    const calculatedSalvage = computePartsSalvage();
+    const gross = parseMoneyNumber(grossInput) > 0 ? parseMoneyNumber(grossInput) : calculatedGross;
+    const salvage = parseMoneyNumber(salvageInput) > 0 ? parseMoneyNumber(salvageInput) : calculatedSalvage;
     const deductions = activeCase.assessment?.deductions || 0;
     const payable = Math.max(0, gross - salvage - deductions);
 
@@ -1211,9 +1284,10 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       return;
     }
 
-    const partsTotal = computePartsTotal();
-    const gross = parseMoneyNumber(grossInput) || partsTotal;
-    const salvage = parseMoneyNumber(salvageInput);
+    const calculatedGross = computePartsGross();
+    const calculatedSalvage = computePartsSalvage();
+    const gross = parseMoneyNumber(grossInput) > 0 ? parseMoneyNumber(grossInput) : calculatedGross;
+    const salvage = parseMoneyNumber(salvageInput) > 0 ? parseMoneyNumber(salvageInput) : calculatedSalvage;
     const deductions = activeCase.assessment?.deductions || 0;
     const payable = Math.max(0, gross - salvage - deductions);
 
@@ -2507,6 +2581,16 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     type="button"
                     onClick={() => {
                       if (!isCasePendingCroquiDraft(activeCase)) {
+                        const curGross = parseMoneyNumber(grossInput);
+                        const curSalvage = parseMoneyNumber(salvageInput);
+                        const calcGross = computePartsGross();
+                        const calcSalvage = computePartsSalvage();
+                        if (curGross === 0 && calcGross > 0) {
+                          setGrossInput(String(calcGross));
+                        }
+                        if (curSalvage === 0 && calcSalvage > 0) {
+                          setSalvageInput(String(calcSalvage));
+                        }
                         setActiveTab('money');
                       }
                     }}
@@ -3698,17 +3782,39 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       ))}
                     </div>
 
-                    {/* Parts Total Sum */}
-                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs flex-wrap gap-2">
-                      <div className="space-y-0.5">
-                        <span className="font-extrabold text-emerald-950 block">جمع کل قطعات و اجرت:</span>
-                        <span className="text-[11px] text-emerald-800 font-bold">
-                          {rialToPersianToman(computePartsTotal())}
-                        </span>
+                    {/* Parts Total Sum & Salvage Breakdown */}
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                          <span className="text-slate-500 block text-[11px] font-bold">جمع ناخالص (قطعات نو + اجرت‌ها):</span>
+                          <span className="font-black text-slate-900 text-sm font-mono block mt-1">
+                            {formatCurrency(computePartsGross())}
+                          </span>
+                          <span className="text-[10px] text-slate-600 font-semibold block mt-0.5">
+                            {rialToPersianToman(computePartsGross())}
+                          </span>
+                        </div>
+
+                        <div className="p-3 bg-amber-50/70 rounded-xl border border-amber-200 shadow-2xs">
+                          <span className="text-amber-900 block text-[11px] font-bold">ارزش کل داغی قطعات (کسر می‌شود):</span>
+                          <span className="font-black text-amber-700 text-sm font-mono block mt-1">
+                            {computePartsSalvage() > 0 ? `-${formatCurrency(computePartsSalvage())}` : '۰ ریال'}
+                          </span>
+                          <span className="text-[10px] text-amber-800 font-semibold block mt-0.5">
+                            {computePartsSalvage() > 0 ? rialToPersianToman(computePartsSalvage()) : 'بدون کسر داغی'}
+                          </span>
+                        </div>
+
+                        <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-300 shadow-2xs">
+                          <span className="text-emerald-950 block text-[11px] font-bold">مبلغ خالص قطعات پس از کسر داغی:</span>
+                          <span className="font-black text-emerald-700 text-sm font-mono block mt-1">
+                            {formatCurrency(computePartsNet())}
+                          </span>
+                          <span className="text-[10px] text-emerald-800 font-bold block mt-0.5">
+                            {rialToPersianToman(computePartsNet())}
+                          </span>
+                        </div>
                       </div>
-                      <span className="font-black text-emerald-800 text-sm font-mono">
-                        {formatCurrency(computePartsTotal())}
-                      </span>
                     </div>
                   </div>
 
@@ -3716,13 +3822,15 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        const total = computePartsTotal();
-                        if (total > 0) {
-                          setGrossInput(String(total));
+                        const gross = computePartsGross();
+                        const salvage = computePartsSalvage();
+                        if (gross > 0) {
+                          setGrossInput(String(gross));
                         }
+                        setSalvageInput(String(salvage));
                         setActiveTab('money');
                       }}
-                      className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-md flex items-center gap-1.5 transition-all"
+                      className="px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-md flex items-center gap-1.5 transition-all cursor-pointer"
                     >
                       <span>مرحله بعدی: برآورد نهایی و ثبت مالی</span>
                       <ArrowLeft className="w-4 h-4" />
@@ -3756,9 +3864,28 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                         <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                         ثبت برآورد خسارت کارشناس و ارسال به بازبین / بیمه‌گر
                       </h4>
-                      <span className="text-[11px] font-bold text-slate-600 bg-white/80 border border-slate-200 px-3 py-1 rounded-xl">
-                        محاسبه فرانشیز، استهلاک و کسورات برعهده واحد خسارت بیمه‌گر است
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {!isCaseRejected(activeCase) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const gross = computePartsGross();
+                              const salvage = computePartsSalvage();
+                              setGrossInput(String(gross));
+                              setSalvageInput(String(salvage));
+                              notifyApp('مبالغ ناخالص و ارزش داغی بر اساس جدول قطعات با موفقیت همگام‌سازی شدند.');
+                            }}
+                            className="text-[11px] bg-white text-purple-700 hover:bg-purple-50 font-black px-3 py-1.5 rounded-xl border border-purple-200 flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                            title="محاسبه و جایگذاری خودکار مبلغ ناخالص و داغی از جدول قطعات"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5 text-purple-600" />
+                            <span>همگام‌سازی مبالغ با جدول قطعات</span>
+                          </button>
+                        )}
+                        <span className="text-[11px] font-bold text-slate-600 bg-white/80 border border-slate-200 px-3 py-1 rounded-xl">
+                          محاسبه فرانشیز، استهلاک و کسورات برعهده واحد خسارت بیمه‌گر است
+                        </span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -3770,12 +3897,12 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                           {!isCaseRejected(activeCase) && (
                             <button
                               type="button"
-                              onClick={() => setGrossInput(String(computePartsTotal()))}
-                              className="text-[10px] text-purple-700 hover:text-purple-900 font-extrabold flex items-center gap-1 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200"
+                              onClick={() => setGrossInput(String(computePartsGross()))}
+                              className="text-[10px] text-purple-700 hover:text-purple-900 font-extrabold flex items-center gap-1 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 cursor-pointer"
                               title="دریافت خودکار از جمع اقلام قطعات و اجرت"
                             >
-                              <RefreshCw className="w-3 h-3" />
-                              بروزرسانی از جمع قطعات
+                              <RefreshCw className="w-3 h-3 text-purple-600" />
+                              بروزرسانی از جمع قطعات ({formatCurrency(computePartsGross())})
                             </button>
                           )}
                         </div>
@@ -3794,27 +3921,89 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-slate-700 font-bold mb-1">ارزش داغی قطعات مستهلک (ریال)</label>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="block text-slate-700 font-bold">ارزش داغی قطعات مستهلک (ریال)</label>
+                          {!isCaseRejected(activeCase) && (
+                            <button
+                              type="button"
+                              onClick={() => setSalvageInput(String(computePartsSalvage()))}
+                              className="text-[10px] text-amber-800 hover:text-amber-950 font-extrabold flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 cursor-pointer"
+                              title="دریافت خودکار از مجموع ارزش داغی قطعات تعویضی"
+                            >
+                              <RefreshCw className="w-3 h-3 text-amber-600" />
+                              بروزرسانی از جمع داغی ({formatCurrency(computePartsSalvage())})
+                            </button>
+                          )}
+                        </div>
                         <input
                           type="text"
                           disabled={isCaseRejected(activeCase)}
                           value={salvageInput}
                           onChange={(e) => setSalvageInput(e.target.value)}
-                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 font-mono font-bold focus:outline-none focus:border-emerald-500 disabled:bg-slate-100 disabled:text-slate-400"
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-500 disabled:bg-slate-100 disabled:text-slate-400"
                         />
                         {salvageInput && (
                           <p className="text-[10px] text-amber-700 font-bold mt-1 leading-tight">
                             {rialToPersianToman(salvageInput)}
                           </p>
                         )}
+                        {partsWithSalvage.length > 0 ? (
+                          <div className="mt-2 p-2 bg-amber-100/70 rounded-xl border border-amber-200 text-[11px] text-amber-900 leading-relaxed">
+                            <span className="font-black block mb-0.5">اقلام دارای داغی در جدول قطعات:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {partsWithSalvage.map((p, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 bg-white/90 px-2 py-0.5 rounded-md border border-amber-300 font-bold">
+                                  <span>{p.name}:</span>
+                                  <span className="font-mono text-amber-800">{formatCurrency(p.salvageValue)}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            (اگر قطعه‌ای تعویضی بوده و داغی دارد، در جدول قطعات گزینه «نیاز به داغی» را فعال و ارزش آن را ثبت فرمایید)
+                          </p>
+                        )}
                       </div>
                     </div>
 
-                    <div className="p-4 bg-white rounded-2xl border border-emerald-200 flex items-center justify-between text-xs flex-wrap gap-2 shadow-xs">
-                      <div className="space-y-0.5">
-                        <span className="font-bold text-slate-700 block">مبلغ برآورد خالص کارشناسی:</span>
-                        <span className="text-[11px] text-emerald-800 font-black">
-                          {rialToPersianToman(
+                    <div className="p-4 bg-white rounded-2xl border border-emerald-200 space-y-3 shadow-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs pb-3 border-b border-slate-100">
+                        <div>
+                          <span className="text-slate-500 block text-[11px] font-bold">مبلغ ناخالص کل برآورد:</span>
+                          <span className="font-black text-slate-800 font-mono text-sm block mt-0.5">
+                            {formatCurrency(parseMoneyNumber(grossInput))}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[11px] font-bold">کسر ارزش داغی قطعات:</span>
+                          <span className="font-black text-rose-600 font-mono text-sm block mt-0.5">
+                            {parseMoneyNumber(salvageInput) > 0 ? `-${formatCurrency(parseMoneyNumber(salvageInput))}` : '۰ ریال'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-emerald-700 block text-[11px] font-black">مبلغ خالص کارشناسی:</span>
+                          <span className="font-black text-emerald-800 font-mono text-sm block mt-0.5">
+                            {formatCurrency(Math.max(0, parseMoneyNumber(grossInput) - parseMoneyNumber(salvageInput)))}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs flex-wrap gap-2 pt-1">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-700 block text-xs">مبلغ برآورد خالص کارشناسی به حروف:</span>
+                          <span className="text-xs text-emerald-800 font-black">
+                            {rialToPersianToman(
+                              Math.max(
+                                0,
+                                parseMoneyNumber(grossInput) -
+                                  parseMoneyNumber(salvageInput)
+                              )
+                            )}
+                          </span>
+                        </div>
+                        <span className="font-black text-emerald-700 text-lg font-mono">
+                          {formatCurrency(
                             Math.max(
                               0,
                               parseMoneyNumber(grossInput) -
@@ -3823,15 +4012,6 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                           )}
                         </span>
                       </div>
-                      <span className="font-black text-emerald-700 text-base font-mono">
-                        {formatCurrency(
-                          Math.max(
-                            0,
-                            parseMoneyNumber(grossInput) -
-                              parseMoneyNumber(salvageInput)
-                          )
-                        )}
-                      </span>
                     </div>
 
                     <div>

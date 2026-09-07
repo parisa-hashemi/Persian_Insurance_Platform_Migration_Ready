@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { notifyApp, confirmApp } from '../../lib/appNotify';
-import { ArrowLeft, Clock, CheckCircle2, AlertCircle, Building2, FileText, CreditCard, AlertTriangle, Upload, Send, MessageSquare, Camera, Image as ImageIcon, Eye, Plus, Paperclip, UserCheck, FilePlus, Video, Trash2, Lock, Shield, ShieldCheck, Users, Filter, CheckSquare, Star, ShieldAlert, MapPin, X, Sparkles, Banknote, ExternalLink, FileCheck, Maximize2, Phone, Calendar, Car, FileSpreadsheet, DollarSign, Info, PhoneCall, MessageSquarePlus, Headphones, Scale, ChevronDown, ChevronUp, ChevronLeft, Layers, LifeBuoy, Copy, Check, Zap } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle2, AlertCircle, Building2, FileText, CreditCard, AlertTriangle, Upload, Send, MessageSquare, Camera, Image as ImageIcon, Eye, Plus, Paperclip, UserCheck, FilePlus, Video, Trash2, Lock, Shield, ShieldCheck, Users, Filter, CheckSquare, Star, ShieldAlert, MapPin, X, Sparkles, Banknote, ExternalLink, FileCheck, Maximize2, Phone, Calendar, Car, FileSpreadsheet, DollarSign, Info, PhoneCall, MessageSquarePlus, Headphones, Scale, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Layers, LifeBuoy, Copy, Check, Zap } from 'lucide-react';
 import { ClaimCase, UserSession, CaseStatus, AdditionalDocItem, ExpertComplaint, CustomerTicket, PaymentOrder } from '../../types';
 import { formatCurrency, parseMoneyNumber, getInsurerPersianName, loadComplaintsFromStorage, saveComplaintsToStorage, loadCrmTicketsFromStorage, saveCrmTicketsToStorage, loadPaymentOrdersFromStorage, savePaymentOrdersToStorage } from '../../lib/storage';
 import { compressImageFile } from '../../lib/imageCompressor';
@@ -79,6 +79,35 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   const [modalActiveTab, setModalActiveTab] = useState<'2d_model' | 'report_technical' | 'parts_table' | 'photos_gallery' | 'financial'>('2d_model');
   const [showCard2DModel, setShowCard2DModel] = useState(false);
   const [inlineFieldTab, setInlineFieldTab] = useState<'2d_model' | 'photos' | 'report' | 'parts' | 'branch_sms'>('2d_model');
+  const modalTabsContainerRef = useRef<HTMLDivElement>(null);
+  const [isDraggingModalTabs, setIsDraggingModalTabs] = useState(false);
+  const [modalTabsStartX, setModalTabsStartX] = useState(0);
+  const [modalTabsScrollLeft, setModalTabsScrollLeft] = useState(0);
+
+  const handleModalTabsMouseDown = (e: React.MouseEvent) => {
+    if (!modalTabsContainerRef.current) return;
+    setIsDraggingModalTabs(true);
+    setModalTabsStartX(e.pageX - modalTabsContainerRef.current.offsetLeft);
+    setModalTabsScrollLeft(modalTabsContainerRef.current.scrollLeft);
+  };
+
+  const handleModalTabsMouseMove = (e: React.MouseEvent) => {
+    if (!isDraggingModalTabs || !modalTabsContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - modalTabsContainerRef.current.offsetLeft;
+    const walk = (x - modalTabsStartX) * 1.5;
+    modalTabsContainerRef.current.scrollLeft = modalTabsScrollLeft - walk;
+  };
+
+  const handleModalTabsMouseUpOrLeave = () => {
+    setIsDraggingModalTabs(false);
+  };
+
+  const scrollModalTabs = (direction: 'left' | 'right') => {
+    if (!modalTabsContainerRef.current) return;
+    const amount = direction === 'left' ? -200 : 200;
+    modalTabsContainerRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+  };
 
   // Bank Info & Finance Forwarding Success Modal state
   const [bankSuccessModal, setBankSuccessModal] = useState<{
@@ -1627,8 +1656,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
         {/* Automatic Insurance Referral Banner (Shown when not in temporary kroki waiting state) */}
         {claimCase.status !== 'ثبت موقت - در انتظار افزودن کروکی' && (
-          <div className="green-rotating-border shadow-xs animate-in fade-in">
-            <div className="bg-slate-50 p-5 flex items-start gap-3.5">
+          <div className="rounded-2xl border border-emerald-200 bg-white shadow-xs animate-in fade-in overflow-hidden">
+            <div className="bg-emerald-50/40 p-5 flex items-start gap-3.5">
               <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0 shadow-xs font-bold">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
@@ -1652,24 +1681,22 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
         {/* Main Navigation Tabs */}
         <div className="flex items-center gap-2 p-1.5 bg-slate-100/90 border border-slate-200 rounded-2xl overflow-x-auto select-none shadow-2xs">
           {mainActiveTab === 'assessment' ? (
-            <div className="purple-tab-active shrink-0">
-              <button
-                type="button"
-                onClick={() => setMainActiveTab('assessment')}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-purple-950 bg-white shadow-xs cursor-pointer whitespace-nowrap"
-              >
-                <FileText className="w-4 h-4 text-purple-700" />
-                <span>برآورد و ارزیابی خسارت</span>
-                {hasAnyCompletedAssessment && (
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setMainActiveTab('assessment')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-sky-950 bg-white shadow-xs border border-sky-200 cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <FileText className="w-4 h-4 text-sky-700" />
+              <span>برآورد و ارزیابی خسارت</span>
+              {hasAnyCompletedAssessment && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              )}
+            </button>
           ) : (
             <button
               type="button"
               onClick={() => setMainActiveTab('assessment')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50 shrink-0"
             >
               <FileText className="w-4 h-4 text-slate-400" />
               <span>برآورد و ارزیابی خسارت</span>
@@ -1677,26 +1704,24 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           )}
 
           {mainActiveTab === 'chat' ? (
-            <div className="purple-tab-active shrink-0">
-              <button
-                type="button"
-                onClick={() => setMainActiveTab('chat')}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-purple-950 bg-white shadow-xs cursor-pointer whitespace-nowrap"
-              >
-                <MessageSquare className="w-4 h-4 text-purple-700" />
-                <span>ارتباط با کارشناس</span>
-                {unifiedChatMessages.length > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-purple-100 text-purple-900 border border-purple-200">
-                    {unifiedChatMessages.length}
-                  </span>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setMainActiveTab('chat')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-sky-950 bg-white shadow-xs border border-sky-200 cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <MessageSquare className="w-4 h-4 text-sky-700" />
+              <span>ارتباط با کارشناس</span>
+              {unifiedChatMessages.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-sky-100 text-sky-900 border border-sky-200">
+                  {unifiedChatMessages.length}
+                </span>
+              )}
+            </button>
           ) : (
             <button
               type="button"
               onClick={() => setMainActiveTab('chat')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50 shrink-0"
             >
               <MessageSquare className="w-4 h-4 text-slate-400" />
               <span>ارتباط با کارشناس</span>
@@ -1709,26 +1734,24 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           )}
 
           {mainActiveTab === 'support' ? (
-            <div className="purple-tab-active shrink-0">
-              <button
-                type="button"
-                onClick={() => setMainActiveTab('support')}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-purple-950 bg-white shadow-xs cursor-pointer whitespace-nowrap"
-              >
-                <Headphones className="w-4 h-4 text-purple-700" />
-                <span>پشتیبانی و تیکت‌های CRM</span>
-                {caseTicketsCount > 0 && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
-                    {caseTicketsCount}
-                  </span>
-                )}
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setMainActiveTab('support')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-sky-950 bg-white shadow-xs border border-sky-200 cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Headphones className="w-4 h-4 text-sky-700" />
+              <span>پشتیبانی و تیکت‌های CRM</span>
+              {caseTicketsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                  {caseTicketsCount}
+                </span>
+              )}
+            </button>
           ) : (
             <button
               type="button"
               onClick={() => setMainActiveTab('support')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50 shrink-0"
             >
               <Headphones className="w-4 h-4 text-slate-400" />
               <span>پشتیبانی و تیکت‌های CRM</span>
@@ -1741,21 +1764,19 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           )}
 
           {mainActiveTab === 'timeline' ? (
-            <div className="purple-tab-active shrink-0">
-              <button
-                type="button"
-                onClick={() => setMainActiveTab('timeline')}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-purple-950 bg-white shadow-xs cursor-pointer whitespace-nowrap"
-              >
-                <Clock className="w-4 h-4 text-purple-700" />
-                <span>روند و تاریخچه پرونده</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setMainActiveTab('timeline')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs text-sky-950 bg-white shadow-xs border border-sky-200 cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Clock className="w-4 h-4 text-sky-700" />
+              <span>روند و تاریخچه پرونده</span>
+            </button>
           ) : (
             <button
               type="button"
               onClick={() => setMainActiveTab('timeline')}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-white/50 shrink-0"
             >
               <Clock className="w-4 h-4 text-slate-400" />
               <span>روند و تاریخچه پرونده</span>
@@ -1777,13 +1798,13 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               </div>
             )}
 
-            {/* Insurance Policy & Financial Coverage Limits Card (With Rotating Purple Border Stream) */}
+            {/* Insurance Policy & Financial Coverage Limits Card */}
             {(() => {
               const calc = calculateClaimDamageWithPolicyLimits(claimCase);
               const policyLimit = calc.policyMaxFinancialLimit;
               return (
-                <div className="purple-rotating-border shadow-sm">
-                  <div className="bg-white text-slate-900 p-5 space-y-3">
+                <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
+                  <div className="text-slate-900 p-5 space-y-3">
                     <div
                       onClick={() => setIsPolicyExpanded(!isPolicyExpanded)}
                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none"
@@ -3431,8 +3452,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       {mainActiveTab === 'chat' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           
-          {/* Assigned Expert Info & Customer Complaint Box (With Rotating Blue Border) */}
-          <div className="blue-rotating-border shadow-sm">
+          {/* Assigned Expert Info & Customer Complaint Box */}
+          <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
             <div className="bg-gradient-to-br from-slate-50 via-white to-sky-50/40 p-5 sm:p-6 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-3">
@@ -4716,76 +4737,130 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               </button>
             </div>
 
-            {/* Modal Navigation Tabs */}
-            <div className="px-5 pt-3 bg-slate-50 border-b border-slate-200 flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {/* Modal Navigation Tabs with Interactive Smooth Scroll Controls */}
+            <div className="bg-slate-50 border-b border-slate-200 px-3 py-1.5 flex items-center gap-1.5 relative select-none">
+              {/* Scroll Right Button (moves view back toward first tabs in RTL) */}
               <button
                 type="button"
-                onClick={() => setModalActiveTab('2d_model')}
-                className={`pb-3 px-3.5 text-xs font-black transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
-                  modalActiveTab === '2d_model'
-                    ? 'border-sky-600 text-sky-700 bg-sky-50/60 rounded-t-xl'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
+                onClick={() => scrollModalTabs('right')}
+                className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 flex items-center justify-center shrink-0 shadow-2xs z-10 transition-colors cursor-pointer"
+                title="مشاهده گزینه‌های راست"
+                aria-label="مشاهده گزینه‌های راست"
               >
-                <Sparkles className="w-4 h-4 text-sky-600" />
-                <span>مدل ۲بعدی و ۳بعدی خودرو</span>
-                {selectedAssessmentModal.damageSpots && (
-                  <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-100 text-sky-900 font-mono font-bold">
-                    {Object.keys(selectedAssessmentModal.damageSpots).length}
-                  </span>
-                )}
+                <ChevronRight className="w-4 h-4 text-slate-600" />
               </button>
 
-              <button
-                type="button"
-                onClick={() => setModalActiveTab('report_technical')}
-                className={`pb-3 px-3.5 text-xs font-black transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
-                  modalActiveTab === 'report_technical'
-                    ? 'border-sky-600 text-sky-700 bg-sky-50/60 rounded-t-xl'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
+              {/* Scrollable Tabs List */}
+              <div
+                ref={modalTabsContainerRef}
+                onWheel={(e) => {
+                  if (e.deltaY !== 0 && modalTabsContainerRef.current) {
+                    modalTabsContainerRef.current.scrollLeft += e.deltaY;
+                  }
+                }}
+                onMouseDown={handleModalTabsMouseDown}
+                onMouseMove={handleModalTabsMouseMove}
+                onMouseUp={handleModalTabsMouseUpOrLeave}
+                onMouseLeave={handleModalTabsMouseUpOrLeave}
+                className={`flex-1 flex items-center gap-2 overflow-x-auto tabs-scrollbar py-2 px-1 scroll-smooth ${
+                  isDraggingModalTabs ? 'cursor-grabbing' : 'cursor-grab'
                 }`}
               >
-                <FileText className="w-4 h-4 text-slate-600" />
-                <span>گزارش تشریحی و اصالت‌سنجی</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    setModalActiveTab('2d_model');
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                  }}
+                  className={`pb-2.5 pt-2 px-3.5 text-xs font-black transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer shrink-0 rounded-t-xl ${
+                    modalActiveTab === '2d_model'
+                      ? 'border-sky-600 text-sky-700 bg-sky-50/80'
+                      : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4 text-sky-600" />
+                  <span>مدل ۲بعدی و ۳بعدی خودرو</span>
+                  {selectedAssessmentModal.damageSpots && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-sky-100 text-sky-900 font-mono font-bold">
+                      {Object.keys(selectedAssessmentModal.damageSpots).length}
+                    </span>
+                  )}
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setModalActiveTab('parts_table')}
-                className={`pb-3 px-3.5 text-xs font-black transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
-                  modalActiveTab === 'parts_table'
-                    ? 'border-sky-600 text-sky-700 bg-sky-50/60 rounded-t-xl'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <FileCheck className="w-4 h-4 text-slate-600" />
-                <span>ریز قطعات و اجرت تعویض ({selectedAssessmentModal.parts?.length || 0})</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    setModalActiveTab('report_technical');
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                  }}
+                  className={`pb-2.5 pt-2 px-3.5 text-xs font-black transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer shrink-0 rounded-t-xl ${
+                    modalActiveTab === 'report_technical'
+                      ? 'border-sky-600 text-sky-700 bg-sky-50/80'
+                      : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <FileText className="w-4 h-4 text-slate-600" />
+                  <span>گزارش تشریحی و اصالت‌سنجی</span>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setModalActiveTab('photos_gallery')}
-                className={`pb-3 px-3.5 text-xs font-black transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
-                  modalActiveTab === 'photos_gallery'
-                    ? 'border-sky-600 text-sky-700 bg-sky-50/60 rounded-t-xl'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Camera className="w-4 h-4 text-slate-600" />
-                <span>عکس‌های بازدید میدانی ({selectedAssessmentModal.photos?.length || 0})</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    setModalActiveTab('parts_table');
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                  }}
+                  className={`pb-2.5 pt-2 px-3.5 text-xs font-black transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer shrink-0 rounded-t-xl ${
+                    modalActiveTab === 'parts_table'
+                      ? 'border-sky-600 text-sky-700 bg-sky-50/80'
+                      : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <FileCheck className="w-4 h-4 text-slate-600" />
+                  <span>ریز قطعات و اجرت تعویض ({selectedAssessmentModal.parts?.length || 0})</span>
+                </button>
 
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    setModalActiveTab('photos_gallery');
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                  }}
+                  className={`pb-2.5 pt-2 px-3.5 text-xs font-black transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer shrink-0 rounded-t-xl ${
+                    modalActiveTab === 'photos_gallery'
+                      ? 'border-sky-600 text-sky-700 bg-sky-50/80'
+                      : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <Camera className="w-4 h-4 text-slate-600" />
+                  <span>عکس‌های بازدید میدانی ({selectedAssessmentModal.photos?.length || 0})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    setModalActiveTab('financial');
+                    e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                  }}
+                  className={`pb-2.5 pt-2 px-3.5 text-xs font-black transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer shrink-0 rounded-t-xl ${
+                    modalActiveTab === 'financial'
+                      ? 'border-sky-600 text-sky-700 bg-sky-50/80'
+                      : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <CreditCard className="w-4 h-4 text-slate-600" />
+                  <span>محاسبات و سهم بیمه‌نامه</span>
+                </button>
+              </div>
+
+              {/* Scroll Left Button (moves view toward hidden tabs on the left in RTL) */}
               <button
                 type="button"
-                onClick={() => setModalActiveTab('financial')}
-                className={`pb-3 px-3.5 text-xs font-black transition-all flex items-center gap-2 border-b-2 whitespace-nowrap cursor-pointer ${
-                  modalActiveTab === 'financial'
-                    ? 'border-sky-600 text-sky-700 bg-sky-50/60 rounded-t-xl'
-                    : 'border-transparent text-slate-600 hover:text-slate-900'
-                }`}
+                onClick={() => scrollModalTabs('left')}
+                className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 flex items-center justify-center shrink-0 shadow-2xs z-10 transition-colors cursor-pointer"
+                title="مشاهده گزینه‌های چپ (محاسبات و سهم بیمه‌نامه)"
+                aria-label="مشاهده گزینه‌های چپ"
               >
-                <CreditCard className="w-4 h-4 text-slate-600" />
-                <span>محاسبات و سهم بیمه‌نامه</span>
+                <ChevronLeft className="w-4 h-4 text-slate-600" />
               </button>
             </div>
 

@@ -19,7 +19,7 @@ import {
   saveAssessorNotifications,
   addCustomerNotification,
   getInsurerPersianName
-} from '../../lib/storage';
+} from '../storage';
 import { findBestMatchingBranch } from '../../data/bodyInsuranceData';
 
 export interface DispatchResult {
@@ -28,6 +28,15 @@ export interface DispatchResult {
   assignedRole: string;
   assignedBranch: string;
   rationale: string;
+  branch?: {
+    branchId: string;
+    branchName: string;
+    city: string;
+    region: string;
+    address: string;
+    phone: string;
+    operatingHours: string;
+  };
 }
 
 export function determineBranchByLocation(address: string = '', lat?: number | string, lng?: number | string): {
@@ -322,6 +331,9 @@ export function autoDispatchClaimWithAI(
         assignedExpert: undefined,
         assignedFieldExpert: undefined
       },
+      assignedExpertName: '—',
+      assignedRole: 'در انتظار کروکی',
+      assignedBranch: branchInfo.branchName,
       branch: branchInfo,
       rationale: 'پرونده در حالت ثبت موقت (در انتظار افزودن کروکی توسط متقاضی) است و تا زمان ورود کروکی به کارشناس ارجاع نمی‌شود.'
     };

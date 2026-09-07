@@ -71,30 +71,31 @@ p, li { text-wrap: pretty; }
   font-variant-numeric: tabular-nums;
 }
 
-/* ---------- Purple is retired: existing purple utilities become blue ---------- */
-.purple-rotating-border::before {
-  background: conic-gradient(from 0deg, transparent 0deg 240deg,
-    #bfdbfe 290deg, var(--krn-blue-electric) 325deg,
-    var(--krn-blue-primary) 350deg, var(--krn-blue-deep) 360deg) !important;
+/* ---------- Rotating colored bars and beams are completely removed ---------- */
+.purple-rotating-border::before,
+.blue-rotating-border::before,
+.purple-field-beam::before,
+.purple-tab-active::before,
+.green-rotating-border::before {
+  display: none !important;
+  animation: none !important;
+  content: none !important;
 }
-.purple-field-beam::before {
-  background: conic-gradient(from 0deg, transparent 0deg 200deg,
-    #dbeafe 250deg, #93c5fd 290deg, var(--krn-blue-primary) 330deg,
-    var(--krn-blue-deep) 360deg) !important;
+.purple-rotating-border,
+.blue-rotating-border,
+.green-rotating-border {
+  padding: 0 !important;
+  background: transparent !important;
 }
-.purple-tab-active::before {
-  background: conic-gradient(from 0deg, transparent 0deg 220deg,
-    #bfdbfe 270deg, var(--krn-blue-primary) 320deg, var(--krn-blue-deep) 360deg) !important;
+.purple-field-beam {
+  padding: 0 !important;
+  background: #ffffff !important;
 }
 .purple-input-glow:focus,
 .purple-input-glow:focus-within {
   border-color: var(--krn-blue-primary) !important;
   box-shadow: 0 0 0 3px rgba(37,99,235,.16) !important;
   background-color: var(--krn-white) !important;
-}
-.green-rotating-border::before {
-  background: conic-gradient(from 0deg, transparent 0deg 230deg,
-    #bbf7d0 275deg, var(--krn-success) 330deg, #14532d 360deg) !important;
 }
 
 /* ---------- MOTION TRAIL — امضای بصری کاراینشو ---------- */
