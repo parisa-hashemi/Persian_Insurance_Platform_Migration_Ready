@@ -24,6 +24,7 @@ import {
   CreditCard,
   Headphones,
   FileCheck,
+  Award,
   BadgeCheck
 } from 'lucide-react';
 import { RoleType, UserSession, InsurerInfo, StaffMember } from '../types';
@@ -35,6 +36,7 @@ import { KarinshoHero } from './KarinshoHero';
 import {
   INSURER_COMPANIES,
   INITIAL_EXPERTS,
+  INITIAL_SPECIALIST_EXPERTS,
   INITIAL_FIELD_EXPERTS,
   INITIAL_REVIEWERS,
   INITIAL_FINANCE_STAFF,
@@ -114,7 +116,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
   }, [onOpenCompanyRegistration]);
 
   // Organizational Role selected from Dropdown
-  const [orgRole, setOrgRole] = useState<RoleType>('insurer');
+  const [orgRole, setOrgRole] = useState<RoleType | 'specialist'>('insurer');
 
   // Form states for Insurer
   const [insurerCompany, setInsCompany] = useState('dana');
@@ -379,11 +381,12 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                   </label>
                   <select
                     value={orgRole}
-                    onChange={(e) => setOrgRole(e.target.value as RoleType)}
+                    onChange={(e) => setOrgRole(e.target.value as RoleType | 'specialist')}
                     className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 sm:py-2 bg-slate-50 border border-slate-300 rounded-lg sm:rounded-xl md:rounded-2xl text-xs md:text-sm font-bold text-blue-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer shadow-2xs"
                   >
                     <option value="insurer">شرکت بیمه‌گر (مدیریت پرونده‌ها و ارجاع خسارت)</option>
                     <option value="assessor">کارشناس ارزیابی خسارت (برآورد هوشمند و مدل ۳D)</option>
+                    <option value="specialist">کارشناس تخصصی خسارت (خسارت‌های مازاد بر ۱۰۰ میلیون تومان)</option>
                     <option value="fieldexpert">کارشناس میدانی (بازدید صحنه و ارزیابی حضوری)</option>
                     <option value="reviewer">بازبین کیفیت و ریسک (Audit & Reviewer)</option>
                     <option value="finance">مدیریت مالی و خزانه‌داری (دستور پرداخت، حواله پایا و اسناد)</option>
@@ -436,6 +439,32 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                     onLoginSuccess={onSelectPortal}
                     onRefreshData={refreshDynamicData}
                   />
+                )}
+
+                {/* 2.1 Specialist Expert (Claims >100M) with Company + Name + Phone + OTP */}
+                {orgRole === 'specialist' && (
+                  <div className="space-y-3">
+                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-xl text-xs text-purple-900 flex items-center gap-2">
+                      <Award className="w-5 h-5 text-purple-700 shrink-0" />
+                      <div>
+                        <strong className="block font-black">ورود کارشناسان ارشد و تخصصی</strong>
+                        <span>رسیدگی به پرونده‌های با ارزیابی بیش از ۱۰۰ میلیون تومان</span>
+                      </div>
+                    </div>
+                    <ExpertOtpLoginForm
+                      role="assessor"
+                      insurersList={insurersList}
+                      staffMap={INITIAL_SPECIALIST_EXPERTS}
+                      onLoginSuccess={(role, payload) =>
+                        onSelectPortal('assessor', {
+                          ...payload,
+                          roleTitle: payload?.roleTitle || 'کارشناس تخصصی و ارشد خسارت‌های سنگین',
+                          isSpecialist: true
+                        })
+                      }
+                      onRefreshData={refreshDynamicData}
+                    />
+                  </div>
                 )}
 
                 {/* 3. Field Expert with Company + Name + Phone + OTP */}

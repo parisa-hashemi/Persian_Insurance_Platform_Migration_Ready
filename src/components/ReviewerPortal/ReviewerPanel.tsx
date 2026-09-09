@@ -18,6 +18,7 @@ import {
   Send,
   Sparkles,
   FileCheck,
+  Award,
   AlertTriangle,
   ChevronDown,
   ChevronUp,
@@ -153,10 +154,12 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
     // 1. Status Filter Tab
     if (filterTab === 'pending') {
       const isPending =
-        c.status === 'در انتظار بررسی بازبین' ||
+        (c.status === 'در انتظار بررسی بازبین' ||
         c.status === 'در حال بازبینی' ||
         c.status === 'در انتظار ارزیابی بازبین' ||
-        (c.assessment?.status === 'SUBMITTED' && !c.approvedByReviewer);
+        (c.assessment?.status === 'SUBMITTED' && !c.approvedByReviewer)) &&
+        c.status !== 'در انتظار ارزیابی کارشناس تخصصی' &&
+        !(c.requiresSpecialistUnit && !c.specialistAssessment?.approved);
       if (!isPending) return false;
     } else if (filterTab === 'approved') {
       const isApproved =
@@ -734,10 +737,12 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                 const claimPolice = getStandardPoliceReport(claim);
                 const hasAss = !!claim.assessment;
                 const isPending =
-                  claim.status === 'در انتظار بررسی بازبین' ||
+                  (claim.status === 'در انتظار بررسی بازبین' ||
                   claim.status === 'در حال بازبینی' ||
                   claim.status === 'در انتظار ارزیابی بازبین' ||
-                  (claim.assessment?.status === 'SUBMITTED' && !claim.approvedByReviewer);
+                  (claim.assessment?.status === 'SUBMITTED' && !claim.approvedByReviewer)) &&
+                  claim.status !== 'در انتظار ارزیابی کارشناس تخصصی' &&
+                  !(claim.requiresSpecialistUnit && !claim.specialistAssessment?.approved);
 
                 return (
                   <div
@@ -747,23 +752,31 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
                   >
                     <div className="space-y-3">
                       {/* Card Header */}
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="font-mono font-black text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-900 border border-blue-200">
                           {claim.id}
                         </span>
-                        <span
-                          className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-                            claim.approvedByReviewer
-                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                              : claim.reviewerReturnReason
-                              ? 'bg-rose-50 text-rose-800 border-rose-200'
-                              : isPending
-                              ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
-                              : 'bg-slate-100 text-slate-700 border-slate-200'
-                          }`}
-                        >
-                          {claim.status}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {claim.specialistAssessment?.approved && (
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-100 text-purple-900 border border-purple-300 flex items-center gap-1">
+                              <Award className="w-3 h-3 text-purple-700" />
+                              <span>تایید کارشناس تخصصی</span>
+                            </span>
+                          )}
+                          <span
+                            className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
+                              claim.approvedByReviewer
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                : claim.reviewerReturnReason
+                                ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                : isPending
+                                ? 'bg-amber-50 text-amber-900 border-amber-300 animate-pulse'
+                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            {claim.status}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Cars & Parties */}
@@ -1912,6 +1925,34 @@ export const ReviewerPanel: React.FC<ReviewerPanelProps> = ({
 
               {activeCase.assessment ? (
                 <div className="space-y-5 text-xs">
+                  {/* Specialist Expert Assessment Report (If escalated >100M) */}
+                  {activeCase.specialistAssessment && (
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border-2 border-purple-200 text-purple-950 space-y-2.5 shadow-2xs">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2 font-black text-xs text-purple-950">
+                          <div className="w-7 h-7 rounded-lg bg-purple-600 text-white flex items-center justify-center">
+                            <Award className="w-4 h-4" />
+                          </div>
+                          <span>تاییدیه و گزارش کارشناس تخصصی (پرونده مازاد بر ۱۰۰ میلیون تومان)</span>
+                        </div>
+                        <span className="text-[10px] font-mono text-purple-700 bg-purple-100/80 px-2.5 py-0.5 rounded-full font-bold border border-purple-200">
+                          زمان ثبت: {activeCase.specialistAssessment.evaluatedAt}
+                        </span>
+                      </div>
+                      <div className="bg-white/90 p-3.5 rounded-xl border border-purple-100 space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px] flex-wrap gap-1">
+                          <span className="text-slate-600 font-bold">کارشناس تخصصی ارزیابی‌کننده:</span>
+                          <strong className="text-purple-900 font-black">
+                            {activeCase.specialistAssessment.specialistName} ({activeCase.specialistAssessment.specialistRole || 'کارشناس ارشد خسارت‌های سنگین'})
+                          </strong>
+                        </div>
+                        <p className="text-xs text-slate-800 font-medium leading-relaxed pt-1 border-t border-purple-50">
+                          «{activeCase.specialistAssessment.specialistNote}»
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Parts table */}
                   {activeCase.assessment.parts && activeCase.assessment.parts.length > 0 && (
                     <div className="space-y-2">

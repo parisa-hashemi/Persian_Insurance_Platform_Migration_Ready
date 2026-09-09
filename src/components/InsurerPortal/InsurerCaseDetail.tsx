@@ -18,6 +18,13 @@ import {
 } from '../../lib/storage';
 import { normalizeMediaUrl, isAudioMedia, isVideoMedia } from '../../lib/mediaUtils';
 import { autoDispatchClaimWithAI } from '../../lib/ai/aiDispatcher';
+import {
+  reassignToNextExpert,
+  assignNearestExpert,
+  checkSpecialistRequirement,
+  PRIMARY_EXPERT_CEILING_TOMAN,
+  SPECIALIST_UNIT_LABEL
+} from '../../lib/expertAssignment';
 import { calculateClaimDamageWithPolicyLimits, performPolicySanhabInquiry } from '../../lib/policyLimitCalculator';
 import { Car3DViewer } from '../Car3DViewer';
 
@@ -253,6 +260,15 @@ export const InsurerCaseDetail: React.FC<InsurerCaseDetailProps> = ({
   );
   const [assignmentFeedback, setAssignmentFeedback] = useState<string | null>(null);
   const [fieldAssignmentFeedback, setFieldAssignmentFeedback] = useState<string | null>(null);
+
+  // Dedicated Reassignment Modal State (Requirement 1.3: Reassignment upon rejection, unreachable, or change request)
+  const [showReassignModal, setShowReassignModal] = useState(false);
+  const [reassignReasonKey, setReassignReasonKey] = useState<'REJECTED' | 'UNREACHABLE' | 'CHANGE_REQUEST' | 'CEILING_EXCEEDED'>('REJECTED');
+  const [reassignCustomReason, setReassignCustomReason] = useState('');
+  const [reassignMethod, setReassignMethod] = useState<'AUTO_GPS' | 'MANUAL_SELECT'>('AUTO_GPS');
+  const [manualSelectedStaffId, setManualSelectedStaffId] = useState('');
+  const [reassignSupervisorNote, setReassignSupervisorNote] = useState('');
+  const [reassignSubmitting, setReassignSubmitting] = useState(false);
 
   useEffect(() => {
     if (
@@ -959,6 +975,107 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
     setTimeout(() => setAssignmentFeedback(null), 5000);
   };
 
+  const handleConfirmReassign = () => {
+    setReassignSubmitting(true);
+    const currentExp = claimCase.assignedFieldExpert || claimCase.assignedExpert;
+    const currentId = currentExp?.id;
+
+    const reasonMap = {
+      REJECTED: 'رد مأموریت توسط کارشناس',
+      UNREACHABLE: 'عدم دسترسی یا عدم پاسخگویی کارشناس در مهلت مقرر',
+      CHANGE_REQUEST: 'درخواست تغییر کارشناس توسط بیمه‌گذار یا واحد خسارت',
+      CEILING_EXCEEDED: 'سقف خسارت فراتر از اختیار کارشناس اولیه (ارجاع به کارشناس ارشد / واحد کارشناسی تخصصی)'
+    };
+
+    const chosenReasonTitle = reasonMap[reassignReasonKey];
+    const fullReason = reassignCustomReason.trim()
+      ? `${chosenReasonTitle} - توضیحات تکمیلی: ${reassignCustomReason.trim()}`
+      : chosenReasonTitle;
+
+    let targetExpert: StaffMember | null = null;
+    let assignmentMethodNote = '';
+
+    if (reassignMethod === 'MANUAL_SELECT' && manualSelectedStaffId) {
+      targetExpert = activeCompanyFieldExperts.find(e => e.id === manualSelectedStaffId) ||
+                     activeCompanyExperts.find(e => e.id === manualSelectedStaffId) || null;
+      if (targetExpert) {
+        assignmentMethodNote = `انتخاب مستقیم کارشناس جایگزین (${targetExpert.name}) توسط ناظر بیمه‌گر`;
+      }
+    } else {
+      // Auto GPS Method
+      const allStaff = [...activeCompanyFieldExperts, ...activeCompanyExperts];
+      const reassignDecision = reassignToNextExpert({
+        accidentLocation: claimCase.location || { lat: 35.6892, lng: 51.3890 },
+        experts: allStaff,
+        currentExpertId: currentId,
+        excludeIds: [
+          ...(claimCase.previousAssessorIds || []),
+          ...(claimCase.rejectedByAssessorIds || []),
+          ...(currentId ? [currentId] : [])
+        ],
+        estimatedDamageToman: claimCase.estimatedDamage ? Math.round(claimCase.estimatedDamage / 10) : 0,
+        reason: fullReason
+      });
+
+      if (reassignDecision.assigned) {
+        targetExpert = reassignDecision.assigned.expert;
+        assignmentMethodNote = reassignDecision.note;
+      } else {
+        // Fallback using autoDispatchClaimWithAI
+        const aiRes = autoDispatchClaimWithAI(claimCase, {
+          reason: `بازارجاع هوشمند به دلیل: ${fullReason}`,
+          excludeExpertIds: currentId ? [currentId] : []
+        });
+        targetExpert = aiRes.updatedCase.assignedFieldExpert || aiRes.updatedCase.assignedExpert || null;
+        assignmentMethodNote = `ارجاع خودکار توسط هوش مصنوعی بر مبنای GPS و تخصص (${targetExpert?.name || 'کارشناس جایگزین'})`;
+      }
+    }
+
+    if (!targetExpert) {
+      notifyApp('کارشناس جایگزین واجد شرایط در منطقه یافت نشد. لطفاً از بین کارشناسان فعال به صورت دستی انتخاب فرمایید.');
+      setReassignSubmitting(false);
+      return;
+    }
+
+    const nowFa = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+    const isTargetField = targetExpert.role?.includes('میدانی') || targetExpert.role?.includes('سیار');
+
+    const updatedCase: ClaimCase = {
+      ...claimCase,
+      assignedFieldExpert: isTargetField ? targetExpert : claimCase.assignedFieldExpert,
+      assignedExpert: !isTargetField ? targetExpert : claimCase.assignedExpert,
+      previousAssignedExpert: currentExp || undefined,
+      previousAssessorIds: [
+        ...(claimCase.previousAssessorIds || []),
+        ...(currentId ? [currentId] : [])
+      ],
+      reassignmentReason: fullReason,
+      assignedTimestamp: Date.now(),
+      assignedAt: new Date().toISOString(),
+      insurerInstruction: reassignSupervisorNote.trim() || claimCase.insurerInstruction || '',
+      status: isTargetField ? 'در انتظار بازدید کارشناس میدانی' : 'محول شده به کارشناس',
+      history: [
+        ...(claimCase.history || []),
+        {
+          status: isTargetField ? 'ارجاع مجدد به کارشناس میدانی' : 'ارجاع مجدد به کارشناس ارزیاب',
+          time: nowFa,
+          user: session.name || 'مدیر رسیدگی به خسارت',
+          userRole: 'ناظر و رییس خسارت شرکت بیمه',
+          note: `ارجاع مجدد پرونده از «${currentExp?.name || 'کارشناس قبلی'}» به «${targetExpert.name}». علت ارجاع مجدد: «${fullReason}». روش تخصیص: ${assignmentMethodNote}.${reassignSupervisorNote.trim() ? ` دستور بیمه‌گر: «${reassignSupervisorNote.trim()}»` : ''}`
+        }
+      ]
+    };
+
+    onUpdateCase(updatedCase);
+    setShowReassignModal(false);
+    setReassignSubmitting(false);
+    setReassignCustomReason('');
+    setReassignSupervisorNote('');
+    setManualSelectedStaffId('');
+    setAssignmentFeedback(`پرونده با موفقیت به کارشناس جدید «${targetExpert.name}» بازتخصیص گردید و پیامک هماهنگی ارسال شد.`);
+    setTimeout(() => setAssignmentFeedback(null), 6000);
+  };
+
   const handleStatusChange = (newStatus: any) => {
     const updated: ClaimCase = {
       ...claimCase,
@@ -1557,6 +1674,31 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
                           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                           <span>پیامک مشخصات پرونده و نشانی به کارشناس و مشتری ابلاغ گردید.</span>
                         </div>
+
+                        {/* Reassignment Audit Indicator if previously reassigned */}
+                        {claimCase.previousAssignedExpert && (
+                          <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-950 text-[11px] font-medium space-y-1">
+                            <div className="flex items-center gap-1.5 font-bold text-amber-900 text-[11px]">
+                              <RotateCcw className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                              <span>سابقه ارجاع مجدد پرونده:</span>
+                            </div>
+                            <p className="text-[10px] text-amber-900 leading-relaxed font-medium">
+                              این پرونده قبلاً به «{claimCase.previousAssignedExpert.name}» محول شده بود و بر مبنای «{claimCase.reassignmentReason || 'درخواست تغییر / ارجاع مجدد'}» بازتخصیص یافته است.
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Button: Trigger Reassign to another expert */}
+                        {!isPaidCase && (
+                          <button
+                            type="button"
+                            onClick={() => setShowReassignModal(true)}
+                            className="w-full py-2.5 px-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-900 rounded-xl text-xs font-black flex items-center justify-center gap-2 border border-blue-200 shadow-2xs transition-all active:scale-95 cursor-pointer"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5 text-blue-700" />
+                            <span>ارجاع مجدد پرونده به کارشناس دیگر</span>
+                          </button>
+                        )}
                       </div>
                     );
                   })()
@@ -3641,6 +3783,214 @@ ${noteText ? `دستور بیمه‌گر: ${noteText}` : ''}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reassignment Modal (Requirement 1.3: Reassignment upon rejection, unreachable, or change request) */}
+      {showReassignModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl space-y-4 border border-slate-200 text-slate-900 animate-in zoom-in-95 dir-rtl my-auto max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-900 flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5 text-blue-700" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm text-slate-900">ارجاع مجدد پرونده به کارشناس دیگر</h3>
+                  <p className="text-[10px] text-slate-500 font-bold">تخصیص مجدد پرونده طبق ضوابط نظارتی و موقعیت مکانی</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowReassignModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center font-bold text-xs transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Current Expert Info */}
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 block">کارشناس فعلی پرونده:</span>
+              <div className="flex items-center justify-between">
+                <span className="font-black text-slate-900">
+                  {claimCase.assignedFieldExpert?.name || claimCase.assignedExpert?.name || 'تعیین نشده'}
+                </span>
+                <span className="text-[10px] px-2 py-0.5 bg-slate-200 text-slate-700 rounded-md font-bold">
+                  {claimCase.assignedFieldExpert?.role || claimCase.assignedExpert?.role || 'ارزیاب خسارت'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 leading-normal pt-1">
+                * کارشناس فعلی به‌صورت خودکار از گزینه‌های تخصیص مجدد حذف خواهد شد تا پرونده به شخص دیگری ارجاع شود.
+              </p>
+            </div>
+
+            {/* Reassignment Reason Selector */}
+            <div className="space-y-2">
+              <label className="block text-xs font-black text-slate-800">
+                علت ارجاع مجدد پرونده: <span className="text-rose-600">*</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {[
+                  {
+                    key: 'REJECTED' as const,
+                    title: 'رد مأموریت توسط کارشناس',
+                    desc: 'عدم پذیرش به علت بعد مسافت یا ترافیک کاری'
+                  },
+                  {
+                    key: 'UNREACHABLE' as const,
+                    title: 'عدم دسترسی / پاسخگویی',
+                    desc: 'عدم پیگیری در بازه مجاز یا خارج از دسترس'
+                  },
+                  {
+                    key: 'CHANGE_REQUEST' as const,
+                    title: 'درخواست تغییر کارشناس',
+                    desc: 'درخواست بیمه‌گذار یا دستور مدیریت خسارت'
+                  },
+                  {
+                    key: 'CEILING_EXCEEDED' as const,
+                    title: 'سقف خسارت فراتر از اختیار',
+                    desc: 'خسارت بیش از ۱۰۰ میلیون و ارجاع به واحد تخصصی'
+                  }
+                ].map((item) => {
+                  const isSelected = reassignReasonKey === item.key;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setReassignReasonKey(item.key)}
+                      className={`p-3 rounded-2xl border text-right transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-blue-600 bg-blue-50/90 text-blue-950 shadow-2xs'
+                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-black text-xs">{item.title}</span>
+                        {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                      </div>
+                      <p className="text-[10px] text-slate-500 leading-normal font-medium">{item.desc}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom Explanation Note */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                توضیحات تکمیلی پیرامون علت ارجاع مجدد (اختیاری):
+              </label>
+              <input
+                type="text"
+                value={reassignCustomReason}
+                onChange={(e) => setReassignCustomReason(e.target.value)}
+                placeholder="مثلاً: هماهنگی تلفنی انجام شد و کارشناس اعلام تعذر نمود..."
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 font-medium focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            {/* Method Selection: GPS Auto vs Manual */}
+            <div className="space-y-2 pt-1 border-t border-slate-100">
+              <label className="block text-xs font-black text-slate-800">
+                شیوه تخصیص کارشناس جایگزین:
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setReassignMethod('AUTO_GPS')}
+                  className={`p-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    reassignMethod === 'AUTO_GPS'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>ارجاع هوشمند GPS</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReassignMethod('MANUAL_SELECT')}
+                  className={`p-2.5 rounded-xl border text-xs font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    reassignMethod === 'MANUAL_SELECT'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <UserCheck className="w-3.5 h-3.5" />
+                  <span>انتخاب از لیست کارشناسان</span>
+                </button>
+              </div>
+
+              {reassignMethod === 'AUTO_GPS' ? (
+                <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-2xl text-[11px] text-blue-950 space-y-1">
+                  <span className="font-black flex items-center gap-1">
+                    <MapPin className="w-3.5 h-3.5 text-blue-700" />
+                    <span>تخصیص نزدیک‌ترین کارشناس فعال در منطقه:</span>
+                  </span>
+                  <p className="text-[10px] text-blue-900 leading-relaxed font-medium">
+                    سیستم بر مبنای مختصات محل حادثه و با کسر بار کاری، نزدیک‌ترین کارشناس فعال و دارای صلاحیت را به صورت خودکار تخصیص داده و پیامک مأموریت ارسال خواهد شد.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700">
+                    انتخاب کارشناس جایگزین: <span className="text-rose-600">*</span>
+                  </label>
+                  <select
+                    value={manualSelectedStaffId}
+                    onChange={(e) => setManualSelectedStaffId(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">-- لطفاً یک کارشناس جایگزین را انتخاب کنید --</option>
+                    {[...activeCompanyFieldExperts, ...activeCompanyExperts]
+                      .filter(e => e.id !== (claimCase.assignedFieldExpert?.id || claimCase.assignedExpert?.id))
+                      .map((exp) => (
+                        <option key={exp.id} value={exp.id}>
+                          {exp.name} — {exp.role} ({exp.phone || 'تلفن ثبت‌شده'})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* Supervisory Instructions to New Expert */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                دستورالعمل و یادداشت نظارتی به کارشناس جدید (اختیاری):
+              </label>
+              <textarea
+                rows={2}
+                value={reassignSupervisorNote}
+                onChange={(e) => setReassignSupervisorNote(e.target.value)}
+                placeholder="مثلاً: پرونده به علت رد توسط ارزیاب قبلی به شما محول شده است؛ لطفاً در اسرع وقت اقدام فرمایید..."
+                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white text-slate-900 font-medium leading-relaxed focus:outline-none focus:border-blue-500"
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={handleConfirmReassign}
+                disabled={reassignSubmitting || (reassignMethod === 'MANUAL_SELECT' && !manualSelectedStaffId)}
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>{reassignSubmitting ? 'در حال بازتخصیص و صدور پیامک...' : 'تایید و ارجاع مجدد پرونده'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowReassignModal(false)}
+                disabled={reassignSubmitting}
+                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                انصراف
+              </button>
+            </div>
           </div>
         </div>
       )}

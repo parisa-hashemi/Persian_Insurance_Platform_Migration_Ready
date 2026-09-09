@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { notifyApp } from '../../lib/appNotify';
 import {
   ClipboardCheck,
+  Award,
   CheckCircle2,
   XCircle,
   Edit3,
@@ -62,6 +63,11 @@ import {
 } from 'lucide-react';
 import { ClaimCase, UserSession, PartItem, AIDecisionLine, AdditionalDocItem, CarDamageSpot, AssessorNotification } from '../../types';
 import { ASSESSOR_SCOPE_NOTICE } from '../../lib/settlementCalculator';
+import {
+  checkSpecialistRequirement,
+  PRIMARY_EXPERT_CEILING_TOMAN,
+  SPECIALIST_UNIT_LABEL
+} from '../../lib/expertAssignment';
 import {
   formatCurrency,
   parseMoneyNumber,
@@ -1334,6 +1340,14 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
     const isResubmission = isCaseReturnedByReviewer(activeCase);
 
+    const payableToman = Math.round(payable / 10);
+    const specialistCheck = checkSpecialistRequirement(payableToman);
+    const requiresSpecialist = specialistCheck.required;
+
+    const caseFinalStatus = requiresSpecialist
+      ? 'در انتظار بررسی بازبین و واحد کارشناسی تخصصی'
+      : 'در انتظار بررسی بازبین';
+
     const sysNoticeMsg = {
       id: `MSG-${Date.now()}`,
       from: 'system' as const,
@@ -1341,16 +1355,21 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       by: 'سیستم ارجاع خودکار',
       text: isResubmission
         ? `اطلاعیه سیستم: ارزیابی اصلاح‌شده با اعمال نظرات بازبین مجدداً جهت بررسی به بازبین کیفی (${autoReviewer.name}) ارجاع داده شد.`
+        : requiresSpecialist
+        ? `اطلاعیه سیستم: با توجه به برآورد خسارت ${payableToman.toLocaleString('fa-IR')} تومانی و عبور از سقف اختیار ۱۰۰ میلیون تومان، پرونده علاوه بر بازبین کیفی (${autoReviewer.name})، جهت تایید عالی به «${SPECIALIST_UNIT_LABEL}» ارجاع گردید.`
         : `اطلاعیه سیستم: پرونده جهت بررسی نهایی و تایید به بازبین کیفی (${autoReviewer.name}) ارجاع داده شد.`,
       at: new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })
     };
 
     const updated: ClaimCase = {
       ...activeCase,
-      status: 'در انتظار بررسی بازبین',
+      status: caseFinalStatus,
       assignedReviewer: autoReviewer,
       reviewerReturn: undefined, // Clear return reason on re-submission
       reviewerReturnReason: undefined,
+      requiresSpecialistUnit: requiresSpecialist,
+      exceedsExpertCeiling: requiresSpecialist,
+      specialistEscalationReason: requiresSpecialist ? specialistCheck.reason || undefined : undefined,
       aiDecisions: aiDecisionsState,
       carDamageSpots: carDamageSpotsState,
       docChat: [...(activeCase.docChat || []), sysNoticeMsg],
@@ -1376,11 +1395,13 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       history: [
         ...(activeCase.history || []),
         {
-          status: 'در انتظار بررسی بازبین',
+          status: caseFinalStatus,
           time: new Date().toLocaleString('fa-IR'),
           user: session.name || 'کارشناس خسارت',
           note: isResubmission
             ? `ارسال مجدد ارزیابی اصلاح‌شده به بازبین کیفی (${autoReviewer.name}) پس از اعمال تغییرات در برآورد و پاسخ به نظرات بازبین. (مبلغ: ${formatCurrency(payable)})`
+            : requiresSpecialist
+            ? `ثبت نهایی برآورد خسارت توسط کارشناس (${currentRoundLabel}) به مبلغ ${formatCurrency(payable)} (${payableToman.toLocaleString('fa-IR')} تومان). به دلیل فراتر رفتن از سقف اختیار ۱۰۰ میلیون تومانی، پرونده به «${SPECIALIST_UNIT_LABEL}» و بازبین کیفی (${autoReviewer.name}) ارجاع شد.`
             : `ثبت نهایی برآورد خسارت توسط کارشناس (${currentRoundLabel}) — ارجاع خودکار به بازبین کیفی (${autoReviewer.name}). (مبلغ: ${formatCurrency(payable)})`
         }
       ]
@@ -4027,6 +4048,21 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       </div>
                     </div>
 
+                    {/* Ceiling Warning for Assessor */}
+                    {Math.round(Math.max(0, parseMoneyNumber(grossInput) - parseMoneyNumber(salvageInput)) / 10) > PRIMARY_EXPERT_CEILING_TOMAN && !isCaseRejected(activeCase) && (
+                      <div className="p-3.5 bg-amber-50 border-2 border-amber-300 rounded-2xl flex items-start gap-2.5 text-xs text-amber-950 font-bold shadow-2xs">
+                        <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <span className="font-black text-xs block text-amber-950">
+                            سطح‌بندی کارشناسی بر اساس سقف خسارت:
+                          </span>
+                          <p className="text-[11px] text-amber-900 font-medium leading-relaxed">
+                            برآورد خالص خسارت ({Math.round(Math.max(0, parseMoneyNumber(grossInput) - parseMoneyNumber(salvageInput)) / 10).toLocaleString('fa-IR')} تومان) از سقف اختیار ۱۰۰ میلیون تومانی کارشناس اولیه فراتر رفته است. با تایید و ارسال، این پرونده علاوه بر بازبین، جهت بررسی عالی به «{SPECIALIST_UNIT_LABEL}» ارجاع داده خواهد شد.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-xs font-bold text-slate-700 mb-1">
                         توضیحات و گزارش کارشناس
@@ -6182,12 +6218,26 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
           <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5 border border-slate-200 text-slate-900 animate-in zoom-in-95" dir="rtl">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
-                <div className={`w-10 h-10 rounded-2xl ${assignmentSuccessModal.isResubmission ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'} flex items-center justify-center font-bold`}>
-                  {assignmentSuccessModal.isResubmission ? <RotateCcw className="w-6 h-6 stroke-[2.5]" /> : <CheckCircle2 className="w-6 h-6" />}
+                <div className={`w-10 h-10 rounded-2xl ${
+                  assignmentSuccessModal.isSpecialistEscalation
+                    ? 'bg-purple-100 text-purple-700'
+                    : assignmentSuccessModal.isResubmission
+                    ? 'bg-rose-100 text-rose-700'
+                    : 'bg-emerald-100 text-emerald-700'
+                } flex items-center justify-center font-bold`}>
+                  {assignmentSuccessModal.isSpecialistEscalation ? (
+                    <Award className="w-6 h-6 stroke-[2.5]" />
+                  ) : assignmentSuccessModal.isResubmission ? (
+                    <RotateCcw className="w-6 h-6 stroke-[2.5]" />
+                  ) : (
+                    <CheckCircle2 className="w-6 h-6" />
+                  )}
                 </div>
                 <div>
                   <h3 className="font-black text-sm text-slate-900">
-                    {assignmentSuccessModal.isResubmission
+                    {assignmentSuccessModal.isSpecialistEscalation
+                      ? 'ارجاع به کارشناس تخصصی (مازاد بر ۱۰۰ میلیون)'
+                      : assignmentSuccessModal.isResubmission
                       ? 'ارزیابی اصلاح‌شده با موفقیت مجدداً به بازبین ارسال شد'
                       : 'برآورد خسارت ثبت و ارجاع داده شد'}
                   </h3>
@@ -6205,36 +6255,72 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
             </div>
 
             <div className="space-y-3 text-xs">
-              <div className={`p-4 ${assignmentSuccessModal.isResubmission ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'} rounded-2xl border space-y-2`}>
-                <div className={`flex items-center gap-2 font-black ${assignmentSuccessModal.isResubmission ? 'text-rose-950' : 'text-emerald-950'}`}>
-                  <ShieldCheck className={`w-4 h-4 ${assignmentSuccessModal.isResubmission ? 'text-rose-700' : 'text-emerald-700'} shrink-0`} />
-                  <span>
-                    {assignmentSuccessModal.isResubmission
-                      ? 'پرونده پس از اعمال تغییرات به بازبین ارجاع شد:'
-                      : 'پرونده شما به بازبین کیفی زیر ارجاع شد:'}
-                  </span>
-                </div>
-                <div className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">نام بازبین اختصاصی:</span>
-                    <strong className="text-slate-900">{assignmentSuccessModal.reviewerName}</strong>
+              {assignmentSuccessModal.isSpecialistEscalation ? (
+                /* Specialist Escalation Box */
+                <div className="p-4 bg-purple-50 border border-purple-200 rounded-2xl space-y-2.5">
+                  <div className="flex items-center gap-2 font-black text-purple-950">
+                    <Award className="w-4 h-4 text-purple-700 shrink-0" />
+                    <span>ارجاع به کارشناس تخصصی (نه بازبین):</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">مبلغ خالص قابل پرداخت پس از اصلاح:</span>
-                    <strong className="font-mono text-emerald-800">{formatCurrency(assignmentSuccessModal.payable)}</strong>
+                  <p className="text-[11px] text-purple-900 leading-relaxed font-medium">
+                    طبق ضوابط، به دلیل اینکه برآورد خسارت بیش از سقف اختیار ۱۰۰ میلیون تومان است، این پرونده مستقیماً به بازبین نمی‌رود بلکه ابتدا به کارشناس تخصصی زیر ارجاع شد:
+                  </p>
+                  <div className="bg-white p-3 rounded-xl border border-purple-200 space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">کارشناس تخصصی منتخب:</span>
+                      <strong className="text-purple-950 font-black">{assignmentSuccessModal.specialistName}</strong>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">سمت سازمانی:</span>
+                      <span className="text-purple-800 font-bold text-[11px]">{assignmentSuccessModal.specialistRole || 'کارشناس ارشد خسارت‌های سنگین'}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-1 border-t border-slate-100">
+                      <span className="text-slate-500">مبلغ نهایی برآورد:</span>
+                      <strong className="font-mono text-emerald-800">{formatCurrency(assignmentSuccessModal.payable)}</strong>
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                /* Regular Reviewer Box */
+                <div className={`p-4 ${assignmentSuccessModal.isResubmission ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'} rounded-2xl border space-y-2`}>
+                  <div className={`flex items-center gap-2 font-black ${assignmentSuccessModal.isResubmission ? 'text-rose-950' : 'text-emerald-950'}`}>
+                    <ShieldCheck className={`w-4 h-4 ${assignmentSuccessModal.isResubmission ? 'text-rose-700' : 'text-emerald-700'} shrink-0`} />
+                    <span>
+                      {assignmentSuccessModal.isResubmission
+                        ? 'پرونده پس از اعمال تغییرات به بازبین ارجاع شد:'
+                        : 'پرونده شما به بازبین کیفی زیر ارجاع شد:'}
+                    </span>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">نام بازبین اختصاصی:</span>
+                      <strong className="text-slate-900">{assignmentSuccessModal.reviewerName}</strong>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500">مبلغ خالص قابل پرداخت پس از اصلاح:</span>
+                      <strong className="font-mono text-emerald-800">{formatCurrency(assignmentSuccessModal.payable)}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Simulated SMS Notification */}
               <div className="p-4 bg-blue-50 rounded-2xl border border-blue-200 space-y-2">
                 <div className="flex items-center gap-2 font-black text-blue-900">
                   <Smartphone className="w-4 h-4 text-blue-700 shrink-0" />
-                  <span>پیامک ارسال‌شده به تلفن همراه بازبین:</span>
+                  <span>
+                    {assignmentSuccessModal.isSpecialistEscalation
+                      ? 'پیامک ارسال‌شده به تلفن همراه کارشناس تخصصی:'
+                      : 'پیامک ارسال‌شده به تلفن همراه بازبین:'}
+                  </span>
                 </div>
                 <div className="bg-white p-3 rounded-xl border border-blue-100 text-[11px] font-medium text-slate-800 leading-relaxed font-sans space-y-1">
                   <p>
-                    {assignmentSuccessModal.isResubmission ? (
+                    {assignmentSuccessModal.isSpecialistEscalation ? (
+                      <>
+                        «کارشناس تخصصی محترم ({assignmentSuccessModal.specialistName})، پرونده خسارت شماره <strong>{assignmentSuccessModal.caseId}</strong> با برآورد مازاد بر ۱۰۰ میلیون تومان به شما ارجاع گردید. لطفاً پس از ورود به پنل خود و ثبت ارزیابی تخصصی، پرونده را جهت تایید نهایی برای بازبین کیفی ارسال فرمایید. سامانه یکپارچه خسارت بیمه»
+                      </>
+                    ) : assignmentSuccessModal.isResubmission ? (
                       <>
                         «بازبین محترم ({assignmentSuccessModal.reviewerName})، اصلاحات پرونده خسارت شماره <strong>{assignmentSuccessModal.caseId}</strong> توسط کارشناس انجام گردید و جهت بازبینی مجدد ارسال شد. پورتال خسارت بیمه»
                       </>
@@ -6245,18 +6331,36 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     )}
                   </p>
                   <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400 font-mono border-t border-slate-100">
-                    <span>گیرنده: {assignmentSuccessModal.reviewerPhone || '۰۹۱۲۲۱۴۵۶۷۸'}</span>
+                    <span>گیرنده: {assignmentSuccessModal.isSpecialistEscalation ? (assignmentSuccessModal.specialistPhone || '۰۹۱۲۱۰۰۱۰۰۲') : (assignmentSuccessModal.reviewerPhone || '۰۹۱۲۲۱۴۵۶۷۸')}</span>
                     <span className="text-emerald-700 font-bold">وضعیت: تحویل شد (SMS Sent)</span>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center justify-end pt-2">
+            <div className="space-y-2 pt-2">
+              {assignmentSuccessModal.isSpecialistEscalation && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCaseId(assignmentSuccessModal.caseId);
+                    setActiveTab('assessment');
+                    setAssignmentSuccessModal(null);
+                  }}
+                  className="w-full py-2.5 bg-purple-700 hover:bg-purple-800 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Award className="w-4 h-4 text-amber-300" />
+                  <span>ورود به کارتابل تخصصی و ارزیابی به عنوان {assignmentSuccessModal.specialistName}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setAssignmentSuccessModal(null)}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer transition-all"
+                className={`w-full py-2.5 ${
+                  assignmentSuccessModal.isSpecialistEscalation
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    : 'bg-slate-900 hover:bg-slate-800 text-white'
+                } font-extrabold text-xs rounded-xl shadow-xs cursor-pointer transition-all`}
               >
                 متوجه شدم و بازگشت به لیست پرونده‌ها
               </button>

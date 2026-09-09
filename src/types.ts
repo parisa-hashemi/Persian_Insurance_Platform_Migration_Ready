@@ -12,6 +12,8 @@ export type CaseStatus =
   | 'در حال ارزیابی'
   | 'در حال بازبینی'
   | 'در انتظار بررسی بازبین'
+  | 'در انتظار ارزیابی کارشناس تخصصی'
+  | 'در حال ارزیابی تخصصی'
   | 'رد شده از بازبین'
   | 'نیازمند اصلاح کارشناس'
   | 'در انتظار تایید کاربر'
@@ -315,6 +317,27 @@ export interface ClaimCase {
     nationalId?: string;
     company?: string;
   } | null;
+  assignedSpecialistExpert?: {
+    id: string;
+    name: string;
+    role: string;
+    phone?: string;
+    nationalId?: string;
+    company?: string;
+    expertise?: string;
+  } | null;
+  specialistAssessment?: {
+    approved: boolean;
+    specialistId: string;
+    specialistName: string;
+    specialistRole?: string;
+    specialistNote: string;
+    evaluatedAt: string;
+    adjustedGross?: number;
+    adjustedPayable?: number;
+    adjustedSalvage?: number;
+    checklistConfirmed?: boolean;
+  } | null;
   expertAcceptance?: 'now' | 'later' | null;
   acceptedByExpertAt?: string;
   expertRejected?: {
@@ -586,6 +609,22 @@ export interface ClaimCase {
   isSharedCase?: boolean;
 
   // --- قوانین کروکی، نوع حادثه و سقف تعهدات ---
+  /** نوع پوشش بیمه‌ای پرونده: شخص ثالث یا بیمه بدنه */
+  insuranceType?: 'third_party' | 'body';
+  /** واحد رسیدگی‌کننده به پرونده در شرکت بیمه‌گر */
+  claimDepartment?: 'THIRD_PARTY_UNIT' | 'BODY_INSURANCE_UNIT';
+  /** عنوان فارسی واحد رسیدگی‌کننده */
+  claimDepartmentLabel?: string;
+  /** شماره بیمه‌نامه بدنه خودرو */
+  bodyPolicyNumber?: string;
+  /** تصویر بیمه‌نامه یا کارت بیمه بدنه */
+  bodyPolicyCardPhoto?: string | null;
+  /** تعداد دفعات استفاده از بیمه بدنه در سال جاری (۱ = بار اول، ۲ = بار دوم یا بیشتر) */
+  bodyClaimCountThisYear?: number;
+  /** آیا کمتر از ۳۰ روز از تاریخ شروع/تمدید بیمه‌نامه بدنه گذشته است؟ */
+  bodyPolicyLessThan30Days?: boolean;
+  /** دلایل قانونی الزام به ارائه کروکی در بیمه بدنه */
+  bodyCroquiReasons?: string[];
   /** کلید نوع حادثه از ACCIDENT_TYPES (مانند THEFT، FIXED_OBJECT) */
   accidentTypeKey?: string;
   accidentTypeLabel?: string;

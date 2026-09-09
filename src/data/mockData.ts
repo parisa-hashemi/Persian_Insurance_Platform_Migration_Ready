@@ -186,23 +186,98 @@ export const INITIAL_STAFF: Record<string, StaffMember[]> = {
 
 export const INITIAL_EXPERTS: Record<string, StaffMember[]> = {
   dana: [
-    { id: 'd1', name: 'محمد رضایی', role: 'کارشناس خسارت بدنه', phone: '09121001001', nationalId: '0011111111' },
-    { id: 'd2', name: 'فاطمه احمدی', role: 'ارزیاب ارشد خسارت', phone: '09121001002', nationalId: '0022222222' },
+    { id: 'd1', name: 'محمد رضایی', role: 'کارشناس خسارت بدنه', phone: '09121001001', nationalId: '0011111111', company: 'dana', maxApprovalCeiling: 1_000_000_000 },
+    { id: 'd2', name: 'مهندس فاطمه احمدی', role: 'کارشناس تخصصی و ارشد خسارت‌های سنگین', phone: '09121001002', nationalId: '0022222222', company: 'dana', maxApprovalCeiling: 10_000_000_000, expertise: 'ارزیابی خسارت‌های بالای ۱۰۰ میلیون تومان، اصالت‌سنجی فاکتورها و قطعات خاص' },
   ],
   alborz: [
-    { id: 'a1', name: 'سینا موسوی', role: 'کارشناس خسارت خودرو', phone: '09122002001', nationalId: '0033333333' },
-    { id: 'a2', name: 'نرگس کریمی', role: 'ارزیاب خسارت مال', phone: '09122002002', nationalId: '0044444444' },
+    { id: 'a1', name: 'سینا موسوی', role: 'کارشناس خسارت خودرو', phone: '09122002001', nationalId: '0033333333', company: 'alborz', maxApprovalCeiling: 1_000_000_000 },
+    { id: 'a2', name: 'مهندس نرگس کریمی', role: 'کارشناس تخصصی خسارات کلان', phone: '09122002002', nationalId: '0044444444', company: 'alborz', maxApprovalCeiling: 10_000_000_000, expertise: 'ارزیابی خسارت کلی و خسارات مازاد بر ۱۰۰ میلیون' },
   ],
   asia: [
-    { id: 'as1', name: 'علی حسینی', role: 'کارشناس ارشد خسارت', phone: '09123003001', nationalId: '0055555555' },
+    { id: 'as1', name: 'مهندس علی حسینی', role: 'کارشناس تخصصی و ارشد خسارت', phone: '09123003001', nationalId: '0055555555', company: 'asia', maxApprovalCeiling: 12_000_000_000, expertise: 'ارزیابی خسارات کلان بالای ۱۰۰ میلیون تومان' },
   ],
   iran: [
-    { id: 'ir1', name: 'مریم نجفی', role: 'کارشناس خسارت', phone: '09124004001', nationalId: '0066666666' },
-    { id: 'ir2', name: 'رضا تهرانی', role: 'ارزیاب ارشد بدنه', phone: '09124004002', nationalId: '0077777777' },
+    { id: 'ir1', name: 'مریم نجفی', role: 'کارشناس خسارت', phone: '09124004001', nationalId: '0066666666', company: 'iran', maxApprovalCeiling: 1_000_000_000 },
+    { id: 'ir2', name: 'مهندس رضا تهرانی', role: 'کارشناس تخصصی و ارشد بدنه', phone: '09124004002', nationalId: '0077777777', company: 'iran', maxApprovalCeiling: 20_000_000_000, expertise: 'ارزیابی خسارت‌های سنگین و تصادفات زنجیره‌ای' },
   ],
   mellat: [
-    { id: 'm1', name: 'سارا قاسمی', role: 'کارشناس خسارت', phone: '09125005001', nationalId: '0088888888' },
+    { id: 'm1', name: 'مهندس سارا قاسمی', role: 'کارشناس تخصصی خسارت', phone: '09125005001', nationalId: '0088888888', company: 'mellat', maxApprovalCeiling: 10_000_000_000, expertise: 'ارزیابی پرونده‌های بالای ۱۰۰ میلیون تومان' },
   ],
+};
+
+export const INITIAL_SPECIALIST_EXPERTS: Record<string, StaffMember[]> = {
+  dana: [
+    {
+      id: 'd2',
+      name: 'مهندس فاطمه احمدی',
+      role: 'کارشناس تخصصی و ارشد خسارت‌های سنگین (مازاد بر ۱۰۰ م.ت)',
+      phone: '09121001002',
+      nationalId: '0022222222',
+      company: 'dana',
+      branchName: 'مجتمع تخصصی خسارت اتومبیل بیمه دانا (مرکزی - میدان ونک)',
+      maxApprovalCeiling: 10_000_000_000,
+      expertise: 'ارزیابی تخصصی خسارات سنگین بالای ۱۰۰ میلیون تومان، اصالت فاکتورها، داغی و قطعات وارداتی'
+    },
+    {
+      id: 'spec-d2',
+      name: 'مهندس علیرضا صابری',
+      role: 'کارشناس عالی خسارت بدنه و شاسی',
+      phone: '09121001099',
+      nationalId: '0022222233',
+      company: 'dana',
+      branchName: 'مرکز خسارت خودرو غرب تهران دانا (آزادی)',
+      maxApprovalCeiling: 15_000_000_000,
+      expertise: 'تطبیق خسارات کلان، واژگونی و بررسی فنی اسکلت و شاسی'
+    }
+  ],
+  alborz: [
+    {
+      id: 'a2',
+      name: 'مهندس نرگس کریمی',
+      role: 'کارشناس تخصصی و ارشد خسارت‌های سنگین البرز',
+      phone: '09122002002',
+      nationalId: '0044444444',
+      company: 'alborz',
+      maxApprovalCeiling: 10_000_000_000,
+      expertise: 'کارشناسی پرونده‌های خسارت کلان مازاد بر ۱۰۰ میلیون و ارزیابی خسارت کلی'
+    }
+  ],
+  asia: [
+    {
+      id: 'as1',
+      name: 'مهندس علی حسینی',
+      role: 'کارشناس تخصصی و عالی خسارت‌های سنگین بیمه آسیا',
+      phone: '09123003001',
+      nationalId: '0055555555',
+      company: 'asia',
+      maxApprovalCeiling: 12_000_000_000,
+      expertise: 'ارزیابی تخصصی خسارات بالای ۱۰۰ میلیون تومان و اصالت‌سنجی فاکتورها'
+    }
+  ],
+  iran: [
+    {
+      id: 'ir2',
+      name: 'مهندس رضا تهرانی',
+      role: 'کارشناس ارشد و ارزیاب تخصصی خسارت کلان بیمه ایران',
+      phone: '09124004002',
+      nationalId: '0077777777',
+      company: 'iran',
+      maxApprovalCeiling: 20_000_000_000,
+      expertise: 'ارزیابی خسارت‌های سنگین، تصادفات پیچیده و بررسی افت قیمت خودروهای خاص'
+    }
+  ],
+  mellat: [
+    {
+      id: 'm1',
+      name: 'مهندس سارا قاسمی',
+      role: 'کارشناس تخصصی و عالی خسارت بیمه ملت',
+      phone: '09125005001',
+      nationalId: '0088888888',
+      company: 'mellat',
+      maxApprovalCeiling: 10_000_000_000,
+      expertise: 'ارزیابی خسارت سنگین بدنه و ثالث بالای ۱۰۰ میلیون تومان'
+    }
+  ]
 };
 
 export const INITIAL_FIELD_EXPERTS: Record<string, StaffMember[]> = {

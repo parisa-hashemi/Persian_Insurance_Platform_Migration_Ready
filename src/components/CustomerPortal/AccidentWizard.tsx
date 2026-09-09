@@ -73,6 +73,7 @@ import { compressImageFile } from '../../lib/imageCompressor';
 import { sampleCroquis } from '../../data/mockData';
 import { ShamsiDateTimePicker, toFaDigits } from '../ShamsiDateTimePicker';
 import { IranianPlateInput } from './IranianPlateInput';
+import { SearchableAccidentTypeSelect } from '../common/SearchableAccidentTypeSelect';
 import { AIService } from '../../lib/ai/aiService';
 import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
 import { AIResult, EvidenceIntelligenceResult } from '../../lib/ai/types';
@@ -1501,47 +1502,30 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   <p className="text-[10px] sm:text-[11px] text-slate-700 font-medium leading-relaxed">
                     هر نوع حادثه مدرک رسمی مخصوص خود را دارد؛ برای مثال سرقت و خرابکاری نیازمند گزارش ۱۱۰ نیروی انتظامی است و کروکی راهور برای آن صادر نمی‌شود.
                   </p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                    {ACCIDENT_TYPES.map((t) => (
-                      <button
-                        key={t.key}
-                        type="button"
-                        onClick={() => {
-                          setAccidentTypeKey(t.key);
-                          clearFieldError('accidentType');
-                          if (!t.supportsCroqui) {
-                            setHasKroki(null);
-                            setCroquiData(null);
-                          }
-                        }}
-                        className={`text-right p-2 rounded-xl border-2 transition-all ${
-                          accidentTypeKey === t.key
-                            ? 'bg-indigo-700 border-indigo-800 text-white shadow-xs'
-                            : 'bg-white border-slate-200 hover:bg-indigo-50/60'
-                        }`}
-                      >
-                        <span className={`block text-[11px] font-black ${accidentTypeKey === t.key ? 'text-white' : 'text-slate-900'}`}>
-                          {t.label}
-                        </span>
-                        <span className={`block text-[10px] font-medium mt-0.5 ${accidentTypeKey === t.key ? 'text-indigo-100' : 'text-slate-500'}`}>
-                          {t.hint}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  {/* Searchable Select (یک جا با امکان جستجو) */}
+                  <SearchableAccidentTypeSelect
+                    accidentTypes={ACCIDENT_TYPES}
+                    selectedKey={accidentTypeKey}
+                    onSelectType={(t) => {
+                      setAccidentTypeKey(t.key);
+                      clearFieldError('accidentType');
+                      if (!t.supportsCroqui) {
+                        setHasKroki(null);
+                        setCroquiData(null);
+                      }
+                    }}
+                    onClear={() => {
+                      setAccidentTypeKey('');
+                      clearFieldError('accidentType');
+                    }}
+                    hasError={!!getFieldError('accidentType')}
+                  />
+
                   {getFieldError('accidentType') && (
                     <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 animate-in fade-in">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                       {getFieldError('accidentType')}
                     </p>
-                  )}
-                  {accidentRule && (
-                    <div className="bg-white p-2 rounded-lg border border-indigo-200 flex items-start gap-1.5">
-                      <FileCheck className="w-3.5 h-3.5 text-indigo-700 shrink-0 mt-0.5" />
-                      <p className="text-[10px] sm:text-[11px] text-slate-800 font-bold leading-relaxed">
-                        مدرک رسمی الزامی برای این حادثه: <span className="text-indigo-800">{accidentRule.reportLabel}</span>
-                      </p>
-                    </div>
                   )}
                 </div>
 
@@ -1612,65 +1596,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   </div>
                 </div>
 
-                {/* 2-C. شروط ده‌گانه الزام به کروکی */}
-                <div className="bg-slate-50 p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-slate-200 space-y-2.5">
-                  <button
-                    type="button"
-                    onClick={() => setShowConditionsGuide((v) => !v)}
-                    className="w-full flex items-center justify-between gap-2 cursor-pointer"
-                  >
-                    <span className="text-xs font-black text-slate-900 flex items-center gap-1.5 min-w-0">
-                      <Gavel className="w-4 h-4 text-slate-700 shrink-0" />
-                      <span className="truncate">شروط ده‌گانه الزام به کروکی (راهنمای قانونی)</span>
-                    </span>
-                    <span className="flex items-center gap-1 shrink-0">
-                      {selectedConditionIds.length > 0 && (
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                          {toFaDigits(selectedConditionIds.length)} مورد
-                        </span>
-                      )}
-                      <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform ${showConditionsGuide ? 'rotate-180' : ''}`} />
-                    </span>
-                  </button>
-
-                  <p className="text-[10px] sm:text-[11px] text-slate-600 font-medium leading-relaxed">
-                    چنانچه حادثه شما مشمول هر یک از موارد زیر باشد، طبق ضوابط پلیس راهور ارائه کروکی الزامی است. لطفاً موارد صادق را علامت بزنید.
-                  </p>
-
-                  {showConditionsGuide && (
-                    <div className="space-y-1.5 animate-in fade-in">
-                      {MANDATORY_CROQUI_CONDITIONS.map((cond) => {
-                        const checked = selectedConditionIds.includes(cond.id);
-                        return (
-                          <label
-                            key={cond.id}
-                            className={`flex items-start gap-2 p-2 rounded-xl border-2 cursor-pointer transition-all ${
-                              checked ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-200 hover:bg-slate-50'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e) => {
-                                setSelectedConditionIds((prev) =>
-                                  e.target.checked ? [...prev, cond.id] : prev.filter((id) => id !== cond.id)
-                                );
-                                clearFieldError('hasKroki');
-                              }}
-                              className="w-3.5 h-3.5 mt-0.5 shrink-0 cursor-pointer accent-rose-600"
-                            />
-                            <span className="min-w-0">
-                              <span className="block text-[11px] font-black text-slate-900 leading-snug">{cond.label}</span>
-                              <span className="block text-[10px] text-slate-500 font-medium mt-0.5">{cond.note}</span>
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* 2-D. نتیجه ارزیابی الزام کروکی */}
+                {/* 2-C. نتیجه ارزیابی الزام کروکی */}
                 {croquiRequirement.mandatory && (
                   <div className="bg-rose-50 p-3 rounded-xl border-2 border-rose-300 space-y-1.5 animate-in fade-in">
                     <p className="text-xs font-black text-rose-900 flex items-center gap-1.5">
@@ -2299,6 +2225,17 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <span className="px-2 py-0.5 sm:px-3 sm:py-1 rounded-full bg-sky-100 text-sky-950 text-[10px] sm:text-xs font-extrabold border border-sky-300 shrink-0">
                 مرحله ۲ از ۵
               </span>
+            </div>
+
+            {/* GPS Auto-Dispatch Policy Callout */}
+            <div className="p-3 sm:p-3.5 bg-blue-50/90 border border-blue-200 rounded-2xl flex items-start gap-2.5 text-xs text-blue-950 font-bold shadow-2xs">
+              <Sparkles className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <span className="font-black text-xs block text-blue-950">تخصیص هوشمند ارزیاب بر اساس موقعیت مکانی (GPS):</span>
+                <p className="text-[11px] text-blue-900 font-medium leading-relaxed">
+                  طبق ضوابط جدید، انتخاب دستی کارشناس توسط بیمه‌گذار حذف شده و ارجاع پرونده بر اساس مختصات جغرافیایی (GPS) صحنه حادثه به صورت سیستمی به نزدیک‌ترین ارزیاب فعال و مجاز در منطقه انجام خواهد شد.
+                </p>
+              </div>
             </div>
 
             {/* Shamsi Calendar & Time Picker */}

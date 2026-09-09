@@ -7,6 +7,7 @@
 
 import { StaffMember } from '../types';
 import { INSURANCE_BRANCHES } from '../data/bodyInsuranceData';
+import { INITIAL_SPECIALIST_EXPERTS } from '../data/mockData';
 
 /** سقف اختیار پیش‌فرض کارشناس اولیه (تومان) */
 export const PRIMARY_EXPERT_CEILING_TOMAN = 100_000_000;
@@ -102,6 +103,24 @@ export function checkSpecialistRequirement(
     };
   }
   return { required: false, ceilingToman: ceiling, reason: null };
+}
+
+/**
+ * تعیین کارشناس تخصصی بر اساس شرکت بیمه مربوطه
+ */
+export function resolveSpecialistExpertForCase(companyKey?: string): StaffMember {
+  const key = (companyKey || 'dana').toLowerCase();
+  const list = INITIAL_SPECIALIST_EXPERTS[key] || INITIAL_SPECIALIST_EXPERTS['dana'] || [];
+  return list[0] || {
+    id: 'd2',
+    name: 'مهندس فاطمه احمدی',
+    role: 'کارشناس تخصصی و ارشد خسارت‌های سنگین',
+    phone: '09121001002',
+    nationalId: '0022222222',
+    company: key,
+    maxApprovalCeiling: 10_000_000_000,
+    expertise: 'ارزیابی تخصصی خسارات بالای ۱۰۰ میلیون تومان'
+  };
 }
 
 export interface RankedExpert {

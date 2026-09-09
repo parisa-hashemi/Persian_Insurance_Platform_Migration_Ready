@@ -52,6 +52,11 @@ import { AIAssessmentDraftCard } from '../AI/AIAssessmentDraftCard';
 import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
 import { handleExpertRejectionWithAI } from '../../lib/ai/aiDispatcher';
 import { getExactPersianPartName, getPartKeyFromPersianName } from '../../lib/ai/aiDraftGenerator';
+import {
+  checkSpecialistRequirement,
+  PRIMARY_EXPERT_CEILING_TOMAN,
+  SPECIALIST_UNIT_LABEL
+} from '../../lib/expertAssignment';
 
 interface FieldExpertPanelProps {
   session: UserSession;
@@ -936,8 +941,14 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       note: fp.note || `عکس بازدید میدانی در دسته: ${fp.category}`
     }));
 
+    const netPayableToman = Math.round(netPayable / 10);
+    const specialistCheck = checkSpecialistRequirement(netPayableToman);
+    const requiresSpecialist = authVerdict !== 'FRAUD_REJECTED' && specialistCheck.required;
+
     const finalStatus = authVerdict === 'FRAUD_REJECTED'
       ? 'رد خسارت - صوری بودن تصادف توسط کارشناس میدانی'
+      : requiresSpecialist
+      ? 'ارجاع به واحد کارشناسی تخصصی - فراتر از سقف اختیار ۱۰۰ میلیون تومان'
       : 'ارزیابی میدانی تکمیل شد - در انتظار صدور حواله پرداخت بیمه‌گر';
 
     const updated: ClaimCase = {
@@ -948,6 +959,9 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
       fieldExpertFinal: true,
       fieldExpertVerdict: authVerdict,
       fieldExpertReportNote: fieldReportText.trim(),
+      requiresSpecialistUnit: requiresSpecialist,
+      exceedsExpertCeiling: requiresSpecialist,
+      specialistEscalationReason: requiresSpecialist ? specialistCheck.reason || undefined : undefined,
       additionalDocs: [...(selectedCase.additionalDocs || []), ...uploadedDocs],
       history: [
         ...(selectedCase.history || []),
@@ -956,7 +970,9 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
           time: nowTimeStr,
           user: session.name,
           userRole: 'کارشناس میدانی',
-          note: `تنظیم و ثبت نهایی گزارش میدانی توسط کارشناس «${session.name}» با مبلغ خالص ${formatCurrency(netPayable)} (${(Math.round(netPayable / 10)).toLocaleString('fa-IR')} تومان) و ارسال مستقیم به واحد مالی و صدور حواله شرکت بیمه. اصالت‌سنجی: ${authVerdict === 'CONFIRMED' ? 'تایید اصالت' : authVerdict === 'PARTIAL_MISMATCH' ? 'عدم انطباق جزئی' : 'رد خسارت صوری'}.`
+          note: requiresSpecialist
+            ? `تنظیم و ثبت گزارش میدانی توسط کارشناس «${session.name}» با مبلغ خالص ${formatCurrency(netPayable)} (${netPayableToman.toLocaleString('fa-IR')} تومان). با توجه به فراتر رفتن برآورد از سقف اختیار ۱۰۰ میلیون تومانی کارشناس اولیه، پرونده طبق ماده سطح‌بندی اختیارات جهت تایید عالی به «${SPECIALIST_UNIT_LABEL}» ارجاع گردید.`
+            : `تنظیم و ثبت نهایی گزارش میدانی توسط کارشناس «${session.name}» با مبلغ خالص ${formatCurrency(netPayable)} (${netPayableToman.toLocaleString('fa-IR')} تومان) و ارسال مستقیم به واحد مالی و صدور حواله شرکت بیمه. اصالت‌سنجی: ${authVerdict === 'CONFIRMED' ? 'تایید اصالت' : authVerdict === 'PARTIAL_MISMATCH' ? 'عدم انطباق جزئی' : 'رد خسارت صوری'}.`
         }
       ]
     };
@@ -2292,7 +2308,26 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       </select>
                     </div>
 
-                    <div className="sm:col-span-3 flex items-end">
+                    <div className="sm:col-span-3 flex items-end gap-2">
+                      {/* Direct camera capture for mobile PWA */}
+                      <input
+                        type="file"
+                        id="field-camera-input"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handlePhotoUpload}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="field-camera-input"
+                        className="flex-1 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black cursor-pointer flex items-center justify-center gap-1.5 shadow-xs transition-all text-xs active:scale-95"
+                        title="عکس‌برداری مستقیم در محل با دوربین گوشی"
+                      >
+                        <Camera className="w-4 h-4" />
+                        <span>عکاسی با دوربین (PWA)</span>
+                      </label>
+
+                      {/* Regular file picker */}
                       <input
                         type="file"
                         id="field-photo-input"
@@ -2302,10 +2337,10 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                       />
                       <label
                         htmlFor="field-photo-input"
-                        className="w-full px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black cursor-pointer flex items-center justify-center gap-2 shadow-xs transition-all"
+                        className="flex-1 px-3 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black cursor-pointer flex items-center justify-center gap-1.5 shadow-xs transition-all text-xs active:scale-95"
                       >
                         <Upload className="w-4 h-4" />
-                        <span>انتخاب فایل عکس</span>
+                        <span>انتخاب از فایل‌ها</span>
                       </label>
                     </div>
                   </div>
@@ -2452,6 +2487,21 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     <span className="text-[10px] text-emerald-600 block font-mono">({(Math.round(netPayable / 10)).toLocaleString('fa-IR')} تومان)</span>
                   </div>
                 </div>
+
+                {/* Warning Banner for Ceiling Exceeded */}
+                {Math.round(netPayable / 10) > PRIMARY_EXPERT_CEILING_TOMAN && !isCaseReadOnly && (
+                  <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl flex items-start gap-3 text-xs text-amber-950 font-bold shadow-2xs">
+                    <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <span className="font-black text-xs sm:text-sm block text-amber-950">
+                        سطح‌بندی کارشناسی بر اساس سقف خسارت (مازاد بر ۱۰۰ میلیون تومان):
+                      </span>
+                      <p className="text-[11px] text-amber-900 font-medium leading-relaxed">
+                        برآورد خسارت خالص ({(Math.round(netPayable / 10)).toLocaleString('fa-IR')} تومان) از سقف اختیار ۱۰۰ میلیون تومانی کارشناس اولیه فراتر رفته است. پس از تایید و ارسال، پرونده به صورت خودکار جهت بررسی عالی و صدور مجوز پرداخت به «{SPECIALIST_UNIT_LABEL}» ارجاع خواهد شد.
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {/* Summary of Report Text */}
                 <div className="p-4 bg-white rounded-2xl border border-emerald-200 space-y-1 text-xs">
