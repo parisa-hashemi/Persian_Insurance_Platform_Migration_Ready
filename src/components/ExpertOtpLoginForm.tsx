@@ -290,41 +290,41 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
   };
 
   return (
-    <div className="space-y-4 animate-in fade-in">
+    <div className="space-y-3 animate-in fade-in">
       {/* Header Info Tag */}
-      <div className="flex items-center justify-between p-3 rounded-2xl bg-white border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-2.5">
-          <div className={`p-2 rounded-xl ${roleConfig.accentBg}`}>
-            <ShieldCheck className="w-4 h-4" />
+      <div className="flex items-center justify-between p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-white border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <div className={`p-1.5 rounded-lg ${roleConfig.accentBg}`}>
+            <ShieldCheck className="w-3.5 h-3.5" />
           </div>
           <div>
-            <h3 className="text-xs font-black text-slate-900">{roleConfig.title}</h3>
-            <p className="text-[11px] text-slate-500 font-medium">{roleConfig.tagText}</p>
+            <h3 className="text-[11px] sm:text-xs font-black text-slate-900">{roleConfig.title}</h3>
+            <p className="text-[9.5px] sm:text-[10.5px] text-slate-500 font-medium">{roleConfig.tagText}</p>
           </div>
         </div>
-        <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+        <span className="text-[9.5px] sm:text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
           ورود پیامکی (OTP)
         </span>
       </div>
 
       {/* Error & Success Feedback Banners */}
       {errorMsg && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-start gap-2 animate-in fade-in font-bold">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+        <div className="p-2 sm:p-2.5 bg-rose-50 border border-rose-200 rounded-lg sm:rounded-xl text-rose-800 text-[11px] sm:text-xs flex items-start gap-1.5 animate-in fade-in font-bold">
+          <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
           <span className="leading-relaxed">{errorMsg}</span>
         </div>
       )}
 
       {successMsg && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-start gap-2 animate-in fade-in font-bold">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+        <div className="p-2 sm:p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg sm:rounded-xl text-emerald-900 text-[11px] sm:text-xs flex items-start gap-1.5 animate-in fade-in font-bold">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
           <span className="leading-relaxed">{successMsg}</span>
         </div>
       )}
 
       {/* STEP 1: SELECT COMPANY, SEARCH/SELECT STAFF */}
       {step === 'INFO' ? (
-        <form onSubmit={handleSendOtp} className="space-y-4">
+        <form onSubmit={handleSendOtp} className="space-y-3">
           {/* 1. Insurance Company Searchable Selector */}
           <SearchableCompanySelect
             insurersList={insurersList}
@@ -351,42 +351,42 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
           {/* Submit Button to Request OTP */}
           <button
             type="submit"
-            className={`w-full py-3.5 font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer ${roleConfig.btnBg}`}
+            className={`w-full h-9 sm:h-10 md:h-13 lg:h-14 font-black rounded-lg sm:rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base lg:text-lg shadow-xs hover:shadow-md transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer ${roleConfig.btnBg}`}
           >
-            <MessageSquare className="w-4 h-4" />
+            <MessageSquare className="w-3.5 h-3.5 md:w-5 md:h-5 shrink-0" />
             <span>ارسال کد تایید پیامکی (OTP)</span>
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-3.5 h-3.5 md:w-5 md:h-5 shrink-0" />
           </button>
         </form>
       ) : (
         /* STEP 2: OTP CODE VERIFICATION & SIMULATED SMS PREVIEW */
-        <form onSubmit={handleVerifyOtp} className="space-y-4 animate-in fade-in">
+        <form onSubmit={handleVerifyOtp} className="space-y-3 md:space-y-5 animate-in fade-in">
           {/* Simulated SMS Notification Alert */}
           {smsSimulatedNotice && (
-            <div className="bg-amber-50/90 border-2 border-amber-300 p-3.5 rounded-2xl space-y-2 shadow-sm">
-              <div className="flex items-center justify-between text-xs font-bold text-amber-900 border-b border-amber-200/80 pb-1.5">
+            <div className="bg-amber-50/90 border border-amber-300 p-2.5 sm:p-3 md:p-4 rounded-lg sm:rounded-xl md:rounded-2xl space-y-1.5 md:space-y-2 shadow-2xs">
+              <div className="flex items-center justify-between text-[11px] md:text-xs font-bold text-amber-900 border-b border-amber-200/80 pb-1.5">
                 <span className="flex items-center gap-1.5">
-                  <MessageSquare className="w-4 h-4 text-amber-700" />
+                  <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-700 shrink-0" />
                   <span>پیامک دریافتی در گوشی کارشناس</span>
                 </span>
-                <span className="text-[10px] font-mono text-amber-800 bg-amber-200/60 px-2 py-0.5 rounded">
+                <span className="text-[9.5px] md:text-[11px] font-mono text-amber-800 bg-amber-200/60 px-1.5 py-0.5 rounded">
                   سرشماره ۹۸۲۰۰۰
                 </span>
               </div>
-              <p className="text-xs text-slate-800 font-medium leading-relaxed whitespace-pre-line">
+              <p className="text-[11px] md:text-sm text-slate-800 font-medium leading-relaxed whitespace-pre-line">
                 {smsSimulatedNotice}
               </p>
-              <div className="pt-1 flex items-center justify-between">
-                <span className="text-[11px] text-amber-900 font-bold">
+              <div className="pt-0.5 flex items-center justify-between">
+                <span className="text-[10.5px] md:text-xs text-amber-900 font-bold">
                   کد ارسالی:{' '}
-                  <span className="font-mono text-base font-black text-blue-900 px-2 py-0.5 bg-white rounded-lg border border-amber-300">
+                  <span className="font-mono text-sm md:text-lg font-black text-blue-900 px-2 py-0.5 bg-white rounded border border-amber-300">
                     {generatedOtp}
                   </span>
                 </span>
                 <button
                   type="button"
                   onClick={() => setEnteredOtp(generatedOtp)}
-                  className="px-2.5 py-1 bg-gradient-to-l from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white rounded-lg text-xs font-black shadow-sm transition active:scale-95 cursor-pointer"
+                  className="px-2 py-0.5 md:px-3 md:py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-md md:rounded-lg text-[10px] md:text-xs font-black shadow-2xs transition active:scale-95 cursor-pointer"
                 >
                   درج خودکار کد
                 </button>
@@ -395,14 +395,14 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
           )}
 
           {/* Details Summary Banner */}
-          <div className="bg-white p-3 rounded-xl border border-slate-200 text-xs flex items-center justify-between">
+          <div className="bg-white p-2.5 md:p-3.5 rounded-lg md:rounded-xl border border-slate-200 text-[11px] md:text-sm flex items-center justify-between">
             <div className="space-y-0.5">
               <div className="font-bold text-slate-900 flex items-center gap-1.5">
                 <span>{expertName}</span>
                 <span className="text-slate-400">•</span>
                 <span className="text-blue-900">{currentCompany?.name}</span>
               </div>
-              <div className="text-[11px] font-mono text-slate-500" dir="ltr">
+              <div className="text-[10px] md:text-xs font-mono text-slate-500" dir="ltr">
                 {expertPhone}
               </div>
             </div>
@@ -413,25 +413,27 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
                 setErrorMsg(null);
                 setSuccessMsg(null);
               }}
-              className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-slate-600 hover:text-blue-700 hover:bg-slate-100 transition flex items-center gap-1 cursor-pointer"
+              className="px-2 py-1 md:px-3 md:py-1.5 rounded-md md:rounded-lg text-[10px] sm:text-[11px] md:text-xs font-bold text-slate-600 hover:text-blue-700 hover:bg-slate-100 transition flex items-center gap-1 cursor-pointer active:scale-95"
             >
-              <Edit2 className="w-3 h-3" />
+              <Edit2 className="w-2.5 h-2.5 md:w-3.5 md:h-3.5" />
               <span>ویرایش شماره</span>
             </button>
           </div>
 
           {/* OTP Digit Input */}
           <div>
-            <label className="block text-xs text-slate-800 mb-1.5 font-bold text-center">
+            <label className="block text-[11px] sm:text-xs md:text-base text-slate-800 mb-1.5 font-bold text-center">
               کد تایید ۵ رقمی پیامک شده را وارد فرمایید
             </label>
             <input
               type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
               maxLength={5}
               value={enteredOtp}
-              onChange={(e) => setEnteredOtp(e.target.value)}
+              onChange={(e) => setEnteredOtp(e.target.value.replace(/\D/g, ''))}
               placeholder="•••••"
-              className="w-full px-4 py-3 bg-white border border-blue-200 rounded-xl text-center font-mono text-2xl tracking-[0.6em] text-blue-900 font-black focus:outline-none focus:ring-4 focus:ring-blue-100 shadow-sm"
+              className="w-full krn-otp-input h-10 sm:h-11 md:h-14 lg:h-16 px-3 md:px-4 py-1.5 bg-white border border-blue-200 rounded-lg sm:rounded-xl md:rounded-2xl text-center font-mono text-sm sm:text-base md:text-2xl lg:text-3xl tracking-[0.25em] sm:tracking-[0.35em] md:tracking-[0.45em] lg:tracking-[0.55em] text-blue-900 font-bold focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-2xs transition"
               dir="ltr"
               autoFocus
               required
@@ -439,24 +441,24 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
           </div>
 
           {/* Timer & Resend Option */}
-          <div className="flex items-center justify-between text-xs font-bold pt-1">
+          <div className="flex items-center justify-between text-[11px] md:text-xs font-bold pt-0.5">
             <div className="flex items-center gap-1 text-slate-500">
-              <Timer className="w-3.5 h-3.5" />
-              <span>زمان باقی‌مانده:</span>
-              <span className="font-mono text-slate-800">{formatTime(countdown)}</span>
+              <Timer className="w-3 h-3 md:w-4 md:h-4 text-slate-400" />
+              <span className="text-[10px] sm:text-[11px] md:text-xs">زمان باقی‌مانده:</span>
+              <span className="font-mono text-slate-800 text-[10px] sm:text-[11px] md:text-xs">{formatTime(countdown)}</span>
             </div>
 
             <button
               type="button"
               disabled={!canResend && countdown > 0}
               onClick={handleResendOtp}
-              className={`flex items-center gap-1 text-xs font-bold transition ${
+              className={`flex items-center gap-1 text-[10px] sm:text-[11px] md:text-xs font-bold transition active:scale-95 ${
                 canResend || countdown === 0
                   ? 'text-blue-900 hover:underline cursor-pointer'
                   : 'text-slate-400 cursor-not-allowed opacity-60'
               }`}
             >
-              <RotateCcw className="w-3 h-3" />
+              <RotateCcw className="w-3 h-3 md:w-4 md:h-4" />
               <span>ارسال مجدد کد</span>
             </button>
           </div>
@@ -464,11 +466,11 @@ export const ExpertOtpLoginForm: React.FC<ExpertOtpLoginFormProps> = ({
           {/* Verify & Enter Button */}
           <button
             type="submit"
-            className={`w-full py-3.5 font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer ${roleConfig.btnBg}`}
+            className={`w-full h-10 sm:h-11 md:h-13 lg:h-14 font-black rounded-lg sm:rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base lg:text-lg shadow-md transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer ${roleConfig.btnBg}`}
           >
-            <CheckCircle2 className="w-4 h-4" />
+            <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
             <span>تایید پیامک و ورود به پنل تخصصی</span>
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
           </button>
         </form>
       )}

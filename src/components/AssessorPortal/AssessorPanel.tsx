@@ -61,6 +61,7 @@ import {
   Image as ImageIcon
 } from 'lucide-react';
 import { ClaimCase, UserSession, PartItem, AIDecisionLine, AdditionalDocItem, CarDamageSpot, AssessorNotification } from '../../types';
+import { ASSESSOR_SCOPE_NOTICE } from '../../lib/settlementCalculator';
 import {
   formatCurrency,
   parseMoneyNumber,
@@ -3784,6 +3785,18 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
 
                     {/* Parts Total Sum & Salvage Breakdown */}
                     <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                      <div className="p-2.5 rounded-xl bg-sky-50 border-2 border-sky-200 flex items-start gap-2">
+                        <ShieldCheck className="w-4 h-4 text-sky-700 shrink-0 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <p className="text-[11px] font-black text-sky-950">
+                            حدود وظیفه ارزیاب: ثبت برآورد خسارت فیزیکی
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-sky-900 font-medium leading-relaxed">
+                            {ASSESSOR_SCOPE_NOTICE}
+                          </p>
+                        </div>
+                      </div>
+
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                         <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-2xs">
                           <span className="text-slate-500 block text-[11px] font-bold">جمع ناخالص (قطعات نو + اجرت‌ها):</span>

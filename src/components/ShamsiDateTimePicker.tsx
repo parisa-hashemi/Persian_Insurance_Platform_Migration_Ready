@@ -173,24 +173,24 @@ export const ShamsiDateTimePicker: React.FC<ShamsiDateTimePickerProps> = ({
   return (
     <div className="space-y-2 relative" dir="rtl">
       {/* Selected Value Bar / Trigger - Clean Light Indigo Theme */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+      <div className="flex items-center gap-2">
         <div
           onClick={() => setIsOpen(!isOpen)}
-          className="flex-1 bg-white border-2 border-indigo-200 hover:border-indigo-400 p-3 rounded-2xl cursor-pointer transition-all flex items-center justify-between group shadow-xs hover:shadow-md"
+          className="flex-1 bg-white border-2 border-indigo-200 hover:border-indigo-400 p-2 sm:p-3 rounded-xl sm:rounded-2xl cursor-pointer transition-all flex items-center justify-between group shadow-xs"
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center group-hover:scale-105 transition-transform shadow-sm shadow-indigo-600/20">
-              <Calendar className="w-5 h-5" />
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+              <Calendar className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <span className="text-[11px] text-slate-500 block font-bold">تاریخ و ساعت انتخاب شده:</span>
-              <span className="font-extrabold text-sm text-indigo-950 font-mono">{value || 'انتخاب نشده'}</span>
+            <div className="min-w-0">
+              <span className="text-[10px] sm:text-[11px] text-slate-500 block font-bold truncate">زمان حادثه:</span>
+              <span className="font-extrabold text-xs sm:text-sm text-indigo-950 font-mono truncate block">{value || 'انتخاب نشده'}</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-50 text-xs font-bold text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white border border-indigo-200 transition-all">
-            <span>{isOpen ? 'بستن تقویم' : 'تغییر تاریخ و ساعت'}</span>
-            <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+          <div className="flex items-center gap-1 px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl bg-indigo-50 text-[10px] sm:text-xs font-bold text-indigo-700 group-hover:bg-indigo-600 group-hover:text-white border border-indigo-200 transition-all shrink-0">
+            <span>{isOpen ? 'بستن' : 'تغییر'}</span>
+            <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
           </div>
         </div>
 
@@ -198,37 +198,37 @@ export const ShamsiDateTimePicker: React.FC<ShamsiDateTimePickerProps> = ({
         <button
           type="button"
           onClick={handleSetTodayNow}
-          className="px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 shrink-0 shadow-sm shadow-blue-600/20 active:scale-95 cursor-pointer"
+          className="px-3 py-2 sm:px-4 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1 shrink-0 shadow-xs active:scale-95 cursor-pointer whitespace-nowrap h-full"
           title="تنظیم خودکار روی زمان فعلی"
         >
-          <Clock className="w-4 h-4 text-white" />
+          <Clock className="w-3.5 h-3.5 text-white" />
           <span>هم‌اکنون</span>
         </button>
       </div>
 
       {/* POPUP / INLINE CALENDAR & TIME SELECTOR - Light Theme */}
       {isOpen && (
-        <div className="bg-white border-2 border-indigo-200 rounded-3xl p-5 shadow-xl space-y-5 animate-in fade-in slide-in-from-top-2 z-30">
+        <div className="bg-white border-2 border-indigo-200 rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-xl space-y-3 sm:space-y-5 animate-in fade-in slide-in-from-top-2 z-30">
           
           {/* Header & Quick Presets */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-indigo-100 pb-3">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-indigo-600" />
-              <h4 className="text-sm font-extrabold text-slate-900">انتخاب تاریخ و ساعت شمسی</h4>
+          <div className="flex items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
+            <div className="flex items-center gap-1.5">
+              <Calendar className="w-4 h-4 text-indigo-600" />
+              <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">انتخاب تاریخ و ساعت شمسی</h4>
             </div>
 
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-1.5 text-xs">
               <button
                 type="button"
                 onClick={handleSetTodayNow}
-                className="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold transition-colors"
+                className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-[11px] transition-colors"
               >
                 امروز
               </button>
               <button
                 type="button"
                 onClick={handleSetYesterday}
-                className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold border border-slate-200 transition-colors"
+                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-[11px] border border-slate-200 transition-colors"
               >
                 دیروز
               </button>
@@ -236,13 +236,13 @@ export const ShamsiDateTimePicker: React.FC<ShamsiDateTimePickerProps> = ({
           </div>
 
           {/* Year & Month Dropdowns */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">ماه شمسی</label>
+              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-600 mb-1">ماه شمسی</label>
               <select
                 value={month}
                 onChange={(e) => handleMonthChange(Number(e.target.value))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100"
               >
                 {PERSIAN_MONTHS.map((mName, idx) => (
                   <option key={idx + 1} value={idx + 1}>
@@ -253,11 +253,11 @@ export const ShamsiDateTimePicker: React.FC<ShamsiDateTimePickerProps> = ({
             </div>
 
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">سال شمسی</label>
+              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-600 mb-1">سال شمسی</label>
               <select
                 value={year}
                 onChange={(e) => handleYearChange(Number(e.target.value))}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-mono"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg sm:rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-bold text-slate-800 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 font-mono"
               >
                 {PERSIAN_YEARS.map((y) => (
                   <option key={y} value={y}>
@@ -270,18 +270,18 @@ export const ShamsiDateTimePicker: React.FC<ShamsiDateTimePickerProps> = ({
 
           {/* DAYS GRID CALENDAR */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-600 mb-2">
+            <label className="block text-[10px] sm:text-[11px] font-bold text-slate-600 mb-1.5">
               روز ({PERSIAN_MONTHS[month - 1]}):
             </label>
-            <div className="grid grid-cols-7 gap-1.5 bg-slate-50 p-3 rounded-2xl border border-slate-200 text-center">
+            <div className="grid grid-cols-7 gap-1 sm:gap-1.5 bg-slate-50 p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-200 text-center">
               {daysArray.map((d) => (
                 <button
                   key={d}
                   type="button"
                   onClick={() => handleSelectDay(d)}
-                  className={`h-9 rounded-xl text-xs font-bold transition-all flex items-center justify-center font-mono ${
+                  className={`h-7 sm:h-9 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center font-mono ${
                     day === d
-                      ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30 font-black scale-105 border border-indigo-500'
+                      ? 'bg-indigo-600 text-white shadow-xs font-black scale-105 border border-indigo-500'
                       : 'bg-white hover:bg-indigo-50 text-slate-700 border border-slate-200 hover:border-indigo-300'
                   }`}
                 >
@@ -292,20 +292,20 @@ export const ShamsiDateTimePicker: React.FC<ShamsiDateTimePickerProps> = ({
           </div>
 
           {/* TIME SELECTOR (Hour & Minute) */}
-          <div className="bg-indigo-50/60 border border-indigo-200 p-3.5 rounded-2xl space-y-2">
-            <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
-              <Clock className="w-4 h-4 text-indigo-600" />
+          <div className="bg-indigo-50/60 border border-indigo-200 p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl space-y-1.5 sm:space-y-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+              <Clock className="w-3.5 h-3.5 text-indigo-600" />
               <span>تنظیم ساعت دقیق وقوع حادثه:</span>
             </div>
 
-            <div className="flex items-center justify-center gap-3" dir="rtl">
+            <div className="flex items-center justify-center gap-2 sm:gap-3" dir="rtl">
               {/* Minute Dropdown (RTL -> renders on RIGHT) */}
               <div className="flex flex-col items-center">
-                <span className="text-[10px] text-slate-500 font-bold mb-1">دقیقه</span>
+                <span className="text-[10px] text-slate-500 font-bold mb-0.5">دقیقه</span>
                 <select
                   value={minute}
                   onChange={(e) => handleMinuteChange(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-black text-indigo-900 font-mono focus:outline-none focus:border-indigo-600"
+                  className="bg-white border border-slate-300 rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-black text-indigo-900 font-mono focus:outline-none focus:border-indigo-600"
                 >
                   {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => (
                     <option key={m} value={m}>
@@ -315,15 +315,15 @@ export const ShamsiDateTimePicker: React.FC<ShamsiDateTimePickerProps> = ({
                 </select>
               </div>
 
-              <span className="text-xl font-black text-indigo-400 mt-4">:</span>
+              <span className="text-lg sm:text-xl font-black text-indigo-400 mt-3">:</span>
 
               {/* Hour Dropdown (RTL -> renders on LEFT) */}
               <div className="flex flex-col items-center">
-                <span className="text-[10px] text-slate-500 font-bold mb-1">ساعت</span>
+                <span className="text-[10px] text-slate-500 font-bold mb-0.5">ساعت</span>
                 <select
                   value={hour}
                   onChange={(e) => handleHourChange(e.target.value)}
-                  className="bg-white border border-slate-300 rounded-xl px-3 py-2 text-sm font-black text-indigo-900 font-mono focus:outline-none focus:border-indigo-600"
+                  className="bg-white border border-slate-300 rounded-lg sm:rounded-xl px-2 sm:px-3 py-1.5 text-xs sm:text-sm font-black text-indigo-900 font-mono focus:outline-none focus:border-indigo-600"
                 >
                   {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map((h) => (
                     <option key={h} value={h}>
@@ -336,11 +336,11 @@ export const ShamsiDateTimePicker: React.FC<ShamsiDateTimePickerProps> = ({
           </div>
 
           {/* CLOSE & CONFIRM BUTTON */}
-          <div className="pt-1 flex justify-end">
+          <div className="pt-0.5 flex justify-end">
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md shadow-emerald-600/20 transition-all flex items-center gap-1.5 active:scale-95"
+              className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 active:scale-95"
             >
               <Check className="w-4 h-4" />
               <span>تایید تاریخ و ساعت</span>

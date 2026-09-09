@@ -61,6 +61,12 @@ import { ClaimCase, UserSession, StaffMember, ExpertComplaint, AssessorNotificat
 import { INSURER_COMPANIES, INITIAL_EXPERTS, INITIAL_REVIEWERS, INITIAL_FIELD_EXPERTS } from '../../data/mockData';
 import { findBestMatchingBranch, INSURANCE_BRANCHES, InsuranceBranch } from '../../data/bodyInsuranceData';
 import {
+  rankExpertsByProximity,
+  checkSpecialistRequirement,
+  SPECIALIST_UNIT_LABEL,
+  RankedExpert
+} from '../../lib/expertAssignment';
+import {
   formatCurrency,
   getInsurerPersianName,
   getInsurerBrandConfig,
@@ -589,11 +595,27 @@ export const InsurerDashboard: React.FC<InsurerDashboardProps> = ({
     );
   }, [cases, companyCode, companyInfo.name]);
 
+  /** رتبه‌بندی کارشناسان میدانی بر اساس فاصله تا محل حادثه، بار کاری و سقف اختیار */
+  const rankFieldExpertsForClaim = (claim: ClaimCase | null): RankedExpert[] => {
+    if (!claim) return [];
+    const experts = INITIAL_FIELD_EXPERTS[companyCode] || INITIAL_FIELD_EXPERTS['dana'] || [];
+    const lat = Number(claim.lat);
+    const lng = Number(claim.lng);
+    return rankExpertsByProximity({
+      experts,
+      accidentLocation: !isNaN(lat) && !isNaN(lng) && lat !== 0 ? { lat, lng } : null,
+      estimatedDamageToman: Number(claim.estimatedDamageToman) || 0,
+      excludeIds: claim.excludedExpertIds || []
+    });
+  };
+
   const openBodyDispatchModal = (claim: ClaimCase) => {
     setSelectedBodyCaseForDispatch(claim);
-    const availableFieldExperts = INITIAL_FIELD_EXPERTS[companyCode] || INITIAL_FIELD_EXPERTS['dana'] || [];
-    if (availableFieldExperts.length > 0) {
-      setSelectedFieldExpertId(availableFieldExperts[0].id);
+    // پیش‌فرض همیشه نزدیک‌ترین کارشناس فعال است، نه اولین نفر فهرست
+    const ranked = rankFieldExpertsForClaim(claim);
+    const nearest = ranked.find((r) => r.eligible) || ranked[0];
+    if (nearest) {
+      setSelectedFieldExpertId(nearest.expert.id);
     }
     const branchMatch = findBestMatchingBranch(companyCode, claim.address || '', 'تهران');
     setSelectedBranchId(branchMatch.bestBranch.id);
@@ -2923,24 +2945,50 @@ ${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructi
                     </select>
                   </div>
 
-                  {/* Select Field Expert */}
+                  {/* Field expert — GPS-ranked, not a free choice */}
                   <div>
                     <label className="block text-xs font-black text-blue-900 mb-1.5">
-                      انتخاب کارشناس میدانی (Field Surveyor):
+                      کارشناس میدانی (ارجاع خودکار بر اساس نزدیک‌ترین کارشناس فعال):
                     </label>
-                    <select
-                      value={selectedFieldExpertId}
-                      onChange={(e) => setSelectedFieldExpertId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-                    >
-                      {(INITIAL_FIELD_EXPERTS[companyCode] || INITIAL_FIELD_EXPERTS['dana'] || []).map(
-                        (exp) => (
-                          <option key={exp.id} value={exp.id}>
-                            {exp.name} - {exp.role} (تلفن: {exp.phone})
-                          </option>
-                        )
-                      )}
-                    </select>
+                    {(() => {
+                      const ranked = rankFieldExpertsForClaim(selectedBodyCaseForDispatch);
+                      const specialist = checkSpecialistRequirement(
+                        Number(selectedBodyCaseForDispatch?.estimatedDamageToman) || 0,
+                        ranked.find((r) => r.eligible)?.expert
+                      );
+                      return (
+                        <>
+                          <select
+                            value={selectedFieldExpertId}
+                            onChange={(e) => setSelectedFieldExpertId(e.target.value)}
+                            className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                          >
+                            {ranked.map((r, idx) => (
+                              <option key={r.expert.id} value={r.expert.id} disabled={!r.eligible}>
+                                {idx === 0 && r.eligible ? 'نزدیک‌ترین: ' : ''}
+                                {r.expert.name}
+                                {r.distanceKm !== null ? ` — ${r.distanceKm.toLocaleString('fa-IR')} کیلومتر` : ''}
+                                {` — ${r.activeCases.toLocaleString('fa-IR')} پرونده فعال`}
+                                {!r.eligible ? ` (${r.ineligibleReason})` : ''}
+                              </option>
+                            ))}
+                          </select>
+
+                          <p className="text-[10px] text-slate-500 font-medium mt-1 leading-relaxed">
+                            فهرست بر اساس فاصله تا محل حادثه، بار کاری و سقف اختیار مرتب شده است. تغییر انتخاب فقط برای ارجاع مجدد توسط کارشناس بیمه‌گر مجاز است و در اختیار بیمه‌گذار نیست.
+                          </p>
+
+                          {specialist.required && (
+                            <div className="mt-2 p-2.5 rounded-xl bg-rose-50 border-2 border-rose-200 flex items-start gap-1.5">
+                              <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                              <p className="text-[11px] font-bold text-rose-900 leading-relaxed">
+                                {specialist.reason} ارجاع این پرونده باید به {SPECIALIST_UNIT_LABEL} انجام شود.
+                              </p>
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* Scheduled Date & Time */}

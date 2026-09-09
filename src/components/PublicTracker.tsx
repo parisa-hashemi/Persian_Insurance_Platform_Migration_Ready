@@ -72,13 +72,13 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
                 value={trackingCode}
                 onChange={(e) => setTrackingCode(e.target.value)}
                 placeholder="مثال: CF-8382-YZ"
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-slate-900 placeholder-slate-400 text-sm font-mono tracking-wider focus:outline-none focus:border-blue-500 transition-all uppercase font-bold"
+                className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 md:py-2.5 rounded-lg sm:rounded-xl md:rounded-2xl border border-slate-300 bg-white text-slate-900 placeholder-slate-400 placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm text-[12px] sm:text-[13px] md:text-sm font-mono tracking-wider focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-2xs transition-all uppercase font-bold"
                 dir="ltr"
                 required
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1.5">
+              <label className="block text-xs sm:text-xs md:text-sm font-bold text-slate-800 mb-1.5">
                 شماره موبایل ثبت‌شده <span className="text-slate-500 font-medium">(اختیاری)</span>
               </label>
               <input
@@ -86,7 +86,7 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="09123456789"
-                className="w-full px-4 py-3 rounded-xl border-2 border-slate-300 bg-white text-slate-900 placeholder-slate-400 text-sm font-mono tracking-wider focus:outline-none focus:border-blue-500 transition-all font-bold"
+                className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 md:py-2.5 rounded-lg sm:rounded-xl md:rounded-2xl border border-slate-300 bg-white text-slate-900 placeholder-slate-400 placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm text-[12px] sm:text-[13px] md:text-sm font-mono tracking-wider focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 shadow-2xs transition-all font-bold"
                 dir="ltr"
               />
             </div>
@@ -94,10 +94,10 @@ export const PublicTracker: React.FC<PublicTrackerProps> = ({
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-black text-sm shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 border border-blue-300"
+            className="w-full h-10 sm:h-11 md:h-13 bg-blue-600 hover:bg-blue-500 text-white rounded-xl md:rounded-2xl font-black text-xs sm:text-sm md:text-base shadow-md transition-all active:scale-98 flex items-center justify-center gap-2 border border-blue-300 cursor-pointer"
           >
-            <Search className="w-5 h-5 stroke-[2.5]" />
-            جستجو و استعلام وضعیت
+            <Search className="w-4 h-4 md:w-5 md:h-5 stroke-[2.5]" />
+            <span>جستجو و استعلام وضعیت</span>
           </button>
         </form>
 

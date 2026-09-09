@@ -213,6 +213,32 @@ export interface AdditionalDocItem {
   visibility?: 'SHARED' | 'EXPERT_ONLY' | 'PARTY_ONLY';
 }
 
+/** روش اخذ تأییدیه رسمی اظهارات طرفین حادثه */
+export type StatementConfirmationMethod = 'OTP' | 'DIGITAL_SIGNATURE' | 'PHYSICAL_SIGNATURE';
+
+/**
+ * اظهارات رسمی هر یک از طرفین حادثه.
+ * متن اظهارات در زمان تشکیل پرونده ثبت و با تأییدیه رسمی تثبیت می‌شود
+ * تا امکان تغییر یک‌جانبه اظهارات در مراحل بعد وجود نداشته باشد.
+ */
+export interface PartyStatement {
+  id: string;
+  party: 'PARTY_ONE' | 'PARTY_TWO';
+  role: string;
+  fullName: string;
+  phone: string;
+  nationalId?: string;
+  statementText: string;
+  recordedAt: string;
+  confirmationStatus: 'CONFIRMED' | 'PENDING';
+  confirmationMethod: StatementConfirmationMethod | null;
+  confirmationCode?: string;
+  confirmedAt?: string;
+  /** فایل صوتی/ویدیویی صرفاً مدرک تکمیلی است و جایگزین متن اظهارات نیست */
+  hasAudioAttachment?: boolean;
+  legalNotice: string;
+}
+
 export interface ClaimCase {
   id: string; // CF-1234
   date: string;
@@ -558,6 +584,83 @@ export interface ClaimCase {
   victimNationalId?: string;
   culpritNationalId?: string;
   isSharedCase?: boolean;
+
+  // --- قوانین کروکی، نوع حادثه و سقف تعهدات ---
+  /** کلید نوع حادثه از ACCIDENT_TYPES (مانند THEFT، FIXED_OBJECT) */
+  accidentTypeKey?: string;
+  accidentTypeLabel?: string;
+  /** مبلغ خسارت اعلامی کاربر در زمان ثبت (تومان) */
+  estimatedDamageToman?: number;
+  /** آیا طبق ضوابط راهور ارائه کروکی برای این پرونده الزامی بوده است؟ */
+  croquiRequired?: boolean;
+  /** دلایل الزام کروکی (شروط ده‌گانه یا عبور از سقف) */
+  croquiRequirementReasons?: string[];
+  /** شناسه شروط ده‌گانه‌ای که کاربر تأیید کرده است */
+  mandatoryCroquiConditionIds?: string[];
+  /** گزارش رسمی جایگزین کروکی (گزارش ۱۱۰ سرقت، ۱۲۵ آتش‌نشانی و ...) */
+  incidentReport?: {
+    kind: string;
+    label: string;
+    trackingCode?: string;
+    issuedAt?: string;
+    file?: MediaFile;
+  };
+
+  // --- مستندسازی حقوقی اظهارات ---
+  partyStatements?: PartyStatement[];
+
+  // --- تخصیص کارشناس بر اساس موقعیت مکانی و سطح‌بندی اختیارات ---
+  /** روش تخصیص: خودکار بر مبنای GPS، ارجاع مجدد یا ارجاع به واحد تخصصی */
+  assignmentMethod?: 'GPS_AUTO' | 'MANUAL_REASSIGN' | 'SPECIALIST_ESCALATION' | 'FALLBACK_NO_GEO';
+  /** فاصله کارشناس تخصیص‌یافته تا محل حادثه (کیلومتر) */
+  assignmentDistanceKm?: number | null;
+  /** تاریخچه ارجاع‌ها جهت شفافیت و پیگیری ارجاع مجدد */
+  assignmentHistory?: Array<{
+    expertId: string | null;
+    expertName: string | null;
+    method: string;
+    distanceKm: number | null;
+    reason: string;
+    at: string;
+  }>;
+  /** کارشناسانی که مأموریت را رد کرده‌اند و نباید مجدداً ارجاع بگیرند */
+  excludedExpertIds?: string[];
+  /** آیا پرونده به دلیل عبور از سقف اختیار، نیازمند واحد کارشناسی تخصصی است؟ */
+  requiresSpecialistUnit?: boolean;
+  specialistEscalation?: {
+    reason: string;
+    ceilingToman: number;
+    escalatedAt: string;
+    escalatedBy?: string;
+  };
+
+  // --- تفکیک برآورد ارزیاب از محاسبه پرداختی بیمه‌گر ---
+  /** برآورد فیزیکی ارزیاب — بدون هیچ کسورات مالی */
+  assessorPhysicalEstimate?: {
+    partsTotal: number;
+    laborTotal: number;
+    salvageValue?: number;
+    submittedBy?: string;
+    submittedAt?: string;
+    note?: string;
+  };
+  /** محاسبه کسورات و رقم نهایی — مسئولیت بیمه‌گر و سامانه واسط */
+  insurerSettlement?: {
+    physicalDamageNet: number;
+    depreciationAmount: number;
+    franchiseAmount: number;
+    article10Ratio: number;
+    article10Deduction: number;
+    discountAmount: number;
+    diminutionAmount: number;
+    totalClaimBeforeCeiling: number;
+    policyCeiling: number;
+    insurerPayable: number;
+    culpritExcessDebt: number;
+    calculatedBy: string;
+    calculatedAt: string;
+  };
+
   partyComments?: Array<{
     id: string;
     authorName: string;

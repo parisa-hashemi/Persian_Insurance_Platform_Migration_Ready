@@ -104,10 +104,10 @@ export const SearchableCompanySelect: React.FC<SearchableCompanySelectProps> = (
             onFocus={handleInputFocus}
             placeholder="جستجو و انتخاب شرکت بیمه..."
             autoComplete="off"
-            className={`w-full pr-9 pl-14 py-2.5 bg-white border-2 rounded-xl text-xs font-bold text-slate-900 transition-all focus:outline-none ${
+            className={`w-full h-9 sm:h-10 md:h-12 pr-9 md:pr-10 pl-14 md:pl-16 py-1.5 md:py-2.5 bg-white border rounded-lg sm:rounded-xl md:rounded-2xl text-[11.5px] sm:text-xs md:text-sm font-medium text-slate-900 placeholder:text-[11px] sm:placeholder:text-xs md:placeholder:text-sm placeholder:text-slate-400 transition-all focus:outline-none ${
               isOpen
-                ? 'border-blue-500 ring-2 ring-blue-100 shadow-sm'
-                : 'border-slate-300 hover:border-slate-400'
+                ? 'border-blue-600 ring-2 ring-blue-100 shadow-2xs'
+                : 'border-slate-300 hover:border-slate-400 shadow-2xs'
             }`}
           />
 

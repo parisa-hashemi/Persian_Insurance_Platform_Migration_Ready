@@ -1,0 +1,28 @@
+{
+  "name": "کاراینشو — سامانه ارزیابی و پرداخت خسارت",
+  "short_name": "کاراینشو",
+  "description": "اپلیکیشن کارشناس میدانی: دریافت و پذیرش مأموریت، ثبت بازدید و بارگذاری تصاویر در محل حادثه",
+  "lang": "fa-IR",
+  "dir": "rtl",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#1e3a8a",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "./icons/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

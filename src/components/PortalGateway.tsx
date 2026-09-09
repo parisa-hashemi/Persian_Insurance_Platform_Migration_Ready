@@ -294,61 +294,61 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
       <KarinshoHero />
 
       {/* ================= کارت ورود شناور روی هیرو ================= */}
-      <main className="relative z-10 -mt-16 sm:-mt-24 px-3 sm:px-5 lg:px-7 flex-1 w-full pb-8">
-        <div className="w-full space-y-8">
+      <main className="relative z-10 -mt-8 sm:-mt-24 px-2.5 sm:px-5 lg:px-7 flex-1 w-full pb-8">
+        <div className="w-full space-y-5 sm:space-y-8">
 
           {/* کارت اصلی ورود */}
-          <div className="w-full max-w-5xl mx-auto bg-white/90 backdrop-blur-xl rounded-[2rem] border border-slate-200/80 shadow-[0_24px_70px_-24px_rgba(29,78,216,0.28)] p-5 sm:p-8">
+          <div className="w-full max-w-md sm:max-w-xl md:max-w-2xl lg:max-w-3xl xl:max-w-4xl mx-auto bg-white/95 sm:bg-white/90 backdrop-blur-xl rounded-xl sm:rounded-2xl md:rounded-3xl border border-slate-200/80 shadow-[0_16px_48px_-12px_rgba(29,78,216,0.2)] p-3.5 sm:p-7 md:p-10 lg:p-12">
 
             {/* دکمه ثبت‌نام شرکت بیمه جدید و درخواست صدور پنل */}
-            <div className="flex items-center justify-center mb-6">
+            <div className="flex items-center justify-center mb-3 sm:mb-5 md:mb-7">
               <button
                 type="button"
                 onClick={handleOpenCompanyModal}
-                className="group inline-flex items-center justify-center gap-2.5 px-6 py-3 rounded-2xl bg-blue-50 border-2 border-blue-400 text-blue-950 font-black text-xs sm:text-sm shadow-sm hover:shadow-md hover:border-blue-600 hover:bg-blue-100/90 hover:-translate-y-0.5 transition-all active:scale-95 cursor-pointer"
+                className="group inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 md:px-6 md:py-3 rounded-lg sm:rounded-xl md:rounded-2xl bg-blue-50/90 border border-blue-200 hover:border-blue-500 text-blue-950 font-bold text-[11px] sm:text-xs md:text-sm lg:text-base shadow-2xs hover:bg-blue-100/90 transition-all active:scale-95 cursor-pointer max-w-full"
               >
-                <span className="w-7 h-7 rounded-xl bg-blue-600 text-white flex items-center justify-center group-hover:scale-105 transition-all shadow-xs">
-                  <Building2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 rounded-md sm:rounded-lg bg-blue-600 text-white flex items-center justify-center group-hover:scale-105 transition-all shadow-2xs shrink-0">
+                  <Building2 className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 md:w-4.5 md:h-4.5 stroke-[2.5]" />
                 </span>
-                <span>ثبت‌نام شرکت بیمه جدید و درخواست صدور پنل</span>
-                <ArrowLeft className="w-4 h-4 text-blue-800 transition-transform group-hover:-translate-x-1" />
+                <span className="truncate">ثبت‌نام شرکت بیمه جدید و درخواست صدور پنل</span>
+                <ArrowLeft className="w-3 h-3 md:w-4 md:h-4 text-blue-800 transition-transform group-hover:-translate-x-0.5 shrink-0" />
               </button>
             </div>
 
-            {/* دو تب اصلی: مشتری / سازمانی */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-100/80 p-1.5 rounded-2xl mb-7 max-w-3xl mx-auto">
+            {/* دو تب اصلی: مشتری / سازمانی — سگمنت افقی تمیز ۲ تایی */}
+            <div className="grid grid-cols-2 gap-1.5 md:gap-2.5 bg-slate-100/90 p-1 sm:p-1.5 md:p-2 rounded-lg sm:rounded-xl md:rounded-2xl mb-3 sm:mb-5 md:mb-7 max-w-xs sm:max-w-sm md:max-w-xl lg:max-w-2xl mx-auto shadow-inner">
               <button
                 type="button"
                 onClick={() => setMainMode('customer')}
-                className={`py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
+                className={`py-1.5 sm:py-2 md:py-3.5 lg:py-4 px-2 md:px-5 rounded-md sm:rounded-lg md:rounded-xl text-[11px] sm:text-xs md:text-base lg:text-lg font-black transition-all duration-200 flex items-center justify-center gap-1.5 md:gap-2.5 cursor-pointer ${
                   mainMode === 'customer'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
+                    ? 'bg-blue-600 text-white shadow-2xs'
                     : 'text-slate-600 hover:text-blue-800'
                 }`}
               >
-                <User className="w-4 h-4" />
+                <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-5.5 lg:h-5.5" />
                 <span>ورود مشتری</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setMainMode('org')}
-                className={`py-3 px-3 rounded-xl text-xs sm:text-sm font-black transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
+                className={`py-1.5 sm:py-2 md:py-3.5 lg:py-4 px-2 md:px-5 rounded-md sm:rounded-lg md:rounded-xl text-[11px] sm:text-xs md:text-base lg:text-lg font-black transition-all duration-200 flex items-center justify-center gap-1.5 md:gap-2.5 cursor-pointer ${
                   mainMode === 'org'
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/25'
+                    ? 'bg-blue-600 text-white shadow-2xs'
                     : 'text-slate-600 hover:text-blue-800'
                 }`}
               >
-                <Briefcase className="w-4 h-4" />
+                <Briefcase className="w-3.5 h-3.5 sm:w-4 sm:h-4 md:w-5 md:h-5 lg:w-5.5 lg:h-5.5" />
                 <span>ورود سازمانی</span>
               </button>
             </div>
 
             {/* ---------- ورود مشتری ---------- */}
             {mainMode === 'customer' && (
-              <div className="max-w-xl mx-auto space-y-6 animate-in fade-in">
+              <div className="max-w-sm sm:max-w-md md:max-w-xl lg:max-w-2xl mx-auto space-y-3 sm:space-y-4 md:space-y-6 animate-in fade-in">
                 <div className="text-center">
-                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                  <h2 className="text-xs sm:text-sm md:text-lg lg:text-xl font-black text-slate-900">
                     ورود بیمه‌گذار و زیان‌دیده
                   </h2>
                 </div>
@@ -361,26 +361,26 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
             {/* ---------- ورود سازمانی ---------- */}
             {mainMode === 'org' && (
-              <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in">
-                <div className="text-center space-y-2">
-                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
+              <div className="max-w-sm sm:max-w-md md:max-w-xl lg:max-w-2xl mx-auto space-y-3 sm:space-y-4 md:space-y-6 animate-in fade-in">
+                <div className="text-center space-y-1 sm:space-y-1.5">
+                  <h2 className="text-xs sm:text-sm md:text-lg lg:text-xl font-black text-slate-900">
                     ورود به پنل تخصصی سازمانی
                   </h2>
-                  <p className="text-xs text-slate-500 font-medium">
+                  <p className="text-[10px] sm:text-[11px] md:text-sm lg:text-base text-slate-500 font-medium">
                     نقش سازمانی، شرکت بیمه‌گر و حساب کاربری خود را انتخاب نمایید
                   </p>
                 </div>
 
                 {/* انتخاب نقش */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <ChevronDown className="w-3.5 h-3.5 text-blue-700" />
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                    <ChevronDown className="w-3 h-3 text-blue-700" />
                     نقش و سطح دسترسی
                   </label>
                   <select
                     value={orgRole}
                     onChange={(e) => setOrgRole(e.target.value as RoleType)}
-                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs sm:text-sm font-black text-blue-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer shadow-sm"
+                    className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 sm:py-2 bg-slate-50 border border-slate-300 rounded-lg sm:rounded-xl md:rounded-2xl text-xs md:text-sm font-bold text-blue-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all cursor-pointer shadow-2xs"
                   >
                     <option value="insurer">شرکت بیمه‌گر (مدیریت پرونده‌ها و ارجاع خسارت)</option>
                     <option value="assessor">کارشناس ارزیابی خسارت (برآورد هوشمند و مدل ۳D)</option>
@@ -393,10 +393,10 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                 </div>
 
                 {/* فرم نقش انتخاب‌شده */}
-                <div className="bg-slate-50/80 p-6 rounded-2xl border border-slate-200 space-y-4">
+                <div className="bg-slate-50/90 p-2.5 sm:p-4 md:p-5 rounded-lg sm:rounded-xl md:rounded-2xl border border-slate-200 space-y-3 md:space-y-4">
                 {/* 1. Insurer */}
                 {orgRole === 'insurer' && (
-                  <form onSubmit={handleInsurerLogin} className="space-y-4 animate-in fade-in">
+                  <form onSubmit={handleInsurerLogin} className="space-y-3 md:space-y-4 animate-in fade-in">
                     <SearchableCompanySelect
                       insurersList={insurersList}
                       selectedCompanyCode={insurerCompany}
@@ -404,7 +404,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                     />
 
                     <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
+                      <label className="block text-[11px] sm:text-xs md:text-sm text-slate-800 mb-1 font-bold">
                         رمز عبور مدیر ارشد
                       </label>
                       <input
@@ -412,17 +412,17 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         value={insurerPass}
                         onChange={(e) => setInsPass(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500"
+                        className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 bg-white border border-slate-300 rounded-lg sm:rounded-xl md:rounded-2xl text-xs md:text-sm font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-600 shadow-2xs"
                         dir="ltr"
                       />
                     </div>
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                      className="w-full h-9 sm:h-10 md:h-12 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-black rounded-lg sm:rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base shadow-xs transition-all flex items-center justify-center gap-1.5 md:gap-2 active:scale-[0.98] cursor-pointer"
                     >
                       <span>ورود به پنل مدیریت شرکت بیمه</span>
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
                     </button>
                   </form>
                 )}
@@ -462,7 +462,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                 {/* 5. Finance */}
                 {orgRole === 'finance' && (
-                  <form onSubmit={handleFinanceLogin} className="space-y-4 animate-in fade-in">
+                  <form onSubmit={handleFinanceLogin} className="space-y-3 md:space-y-4 animate-in fade-in">
                     <SearchableCompanySelect
                       insurersList={insurersList}
                       selectedCompanyCode={financeCompany}
@@ -474,13 +474,13 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                     />
 
                     <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
+                      <label className="block text-[11px] sm:text-xs md:text-sm text-slate-800 mb-1 font-bold">
                         کارشناس / مدیر مالی
                       </label>
                       <select
                         value={financeId}
                         onChange={(e) => setFinanceId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-blue-600 shadow-sm"
+                        className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 sm:py-2 bg-white border border-slate-300 rounded-lg sm:rounded-xl md:rounded-2xl text-xs md:text-sm font-black text-slate-900 focus:outline-none focus:border-blue-600 shadow-2xs"
                       >
                         {(financeStaffMap[financeCompany] || []).length > 0 ? (
                           (financeStaffMap[financeCompany] || []).map((s) => (
@@ -497,7 +497,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
+                      <label className="block text-[11px] sm:text-xs md:text-sm text-slate-800 mb-1 font-bold">
                         رمز عبور
                       </label>
                       <input
@@ -505,7 +505,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         value={financePass}
                         onChange={(e) => setFinancePass(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-600 shadow-sm"
+                        className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 bg-white border border-slate-300 rounded-lg sm:rounded-xl md:rounded-2xl text-xs md:text-sm font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-600 shadow-2xs"
                         dir="ltr"
                         required
                       />
@@ -513,17 +513,17 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-blue-700 hover:bg-blue-600 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                      className="w-full h-9 sm:h-10 md:h-12 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-black rounded-lg sm:rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base shadow-xs transition-all flex items-center justify-center gap-1.5 md:gap-2 active:scale-[0.98] cursor-pointer"
                     >
                       <span>ورود به پنل مالی و خزانه‌داری</span>
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
                     </button>
                   </form>
                 )}
 
                 {/* 6. CRM */}
                 {orgRole === 'crm' && (
-                  <form onSubmit={handleCrmLogin} className="space-y-4 animate-in fade-in">
+                  <form onSubmit={handleCrmLogin} className="space-y-3 md:space-y-4 animate-in fade-in">
                     <SearchableCompanySelect
                       insurersList={insurersList}
                       selectedCompanyCode={crmCompany}
@@ -535,13 +535,13 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                     />
 
                     <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
+                      <label className="block text-[11px] sm:text-xs md:text-sm text-slate-800 mb-1 font-bold">
                         کارشناس پشتیبانی / CRM
                       </label>
                       <select
                         value={crmId}
                         onChange={(e) => setCrmId(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-blue-600 shadow-sm"
+                        className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 sm:py-2 bg-white border border-slate-300 rounded-lg sm:rounded-xl md:rounded-2xl text-xs md:text-sm font-black text-slate-900 focus:outline-none focus:border-blue-600 shadow-2xs"
                       >
                         {(crmStaffMap[crmCompany] || []).length > 0 ? (
                           (crmStaffMap[crmCompany] || []).map((s) => (
@@ -558,7 +558,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
+                      <label className="block text-[11px] sm:text-xs md:text-sm text-slate-800 mb-1 font-bold">
                         رمز عبور
                       </label>
                       <input
@@ -566,7 +566,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         value={crmPass}
                         onChange={(e) => setCrmPass(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-600 shadow-sm"
+                        className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 bg-white border border-slate-300 rounded-lg sm:rounded-xl md:rounded-2xl text-xs md:text-sm font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-600 shadow-2xs"
                         dir="ltr"
                         required
                       />
@@ -574,33 +574,33 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-blue-700 hover:bg-blue-600 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                      className="w-full h-9 sm:h-10 md:h-12 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-black rounded-lg sm:rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base shadow-xs transition-all flex items-center justify-center gap-1.5 md:gap-2 active:scale-[0.98] cursor-pointer"
                     >
                       <span>ورود به پنل امور مشتریان و CRM</span>
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
                     </button>
                   </form>
                 )}
 
                 {/* 7. Senior Admin */}
                 {orgRole === 'admin' && (
-                  <form onSubmit={handleAdminLogin} className="space-y-4 animate-in fade-in">
+                  <form onSubmit={handleAdminLogin} className="space-y-3 md:space-y-4 animate-in fade-in">
                     <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
+                      <label className="block text-[11px] sm:text-xs md:text-sm text-slate-800 mb-1 font-bold">
                         نام کاربری مدیر ارشد
                       </label>
                       <input
                         type="text"
                         value={adminUser}
                         onChange={(e) => setAdminUser(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500"
+                        className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 bg-white border border-slate-300 rounded-lg sm:rounded-xl md:rounded-2xl text-xs md:text-sm font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-600 shadow-2xs"
                         dir="ltr"
                         required
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs text-slate-800 mb-1.5 font-bold">
+                      <label className="block text-[11px] sm:text-xs md:text-sm text-slate-800 mb-1 font-bold">
                         رمز عبور مدیر ارشد
                       </label>
                       <input
@@ -608,7 +608,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                         value={adminPass}
                         onChange={(e) => setAdminPass(e.target.value)}
                         placeholder="••••"
-                        className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-500"
+                        className="w-full h-9 sm:h-10 md:h-12 px-3 md:px-4 py-1.5 bg-white border border-slate-300 rounded-lg sm:rounded-xl md:rounded-2xl text-xs md:text-sm font-mono text-slate-900 font-bold focus:outline-none focus:border-blue-600 shadow-2xs"
                         dir="ltr"
                         required
                       />
@@ -616,10 +616,10 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
                     <button
                       type="submit"
-                      className="w-full py-3 bg-blue-700 hover:bg-blue-600 text-white font-black rounded-xl text-xs shadow-md border border-blue-500 transition-all flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full h-9 sm:h-10 md:h-12 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-black rounded-lg sm:rounded-xl md:rounded-2xl text-xs sm:text-sm md:text-base shadow-xs transition-all flex items-center justify-center gap-1.5 md:gap-2 active:scale-[0.98] cursor-pointer"
                     >
                       <span>ورود به پنل مدیریت ارشد کلان</span>
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
                     </button>
                   </form>
                 )}
@@ -629,58 +629,58 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
           </div>
 
           {/* استعلام سریع بدون ورود */}
-          <div className="flex justify-center">
+          <div className="flex justify-center px-1">
             <button
               onClick={onOpenPublicTrack}
-              className="group inline-flex items-center gap-2.5 px-6 py-3.5 rounded-2xl bg-white border border-blue-200 text-blue-900 font-black text-xs shadow-sm hover:shadow-lg hover:border-blue-400 hover:-translate-y-0.5 transition-all cursor-pointer"
+              className="group w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-2 sm:px-5 sm:py-2.5 md:px-7 md:py-3.5 rounded-lg sm:rounded-xl md:rounded-2xl bg-white border border-blue-200 text-blue-900 font-black text-[11px] sm:text-xs md:text-sm shadow-2xs hover:shadow-xs hover:border-blue-400 transition-all cursor-pointer active:scale-[0.98]"
             >
-              <span className="w-7 h-7 rounded-xl bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                <Search className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span className="w-5 h-5 sm:w-6 sm:h-6 md:w-7 md:h-7 rounded-md sm:rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors shrink-0">
+                <Search className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 stroke-[2.5] text-blue-700" />
               </span>
-              <span>استعلام و پیگیری پرونده با کد رهگیری — بدون نیاز به ورود</span>
-              <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1" />
+              <span className="truncate">استعلام و پیگیری پرونده با کد رهگیری (بدون ورود)</span>
+              <ArrowLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 text-blue-700 transition-transform group-hover:-translate-x-0.5 shrink-0" />
             </button>
           </div>
 
-          {/* ================= کارت‌های ویژگی (مثل رفرنس) ================= */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pb-12">
-            <div className="krn-spotlight krn-proximity p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm transition-all text-center space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-violet-50 flex items-center justify-center">
-                <ShieldCheck className="w-6 h-6 text-violet-500" />
+          {/* ================= کارت‌های ویژگی ================= */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3.5 pb-6 sm:pb-10">
+            <div className="krn-spotlight krn-proximity p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200/80 shadow-2xs transition-all text-center space-y-1 sm:space-y-2">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 mx-auto rounded-lg sm:rounded-xl bg-violet-50 flex items-center justify-center">
+                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-violet-500" />
               </div>
-              <h4 className="font-black text-sm text-slate-900">امن و مطمئن</h4>
-              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                حفاظت از اطلاعات شما با بالاترین استانداردهای امنیتی
+              <h4 className="font-black text-[11px] sm:text-xs text-slate-900">امن و مطمئن</h4>
+              <p className="text-[9.5px] sm:text-[10.5px] text-slate-500 leading-relaxed font-medium">
+                حفاظت از اطلاعات شما با استانداردهای امنیتی
               </p>
             </div>
 
-            <div className="krn-spotlight krn-proximity p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm transition-all text-center space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl krn-accent-sand flex items-center justify-center">
-                <Zap className="w-6 h-6" />
+            <div className="krn-spotlight krn-proximity p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200/80 shadow-2xs transition-all text-center space-y-1 sm:space-y-2">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 mx-auto rounded-lg sm:rounded-xl krn-accent-sand flex items-center justify-center">
+                <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <h4 className="font-black text-sm text-slate-900">سریع و هوشمند</h4>
-              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                استعلام و پرداخت خسارت در کوتاه‌ترین زمان ممکن
+              <h4 className="font-black text-[11px] sm:text-xs text-slate-900">سریع و هوشمند</h4>
+              <p className="text-[9.5px] sm:text-[10.5px] text-slate-500 leading-relaxed font-medium">
+                استعلام و پرداخت خسارت در کمترین زمان
               </p>
             </div>
 
-            <div className="krn-spotlight krn-proximity p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm transition-all text-center space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl krn-accent-sage flex items-center justify-center">
-                <FileCheck className="w-6 h-6" />
+            <div className="krn-spotlight krn-proximity p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200/80 shadow-2xs transition-all text-center space-y-1 sm:space-y-2">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 mx-auto rounded-lg sm:rounded-xl krn-accent-sage flex items-center justify-center">
+                <FileCheck className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
-              <h4 className="font-black text-sm text-slate-900">شفاف و دقیق</h4>
-              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                اطلاعات جامع و به‌روز خسارت‌ها در هر لحظه
+              <h4 className="font-black text-[11px] sm:text-xs text-slate-900">شفاف و دقیق</h4>
+              <p className="text-[9.5px] sm:text-[10.5px] text-slate-500 leading-relaxed font-medium">
+                اطلاعات جامع و به‌روز پرونده‌ها در هر لحظه
               </p>
             </div>
 
-            <div className="krn-spotlight krn-proximity p-5 rounded-3xl bg-white border border-slate-200/80 shadow-sm transition-all text-center space-y-3">
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-50 flex items-center justify-center">
-                <Headphones className="w-6 h-6 text-blue-500" />
+            <div className="krn-spotlight krn-proximity p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white border border-slate-200/80 shadow-2xs transition-all text-center space-y-1 sm:space-y-2">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 mx-auto rounded-lg sm:rounded-xl bg-blue-50 flex items-center justify-center">
+                <Headphones className="w-4 h-4 sm:w-5 sm:h-5 text-blue-500" />
               </div>
-              <h4 className="font-black text-sm text-slate-900">پشتیبانی ۲۴/۷</h4>
-              <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                پاسخگویی در تمام ساعات شبانه‌روز در کنار شما هستیم
+              <h4 className="font-black text-[11px] sm:text-xs text-slate-900">پشتیبانی ۲۴/۷</h4>
+              <p className="text-[9.5px] sm:text-[10.5px] text-slate-500 leading-relaxed font-medium">
+                پاسخگویی در تمام ساعات شبانه‌روز در کنار شما
               </p>
             </div>
           </div>

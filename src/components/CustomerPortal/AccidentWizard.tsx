@@ -37,10 +37,37 @@ import {
   Lock,
   HelpCircle,
   Loader2,
-  ChevronDown
+  ChevronDown,
+  Gavel,
+  BadgeCheck,
+  Siren,
+  Banknote,
+  VolumeX,
+  KeyRound,
+  Send
 } from 'lucide-react';
 import L from 'leaflet';
-import { ClaimCase, UserSession, MediaFile, CaseStatus, CroquiData, DriverRole } from '../../types';
+import { ClaimCase, UserSession, MediaFile, CaseStatus, CroquiData, DriverRole, PartyStatement } from '../../types';
+import {
+  ACCIDENT_TYPES,
+  MANDATORY_CROQUI_CONDITIONS,
+  NO_CROQUI_CEILING_LABEL,
+  NO_CROQUI_CEILING_TOMAN,
+  buildCeilingWarningText,
+  evaluateCroquiRequirement,
+  getAccidentTypeRule,
+  speakWarning,
+  stopWarningSpeech
+} from '../../lib/accidentRules';
+import {
+  AUDIO_NOT_SUFFICIENT_NOTICE,
+  MIN_STATEMENT_LENGTH,
+  STATEMENT_LEGAL_NOTICE,
+  buildConfirmedStatement,
+  buildPendingStatementRequest,
+  generateStatementOtp,
+  validateStatementText
+} from '../../lib/partyStatements';
 import { generateTrackingCode, getInsurerPersianName } from '../../lib/storage';
 import { compressImageFile } from '../../lib/imageCompressor';
 import { sampleCroquis } from '../../data/mockData';
@@ -140,6 +167,50 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   };
   const [croquiData, setCroquiData] = useState<CroquiData | null>(null);
   const [croquiType, setCroquiType] = useState<'paper' | 'electronic' | 'judicial'>('electronic');
+
+  // --- قوانین کروکی، نوع حادثه و سقف تعهدات ---
+  const [accidentTypeKey, setAccidentTypeKey] = useState<string>('');
+  const [estimatedDamage, setEstimatedDamage] = useState<string>('');
+  const [selectedConditionIds, setSelectedConditionIds] = useState<string[]>([]);
+  const [showConditionsGuide, setShowConditionsGuide] = useState(false);
+  const [isSpeakingWarning, setIsSpeakingWarning] = useState(false);
+  const [incidentReportCode, setIncidentReportCode] = useState('');
+
+  const estimatedDamageToman = Number(
+    String(estimatedDamage)
+      .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+      .replace(/[^0-9]/g, '')
+  ) || 0;
+
+  const accidentRule = getAccidentTypeRule(accidentTypeKey);
+  const croquiRequirement = evaluateCroquiRequirement({
+    accidentTypeKey,
+    selectedConditionIds,
+    estimatedDamageToman
+  });
+  const needsAlternativeReport = !!accidentRule && accidentRule.supportsCroqui === false;
+
+  const handleToggleWarningSpeech = () => {
+    if (isSpeakingWarning) {
+      stopWarningSpeech();
+      setIsSpeakingWarning(false);
+      return;
+    }
+    const ok = speakWarning(buildCeilingWarningText(estimatedDamageToman));
+    setIsSpeakingWarning(ok);
+    if (ok) {
+      window.setTimeout(() => setIsSpeakingWarning(false), 15000);
+    }
+  };
+
+  // --- تأیید رسمی اظهارات (OTP) ---
+  const [showStatementModal, setShowStatementModal] = useState(false);
+  const [statementOtp, setStatementOtp] = useState('');
+  const [enteredStatementOtp, setEnteredStatementOtp] = useState('');
+  const [statementOtpSent, setStatementOtpSent] = useState(false);
+  const [statementOtpError, setStatementOtpError] = useState<string | null>(null);
+  const [statementAgreed, setStatementAgreed] = useState(false);
+  const [confirmedStatement, setConfirmedStatement] = useState<PartyStatement | null>(null);
   const [showFuturePoliceModal, setShowFuturePoliceModal] = useState(false);
   const [showChassisGuideModal, setShowChassisGuideModal] = useState(false);
   const [isAnalyzingCroqui, setIsAnalyzingCroqui] = useState(false);
@@ -440,23 +511,58 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       if (!agreePolicy) {
         errors.push({ field: 'agreePolicy', message: 'پذیرش شرایط و قوانین عمومی ثبت آنلاین خسارت الزامی است.' });
       }
-      if (hasKroki === null) {
-        errors.push({ field: 'hasKroki', message: 'مشخص نمودن وضعیت کروکی پلیس راهور (دارد یا ندارد) الزامی است.' });
-      } else if (hasKroki === true) {
-        if (croquiType === 'electronic') {
-          if (!krokiCode.trim()) {
-            errors.push({ field: 'krokiCode', message: 'شماره سریال کروکی / کد پیگیری پیامک‌شده الزامی است.' });
-          }
-        } else if (croquiType === 'judicial' || croquiType === 'paper') {
-          const hasJudicialDoc =
-            !!getFileForLabel('بارگذاری تصویر/PDF گزارش کارشناس') ||
-            !!getFileForLabel('گزارش کارشناس دادگستری') ||
-            !!getFileForLabel('عکس کروکی') ||
-            !!getFileForLabel('عکس برگه گزارش پلیس') ||
-            !!croquiData ||
-            files.some((f) => f.name?.includes('کارشناس') || f.name?.includes('قضایی') || f.name?.includes('دادگستری'));
-          if (!hasJudicialDoc) {
-            errors.push({ field: 'judicialCroqui', message: 'بارگذاری تصویر/PDF گزارش کارشناس الزامی است.' });
+      if (!accidentTypeKey) {
+        errors.push({ field: 'accidentType', message: 'انتخاب نوع حادثه الزامی است.' });
+      }
+      if (estimatedDamageToman <= 0) {
+        errors.push({
+          field: 'estimatedDamage',
+          message: 'اعلام برآورد تقریبی مبلغ خسارت (به تومان) الزامی است.'
+        });
+      }
+
+      // حوادثی مانند سرقت و آتش‌سوزی کروکی راهور ندارند و گزارش رسمی جایگزین لازم دارند.
+      if (needsAlternativeReport) {
+        if (!incidentReportCode.trim()) {
+          errors.push({
+            field: 'incidentReportCode',
+            message: `ثبت شماره پرونده / کد رهگیری ${accidentRule?.reportLabel || 'گزارش رسمی'} الزامی است.`
+          });
+        }
+        const hasReportFile =
+          !!getFileForLabel('گزارش رسمی حادثه') ||
+          files.some((f) => f.name?.includes('گزارش ۱۱۰') || f.name?.includes('گزارش رسمی'));
+        if (!hasReportFile) {
+          errors.push({
+            field: 'incidentReportFile',
+            message: `بارگذاری تصویر/PDF ${accidentRule?.reportLabel || 'گزارش رسمی حادثه'} الزامی است.`
+          });
+        }
+      } else {
+        if (hasKroki === null) {
+          errors.push({ field: 'hasKroki', message: 'مشخص نمودن وضعیت کروکی پلیس راهور (دارد یا ندارد) الزامی است.' });
+        } else if (hasKroki === false && croquiRequirement.mandatory) {
+          errors.push({
+            field: 'hasKroki',
+            message:
+              'با توجه به شرایط اعلامی، ارائه کروکی پلیس راهور برای این حادثه الزامی است و ثبت پرونده بدون کروکی امکان‌پذیر نیست.'
+          });
+        } else if (hasKroki === true) {
+          if (croquiType === 'electronic') {
+            if (!krokiCode.trim()) {
+              errors.push({ field: 'krokiCode', message: 'شماره سریال کروکی / کد پیگیری پیامک‌شده الزامی است.' });
+            }
+          } else if (croquiType === 'judicial' || croquiType === 'paper') {
+            const hasJudicialDoc =
+              !!getFileForLabel('بارگذاری تصویر/PDF گزارش کارشناس') ||
+              !!getFileForLabel('گزارش کارشناس دادگستری') ||
+              !!getFileForLabel('عکس کروکی') ||
+              !!getFileForLabel('عکس برگه گزارش پلیس') ||
+              !!croquiData ||
+              files.some((f) => f.name?.includes('کارشناس') || f.name?.includes('قضایی') || f.name?.includes('دادگستری'));
+            if (!hasJudicialDoc) {
+              errors.push({ field: 'judicialCroqui', message: 'بارگذاری تصویر/PDF گزارش کارشناس الزامی است.' });
+            }
           }
         }
       }
@@ -487,13 +593,10 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       if (!hasDoc) {
         errors.push({ field: 'vehicle_card', message: 'بارگذاری تصویر کارت خودرو (یا برگ سبز) الزامی است.' });
       }
-      const hasVoice = !!audioUrl || files.some((f) => f.type === 'audio' || f.name?.includes('صوت'));
-      const hasReport = writtenReport.trim().length >= 8;
-      if (!hasVoice && !hasReport) {
-        errors.push({
-          field: 'description',
-          message: 'ارائه توضیحات نحوه وقوع حادثه (به‌صورت صوتی یا ثبت متن توضیحات) الزامی است.'
-        });
+      // متن اظهارات الزامی است؛ فایل صوتی به‌تنهایی وجاهت قانونی ندارد.
+      const statementCheck = validateStatementText(writtenReport);
+      if (!statementCheck.valid) {
+        errors.push({ field: 'description', message: statementCheck.error || 'ثبت متن اظهارات الزامی است.' });
       }
     }
 
@@ -597,11 +700,17 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
     const errors = validateStep(currentStep);
     if (errors.length > 0) {
       setValidationErrors(errors);
-      showRequiredDocsError(`امکان رفتن به مرحله بعد وجود ندارد؛ لطفاً ${toFaDigits(errors.length)} مورد الزامی مشخص‌شده را تکمیل فرمایید.`);
-      notifyApp(`لطفاً ${toFaDigits(errors.length)} مورد الزامی مشخص‌شده را تکمیل کنید.`, 'error');
-      const el = document.getElementById('wizard-validation-alert') || document.getElementById('wizard-header-container');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else window.scrollTo({ top: 80, behavior: 'smooth' });
+      showRequiredDocsError(`لطفاً ${toFaDigits(errors.length)} مورد الزامی مشخص‌شده را تکمیل فرمایید.`);
+      setTimeout(() => {
+        const firstErrField = errors[0]?.field;
+        const fieldEl = firstErrField ? document.getElementById(`field-${firstErrField}`) : null;
+        const targetEl = fieldEl || document.getElementById('wizard-validation-alert') || document.getElementById('wizard-header-container');
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          window.scrollTo({ top: 80, behavior: 'smooth' });
+        }
+      }, 50);
       return;
     }
 
@@ -830,10 +939,16 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
     if (errors.length > 0) {
       setValidationErrors(errors);
       showRequiredDocsError(`امکان ثبت نهایی وجود ندارد؛ لطفاً ${toFaDigits(errors.length)} مورد الزامی مشخص‌شده را تکمیل فرمایید.`);
-      notifyApp(`لطفاً ${toFaDigits(errors.length)} مورد الزامی مشخص‌شده را تکمیل کنید.`, 'error');
-      const el = document.getElementById('wizard-validation-alert') || document.getElementById('wizard-header-container');
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      else window.scrollTo({ top: 80, behavior: 'smooth' });
+      setTimeout(() => {
+        const firstErrField = errors[0]?.field;
+        const fieldEl = firstErrField ? document.getElementById(`field-${firstErrField}`) : null;
+        const targetEl = fieldEl || document.getElementById('wizard-validation-alert') || document.getElementById('wizard-header-container');
+        if (targetEl) {
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          window.scrollTo({ top: 80, behavior: 'smooth' });
+        }
+      }, 50);
       return;
     }
 
@@ -857,6 +972,35 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       showRequiredDocsError('بارگذاری عکس پشت و روی گواهینامه راننده طرف مقابل الزامی است.');
       return;
     }
+
+    // اعتبارسنجی مجدد متن اظهارات پیش از اخذ تأییدیه رسمی
+    const statementCheck = validateStatementText(writtenReport);
+    if (!statementCheck.valid) {
+      showRequiredDocsError(statementCheck.error || 'ثبت متن اظهارات الزامی است.');
+      setCurrentStep(3);
+      return;
+    }
+
+    // دروازه حقوقی: بدون تأییدیه رسمی اظهارات، پرونده تشکیل نمی‌شود.
+    if (!confirmedStatement) {
+      setStatementOtp('');
+      setEnteredStatementOtp('');
+      setStatementOtpSent(false);
+      setStatementOtpError(null);
+      setStatementAgreed(false);
+      setShowStatementModal(true);
+      return;
+    }
+
+    finalizeCase(confirmedStatement);
+  };
+
+  const finalizeCase = (signedStatement: PartyStatement) => {
+    // این مقادیر پس از تفکیک تابع ثبت نهایی، مجدداً در این محدوده محاسبه می‌شوند.
+    const vicFrontLicense = getFileForLabel(`عکس روی گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('روی گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
+    const vicBackLicense = getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`) || files.find(f => f.name?.includes('پشت گواهینامه') && (f.name?.includes('شما') || f.name?.includes('زیان‌دیده')));
+    const fltFrontLicense = getFileForLabel(`عکس روی گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`) || files.find(f => f.name?.includes('روی گواهینامه') && (f.name?.includes('طرف مقابل') || f.name?.includes('مقصر')));
+    const fltBackLicense = getFileForLabel(`عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`) || files.find(f => f.name?.includes('پشت گواهینامه') && (f.name?.includes('طرف مقابل') || f.name?.includes('مقصر')));
 
     const trackingCode = generateTrackingCode();
     const vicPlateStr = `${vicP1}-${vicPLetter}-${vicP2}-ایران-${vicP3}`;
@@ -924,6 +1068,37 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       partyTwoNationalId: p2NationalId,
       partyTwoRole: p2Role,
       isSharedCase: true,
+
+      // --- قوانین کروکی، نوع حادثه و سقف تعهدات ---
+      accidentTypeKey: accidentTypeKey || undefined,
+      accidentTypeLabel: accidentRule?.label,
+      estimatedDamageToman: estimatedDamageToman || undefined,
+      croquiRequired: croquiRequirement.mandatory,
+      croquiRequirementReasons: croquiRequirement.reasons.length ? croquiRequirement.reasons : undefined,
+      mandatoryCroquiConditionIds: selectedConditionIds.length ? selectedConditionIds : undefined,
+      incidentReport: needsAlternativeReport
+        ? {
+            kind: croquiRequirement.reportKind,
+            label: croquiRequirement.reportLabel,
+            trackingCode: incidentReportCode.trim() || undefined,
+            issuedAt: accidentDateTime,
+            file:
+              getFileForLabel('گزارش رسمی حادثه') ||
+              files.find((f) => f.name?.includes('گزارش ۱۱۰') || f.name?.includes('گزارش رسمی'))
+          }
+        : undefined,
+
+      // --- مستندسازی حقوقی اظهارات طرفین ---
+      partyStatements: [
+        signedStatement,
+        buildPendingStatementRequest({
+          party: 'PARTY_TWO',
+          role: p2Role,
+          fullName: p2Name,
+          phone: p2Phone,
+          nationalId: p2NationalId
+        })
+      ],
       victimPhone: victimPhoneVal,
       victimName: victimNameVal,
       victimNationalId: victimNationalIdVal,
@@ -1103,34 +1278,29 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   };
 
   return (
-    <div className="w-full space-y-6 animate-in fade-in">
+    <div className="w-full max-w-4xl mx-auto space-y-3.5 sm:space-y-6 animate-in fade-in">
       {/* اعلان و هشدار خطاهای اعتبارسنجی فیلدهای الزامی */}
       {(validationErrors.length > 0 || requiredDocsError) && (
         <div
           id="wizard-validation-alert"
-          className="bg-rose-50 border-2 border-rose-400 text-rose-900 rounded-3xl p-5 space-y-3 shadow-md animate-in fade-in slide-in-from-top-2"
+          className="bg-rose-50/95 border border-rose-300 text-rose-900 rounded-xl sm:rounded-2xl p-2.5 sm:p-3 space-y-2 shadow-xs animate-in fade-in slide-in-from-top-1"
           role="alert"
           aria-live="assertive"
         >
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-sm">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <h4 className="font-black text-sm text-rose-900">
-                    امکان رفتن به مرحله بعد وجود ندارد
-                  </h4>
-                  {validationErrors.length > 0 && (
-                    <span className="bg-rose-200 text-rose-900 text-[10px] font-black px-2.5 py-0.5 rounded-full border border-rose-300">
-                      {toFaDigits(validationErrors.length)} فیلد الزامی باقی‌مانده
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-rose-700 font-bold leading-relaxed">
-                  {requiredDocsError || 'جهت ادامه روند ثبت خسارت، باید فیلدهای مشخص‌شده زیر را تکمیل فرمایید:'}
-                </p>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-6 h-6 rounded-lg bg-rose-600 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <AlertCircle className="w-3.5 h-3.5" />
+              </span>
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                <h4 className="font-black text-xs text-rose-950">
+                  {requiredDocsError || 'لطفاً موارد الزامی مشخص‌شده را تکمیل فرمایید:'}
+                </h4>
+                {validationErrors.length > 0 && (
+                  <span className="bg-rose-200 text-rose-900 text-[10px] font-black px-2 py-0.5 rounded-full border border-rose-300 whitespace-nowrap">
+                    {toFaDigits(validationErrors.length)} مورد
+                  </span>
+                )}
               </div>
             </div>
             <button
@@ -1139,41 +1309,47 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 setRequiredDocsError(null);
                 setValidationErrors([]);
               }}
-              className="p-1.5 rounded-xl hover:bg-rose-200 text-rose-700 transition-colors shrink-0"
+              className="p-1 rounded-lg hover:bg-rose-200 text-rose-700 transition-colors shrink-0 cursor-pointer"
               title="بستن هشدار"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* لیست موارد ناقص در صورت وجود */}
+          {/* لیست موارد ناقص در قالب چیپ‌های فشرده و کلیک‌پذیر */}
           {validationErrors.length > 0 && (
-            <div className="bg-white/90 backdrop-blur-xs rounded-2xl p-3.5 border border-rose-200 space-y-1.5 shadow-xs">
-              <span className="text-[11px] font-black text-rose-950 block">موارد نیازمند تکمیل:</span>
-              <div className="divide-y divide-rose-100">
-                {validationErrors.map((err, idx) => (
-                  <div key={idx} className="py-1.5 first:pt-0 last:pb-0 flex items-center gap-2 text-xs font-bold text-rose-800">
-                    <div className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
-                    <span>{err.message}</span>
-                  </div>
-                ))}
-              </div>
+            <div className="flex flex-wrap gap-1.5 pt-0.5 pr-8">
+              {validationErrors.map((err, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    const el = document.getElementById(`field-${err.field}`);
+                    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                  className="inline-flex items-center gap-1 bg-white border border-rose-200 hover:border-rose-400 hover:bg-rose-100/50 cursor-pointer px-2 py-1 rounded-lg text-[10px] sm:text-[11px] font-bold text-rose-900 shadow-2xs transition-all text-right"
+                  title="پرش به این بخش"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0" />
+                  <span>{err.message}</span>
+                </button>
+              ))}
             </div>
           )}
         </div>
       )}
 
       {/* Wizard Header Progress Bar */}
-      <div id="wizard-header-container" className="bg-white p-4 sm:p-6 rounded-3xl border-2 border-slate-200 shadow-sm space-y-6">
+      <div id="wizard-header-container" className="bg-white p-2.5 sm:p-5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs space-y-2.5 sm:space-y-4">
         <div className="w-full">
           {/* Row of Circles & Connecting Line Segments */}
           <div className="flex items-center justify-between">
             {[
-              { step: 1, label: 'شرایط و نقش', icon: ListChecks },
-              { step: 2, label: 'موقعیت', icon: MapPin },
-              { step: 3, label: 'مستندات', icon: Camera },
-              { step: 4, label: wizardRole === 'culprit' ? 'اطلاعات شما (مقصر)' : 'اطلاعات شما (زیان‌دیده)', icon: User },
-              { step: 5, label: wizardRole === 'culprit' ? 'طرف مقابل (زیان‌دیده)' : 'طرف مقابل (مقصر)', icon: Users }
+              { step: 1, icon: ListChecks },
+              { step: 2, icon: MapPin },
+              { step: 3, icon: Camera },
+              { step: 4, icon: User },
+              { step: 5, icon: Users }
             ].map(({ step, icon: Icon }, index, arr) => (
               <React.Fragment key={step}>
                 {/* Step Circle Button */}
@@ -1181,19 +1357,19 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   type="button"
                   disabled={step > currentStep}
                   onClick={() => step < currentStep && setCurrentStep(step)}
-                  className={`w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-full flex items-center justify-center font-black text-sm transition-all relative z-10 ${
+                  className={`w-7 h-7 sm:w-10 sm:h-10 shrink-0 rounded-full flex items-center justify-center font-black text-xs sm:text-sm transition-all relative z-10 ${
                     currentStep >= step
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-slate-100 text-slate-500 border-2 border-slate-300'
                   } ${step < currentStep ? 'cursor-pointer hover:bg-blue-700 active:scale-95' : 'cursor-default'}`}
                   title={step < currentStep ? 'بازگشت به این مرحله' : undefined}
                 >
-                  <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Icon className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                 </button>
 
                 {/* Connecting Line between steps */}
                 {index < arr.length - 1 && (
-                  <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden mx-1.5 sm:mx-2.5">
+                  <div className="flex-1 h-1 sm:h-1.5 bg-slate-200 rounded-full overflow-hidden mx-1 sm:mx-2.5">
                     <div
                       className="h-full bg-blue-600 transition-all duration-300 rounded-full"
                       style={{ width: currentStep > step ? '100%' : '0%' }}
@@ -1204,15 +1380,15 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             ))}
           </div>
 
-          {/* Row of Step Labels */}
-          <div className="flex justify-between items-start mt-2">
+          {/* Row of Step Labels - Responsive and non-wrapping */}
+          <div className="flex justify-between items-start mt-1.5 sm:mt-2">
             {[
-              { step: 1, label: 'شرایط و نقش' },
-              { step: 2, label: 'موقعیت' },
-              { step: 3, label: 'مستندات' },
-              { step: 4, label: wizardRole === 'culprit' ? 'اطلاعات شما (مقصر)' : 'اطلاعات شما (زیان‌دیده)' },
-              { step: 5, label: wizardRole === 'culprit' ? 'طرف مقابل (زیان‌دیده)' : 'طرف مقابل (مقصر)' }
-            ].map(({ step, label }, index, arr) => {
+              { step: 1, labelSm: 'قوانین', label: 'شرایط و نقش' },
+              { step: 2, labelSm: 'موقعیت', label: 'موقعیت حادثه' },
+              { step: 3, labelSm: 'مستندات', label: 'مستندات و عکس' },
+              { step: 4, labelSm: 'اطلاعات شما', label: wizardRole === 'culprit' ? 'اطلاعات شما (مقصر)' : 'اطلاعات شما (زیان‌دیده)' },
+              { step: 5, labelSm: 'طرف مقابل', label: wizardRole === 'culprit' ? 'طرف مقابل (زیان‌دیده)' : 'طرف مقابل (مقصر)' }
+            ].map(({ step, labelSm, label }, index, arr) => {
               const alignClass =
                 index === 0
                   ? 'text-right items-start'
@@ -1220,13 +1396,19 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   ? 'text-left items-end'
                   : 'text-center items-center';
 
+              const isActive = currentStep === step;
+              const isDone = currentStep > step;
+
               return (
                 <div
                   key={step}
-                  className={`flex flex-col ${alignClass} w-16 sm:w-24`}
+                  className={`flex flex-col ${alignClass} flex-1 min-w-0 px-0.5`}
                 >
-                  <span className="text-[9px] sm:text-[11px] font-extrabold text-slate-800 leading-tight">
-                    {label}
+                  <span className={`text-[9px] sm:text-[11px] font-extrabold leading-tight truncate sm:whitespace-normal ${
+                    isActive ? 'text-blue-900 font-black' : isDone ? 'text-slate-700' : 'text-slate-400'
+                  }`}>
+                    <span className="sm:hidden">{labelSm}</span>
+                    <span className="hidden sm:inline">{label}</span>
                   </span>
                 </div>
               );
@@ -1236,32 +1418,48 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
         {/* Step 1: Conditions, Policy Acceptance, Croqui & Role */}
         {currentStep === 1 && (
-          <div className="space-y-6 pt-2 animate-in fade-in">
-            <h3 className="font-black text-lg text-blue-900 flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-blue-900" />
-              تایید قوانین، ارزیابی کروکی و تعیین نقش
-            </h3>
+          <div className="space-y-3.5 sm:space-y-5 pt-1 sm:pt-2 animate-in fade-in">
+            <div className="flex items-center justify-between pb-1.5 sm:pb-2 border-b border-slate-100">
+              <h3 className="font-black text-xs sm:text-base text-blue-900 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5 text-blue-800 shrink-0" />
+                <span>تایید قوانین، ارزیابی کروکی و تعیین نقش</span>
+              </h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-200 shrink-0">
+                مرحله ۱ از ۵
+              </span>
+            </div>
 
             {/* 1. Policy & Terms Box */}
-            <div className="space-y-2 bg-sky-50 p-4 rounded-2xl border-2 border-sky-200 text-xs text-slate-800 leading-relaxed">
-              <div className="flex items-center gap-2 text-sky-950 font-black">
-                <CheckCircle2 className="w-4 h-4 text-sky-700" />
-                شرایط عمومی و قوانین ثبت خسارت خودرو:
+            <div className="space-y-1 bg-sky-50/80 p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 border-sky-200 text-slate-800">
+              <div className="flex items-center justify-between gap-1.5 text-sky-950 font-black text-xs">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-sky-700 shrink-0" />
+                  <span className="truncate">شرایط عمومی و قوانین ثبت خسارت خودرو:</span>
+                </div>
+                {agreePolicy && (
+                  <span className="text-[10px] text-emerald-800 font-extrabold bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 shrink-0">
+                    پذیرفته شد ✓
+                  </span>
+                )}
               </div>
-              <ul className="list-disc list-inside space-y-1.5 pr-2 text-slate-800 font-bold">
-                <li>طرف مقصر باید دارای بیمه‌نامه شخص ثالث معتبر باشد.</li>
-                <li>حادثه نباید دارای صدمات جانی شدید یا فوت باشد.</li>
-                <li>بارگذاری اطلاعات دقیق، تصویر مدارک و تصاویر زوایای خودرو الزامی است.</li>
-              </ul>
+              {!agreePolicy && (
+                <ul className="list-disc list-inside space-y-0.5 pr-1 text-slate-700 font-bold text-[10px] sm:text-xs leading-relaxed animate-in fade-in">
+                  <li>طرف مقصر باید دارای بیمه‌نامه شخص ثالث معتبر باشد.</li>
+                  <li>حادثه نباید دارای صدمات جانی شدید یا فوت باشد.</li>
+                  <li>بارگذاری اطلاعات دقیق، تصویر مدارک و تصاویر زوایای خودرو الزامی است.</li>
+                </ul>
+              )}
             </div>
 
             {/* Checkbox for accepting terms */}
-            <div className="space-y-1">
+            <div id="field-agreePolicy" className="space-y-1">
               <label
-                className={`flex items-center gap-3 cursor-pointer p-4 rounded-2xl border-2 transition-all ${
+                className={`flex items-center gap-2 cursor-pointer p-2 sm:p-2.5 rounded-xl border-2 transition-all ${
                   getFieldError('agreePolicy')
                     ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-200 shadow-xs'
-                    : 'bg-slate-50 border-slate-300 hover:border-blue-400'
+                    : agreePolicy
+                    ? 'bg-blue-50/60 border-blue-300'
+                    : 'bg-slate-50 hover:bg-slate-100 border-slate-300'
                 }`}
               >
                 <input
@@ -1271,9 +1469,9 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     setAgreePolicy(e.target.checked);
                     if (e.target.checked) clearFieldError('agreePolicy');
                   }}
-                  className="w-5 h-5 text-blue-900 rounded focus:ring-blue-300"
+                  className="w-4 h-4 text-blue-900 rounded focus:ring-blue-300 shrink-0 cursor-pointer"
                 />
-                <span className="text-xs font-black text-blue-900">
+                <span className="text-[11px] sm:text-xs font-black text-blue-950 leading-snug">
                   قوانین و مقررات حریم خصوصی و صحت اطلاعات وارد شده را می‌پذیرم. <span className="text-rose-600">*</span>
                 </span>
               </label>
@@ -1287,27 +1485,311 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
             {/* 2. Croqui Section - Shown after accepting terms */}
             {agreePolicy ? (
-              <div className="space-y-5 pt-4 border-t-2 border-slate-200 animate-in fade-in">
-                <div className="bg-purple-50/70 p-5 rounded-2xl border-2 border-purple-200 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-black text-purple-950 flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-purple-800" />
-                      وضعیت و ارزیابی کروکی پلیس راهور <span className="text-rose-600">*</span>
+              <div className="space-y-3 sm:space-y-4 pt-2 border-t-2 border-slate-200 animate-in fade-in">
+
+                {/* 2-A. نوع حادثه */}
+                <div id="field-accidentType" className="bg-indigo-50/70 p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-indigo-200 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs font-black text-indigo-950 flex items-center gap-1.5 min-w-0">
+                      <Siren className="w-4 h-4 text-indigo-800 shrink-0" />
+                      <span className="truncate">نوع حادثه <span className="text-rose-600">*</span></span>
                     </label>
-                    <span className="text-[10px] bg-purple-100 text-purple-900 font-black px-2.5 py-0.5 rounded-md border border-purple-300">
+                    <span className="text-[10px] bg-indigo-100 text-indigo-900 font-black px-2 py-0.5 rounded-md border border-indigo-300 whitespace-nowrap shrink-0">
+                      مدرک رسمی متناسب
+                    </span>
+                  </div>
+                  <p className="text-[10px] sm:text-[11px] text-slate-700 font-medium leading-relaxed">
+                    هر نوع حادثه مدرک رسمی مخصوص خود را دارد؛ برای مثال سرقت و خرابکاری نیازمند گزارش ۱۱۰ نیروی انتظامی است و کروکی راهور برای آن صادر نمی‌شود.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    {ACCIDENT_TYPES.map((t) => (
+                      <button
+                        key={t.key}
+                        type="button"
+                        onClick={() => {
+                          setAccidentTypeKey(t.key);
+                          clearFieldError('accidentType');
+                          if (!t.supportsCroqui) {
+                            setHasKroki(null);
+                            setCroquiData(null);
+                          }
+                        }}
+                        className={`text-right p-2 rounded-xl border-2 transition-all ${
+                          accidentTypeKey === t.key
+                            ? 'bg-indigo-700 border-indigo-800 text-white shadow-xs'
+                            : 'bg-white border-slate-200 hover:bg-indigo-50/60'
+                        }`}
+                      >
+                        <span className={`block text-[11px] font-black ${accidentTypeKey === t.key ? 'text-white' : 'text-slate-900'}`}>
+                          {t.label}
+                        </span>
+                        <span className={`block text-[10px] font-medium mt-0.5 ${accidentTypeKey === t.key ? 'text-indigo-100' : 'text-slate-500'}`}>
+                          {t.hint}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {getFieldError('accidentType') && (
+                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {getFieldError('accidentType')}
+                    </p>
+                  )}
+                  {accidentRule && (
+                    <div className="bg-white p-2 rounded-lg border border-indigo-200 flex items-start gap-1.5">
+                      <FileCheck className="w-3.5 h-3.5 text-indigo-700 shrink-0 mt-0.5" />
+                      <p className="text-[10px] sm:text-[11px] text-slate-800 font-bold leading-relaxed">
+                        مدرک رسمی الزامی برای این حادثه: <span className="text-indigo-800">{accidentRule.reportLabel}</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 2-B. برآورد خسارت و تذکر سقف بدون کروکی */}
+                <div id="field-estimatedDamage" className="bg-amber-50/80 p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-amber-200 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs font-black text-amber-950 flex items-center gap-1.5 min-w-0">
+                      <Banknote className="w-4 h-4 text-amber-700 shrink-0" />
+                      <span className="truncate">برآورد تقریبی مبلغ خسارت (تومان) <span className="text-rose-600">*</span></span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleToggleWarningSpeech}
+                      className="text-[10px] font-black px-2 py-1 rounded-lg bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 transition-colors flex items-center gap-1 shrink-0 cursor-pointer"
+                      title="پخش صوتی تذکر قوانین"
+                    >
+                      {isSpeakingWarning ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                      <span>{isSpeakingWarning ? 'توقف پخش' : 'شنیدن تذکر'}</span>
+                    </button>
+                  </div>
+
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={estimatedDamage}
+                    onChange={(e) => {
+                      setEstimatedDamage(e.target.value.replace(/[^0-9۰-۹,]/g, ''));
+                      clearFieldError('estimatedDamage');
+                    }}
+                    placeholder="مثال: 45000000"
+                    className={`w-full px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border-2 text-xs sm:text-sm font-black font-mono bg-white text-slate-900 focus:outline-none transition-all ${
+                      getFieldError('estimatedDamage')
+                        ? 'border-rose-500 bg-rose-50/30 ring-2 ring-rose-200'
+                        : 'border-amber-300 focus:border-amber-600'
+                    }`}
+                    dir="ltr"
+                  />
+                  {estimatedDamageToman > 0 && (
+                    <p className="text-[10px] text-slate-600 font-bold">
+                      معادل {toFaDigits(estimatedDamageToman.toLocaleString('en-US'))} تومان ({toFaDigits((estimatedDamageToman * 10).toLocaleString('en-US'))} ریال)
+                    </p>
+                  )}
+                  {getFieldError('estimatedDamage') && (
+                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {getFieldError('estimatedDamage')}
+                    </p>
+                  )}
+
+                  {/* تذکر متنی سقف خسارت بدون کروکی */}
+                  <div
+                    className={`p-2.5 rounded-xl border-2 flex items-start gap-1.5 ${
+                      croquiRequirement.exceedsCeiling
+                        ? 'bg-rose-50 border-rose-300'
+                        : 'bg-white border-amber-200'
+                    }`}
+                  >
+                    <AlertTriangle
+                      className={`w-4 h-4 shrink-0 mt-0.5 ${croquiRequirement.exceedsCeiling ? 'text-rose-600' : 'text-amber-600'}`}
+                    />
+                    <p
+                      className={`text-[10px] sm:text-[11px] font-bold leading-relaxed ${
+                        croquiRequirement.exceedsCeiling ? 'text-rose-900' : 'text-amber-950'
+                      }`}
+                    >
+                      {buildCeilingWarningText(estimatedDamageToman)}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2-C. شروط ده‌گانه الزام به کروکی */}
+                <div className="bg-slate-50 p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-slate-200 space-y-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowConditionsGuide((v) => !v)}
+                    className="w-full flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <span className="text-xs font-black text-slate-900 flex items-center gap-1.5 min-w-0">
+                      <Gavel className="w-4 h-4 text-slate-700 shrink-0" />
+                      <span className="truncate">شروط ده‌گانه الزام به کروکی (راهنمای قانونی)</span>
+                    </span>
+                    <span className="flex items-center gap-1 shrink-0">
+                      {selectedConditionIds.length > 0 && (
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                          {toFaDigits(selectedConditionIds.length)} مورد
+                        </span>
+                      )}
+                      <ChevronDown className={`w-4 h-4 text-slate-600 transition-transform ${showConditionsGuide ? 'rotate-180' : ''}`} />
+                    </span>
+                  </button>
+
+                  <p className="text-[10px] sm:text-[11px] text-slate-600 font-medium leading-relaxed">
+                    چنانچه حادثه شما مشمول هر یک از موارد زیر باشد، طبق ضوابط پلیس راهور ارائه کروکی الزامی است. لطفاً موارد صادق را علامت بزنید.
+                  </p>
+
+                  {showConditionsGuide && (
+                    <div className="space-y-1.5 animate-in fade-in">
+                      {MANDATORY_CROQUI_CONDITIONS.map((cond) => {
+                        const checked = selectedConditionIds.includes(cond.id);
+                        return (
+                          <label
+                            key={cond.id}
+                            className={`flex items-start gap-2 p-2 rounded-xl border-2 cursor-pointer transition-all ${
+                              checked ? 'bg-rose-50/70 border-rose-300' : 'bg-white border-slate-200 hover:bg-slate-50'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(e) => {
+                                setSelectedConditionIds((prev) =>
+                                  e.target.checked ? [...prev, cond.id] : prev.filter((id) => id !== cond.id)
+                                );
+                                clearFieldError('hasKroki');
+                              }}
+                              className="w-3.5 h-3.5 mt-0.5 shrink-0 cursor-pointer accent-rose-600"
+                            />
+                            <span className="min-w-0">
+                              <span className="block text-[11px] font-black text-slate-900 leading-snug">{cond.label}</span>
+                              <span className="block text-[10px] text-slate-500 font-medium mt-0.5">{cond.note}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2-D. نتیجه ارزیابی الزام کروکی */}
+                {croquiRequirement.mandatory && (
+                  <div className="bg-rose-50 p-3 rounded-xl border-2 border-rose-300 space-y-1.5 animate-in fade-in">
+                    <p className="text-xs font-black text-rose-900 flex items-center gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      ارائه کروکی برای این پرونده الزامی است
+                    </p>
+                    <ul className="space-y-1 pr-1">
+                      {croquiRequirement.reasons.map((reason, i) => (
+                        <li key={i} className="text-[10px] sm:text-[11px] text-rose-900 font-bold flex items-start gap-1.5">
+                          <ChevronRight className="w-3 h-3 shrink-0 mt-0.5 rotate-180" />
+                          <span className="leading-relaxed">{reason}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* 2-E. گزارش رسمی جایگزین (سرقت، آتش‌سوزی، حوادث طبیعی) */}
+                {needsAlternativeReport && accidentRule && (
+                  <div className="bg-white p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-rose-200 space-y-2.5 animate-in fade-in">
+                    <div className="flex items-center gap-1.5">
+                      <Siren className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span className="text-xs font-black text-rose-950">
+                        {accidentRule.reportLabel} <span className="text-rose-600">*</span>
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-[11px] text-slate-700 font-medium leading-relaxed">
+                      برای حادثه «{accidentRule.label}» کروکی پلیس راهور صادر نمی‌شود؛ ثبت شماره پرونده و بارگذاری تصویر گزارش رسمی الزامی است.
+                    </p>
+
+                    <div id="field-incidentReportCode">
+                      <label className="block text-[11px] font-black text-slate-900 mb-1">
+                        شماره پرونده / کد رهگیری گزارش
+                      </label>
+                      <input
+                        type="text"
+                        value={incidentReportCode}
+                        onChange={(e) => {
+                          setIncidentReportCode(e.target.value);
+                          if (e.target.value.trim()) clearFieldError('incidentReportCode');
+                        }}
+                        placeholder="مثال: 110-1405-448219"
+                        className={`w-full px-3 py-2 rounded-xl border-2 text-xs font-bold font-mono bg-white text-slate-900 focus:outline-none transition-all ${
+                          getFieldError('incidentReportCode')
+                            ? 'border-rose-500 bg-rose-50/30 ring-2 ring-rose-200'
+                            : 'border-slate-300 focus:border-rose-500'
+                        }`}
+                        dir="ltr"
+                      />
+                      {getFieldError('incidentReportCode') && (
+                        <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {getFieldError('incidentReportCode')}
+                        </p>
+                      )}
+                    </div>
+
+                    <div id="field-incidentReportFile">
+                      <label
+                        className={`flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                          getFileForLabel('گزارش رسمی حادثه')
+                            ? 'border-emerald-400 bg-emerald-50/60'
+                            : getFieldError('incidentReportFile')
+                            ? 'border-rose-500 bg-rose-50/40'
+                            : 'border-slate-300 bg-slate-50 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            handleFileUploadForLabel(e, 'گزارش رسمی حادثه');
+                            clearFieldError('incidentReportFile');
+                          }}
+                        />
+                        {getFileForLabel('گزارش رسمی حادثه') ? (
+                          <>
+                            <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                            <span className="text-[11px] font-black text-emerald-800">گزارش رسمی بارگذاری شد</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-4 h-4 text-slate-500 shrink-0" />
+                            <span className="text-[11px] font-black text-slate-700">بارگذاری تصویر یا PDF گزارش</span>
+                          </>
+                        )}
+                      </label>
+                      {getFieldError('incidentReportFile') && (
+                        <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 animate-in fade-in">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {getFieldError('incidentReportFile')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!needsAlternativeReport && (
+                <div className="bg-purple-50/70 p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-purple-200 space-y-2.5 sm:space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <label className="text-xs font-black text-purple-950 flex items-center gap-1.5 min-w-0">
+                      <FileText className="w-4 h-4 text-purple-800 shrink-0" />
+                      <span className="truncate">وضعیت و ارزیابی کروکی پلیس راهور <span className="text-rose-600">*</span></span>
+                    </label>
+                    <span className="text-[10px] bg-purple-100 text-purple-900 font-black px-2 py-0.5 rounded-md border border-purple-300 whitespace-nowrap shrink-0">
                       مرحله ۱: کروکی
                     </span>
                   </div>
 
-                  <p className="text-xs text-slate-800 font-bold">
+                  <p className="text-[11px] sm:text-xs text-slate-800 font-bold">
                     آیا پلیس راهور در صحنه تصادف حاضر شده و برگه کروکی صادر کرده است؟
                   </p>
 
-                  <div className="space-y-1.5">
+                  <div id="field-hasKroki" className="space-y-1.5">
                     <div
-                      className={`grid grid-cols-1 sm:grid-cols-2 gap-3 p-1 rounded-2xl transition-all ${
+                      className={`grid grid-cols-2 gap-2 p-0.5 rounded-xl transition-all ${
                         getFieldError('hasKroki')
-                          ? 'border-2 border-rose-500 bg-rose-50/50 p-2 rounded-2xl ring-2 ring-rose-200'
+                          ? 'border-2 border-rose-500 bg-rose-50/50 p-1.5 rounded-xl ring-2 ring-rose-200'
                           : ''
                       }`}
                     >
@@ -1318,31 +1800,44 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           setFuturePolice(null);
                           clearFieldError('hasKroki');
                         }}
-                        className={`p-3.5 rounded-xl text-xs font-black border-2 transition-all flex items-center justify-center gap-2 ${
+                        className={`py-2 px-2 rounded-xl text-[11px] sm:text-xs font-black border-2 transition-all flex items-center justify-center gap-1 sm:gap-2 ${
                           hasKroki === true
-                            ? 'bg-purple-700 border-purple-800 text-white shadow-sm scale-[1.01]'
+                            ? 'bg-purple-700 border-purple-800 text-white shadow-xs'
                             : 'bg-white border-slate-200 text-slate-800 hover:bg-purple-50/60 font-bold'
                         }`}
                       >
-                        <CheckCircle2 className={`w-4 h-4 ${hasKroki === true ? 'text-white' : 'text-purple-700'}`} />
-                        بله، کروکی کشیده شد
+                        <CheckCircle2 className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${hasKroki === true ? 'text-white' : 'text-purple-700'}`} />
+                        <span className="whitespace-nowrap">بله، کروکی کشیده شد</span>
                       </button>
                       <button
                         type="button"
+                        disabled={croquiRequirement.mandatory}
                         onClick={() => {
+                          if (croquiRequirement.mandatory) return;
                           setHasKroki(false);
                           setCroquiData(null);
                           setShowFuturePoliceModal(true);
                           clearFieldError('hasKroki');
                         }}
-                        className={`p-3.5 rounded-xl text-xs font-black border-2 transition-all flex items-center justify-center gap-2 ${
-                          hasKroki === false
-                            ? 'bg-purple-700 border-purple-800 text-white shadow-sm scale-[1.01]'
+                        title={
+                          croquiRequirement.mandatory
+                            ? 'با توجه به شرایط اعلامی، ثبت پرونده بدون کروکی مجاز نیست.'
+                            : undefined
+                        }
+                        className={`py-2 px-2 rounded-xl text-[11px] sm:text-xs font-black border-2 transition-all flex items-center justify-center gap-1 sm:gap-2 ${
+                          croquiRequirement.mandatory
+                            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                            : hasKroki === false
+                            ? 'bg-purple-700 border-purple-800 text-white shadow-xs'
                             : 'bg-white border-slate-200 text-slate-800 hover:bg-purple-50/60 font-bold'
                         }`}
                       >
-                        <X className={`w-4 h-4 ${hasKroki === false ? 'text-white' : 'text-purple-700'}`} />
-                        خیر، کروکی کشیده نشد
+                        {croquiRequirement.mandatory ? (
+                          <Lock className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-slate-400" />
+                        ) : (
+                          <X className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${hasKroki === false ? 'text-white' : 'text-purple-700'}`} />
+                        )}
+                        <span className="whitespace-nowrap">خیر، کروکی کشیده نشد</span>
                       </button>
                     </div>
                     {getFieldError('hasKroki') && (
@@ -1357,8 +1852,8 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   {hasKroki === true && (
                     <div className="space-y-4 pt-3 border-t border-purple-200 animate-in fade-in">
                       {/* Dropdown: نوع کروکی */}
-                      <div className="bg-purple-50/60 p-3.5 sm:p-4 rounded-2xl border-2 border-purple-200 space-y-2">
-                        <label htmlFor="croqui-type-select" className="block text-xs font-black text-purple-950">
+                      <div className="bg-purple-50/60 p-2.5 sm:p-3.5 rounded-xl border-2 border-purple-200 space-y-1.5">
+                        <label htmlFor="croqui-type-select" className="block text-[11px] sm:text-xs font-black text-purple-950">
                           نوع کروکی <span className="text-rose-600">*</span>
                         </label>
                         <div className="relative">
@@ -1371,12 +1866,12 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                               clearFieldError('krokiCode');
                               clearFieldError('judicialCroqui');
                             }}
-                            className="w-full px-4 py-3 rounded-xl border-2 border-purple-300 text-xs font-black text-purple-950 bg-white shadow-xs focus:outline-none focus:border-purple-600 focus:ring-2 focus:ring-purple-200 transition-all cursor-pointer appearance-none pl-10"
+                            className="w-full px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border-2 border-purple-300 text-xs font-black text-purple-950 bg-white shadow-xs focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-200 transition-all cursor-pointer appearance-none pl-8"
                           >
                             <option value="electronic">کروکی الکترونیک راهور (سیستمی)</option>
                             <option value="judicial">کروکی قضایی / گزارش کارشناس دادگستری (فیزیکی)</option>
                           </select>
-                          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-purple-700">
+                          <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-purple-700">
                             <ChevronDown className="w-4 h-4" />
                           </div>
                         </div>
@@ -1384,10 +1879,10 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
                       {/* Option 1: Electronic Kroki */}
                       {croquiType === 'electronic' && (
-                        <div className="space-y-4 animate-in fade-in">
+                        <div className="space-y-3 animate-in fade-in">
                           {/* Mandatory Field: شماره سریال کروکی / کد پیگیری پیامک‌شده */}
                           <div id="field-krokiCode">
-                            <label className="block text-xs font-black text-purple-950 mb-1">
+                            <label className="block text-[11px] sm:text-xs font-black text-purple-950 mb-1">
                               شماره سریال کروکی / کد پیگیری پیامک‌شده <span className="text-rose-600">*</span>
                             </label>
                             <input
@@ -1397,8 +1892,8 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                                 setKrokiCode(e.target.value);
                                 if (e.target.value.trim()) clearFieldError('krokiCode');
                               }}
-                              placeholder="مثال: CRQ-1403-88492 یا کد پیگیری ۱۶ رقمی پیامک‌شده"
-                              className={`w-full px-4 py-3 rounded-xl border-2 text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 uppercase tracking-wider focus:outline-none transition-all ${
+                              placeholder="مثال: CRQ-1403-88492 یا کد پیگیری ۱۶ رقمی"
+                              className={`w-full px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border-2 text-xs sm:text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 uppercase tracking-wider focus:outline-none transition-all ${
                                 getFieldError('krokiCode')
                                   ? 'border-rose-500 bg-rose-50/30 ring-2 ring-rose-200'
                                   : 'border-purple-300 focus:border-purple-700 focus:ring-1 focus:ring-purple-700'
@@ -1414,36 +1909,36 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           </div>
 
                           {/* AI Croqui Sample Evaluation Option & Optional Photo */}
-                          <div className="bg-white p-4 rounded-xl border-2 border-purple-200 space-y-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-black text-purple-950 flex items-center gap-1.5">
-                                <Sparkles className="w-4 h-4 text-purple-700" />
-                                استعلام و ارزیابی نمونه کروکی با هوش مصنوعی (اختیاری):
+                          <div className="bg-white p-2.5 sm:p-3.5 rounded-xl border-2 border-purple-200 space-y-2.5">
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="text-[11px] sm:text-xs font-black text-purple-950 flex items-center gap-1 min-w-0">
+                                <Sparkles className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                                <span className="truncate">استعلام و ارزیابی نمونه کروکی هوشمند:</span>
                               </span>
-                              <span className="text-[10px] text-purple-700 font-extrabold bg-purple-100 px-2 py-0.5 rounded-md border border-purple-200">
+                              <span className="text-[9px] sm:text-[10px] text-purple-700 font-extrabold bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200 shrink-0">
                                 اختیاری
                               </span>
                             </div>
 
-                            <p className="text-[11px] text-slate-600 font-bold">
-                              برای استعلام خودکار می‌توانید از نمونه‌های زیر جهت پر کردن فرم استفاده کنید، یا در صورت تمایل تصویر برگه/رسید کروکی را اضافه نمایید:
+                            <p className="text-[10px] sm:text-[11px] text-slate-600 font-medium">
+                              برای استعلام خودکار می‌توانید از نمونه‌های زیر استفاده فرمایید:
                             </p>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="grid grid-cols-3 gap-1.5">
                               {sampleCroquis.map((sample, idx) => (
                                 <button
                                   key={idx}
                                   type="button"
                                   disabled={isAnalyzingCroqui}
                                   onClick={() => handleAnalyzeCroquiSample(idx)}
-                                  className={`p-2.5 rounded-xl border-2 text-right transition-all text-xs font-extrabold flex flex-col justify-between h-20 ${
+                                  className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl border-2 text-right transition-all text-[10px] sm:text-xs font-extrabold flex flex-col justify-between h-16 sm:h-20 ${
                                     selectedCroquiSampleIdx === idx && croquiData
                                       ? 'border-purple-700 bg-purple-100/70 text-purple-950 shadow-xs'
                                       : 'border-slate-200 bg-slate-50 hover:bg-purple-50/50 text-slate-800'
                                   }`}
                                 >
-                                  <span className="line-clamp-2 text-[11px]">{sample.title}</span>
-                                  <span className="text-[10px] font-mono font-bold text-purple-700">
+                                  <span className="line-clamp-2 leading-tight">{sample.title}</span>
+                                  <span className="font-mono text-[9px] sm:text-[10px] font-bold text-purple-700 truncate">
                                     {sample.reportNumber}
                                   </span>
                                 </button>
@@ -1451,16 +1946,16 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                             </div>
 
                             {/* Optional photo slot */}
-                            <div className="space-y-2 pt-2">
+                            <div className="space-y-1.5 pt-1">
                               <div className="flex items-center justify-between">
-                                <span className="text-xs font-black text-purple-950">
-                                  بارگذاری تصویر یا رسید پیامک کروکی (اختیاری):
+                                <span className="text-[11px] sm:text-xs font-black text-purple-950">
+                                  بارگذاری تصویر یا رسید پیامک (اختیاری):
                                 </span>
-                                <span className="text-[10px] text-purple-700 font-bold bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-md">
+                                <span className="text-[9px] sm:text-[10px] text-purple-700 font-bold bg-purple-50 border border-purple-200 px-1.5 py-0.5 rounded">
                                   اختیاری
                                 </span>
                               </div>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="grid grid-cols-2 gap-2">
                                 {[
                                   { label: 'عکس کروکی', icon: FileText },
                                   { label: 'عکس برگه گزارش پلیس', icon: Camera }
@@ -1469,29 +1964,29 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                                   return (
                                     <div key={idx} className="relative">
                                       {uploaded ? (
-                                        <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl flex items-center justify-between">
-                                          <div className="flex items-center gap-2">
-                                            <CheckCircle2 className="w-5 h-5 text-emerald-700" />
-                                            <span className="text-xs font-bold text-emerald-950">{item.label} بارگذاری شد</span>
+                                        <div className="p-2 bg-emerald-50 border-2 border-emerald-300 rounded-xl flex items-center justify-between gap-1">
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
+                                            <span className="text-[11px] font-bold text-emerald-950 truncate">{item.label}</span>
                                           </div>
                                           <button
                                             type="button"
                                             onClick={() => removeFileForLabel(item.label)}
-                                            className="p-1 bg-rose-100 text-rose-700 rounded-lg cursor-pointer"
+                                            className="p-1 bg-rose-100 text-rose-700 rounded-md cursor-pointer shrink-0"
                                           >
-                                            <Trash2 className="w-3.5 h-3.5" />
+                                            <Trash2 className="w-3 h-3" />
                                           </button>
                                         </div>
                                       ) : (
-                                        <label className="border-2 border-dashed border-purple-300 bg-purple-50/30 rounded-xl p-3 flex items-center justify-between cursor-pointer hover:border-purple-600 hover:bg-purple-100/50 transition-all">
-                                          <div className="flex items-center gap-2">
-                                            <item.icon className="w-4 h-4 text-purple-800" />
-                                            <div>
-                                              <span className="text-xs font-black text-purple-950 block">{item.label}</span>
-                                              <span className="text-[10px] text-purple-700 font-bold block">افزودن تصویر (اختیاری)</span>
+                                        <label className="border-2 border-dashed border-purple-300 bg-purple-50/30 rounded-xl p-2 flex items-center justify-between cursor-pointer hover:border-purple-600 hover:bg-purple-100/50 transition-all">
+                                          <div className="flex items-center gap-1.5 min-w-0">
+                                            <item.icon className="w-3.5 h-3.5 text-purple-800 shrink-0" />
+                                            <div className="min-w-0">
+                                              <span className="text-[11px] font-black text-purple-950 block truncate">{item.label}</span>
+                                              <span className="text-[9px] text-purple-700 font-bold block truncate">+ افزودن تصویر</span>
                                             </div>
                                           </div>
-                                          <Upload className="w-4 h-4 text-purple-800" />
+                                          <Upload className="w-3.5 h-3.5 text-purple-800 shrink-0" />
                                           <input
                                             type="file"
                                             accept="image/*"
@@ -1666,79 +2161,84 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
                   {/* If Kroki was NOT drawn: ONLY display clean Result Summary box after prompt decision */}
                   {hasKroki === false && (
-                    <div className="space-y-3 pt-3 border-t border-purple-200 animate-in fade-in">
+                    <div className="space-y-2 pt-2 border-t border-purple-200 animate-in fade-in">
                       {futurePolice === true ? (
-                        <div className="p-4 bg-blue-50 border-2 border-blue-300 rounded-2xl text-blue-900 text-xs font-bold flex items-center justify-between gap-3 shadow-xs">
-                          <div className="flex items-center gap-2.5">
-                            <Clock className="w-5 h-5 text-blue-700 shrink-0" />
-                            <div>
-                              <span className="font-black block text-blue-900 text-xs">نتیجه ثبت: ثبت موقت - در انتظار افزودن کروکی</span>
-                              <span className="text-[11px] text-slate-600 font-medium block">
-                                پس از حضور پلیس و دریافت کروکی، وارد پرونده شده و کد کروکی را ثبت می‌نمایید.
+                        <div className="p-2.5 sm:p-3 bg-blue-50/90 border border-blue-200 rounded-xl text-blue-950 text-xs font-bold space-y-1.5 shadow-2xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <Clock className="w-4 h-4 text-blue-700 shrink-0" />
+                              <span className="font-black text-xs text-blue-900 truncate">
+                                نتیجه: ثبت موقت - در انتظار کروکی
                               </span>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowFuturePoliceModal(true)}
+                              className="px-2.5 py-1 bg-white border border-blue-300 hover:bg-blue-100 text-blue-900 font-black rounded-lg text-[10px] sm:text-[11px] shrink-0 transition-all shadow-2xs"
+                            >
+                              تغییر پاسخ
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setShowFuturePoliceModal(true)}
-                            className="px-3 py-1.5 bg-white border border-blue-300 hover:bg-blue-100 text-blue-900 font-black rounded-xl text-[11px] shrink-0 transition-all shadow-2xs"
-                          >
-                            تغییر پاسخ
-                          </button>
+                          <p className="text-[10px] sm:text-[11px] text-slate-600 font-medium pr-5 leading-relaxed">
+                            پس از حضور پلیس و دریافت کروکی، وارد پرونده شده و کد کروکی را ثبت می‌نمایید.
+                          </p>
                         </div>
                       ) : (
-                        <div className="p-4 bg-purple-50/80 border-2 border-purple-200 rounded-2xl text-purple-950 text-xs font-bold flex items-center justify-between gap-3 shadow-xs">
-                          <div className="flex items-center gap-2.5">
-                            <CheckCircle2 className="w-5 h-5 text-purple-700 shrink-0" />
-                            <div>
-                              <span className="font-black block text-purple-950 text-xs">نتیجه ثبت: خسارت بدون کروکی - ارجاع مستقیم به بیمه‌گر</span>
-                              <span className="text-[11px] text-slate-700 font-medium block">
-                                پرونده شما بدون نیاز به کروکی جهت برآورد خسارت به شرکت بیمه‌گر ارجاع می‌گردد.
+                        <div className="p-2.5 sm:p-3 bg-purple-50/90 border border-purple-200 rounded-xl text-purple-950 text-xs font-bold space-y-1.5 shadow-2xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <CheckCircle2 className="w-4 h-4 text-purple-700 shrink-0" />
+                              <span className="font-black text-xs text-purple-950 truncate">
+                                نتیجه: بدون کروکی - ارجاع مستقیم به بیمه‌گر
                               </span>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowFuturePoliceModal(true)}
+                              className="px-2.5 py-1 bg-white border border-purple-200 hover:bg-purple-100 text-purple-900 font-black rounded-lg text-[10px] sm:text-[11px] shrink-0 transition-all shadow-2xs"
+                            >
+                              تغییر پاسخ
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setShowFuturePoliceModal(true)}
-                            className="px-3 py-1.5 bg-white border border-purple-200 hover:bg-purple-100 text-purple-900 font-black rounded-xl text-[11px] shrink-0 transition-all shadow-2xs"
-                          >
-                            تغییر پاسخ
-                          </button>
+                          <p className="text-[10px] sm:text-[11px] text-slate-700 font-medium pr-5 leading-relaxed">
+                            پرونده شما بدون نیاز به کروکی جهت برآورد خسارت به شرکت بیمه‌گر ارجاع می‌گردد.
+                          </p>
                         </div>
                       )}
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* 3. Driver Role Selection & Alignment */}
-                <div className="space-y-3 bg-slate-50 p-5 rounded-2xl border-2 border-slate-200">
+                <div id="field-wizardRole" className="space-y-2 bg-slate-50 p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-slate-200">
                   <label className="block text-xs font-black text-blue-900">
                     بر اساس مدارک فوق، نقش شما در این تصادف چیست؟ <span className="text-rose-600">*</span>
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setWizardRole('victim')}
-                      className={`p-4 rounded-2xl border-2 font-black text-sm flex flex-col items-center gap-2 transition-all ${
+                      className={`py-2 px-2 rounded-xl border-2 font-black text-xs flex items-center justify-center gap-1 sm:gap-2 transition-all ${
                         wizardRole === 'victim'
-                          ? 'border-blue-300 bg-sky-100 text-blue-900 shadow-sm'
-                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                          ? 'border-blue-500 bg-sky-100 text-blue-950 shadow-xs'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 font-bold'
                       }`}
                     >
-                      <User className="w-6 h-6 text-blue-900" />
-                      زیان‌دیده هستم
+                      <User className="w-4 h-4 text-blue-900 shrink-0" />
+                      <span className="whitespace-nowrap">زیان‌دیده هستم</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setWizardRole('culprit')}
-                      className={`p-4 rounded-2xl border-2 font-black text-sm flex flex-col items-center gap-2 transition-all ${
+                      className={`py-2 px-2 rounded-xl border-2 font-black text-xs flex items-center justify-center gap-1 sm:gap-2 transition-all ${
                         wizardRole === 'culprit'
-                          ? 'border-blue-300 bg-sky-100 text-blue-900 shadow-sm'
-                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                          ? 'border-blue-500 bg-sky-100 text-blue-950 shadow-xs'
+                          : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100 font-bold'
                       }`}
                     >
-                      <Users className="w-6 h-6 text-blue-900" />
-                      مقصر هستم
+                      <Users className="w-4 h-4 text-blue-900 shrink-0" />
+                      <span className="whitespace-nowrap">مقصر هستم</span>
                     </button>
                   </div>
 
@@ -1761,27 +2261,28 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-900 font-bold flex items-center gap-2">
+              <div className="p-3 sm:p-3.5 bg-amber-50 border border-amber-200 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs text-amber-900 font-bold flex items-center gap-2">
                 <Info className="w-4 h-4 text-amber-700 shrink-0" />
                 <span>لطفاً ابتدا قوانین و مقررات فوق را بپذیرید تا بخش ارزیابی کروکی و تعیین نقش فعال شود.</span>
               </div>
             )}
 
             {/* Navigation Buttons */}
-            <div className="flex flex-wrap gap-3 justify-between pt-2">
+            <div className="flex flex-row items-center gap-2 sm:gap-3 pt-2">
               <button
                 type="button"
                 onClick={onCancel}
-                className="w-full sm:w-auto justify-center px-5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100"
+                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors active:scale-95 shrink-0"
               >
                 انصراف
               </button>
               <button
                 type="button"
                 onClick={() => handleProceedToStep(2)}
-                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
+                className="flex-1 h-10 sm:h-11 px-4 sm:px-6 rounded-xl bg-blue-600 text-white font-black text-xs sm:text-sm hover:bg-blue-500 shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
               >
-                تایید و ادامه به مرحله بعد <ArrowLeft className="w-4 h-4" />
+                <span>تایید و ادامه</span>
+                <ArrowLeft className="w-4 h-4 shrink-0" />
               </button>
             </div>
           </div>
@@ -1789,18 +2290,19 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
         {/* Step 2: Date & GPS Map */}
         {currentStep === 2 && (
-          <div className="space-y-6 pt-2 animate-in fade-in">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h3 className="font-black text-lg text-blue-900">
-                زمان و موقعیت مکانی دقیق وقوع حادثه
+          <div className="space-y-3 sm:space-y-5 pt-1 sm:pt-2 animate-in fade-in">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2 sm:pb-3">
+              <h3 className="font-black text-sm sm:text-lg text-blue-900 flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-blue-700 shrink-0" />
+                <span>زمان و موقعیت مکانی دقیق وقوع حادثه</span>
               </h3>
-              <span className="px-3 py-1 rounded-full bg-sky-100 text-sky-950 text-xs font-extrabold border border-sky-300">
+              <span className="px-2 py-0.5 sm:px-3 sm:py-1 rounded-full bg-sky-100 text-sky-950 text-[10px] sm:text-xs font-extrabold border border-sky-300 shrink-0">
                 مرحله ۲ از ۵
               </span>
             </div>
 
             {/* Shamsi Calendar & Time Picker */}
-            <div className="space-y-1.5">
+            <div className="space-y-1">
               <label className="block text-xs font-black text-blue-900">
                 تاریخ و ساعت وقوع حادثه (تقویم شمسی) <span className="text-rose-600">*</span>
               </label>
@@ -1811,35 +2313,35 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </div>
 
             {/* GPS Map & Auto Address */}
-            <div className="space-y-3 pt-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <label className="text-xs font-black text-blue-900 flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-blue-900" />
-                  موقعیت وقوع حادثه روی نقشه <span className="text-rose-600">*</span>
+            <div className="space-y-2.5 pt-0.5">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-black text-blue-900 flex items-center gap-1.5 min-w-0">
+                  <MapPin className="w-3.5 h-3.5 text-blue-900 shrink-0" />
+                  <span className="truncate">موقعیت وقوع حادثه روی نقشه <span className="text-rose-600">*</span></span>
                 </label>
                 
                 <button
                   type="button"
                   onClick={handleGetCurrentGPS}
-                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black shadow-md transition-all active:scale-95"
+                  className="flex items-center justify-center gap-1 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg sm:rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-[11px] sm:text-xs font-black shadow-xs transition-all active:scale-95 shrink-0"
                 >
-                  <Crosshair className={`w-4 h-4 ${gpsLoading ? 'animate-spin' : ''}`} />
-                  <span>{gpsLoading ? 'در حال دریافت موقعیت GPS...' : 'تعیین موقعیت GPS من'}</span>
+                  <Crosshair className={`w-3.5 h-3.5 ${gpsLoading ? 'animate-spin' : ''}`} />
+                  <span>{gpsLoading ? 'دریافت...' : 'تعیین موقعیت GPS من'}</span>
                 </button>
               </div>
 
               {/* Leaflet Map Box */}
               <div className="relative">
-                <div ref={mapRef} className="w-full h-60 rounded-2xl border-2 border-slate-300 overflow-hidden shadow-xs z-10" />
-                <div className="absolute bottom-2 right-2 z-20 bg-slate-900/90 backdrop-blur-md text-white text-[11px] font-mono px-2.5 py-1 rounded-lg border border-slate-700">
+                <div ref={mapRef} className="w-full h-40 sm:h-56 rounded-xl sm:rounded-2xl border-2 border-slate-300 overflow-hidden shadow-xs z-10" />
+                <div className="absolute bottom-1.5 right-1.5 z-20 bg-slate-900/90 backdrop-blur-md text-white text-[9px] sm:text-[11px] font-mono px-2 py-0.5 rounded sm:rounded-md border border-slate-700 pointer-events-none">
                   مختصات: {toFaDigits(lat.toFixed(4))}, {toFaDigits(lng.toFixed(4))}
                 </div>
               </div>
 
               {/* GPS Address Extraction Feedback Alert */}
               {gpsStatusMsg && (
-                <div className="p-3 bg-emerald-100 border border-emerald-300 text-emerald-950 rounded-xl text-xs flex items-center gap-2 animate-in fade-in shadow-xs font-bold">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-800 shrink-0" />
+                <div className="p-2 sm:p-2.5 bg-emerald-100 border border-emerald-300 text-emerald-950 rounded-xl text-[11px] sm:text-xs flex items-center gap-1.5 animate-in fade-in shadow-xs font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-800 shrink-0" />
                   <span>{gpsStatusMsg}</span>
                 </div>
               )}
@@ -1850,7 +2352,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   <label className="text-[11px] font-black text-blue-900">
                     آدرس محل تصادف <span className="text-rose-600">*</span>:
                   </label>
-                  <span className="text-[10px] text-sky-950 font-black bg-sky-100 border border-sky-300 px-2 py-0.5 rounded-md">
+                  <span className="text-[9px] sm:text-[10px] text-sky-950 font-black bg-sky-100 border border-sky-300 px-2 py-0.5 rounded-md">
                     استخراج خودکار با GPS / دستی
                   </span>
                 </div>
@@ -1862,7 +2364,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   }}
                   rows={2}
                   placeholder="آدرس دقیق محل تصادف..."
-                  className={`w-full px-4 py-3 rounded-2xl border-2 text-xs font-bold text-slate-900 bg-white focus:outline-none transition-all shadow-xs placeholder:text-slate-400 ${
+                  className={`w-full px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl sm:rounded-2xl border-2 text-xs font-bold text-slate-900 bg-white focus:outline-none transition-all shadow-xs placeholder:text-slate-400 ${
                     getFieldError('address')
                       ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
                       : 'border-slate-300 focus:border-blue-500'
@@ -1878,20 +2380,21 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
             </div>
 
-            <div className="flex justify-between pt-2 border-t border-slate-200">
+            <div className="flex flex-row items-center gap-2 sm:gap-3 pt-2 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setCurrentStep(1)}
-                className="w-full sm:w-auto justify-center px-5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors"
+                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors active:scale-95 shrink-0"
               >
                 مرحله قبل
               </button>
               <button
                 type="button"
                 onClick={() => handleProceedToStep(3)}
-                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
+                className="flex-1 h-10 sm:h-11 px-3 sm:px-6 rounded-xl bg-blue-600 text-white font-black text-xs sm:text-sm hover:bg-blue-500 shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
               >
-                تایید موقعیت و ادامه <ArrowLeft className="w-4 h-4" />
+                <span>تایید موقعیت و ادامه</span>
+                <ArrowLeft className="w-4 h-4 shrink-0" />
               </button>
             </div>
           </div>
@@ -1899,101 +2402,105 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
         {/* Step 3: Media Upload, VIN Scanner, Voice Notes & Kroki Code */}
         {currentStep === 3 && (
-          <div className="space-y-6 pt-2 animate-in fade-in">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+          <div className="space-y-4 sm:space-y-6 pt-1 sm:pt-2 animate-in fade-in">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-2.5 sm:pb-3">
               <div>
-                <h3 className="font-black text-lg text-blue-900">
+                <h3 className="font-black text-base sm:text-lg text-blue-900">
                   تکمیل مستندات صحنه تصادف و مدارک
                 </h3>
-                <p className="text-xs text-slate-600 font-bold mt-0.5">
+                <p className="text-[11px] sm:text-xs text-slate-600 font-bold mt-0.5">
                   لطفاً تصاویر زوایا، فیلم، صدای توضیحات و مدارک پلیس را بارگذاری کنید.
                 </p>
               </div>
-              <span className="px-3 py-1 rounded-full bg-sky-100 text-sky-950 text-xs font-extrabold border border-sky-300 shrink-0">
+              <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-sky-100 text-sky-950 text-[11px] sm:text-xs font-extrabold border border-sky-300 shrink-0">
                 مرحله ۳ از ۵
               </span>
             </div>
 
             {/* 1. Scene Documentation Photo Grid (8 slots) */}
-            <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border-2 border-slate-200 space-y-3">
+            <div className="bg-slate-50 p-3 sm:p-5 rounded-xl sm:rounded-2xl border-2 border-slate-200 space-y-2.5 sm:space-y-3">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black text-blue-900 flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-blue-900" />
-                  تکمیل مستندات صحنه (تصاویر زوایای مختلف خودرو) <span className="text-rose-600">*</span>
+                  <Camera className="w-4 h-4 text-blue-900 shrink-0" />
+                  <span>تکمیل مستندات صحنه (تصاویر زوایای خودرو) <span className="text-rose-600">*</span></span>
                 </label>
-                <span className="text-[10px] font-black text-blue-900 bg-sky-100 px-2 py-0.5 rounded-md border border-sky-300">
+                <span className="text-[10px] font-black text-blue-900 bg-sky-100 px-2 py-0.5 rounded-md border border-sky-300 shrink-0">
                   {toFaDigits(files.filter(f => ['پلاک', 'جلو', 'عقب', 'راست', 'چپ', 'سقف', 'خسارت ۱', 'خسارت ۲'].includes(f.name)).length)} از ۸ بارگذاری شده
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 min-[380px]:grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 2xl:grid-cols-8 gap-3">
+              {/* Compact Responsive Photo Grid: 3 cols on mobile, 4 on small tablets, up to 8 on desktop */}
+              <div className="grid grid-cols-3 min-[460px]:grid-cols-4 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-1.5 sm:gap-2.5">
                 {[
-                  { id: 'پلاک', label: 'پلاک' },
-                  { id: 'جلو', label: 'جلو' },
-                  { id: 'عقب', label: 'عقب' },
-                  { id: 'راست', label: 'راست' },
-                  { id: 'چپ', label: 'چپ' },
-                  { id: 'سقف', label: 'سقف' },
-                  { id: 'خسارت ۱', label: 'خسارت ۱' },
-                  { id: 'خسارت ۲', label: 'خسارت ۲' }
+                  { id: 'پلاک', label: 'پلاک', required: true },
+                  { id: 'جلو', label: 'جلو', required: false },
+                  { id: 'عقب', label: 'عقب', required: false },
+                  { id: 'راست', label: 'راست', required: false },
+                  { id: 'چپ', label: 'چپ', required: false },
+                  { id: 'سقف', label: 'سقف', required: false },
+                  { id: 'خسارت ۱', label: 'خسارت ۱', required: true },
+                  { id: 'خسارت ۲', label: 'خسارت ۲', required: false }
                 ].map((slot) => {
                   const uploaded = getFileForLabel(slot.label);
                   return (
                     <div key={slot.id} className="relative group">
                       {uploaded ? (
-                        <div className="aspect-square border-2 border-emerald-500 bg-emerald-50 rounded-2xl p-2 flex flex-col items-center justify-between relative overflow-hidden shadow-xs">
+                        <div className="aspect-[4/3.8] sm:aspect-square border-2 border-emerald-500 bg-emerald-50 rounded-xl sm:rounded-2xl flex flex-col items-center justify-between relative overflow-hidden shadow-xs">
                           {uploaded.dataUrl && uploaded.type === 'image' ? (
                             <img src={uploaded.dataUrl} alt={slot.label} className="absolute inset-0 w-full h-full object-cover" />
                           ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center text-emerald-700">
-                              <CheckCircle2 className="w-8 h-8 text-emerald-600 mb-1" />
-                              <span className="text-[10px] font-bold truncate max-w-[90%] text-emerald-900">{uploaded.fileName}</span>
+                            <div className="flex-1 flex flex-col items-center justify-center text-emerald-700 p-1">
+                              <CheckCircle2 className="w-5 h-5 sm:w-7 sm:h-7 text-emerald-600 mb-0.5" />
+                              <span className="text-[9px] sm:text-[10px] font-bold truncate max-w-full text-emerald-900">{uploaded.fileName}</span>
                             </div>
                           )}
 
-                          {/* Overlay & Remove Button */}
-                          <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 backdrop-blur-xs">
-                            <button
-                              type="button"
-                              onClick={() => removeFileForLabel(slot.label)}
-                              className="p-2 bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-md"
-                              title="حذف و بارگذاری مجدد"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                          {/* Top Controls: Badge and Always-Accessible Delete on Mobile */}
+                          <div className="absolute top-1 right-1 bg-emerald-600 text-white p-0.5 sm:p-1 rounded-full shadow-xs z-10">
+                            <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                           </div>
 
-                          <div className="absolute top-1.5 right-1.5 bg-emerald-600 text-white p-1 rounded-full shadow-md z-10">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                          </div>
-                          <div className="absolute bottom-1 inset-x-1 bg-white/90 backdrop-blur-md text-slate-900 text-[10px] font-black text-center py-0.5 rounded-lg z-10 border border-slate-200">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeFileForLabel(slot.label);
+                            }}
+                            className="absolute top-1 left-1 p-1 bg-rose-600/90 hover:bg-rose-700 text-white rounded-md sm:rounded-lg shadow-xs z-20 active:scale-90 transition-all"
+                            title="حذف و بارگذاری مجدد"
+                          >
+                            <Trash2 className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                          </button>
+
+                          {/* Bottom Label Badge */}
+                          <div className="absolute bottom-1 inset-x-1 bg-white/90 backdrop-blur-xs text-slate-900 text-[9px] sm:text-[10px] font-black text-center py-0.5 rounded-md z-10 border border-slate-200 truncate">
                             {slot.label}
                           </div>
                         </div>
                       ) : (
                         <label
-                          className={`aspect-square border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all p-2 text-center group/label ${
+                          className={`aspect-[4/3.8] sm:aspect-square border-2 border-dashed rounded-xl sm:rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all p-1 sm:p-2 text-center group/label ${
                             getFieldError(`media_${slot.label}`)
                               ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-200 shadow-xs'
                               : 'border-slate-300 text-slate-500 hover:border-blue-400 hover:bg-blue-50 bg-white'
                           }`}
                         >
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-1.5 transition-colors ${
+                          <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center mb-0.5 sm:mb-1 transition-colors ${
                             getFieldError(`media_${slot.label}`)
                               ? 'bg-rose-100 text-rose-700'
                               : 'bg-slate-100 group-hover/label:bg-blue-100 text-slate-600 group-hover/label:text-blue-900'
                           }`}>
-                            <Camera className="w-5 h-5" />
+                            <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                           </div>
-                          <span className={`text-[11px] font-extrabold transition-colors ${
+                          <span className={`text-[10px] sm:text-[11px] font-extrabold leading-tight truncate max-w-full px-0.5 transition-colors ${
                             getFieldError(`media_${slot.label}`) ? 'text-rose-800' : 'text-slate-800 group-hover/label:text-blue-900'
                           }`}>
-                            {slot.label} {['عکس جلو خودرو شما', 'عکس عقب خودرو شما', 'عکس محل آسیب خودرو'].includes(slot.label) && <span className="text-rose-600">*</span>}
+                            {slot.label} {slot.required && <span className="text-rose-600">*</span>}
                           </span>
-                          <span className={`text-[9px] font-bold mt-0.5 ${
-                            getFieldError(`media_${slot.label}`) ? 'text-rose-600' : 'text-slate-500'
+                          <span className={`text-[8px] sm:text-[9px] font-bold mt-0.5 truncate max-w-full px-0.5 ${
+                            getFieldError(`media_${slot.label}`) ? 'text-rose-600 font-black' : 'text-slate-400'
                           }`}>
-                            {getFieldError(`media_${slot.label}`) ? 'بارگذاری الزامی است' : 'افزودن تصویر'}
+                            {getFieldError(`media_${slot.label}`) ? 'الزامی' : 'افزودن'}
                           </span>
                           <input
                             type="file"
@@ -2007,8 +2514,9 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   );
                 })}
               </div>
+
               {(getFieldError('photo_plate') || getFieldError('photo_damage')) && (
-                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1 animate-in fade-in">
+                <div className="p-2.5 sm:p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1 animate-in fade-in">
                   {getFieldError('photo_plate') && (
                     <p className="text-[11px] font-bold text-rose-700 flex items-center gap-1.5">
                       <AlertCircle className="w-3.5 h-3.5 shrink-0" />
@@ -2026,25 +2534,25 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </div>
 
             {/* 2. Chassis VIN Lookup & Vehicle Documentation */}
-            <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border-2 border-slate-200 space-y-3">
+            <div className="bg-slate-50 p-3 sm:p-5 rounded-xl sm:rounded-2xl border-2 border-slate-200 space-y-2.5 sm:space-y-3">
               <label className="text-xs font-black text-blue-900 flex items-center gap-1.5">
-                <ScanLine className="w-4 h-4 text-blue-900" />
-                موقعیت شماره شاسی و مدارک شناسایی خودرو
+                <ScanLine className="w-4 h-4 text-blue-900 shrink-0" />
+                <span>موقعیت شماره شاسی و مدارک شناسایی خودرو</span>
               </label>
 
               {/* Clean Chassis Help Toolbar */}
-              <div className="bg-white p-3.5 rounded-2xl border-2 border-slate-200 space-y-2">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-                  <div className="flex items-center gap-2">
-                    <HelpCircle className="w-5 h-5 text-amber-600 shrink-0" />
-                    <span className="text-xs font-black text-slate-800">
+              <div className="bg-white p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border-2 border-slate-200 space-y-2">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 shrink-0" />
+                    <span className="text-[11px] sm:text-xs font-black text-slate-800">
                       نمی‌دانید شماره شاسی (VIN) خودرویتان کجاست؟
                     </span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowChassisGuideModal(true)}
-                    className="w-full sm:w-auto px-3.5 py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-xs rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 shrink-0"
+                    className="w-full sm:w-auto px-3 py-1.5 sm:px-3.5 sm:py-2 bg-amber-500 hover:bg-amber-600 text-white font-black text-[11px] sm:text-xs rounded-lg sm:rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                   >
                     <Search className="w-3.5 h-3.5" />
                     <span>راهنمای موقعیت شاسی</span>
@@ -2052,10 +2560,10 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 </div>
 
                 {selectedChassisLoc && (
-                  <div className="p-3 bg-sky-50 border-2 border-sky-300 rounded-xl text-blue-900 text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="w-4 h-4 text-amber-600 shrink-0" />
-                      <span>راهنمای انتخاب‌شده: <strong className="text-blue-900">{selectedChassisLoc}</strong></span>
+                  <div className="p-2 sm:p-3 bg-sky-50 border-2 border-sky-300 rounded-lg sm:rounded-xl text-blue-900 text-[11px] sm:text-xs font-bold flex items-center justify-between gap-2 animate-in fade-in">
+                    <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                      <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
+                      <span className="truncate">راهنما: <strong className="text-blue-900">{selectedChassisLoc}</strong></span>
                     </div>
                     <button
                       type="button"
@@ -2068,8 +2576,8 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 )}
               </div>
 
-              {/* 2 Document Upload Slots */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* 2 Document Upload Slots: 2 columns on mobile too */}
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 {[
                   { label: 'عکس کارت ماشین', icon: CreditCard, accept: 'image/*' },
                   { label: 'عکس از شماره شاسی', icon: Camera, accept: 'image/*' }
@@ -2078,38 +2586,38 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   return (
                     <div key={idx} className="relative">
                       {uploaded ? (
-                        <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-2xl flex items-center justify-between shadow-xs">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                              <CheckCircle2 className="w-5 h-5" />
+                        <div className="p-2 sm:p-3 bg-emerald-50 border-2 border-emerald-300 rounded-xl sm:rounded-2xl flex items-center justify-between shadow-xs">
+                          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0">
+                            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" />
                             </div>
                             <div className="min-w-0">
-                              <span className="text-xs font-extrabold text-emerald-950 block">{item.label}</span>
-                              <span className="text-[10px] text-emerald-800 truncate block font-mono font-bold">{uploaded.fileName}</span>
+                              <span className="text-[11px] sm:text-xs font-extrabold text-emerald-950 block truncate">{item.label}</span>
+                              <span className="text-[9px] sm:text-[10px] text-emerald-800 truncate block font-mono font-bold">{uploaded.fileName}</span>
                             </div>
                           </div>
                           <button
                             type="button"
                             onClick={() => removeFileForLabel(item.label)}
-                            className="p-1.5 bg-rose-100 text-rose-700 border border-rose-300 rounded-lg hover:bg-rose-200 transition-colors"
+                            className="p-1 sm:p-1.5 bg-rose-100 text-rose-700 border border-rose-300 rounded-md sm:rounded-lg hover:bg-rose-200 transition-colors shrink-0 active:scale-95"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                           </button>
                         </div>
                       ) : (
-                        <label className="border-2 border-dashed border-slate-300 rounded-2xl p-3.5 flex items-center justify-between cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all bg-white group/doc">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-sky-100 group-hover/doc:bg-sky-200 text-blue-900 flex items-center justify-center transition-colors">
-                              <item.icon className="w-5 h-5" />
+                        <label className="border-2 border-dashed border-slate-300 rounded-xl sm:rounded-2xl p-2 sm:p-3 flex items-center justify-between cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all bg-white group/doc">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-sky-100 group-hover/doc:bg-sky-200 text-blue-900 flex items-center justify-center transition-colors shrink-0">
+                              <item.icon className="w-3.5 h-3.5 sm:w-5 sm:h-5" />
                             </div>
-                            <div>
-                              <span className="text-xs font-extrabold text-slate-800 block group-hover/doc:text-blue-900 transition-colors">
+                            <div className="min-w-0">
+                              <span className="text-[11px] sm:text-xs font-extrabold text-slate-800 block truncate group-hover/doc:text-blue-900 transition-colors">
                                 {item.label}
                               </span>
-                              <span className="text-[10px] text-slate-500 font-bold block">کلیک کنید برای انتخاب فایل</span>
+                              <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold block truncate">انتخاب تصویر</span>
                             </div>
                           </div>
-                          <Upload className="w-4 h-4 text-slate-400 group-hover/doc:text-blue-900" />
+                          <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400 group-hover/doc:text-blue-900 shrink-0 mr-1" />
                           <input
                             type="file"
                             accept={item.accept}
@@ -2123,7 +2631,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 })}
               </div>
               {getFieldError('vehicle_card') && (
-                <p className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl flex items-center gap-1.5 animate-in fade-in">
+                <p className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 p-2 sm:p-2.5 rounded-xl flex items-center gap-1.5 animate-in fade-in">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   {getFieldError('vehicle_card')}
                 </p>
@@ -2131,38 +2639,45 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </div>
 
             {/* 3. Video from Accident Scene */}
-            <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border-2 border-slate-200 space-y-2">
+            <div className="bg-slate-50 p-3 sm:p-5 rounded-xl sm:rounded-2xl border-2 border-slate-200 space-y-2">
               <label className="text-xs font-black text-blue-900 flex items-center gap-1.5">
-                <Video className="w-4 h-4 text-blue-900" />
-                ویدیو از صحنه تصادف
+                <Video className="w-4 h-4 text-blue-900 shrink-0" />
+                <span>ویدیو از صحنه تصادف (اختیاری)</span>
               </label>
 
               {getFileForLabel('ویدیو صحنه') ? (
-                <div className="p-4 bg-emerald-50 border-2 border-emerald-300 rounded-2xl flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
-                      <Video className="w-5 h-5" />
+                <div className="p-2.5 sm:p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-xl sm:rounded-2xl flex items-center justify-between">
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                      <Video className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
-                    <div>
-                      <span className="text-xs font-extrabold text-emerald-950 block">ویدیو صحنه با موفقیت بارگذاری شد</span>
-                      <span className="text-[11px] text-emerald-800 font-mono font-bold">{getFileForLabel('ویدیو صحنه')?.fileName}</span>
+                    <div className="min-w-0">
+                      <span className="text-[11px] sm:text-xs font-extrabold text-emerald-950 block truncate">ویدیو صحنه با موفقیت بارگذاری شد</span>
+                      <span className="text-[10px] text-emerald-800 font-mono font-bold truncate block">{getFileForLabel('ویدیو صحنه')?.fileName}</span>
                     </div>
                   </div>
                   <button
                     type="button"
                     onClick={() => removeFileForLabel('ویدیو صحنه')}
-                    className="p-2 bg-rose-100 text-rose-700 border border-rose-300 rounded-xl hover:bg-rose-200 transition-colors"
+                    className="p-1.5 sm:p-2 bg-rose-100 text-rose-700 border border-rose-300 rounded-lg hover:bg-rose-200 transition-colors shrink-0 active:scale-95"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   </button>
                 </div>
               ) : (
-                <label className="border-2 border-dashed border-slate-300 rounded-2xl p-4 flex flex-col items-center justify-center text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all bg-white group/vid">
-                  <div className="w-10 h-10 rounded-2xl bg-sky-100 text-blue-900 group-hover/vid:scale-110 flex items-center justify-center mb-2 transition-transform">
-                    <Upload className="w-5 h-5" />
+                <label className="border-2 border-dashed border-slate-300 rounded-xl sm:rounded-2xl p-2.5 sm:p-3.5 flex items-center justify-between cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-all bg-white group/vid">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-sky-100 text-blue-900 flex items-center justify-center shrink-0 transition-colors">
+                      <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
+                    </div>
+                    <div className="min-w-0 text-right">
+                      <span className="text-[11px] sm:text-xs font-extrabold text-blue-900 block truncate">آپلود ویدیو کامل صحنه تصادف</span>
+                      <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold block truncate">فرمت‌های MP4، MOV (حداکثر ۵۰ مگابایت)</span>
+                    </div>
                   </div>
-                  <span className="text-xs font-extrabold text-blue-900 block">آپلود ویدیو کامل صحنه تصادف</span>
-                  <span className="text-[10px] text-slate-500 font-bold mt-1">فرمت‌های MP4, MOV یا WEBM (حداکثر ۵۰ مگابایت)</span>
+                  <span className="text-[10px] sm:text-xs font-bold text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg shrink-0 mr-1">
+                    انتخاب فایل
+                  </span>
                   <input
                     type="file"
                     accept="video/*"
@@ -2173,79 +2688,118 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               )}
             </div>
 
-            {/* 4. Audio Description & Text Explanation */}
-            <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border-2 border-slate-200 space-y-3">
-              <label className="text-xs font-black text-blue-900 flex items-center gap-1.5">
-                <Mic className="w-4 h-4 text-blue-900" />
-                توضیحات صوتی و متنی حادثه
-              </label>
+            {/* 4. Audio Description & Text Explanation (Compact & Responsive) */}
+            <div id="field-description" className="bg-slate-50/90 p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border border-slate-200 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-xs font-black text-blue-900 flex items-center gap-1.5 min-w-0">
+                  <Mic className="w-3.5 h-3.5 text-blue-900 shrink-0" />
+                  <span className="truncate">توضیحات صوتی یا متنی حادثه</span>
+                </label>
+                <span className="text-[9px] sm:text-[10px] text-slate-500 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200 shrink-0">
+                  حداقل یکی الزامی است
+                </span>
+              </div>
 
-              {/* Voice Note Recorder Widget */}
-              <div className="bg-white p-4 rounded-2xl border-2 border-slate-200 space-y-3">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${isRecordingVoice ? 'bg-rose-600 animate-ping' : 'bg-blue-600'}`} />
-                    <span className="text-xs font-bold text-slate-900">ضبط توضیحات صوتی (اختیاری)</span>
+              {/* Voice Note Recorder Widget - Compact Bar */}
+              <div className="bg-white p-2 rounded-lg sm:rounded-xl border border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <div className={`w-2 h-2 rounded-full shrink-0 ${isRecordingVoice ? 'bg-rose-600 animate-ping' : (audioUrl ? 'bg-emerald-500' : 'bg-blue-600')}`} />
+                  <span className="text-[11px] font-bold text-slate-700 truncate">
+                    {isRecordingVoice ? 'در حال ضبط صدا...' : (audioUrl ? 'صوت ذخیره شد ✓' : 'ضبط صدای توضیحات')}
+                  </span>
+                </div>
+
+                {isRecordingVoice ? (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] sm:text-[11px] font-mono font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded border border-rose-300">
+                      {toFaDigits(Math.floor(recordingTime / 60))}:{toFaDigits(String(recordingTime % 60).padStart(2, '0'))}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={stopVoiceRecording}
+                      className="px-2.5 py-1 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-all active:scale-95 cursor-pointer"
+                    >
+                      <Square className="w-3 h-3 fill-current" />
+                      <span>توقف</span>
+                    </button>
                   </div>
-
-                  {isRecordingVoice ? (
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-mono font-bold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-300">
-                        {toFaDigits(Math.floor(recordingTime / 60))}:{toFaDigits(String(recordingTime % 60).padStart(2, '0'))}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={stopVoiceRecording}
-                        className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition-all active:scale-95"
-                      >
-                        <Square className="w-3.5 h-3.5 fill-current" />
-                        <span>توقف ضبط</span>
-                      </button>
-                    </div>
-                  ) : (
+                ) : (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {audioUrl && (
+                      <div className="flex items-center gap-1">
+                        <audio src={audioUrl} controls className="h-6 w-28 sm:w-40" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAudioUrl(null);
+                            setFiles((prev) => prev.filter((f) => f.name !== 'توضیحات صوتی'));
+                          }}
+                          className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="حذف صوت"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={startVoiceRecording}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md transition-all active:scale-95"
+                      className="px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-all active:scale-95 cursor-pointer"
                     >
-                      <Mic className="w-4 h-4" />
-                      <span>برای ضبط توضیحات کلیک کنید</span>
+                      <Mic className="w-3 h-3" />
+                      <span>{audioUrl ? 'ضبط مجدد' : 'شروع ضبط صوت'}</span>
                     </button>
-                  )}
-                </div>
-
-                {/* Audio Playback if recorded */}
-                {audioUrl && (
-                  <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <Volume2 className="w-5 h-5 text-blue-900" />
-                      <span className="text-xs font-bold text-blue-900">فایل صوتی شما با موفقیت آماده شد</span>
-                    </div>
-                    <audio src={audioUrl} controls className="h-8 max-w-[200px]" />
                   </div>
                 )}
               </div>
 
-              {/* Text Description Textarea */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-black text-blue-900">یا به صورت متنی شرح دهید (اختیاری در صورت داشتن صوت):</label>
+              {/* Text Statement — متن اظهارات رسمی (الزامی) */}
+              <div id="field-description" className="space-y-1.5">
+                <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-1.5">
+                  <Gavel className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                  <p className="text-[10px] sm:text-[11px] text-amber-950 font-bold leading-relaxed">
+                    {AUDIO_NOT_SUFFICIENT_NOTICE}
+                  </p>
+                </div>
+
+                <label className="block text-[11px] sm:text-xs font-black text-blue-900">
+                  متن اظهارات نحوه وقوع حادثه <span className="text-rose-600">*</span>
+                </label>
+
                 <textarea
                   value={writtenReport}
                   onChange={(e) => {
                     setWrittenReport(e.target.value);
-                    if (e.target.value.trim().length >= 8) clearFieldError('description');
+                    if (e.target.value.trim().length >= MIN_STATEMENT_LENGTH) clearFieldError('description');
+                    // با تغییر متن، تأییدیه قبلی باطل می‌شود و باید مجدداً امضا شود.
+                    if (confirmedStatement) setConfirmedStatement(null);
                   }}
                   rows={3}
-                  placeholder="توضیح کامل درباره نحوه وقوع تصادف، خسارت‌ها بنویسید..."
-                  className={`w-full px-4 py-3 rounded-2xl border-2 text-xs font-bold text-slate-900 bg-white focus:outline-none shadow-xs placeholder:text-slate-400 transition-all ${
+                  placeholder="شرح دقیق نحوه وقوع حادثه، جهت حرکت خودروها، زوایای برخورد و خسارت‌های وارده..."
+                  className={`w-full px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border text-xs font-medium text-slate-900 bg-white focus:outline-none shadow-2xs placeholder:text-slate-400 transition-all resize-y ${
                     getFieldError('description')
-                      ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                      ? 'border-rose-500 bg-rose-50/40 ring-1 ring-rose-200'
                       : 'border-slate-300 focus:border-blue-500'
                   }`}
                 />
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={`text-[10px] font-bold ${
+                      writtenReport.trim().length >= MIN_STATEMENT_LENGTH ? 'text-emerald-700' : 'text-slate-500'
+                    }`}
+                  >
+                    {toFaDigits(writtenReport.trim().length)} از حداقل {toFaDigits(MIN_STATEMENT_LENGTH)} حرف
+                  </span>
+                  {confirmedStatement && (
+                    <span className="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 flex items-center gap-1">
+                      <BadgeCheck className="w-3 h-3" />
+                      اظهارات امضا شد
+                    </span>
+                  )}
+                </div>
                 {getFieldError('description') && (
-                  <p className="text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-xl flex items-center gap-1.5 animate-in fade-in">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <p className="text-[10px] sm:text-[11px] font-bold text-rose-700 bg-rose-50 border border-rose-200 p-1.5 rounded-lg flex items-center gap-1 animate-in fade-in">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
                     {getFieldError('description')}
                   </p>
                 )}
@@ -2254,30 +2808,32 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
             {/* Evidence Intelligence AI Overview Card */}
             {evidenceAiResult && (
-              <div className="pt-2">
+              <div className="pt-1">
                 <EvidenceIntelligenceCard
                   claimId="WIZ-ACTIVE"
                   aiResult={evidenceAiResult}
                   showHitlControls={false}
-                  compact={false}
+                  compact={true}
                 />
               </div>
             )}
 
-            <div className="flex justify-between pt-2 border-t border-slate-200">
+            {/* Bottom Navigation Buttons: Harmonious and Compact on Mobile */}
+            <div className="flex flex-row items-center gap-2 sm:gap-3 pt-2 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setCurrentStep(2)}
-                className="w-full sm:w-auto justify-center px-5 py-2.5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors"
+                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors active:scale-95 shrink-0"
               >
                 مرحله قبل
               </button>
               <button
                 type="button"
                 onClick={() => handleProceedToStep(4)}
-                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 text-white font-black text-xs hover:bg-blue-500 shadow-md transition-all flex items-center gap-2 active:scale-95"
+                className="flex-1 h-10 sm:h-11 px-4 sm:px-6 rounded-xl bg-blue-600 text-white font-black text-xs sm:text-sm hover:bg-blue-500 shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
               >
-                ثبت مستندات و ادامه <ArrowLeft className="w-4 h-4" />
+                <span>ثبت مستندات و ادامه</span>
+                <ArrowLeft className="w-4 h-4 shrink-0" />
               </button>
             </div>
           </div>
@@ -2285,20 +2841,20 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
         {/* Step 4: User Details (Victim or Culprit) */}
         {currentStep === 4 && (
-          <div className="space-y-5 pt-2 animate-in fade-in">
-            <h3 className="font-extrabold text-base text-blue-900 text-center">
+          <div className="space-y-3.5 sm:space-y-4 pt-1 animate-in fade-in">
+            <h3 className="font-extrabold text-xs sm:text-sm text-blue-900 text-center">
               {wizardRole === 'culprit' ? 'اطلاعات مقصر حادثه (شما)' : 'اطلاعات زیان‌دیده (شما)'}
             </h3>
 
             {/* Segment Toggle: Owner = Driver vs Two Different People */}
-            <div className="p-1 bg-slate-100 rounded-2xl flex gap-1 border border-slate-200">
+            <div className="p-0.5 bg-slate-100 rounded-xl flex gap-1 border border-slate-200">
               <button
                 type="button"
                 onClick={() => setVicIsDriverSameOwner(false)}
-                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition-all ${
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-black transition-all ${
                   !vicIsDriverSameOwner
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-800'
                 }`}
               >
                 دو نفر متفاوت
@@ -2306,10 +2862,10 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <button
                 type="button"
                 onClick={() => setVicIsDriverSameOwner(true)}
-                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition-all ${
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-black transition-all ${
                   vicIsDriverSameOwner
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-800'
                 }`}
               >
                 مالک و راننده یک نفر
@@ -2317,9 +2873,9 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </div>
 
             {/* Fields grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div id="field-vicName">
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-700 mb-1">
                   نام مالک <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -2329,22 +2885,22 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     setVicName(e.target.value);
                     if (e.target.value.trim()) clearFieldError('vicName');
                   }}
-                  className={`w-full px-4 py-2.5 rounded-xl border text-xs font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all ${
+                  className={`w-full px-3 py-2 rounded-xl border text-xs font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all ${
                     getFieldError('vicName')
                       ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
                       : 'border-slate-200 focus:border-blue-600'
                   }`}
                 />
                 {getFieldError('vicName') && (
-                  <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                  <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-0.5 animate-in fade-in">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     {getFieldError('vicName')}
                   </p>
                 )}
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+              <div id="field-vicPhone">
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-700 mb-1">
                   موبایل مالک <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -2354,7 +2910,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     setVicPhone(e.target.value);
                     if (e.target.value.trim()) clearFieldError('vicPhone');
                   }}
-                  className={`w-full px-4 py-2.5 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all ${
+                  className={`w-full px-3 py-2 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all ${
                     getFieldError('vicPhone')
                       ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
                       : 'border-slate-200 focus:border-blue-600'
@@ -2362,7 +2918,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   dir="ltr"
                 />
                 {getFieldError('vicPhone') && (
-                  <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                  <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-0.5 animate-in fade-in">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     {getFieldError('vicPhone')}
                   </p>
@@ -2371,25 +2927,28 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
               {!vicIsDriverSameOwner && (
                 <>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">کد ملی مالک</label>
+                  <div id="field-vicNationalId">
+                    <label className="block text-[11px] sm:text-xs font-bold text-slate-700 mb-1">کد ملی مالک</label>
                     <input
                       type="text"
                       value={vicNationalId}
-                      onChange={(e) => setVicNationalId(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                      onChange={(e) => {
+                        setVicNationalId(e.target.value);
+                        if (e.target.value.trim()) clearFieldError('vicNationalId');
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
                       dir="ltr"
                     />
                   </div>
 
-                  <div className="sm:col-span-2 p-3 bg-blue-50/70 border border-blue-200/80 rounded-2xl space-y-3">
-                    <p className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                      <User className="w-4 h-4 text-blue-600" />
+                  <div className="sm:col-span-2 p-2.5 bg-blue-50/70 border border-blue-200/80 rounded-xl space-y-2">
+                    <p className="text-[11px] sm:text-xs font-black text-blue-900 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                       اطلاعات راننده زمان حادثه (غیر از مالک):
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div id="field-vicDriverPhone">
+                        <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1">
                           شماره موبایل راننده <span className="text-rose-500">*</span>
                         </label>
                         <input
@@ -2400,7 +2959,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                             if (e.target.value.trim()) clearFieldError('vicDriverPhone');
                           }}
                           placeholder="مثال: 09121112233"
-                          className={`w-full px-3.5 py-2 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none placeholder:text-slate-400 transition-all ${
+                          className={`w-full px-3 py-1.5 sm:py-2 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none placeholder:text-slate-400 transition-all ${
                             getFieldError('vicDriverPhone')
                               ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
                               : 'border-slate-200 focus:border-blue-600'
@@ -2408,24 +2967,37 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           dir="ltr"
                         />
                         {getFieldError('vicDriverPhone') && (
-                          <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                          <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-0.5 animate-in fade-in">
                             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                             {getFieldError('vicDriverPhone')}
                           </p>
                         )}
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      <div id="field-vicDriverNationalId">
+                        <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1">
                           کد ملی راننده <span className="text-rose-500">*</span>
                         </label>
                         <input
                           type="text"
                           value={vicDriverNationalId}
-                          onChange={(e) => setVicDriverNationalId(e.target.value)}
+                          onChange={(e) => {
+                            setVicDriverNationalId(e.target.value);
+                            if (e.target.value.trim()) clearFieldError('vicDriverNationalId');
+                          }}
                           placeholder="مثال: 0012345678"
-                          className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
+                          className={`w-full px-3 py-1.5 sm:py-2 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none placeholder:text-slate-400 transition-all ${
+                            getFieldError('vicDriverNationalId')
+                              ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                              : 'border-slate-200 focus:border-blue-600'
+                          }`}
                           dir="ltr"
                         />
+                        {getFieldError('vicDriverNationalId') && (
+                          <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-0.5 animate-in fade-in">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            {getFieldError('vicDriverNationalId')}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2434,86 +3006,85 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </div>
 
             {/* Driver's License Photos (Front & Back) - Mandatory */}
-            <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200 space-y-3">
+            <div id="field-vicDriverLicense" className="bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-200 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                  <CreditCard className="w-4 h-4 text-blue-600" />
-                  تصاویر گواهینامه راننده {wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'} <span className="text-rose-500 font-bold">* الزامی</span>
+                  <CreditCard className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>تصاویر گواهینامه راننده {wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'} <span className="text-rose-500 font-bold">*</span></span>
                 </label>
-                <span className="text-[10px] font-bold text-slate-500">
-                  پشت و رو الزامی است
+                <span className="text-[10px] font-bold text-slate-500 shrink-0">
+                  پشت و رو الزامی
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 {[
-                  { label: `عکس روی گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`, shortLabel: 'روی گواهینامه راننده (شما)' },
-                  { label: `عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`, shortLabel: 'پشت گواهینامه راننده (شما)' }
+                  { label: `عکس روی گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`, shortLabel: 'روی گواهینامه (شما)', errKey: 'vicFrontLicense' },
+                  { label: `عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'مقصر (شما)' : 'زیان‌دیده (شما)'}`, shortLabel: 'پشت گواهینامه (شما)', errKey: 'vicBackLicense' }
                 ].map((item, idx) => {
                   const uploaded = getFileForLabel(item.label);
+                  const hasErr = getFieldError(item.errKey);
                   return (
-                    <div key={idx} className="relative group">
+                    <div key={idx} id={`field-${item.errKey}`} className="relative group">
                       {uploaded ? (
-                        <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-2xl flex items-center justify-between shadow-xs">
-                          <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="p-1.5 sm:p-2 bg-emerald-50 border border-emerald-300 rounded-lg sm:rounded-xl flex items-center justify-between shadow-2xs">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             {uploaded.dataUrl && uploaded.type === 'image' ? (
-                              <img src={uploaded.dataUrl} alt={item.shortLabel} className="w-11 h-11 rounded-xl object-cover border border-emerald-400 shrink-0" />
+                              <img src={uploaded.dataUrl} alt={item.shortLabel} className="w-7 h-7 sm:w-9 sm:h-9 rounded-md object-cover border border-emerald-400 shrink-0" />
                             ) : (
-                              <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                                <CheckCircle2 className="w-6 h-6" />
+                              <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                                <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                               </div>
                             )}
                             <div className="min-w-0">
-                              <span className="text-xs font-extrabold text-emerald-950 block">{item.shortLabel}</span>
-                              <span className="text-[10px] text-emerald-700 truncate block font-mono font-bold">{uploaded.fileName}</span>
+                              <span className="text-[10px] sm:text-xs font-black text-emerald-950 block truncate">{item.shortLabel}</span>
+                              <span className="text-[9px] text-emerald-700 truncate block font-mono font-bold">{uploaded.fileName}</span>
                             </div>
                           </div>
                           <button
                             type="button"
                             onClick={() => removeFileForLabel(item.label)}
-                            className="p-1.5 bg-rose-100 text-rose-700 border border-rose-300 rounded-lg hover:bg-rose-200 transition-colors shrink-0"
+                            className="p-1 bg-rose-100 text-rose-700 border border-rose-300 rounded-md hover:bg-rose-200 transition-colors shrink-0 active:scale-95 cursor-pointer"
                             title="حذف فایل"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
                       ) : (
                         <label
-                          className={`border-2 border-dashed rounded-2xl p-3.5 flex items-center justify-between cursor-pointer transition-all bg-white group/license ${
-                            (idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
-                              ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-200 shadow-xs'
+                          className={`border-2 border-dashed rounded-lg sm:rounded-xl p-1.5 sm:p-2 flex items-center justify-between cursor-pointer transition-all bg-white group/license ${
+                            hasErr
+                              ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-200 shadow-2xs'
                               : 'border-slate-300 hover:border-blue-600 hover:bg-blue-50/70'
                           }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
-                              (idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center transition-colors shrink-0 ${
+                              hasErr
                                 ? 'bg-rose-100 text-rose-700'
                                 : 'bg-blue-50 group-hover/license:bg-blue-100 text-blue-600'
                             }`}>
-                              <CreditCard className="w-5 h-5" />
+                              <CreditCard className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                             </div>
-                            <div>
-                              <span className={`text-xs font-extrabold block transition-colors ${
-                                (idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
-                                  ? 'text-rose-800'
-                                  : 'text-slate-800 group-hover/license:text-blue-900'
+                            <div className="min-w-0">
+                              <span className={`text-[10px] sm:text-[11px] font-black block truncate transition-colors ${
+                                hasErr
+                                ? 'text-rose-800'
+                                : 'text-slate-800 group-hover/license:text-blue-900'
                               }`}>
                                 {item.shortLabel} <span className="text-rose-500">*</span>
                               </span>
-                              <span className={`text-[10px] font-bold block ${
-                                (idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
+                              <span className={`text-[9px] font-bold block truncate ${
+                                hasErr
                                   ? 'text-rose-600'
-                                  : 'text-slate-500'
+                                  : 'text-slate-400'
                               }`}>
-                                {(idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
-                                  ? 'بارگذاری این تصویر الزامی است'
-                                  : 'برای بارگذاری کلیک کنید'}
+                                {hasErr ? 'الزامی' : 'انتخاب تصویر'}
                               </span>
                             </div>
                           </div>
-                          <Upload className={`w-4 h-4 shrink-0 ${
-                            (idx === 0 && getFieldError('vicDriverLicenseFront')) || (idx === 1 && getFieldError('vicDriverLicenseBack'))
+                          <Upload className={`w-3 h-3 shrink-0 mr-1 ${
+                            hasErr
                               ? 'text-rose-600'
                               : 'text-slate-400 group-hover/license:text-blue-600'
                           }`} />
@@ -2529,14 +3100,20 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   );
                 })}
               </div>
+              {(getFieldError('vicFrontLicense') || getFieldError('vicBackLicense')) && (
+                <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-0.5 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{getFieldError('vicFrontLicense') || getFieldError('vicBackLicense')}</span>
+                </p>
+              )}
             </div>
 
             {/* Iranian Plate Input */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700 text-center mb-1">
+            <div id="field-vicPlate" className="space-y-1">
+              <label className="block text-[11px] sm:text-xs font-bold text-slate-700 text-center">
                 پلاک خودرو <span className="text-rose-500">*</span>
               </label>
-              <div className={getFieldError('vicPlate') ? 'p-1 rounded-2xl border-2 border-rose-500 bg-rose-50/40 ring-2 ring-rose-200' : ''}>
+              <div className={getFieldError('vicPlate') ? 'p-0.5 rounded-xl border-2 border-rose-500 bg-rose-50/40 ring-2 ring-rose-200' : ''}>
                 <IranianPlateInput
                   p1={vicP1}
                   pLetter={vicPLetter}
@@ -2549,7 +3126,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 />
               </div>
               {getFieldError('vicPlate') && (
-                <p className="text-[11px] font-bold text-rose-600 flex items-center justify-center gap-1 mt-1 animate-in fade-in">
+                <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center justify-center gap-1 mt-0.5 animate-in fade-in">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   {getFieldError('vicPlate')}
                 </p>
@@ -2557,22 +3134,22 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </div>
 
             {/* VIN Barcode Scanner */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">VIN (شماره شاسی)</label>
+            <div id="field-vicVin" className="space-y-1">
+              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700">VIN (شماره شاسی)</label>
               <input
                 type="text"
                 value={vicVin}
                 onChange={(e) => setVicVin(e.target.value)}
                 placeholder="00000000000000000"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-center uppercase tracking-widest text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-center uppercase tracking-widest text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
                 dir="ltr"
               />
               <button
                 type="button"
                 onClick={() => startBarcodeScanner('vic')}
-                className="w-full py-2.5 px-4 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 font-extrabold text-xs flex items-center justify-center gap-2 transition-all active:scale-98"
+                className="w-full py-1.5 sm:py-2 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer"
               >
-                <ScanLine className="w-4 h-4 text-blue-600" />
+                <ScanLine className="w-3.5 h-3.5 text-blue-600" />
                 اسکن بارکد شماره شاسی (خودروی شما) - ضدتقلب
               </button>
             </div>
@@ -2582,42 +3159,43 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               type="button"
               disabled={vicInquiring}
               onClick={handleOpenVicInquiry}
-              className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-500/10 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-75"
+              className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98 disabled:opacity-75 cursor-pointer"
             >
               {vicInquiring ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
                   در حال استعلام از وب‌سرویس سنهاب بیمه مرکزی...
                 </>
               ) : (
                 <>
-                  <Search className="w-4 h-4" />
+                  <Search className="w-3.5 h-3.5" />
                   استعلام اطلاعات بیمه و هویت (سنهاب)
                 </>
               )}
             </button>
 
             {vicInquired && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-800">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-1.5 text-xs font-bold text-emerald-800 animate-in fade-in">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 اطلاعات بیمه‌نامه شما با موفقیت استعلام و تایید گردید.
               </div>
             )}
 
-            <div className="flex flex-wrap gap-3 justify-between pt-2">
+            <div className="flex flex-row items-center gap-2 sm:gap-3 pt-1 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setCurrentStep(3)}
-                className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors"
+                className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl border border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors active:scale-95 shrink-0 cursor-pointer"
               >
                 مرحله قبل
               </button>
               <button
                 type="button"
                 onClick={() => handleProceedToStep(5)}
-                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md shadow-blue-500/10 transition-all flex items-center gap-2 active:scale-95"
+                className="flex-1 h-9 sm:h-10 px-4 sm:px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
               >
-                ثبت اطلاعات و رفتن به مرحله بعد <ArrowLeft className="w-4 h-4" />
+                <span>ثبت اطلاعات و ادامه</span>
+                <ArrowLeft className="w-3.5 h-3.5 shrink-0" />
               </button>
             </div>
           </div>
@@ -2625,20 +3203,20 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
 
         {/* Step 5: Culprit Details & Finish */}
         {currentStep === 5 && (
-          <div className="space-y-5 pt-2 animate-in fade-in">
-            <h3 className="font-extrabold text-base text-blue-900 text-center">
+          <div className="space-y-3.5 sm:space-y-4 pt-1 animate-in fade-in">
+            <h3 className="font-extrabold text-xs sm:text-sm text-blue-900 text-center">
               اطلاعات طرف مقابل ({wizardRole === 'culprit' ? 'زیان‌دیده' : 'مقصر'})
             </h3>
 
             {/* Segment Toggle: Owner = Driver vs Two Different People */}
-            <div className="p-1 bg-slate-100 rounded-2xl flex gap-1 border border-slate-200">
+            <div className="p-0.5 bg-slate-100 rounded-xl flex gap-1 border border-slate-200">
               <button
                 type="button"
                 onClick={() => setFltIsDriverSameOwner(false)}
-                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition-all ${
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-black transition-all ${
                   !fltIsDriverSameOwner
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-800'
                 }`}
               >
                 دو نفر متفاوت
@@ -2646,10 +3224,10 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               <button
                 type="button"
                 onClick={() => setFltIsDriverSameOwner(true)}
-                className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold transition-all ${
+                className={`flex-1 py-1.5 px-2 rounded-lg text-[11px] sm:text-xs font-black transition-all ${
                   fltIsDriverSameOwner
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-800'
                 }`}
               >
                 مالک و راننده یک نفر
@@ -2657,9 +3235,9 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </div>
 
             {/* Fields grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div id="field-fltName">
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-700 mb-1">
                   نام مالک طرف مقابل <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -2669,24 +3247,24 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     setFltName(e.target.value);
                     if (e.target.value.trim()) clearFieldError('fltName');
                   }}
-                  className={`w-full px-4 py-2.5 rounded-xl border text-xs font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all ${
+                  className={`w-full px-3 py-2 rounded-xl border text-xs font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all ${
                     getFieldError('fltName')
                       ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
                       : 'border-slate-200 focus:border-blue-600'
                   }`}
                 />
                 {getFieldError('fltName') && (
-                  <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                  <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-0.5 animate-in fade-in">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     {getFieldError('fltName')}
                   </p>
                 )}
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1 flex items-center justify-between">
-                  <span>شماره موبایل طرف دوم (طرف مقابل) <span className="text-rose-500">*</span></span>
-                  <span className="text-[10px] bg-blue-100 text-blue-900 px-2 py-0.5 rounded-full font-bold">پرونده مشترک</span>
+              <div id="field-fltPhone">
+                <label className="block text-[11px] sm:text-xs font-bold text-slate-800 mb-1 flex items-center justify-between">
+                  <span>شماره موبایل طرف مقابل <span className="text-rose-500">*</span></span>
+                  <span className="text-[9px] sm:text-[10px] bg-blue-100 text-blue-900 px-1.5 py-0.5 rounded-full font-bold">پرونده مشترک</span>
                 </label>
                 <input
                   type="tel"
@@ -2696,7 +3274,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     if (e.target.value.trim()) clearFieldError('fltPhone');
                   }}
                   placeholder="۰۹۱۲..."
-                  className={`w-full px-4 py-2.5 rounded-xl border-2 text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all shadow-xs ${
+                  className={`w-full px-3 py-2 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none transition-all ${
                     getFieldError('fltPhone')
                       ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
                       : 'border-blue-200 focus:border-blue-600'
@@ -2704,37 +3282,40 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   dir="ltr"
                 />
                 {getFieldError('fltPhone') && (
-                  <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                  <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-0.5 animate-in fade-in">
                     <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                     {getFieldError('fltPhone')}
                   </p>
                 )}
-                <p className="text-[11px] text-blue-800 mt-1 font-medium">
-                  این شماره موبایل جهت اتصال طرف دوم به همین پرونده استفاده می‌شود تا امکان بارگذاری مستندات توسط وی فراهم گردد.
+                <p className="text-[10px] sm:text-[11px] text-blue-800 mt-0.5 font-medium leading-relaxed">
+                  جهت اتصال طرف دوم به پرونده برای بارگذاری مدارک.
                 </p>
               </div>
 
               {!fltIsDriverSameOwner && (
                 <>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">کد ملی مالک</label>
+                  <div id="field-fltNationalId">
+                    <label className="block text-[11px] sm:text-xs font-bold text-slate-700 mb-1">کد ملی مالک</label>
                     <input
                       type="text"
                       value={fltNationalId}
-                      onChange={(e) => setFltNationalId(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                      onChange={(e) => {
+                        setFltNationalId(e.target.value);
+                        if (e.target.value.trim()) clearFieldError('fltNationalId');
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
                       dir="ltr"
                     />
                   </div>
 
-                  <div className="sm:col-span-2 p-3 bg-blue-50/70 border border-blue-200/80 rounded-2xl space-y-3">
-                    <p className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                      <User className="w-4 h-4 text-blue-600" />
+                  <div className="sm:col-span-2 p-2.5 bg-blue-50/70 border border-blue-200/80 rounded-xl space-y-2">
+                    <p className="text-[11px] sm:text-xs font-black text-blue-900 flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5 text-blue-600 shrink-0" />
                       اطلاعات راننده زمان حادثه طرف مقابل:
                     </p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      <div id="field-fltDriverPhone">
+                        <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1">
                           شماره موبایل راننده <span className="text-rose-500">*</span>
                         </label>
                         <input
@@ -2745,7 +3326,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                             if (e.target.value.trim()) clearFieldError('fltDriverPhone');
                           }}
                           placeholder="مثال: 09123334455"
-                          className={`w-full px-3.5 py-2 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none placeholder:text-slate-400 transition-all ${
+                          className={`w-full px-3 py-1.5 sm:py-2 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none placeholder:text-slate-400 transition-all ${
                             getFieldError('fltDriverPhone')
                               ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
                               : 'border-slate-200 focus:border-blue-600'
@@ -2753,24 +3334,37 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                           dir="ltr"
                         />
                         {getFieldError('fltDriverPhone') && (
-                          <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-1 animate-in fade-in">
+                          <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-0.5 animate-in fade-in">
                             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                             {getFieldError('fltDriverPhone')}
                           </p>
                         )}
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      <div id="field-fltDriverNationalId">
+                        <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700 mb-1">
                           کد ملی راننده <span className="text-rose-500">*</span>
                         </label>
                         <input
                           type="text"
                           value={fltDriverNationalId}
-                          onChange={(e) => setFltDriverNationalId(e.target.value)}
+                          onChange={(e) => {
+                            setFltDriverNationalId(e.target.value);
+                            if (e.target.value.trim()) clearFieldError('fltDriverNationalId');
+                          }}
                           placeholder="مثال: 0087654321"
-                          className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none focus:border-blue-600 placeholder:text-slate-400"
+                          className={`w-full px-3 py-1.5 sm:py-2 rounded-xl border text-xs font-mono font-bold text-slate-900 bg-white focus:outline-none placeholder:text-slate-400 transition-all ${
+                            getFieldError('fltDriverNationalId')
+                              ? 'border-rose-500 bg-rose-50/40 ring-2 ring-rose-200'
+                              : 'border-slate-200 focus:border-blue-600'
+                          }`}
                           dir="ltr"
                         />
+                        {getFieldError('fltDriverNationalId') && (
+                          <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-0.5 animate-in fade-in">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            {getFieldError('fltDriverNationalId')}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2779,86 +3373,85 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </div>
 
             {/* Driver's License Photos of Other Party (Front & Back) - Mandatory */}
-            <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-200 space-y-3">
+            <div id="field-fltDriverLicense" className="bg-slate-50 p-2.5 sm:p-3 rounded-xl border border-slate-200 space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                  <CreditCard className="w-4 h-4 text-blue-600" />
-                  تصاویر گواهینامه راننده {wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'} <span className="text-rose-500 font-bold">* الزامی</span>
+                  <CreditCard className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  <span>تصاویر گواهینامه راننده {wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'} <span className="text-rose-500 font-bold">*</span></span>
                 </label>
-                <span className="text-[10px] font-bold text-slate-500">
-                  پشت و رو الزامی است
+                <span className="text-[10px] font-bold text-slate-500 shrink-0">
+                  پشت و رو الزامی
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2">
                 {[
-                  { label: `عکس روی گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`, shortLabel: 'روی گواهینامه راننده (طرف مقابل)' },
-                  { label: `عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`, shortLabel: 'پشت گواهینامه راننده (طرف مقابل)' }
+                  { label: `عکس روی گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`, shortLabel: 'روی گواهینامه (طرف مقابل)', errKey: 'fltFrontLicense' },
+                  { label: `عکس پشت گواهینامه ${wizardRole === 'culprit' ? 'زیان‌دیده (طرف مقابل)' : 'مقصر (طرف مقابل)'}`, shortLabel: 'پشت گواهینامه (طرف مقابل)', errKey: 'fltBackLicense' }
                 ].map((item, idx) => {
                   const uploaded = getFileForLabel(item.label);
+                  const hasErr = getFieldError(item.errKey);
                   return (
-                    <div key={idx} className="relative group">
+                    <div key={idx} id={`field-${item.errKey}`} className="relative group">
                       {uploaded ? (
-                        <div className="p-3 bg-emerald-50 border-2 border-emerald-300 rounded-2xl flex items-center justify-between shadow-xs">
-                          <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="p-1.5 sm:p-2 bg-emerald-50 border border-emerald-300 rounded-lg sm:rounded-xl flex items-center justify-between shadow-2xs">
+                          <div className="flex items-center gap-1.5 min-w-0">
                             {uploaded.dataUrl && uploaded.type === 'image' ? (
-                              <img src={uploaded.dataUrl} alt={item.shortLabel} className="w-11 h-11 rounded-xl object-cover border border-emerald-400 shrink-0" />
+                              <img src={uploaded.dataUrl} alt={item.shortLabel} className="w-7 h-7 sm:w-9 sm:h-9 rounded-md object-cover border border-emerald-400 shrink-0" />
                             ) : (
-                              <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
-                                <CheckCircle2 className="w-6 h-6" />
+                              <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-md bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                                <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                               </div>
                             )}
                             <div className="min-w-0">
-                              <span className="text-xs font-extrabold text-emerald-950 block">{item.shortLabel}</span>
-                              <span className="text-[10px] text-emerald-700 truncate block font-mono font-bold">{uploaded.fileName}</span>
+                              <span className="text-[10px] sm:text-xs font-black text-emerald-950 block truncate">{item.shortLabel}</span>
+                              <span className="text-[9px] text-emerald-700 truncate block font-mono font-bold">{uploaded.fileName}</span>
                             </div>
                           </div>
                           <button
                             type="button"
                             onClick={() => removeFileForLabel(item.label)}
-                            className="p-1.5 bg-rose-100 text-rose-700 border border-rose-300 rounded-lg hover:bg-rose-200 transition-colors shrink-0"
+                            className="p-1 bg-rose-100 text-rose-700 border border-rose-300 rounded-md hover:bg-rose-200 transition-colors shrink-0 active:scale-95 cursor-pointer"
                             title="حذف فایل"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
                       ) : (
                         <label
-                          className={`border-2 border-dashed rounded-2xl p-3.5 flex items-center justify-between cursor-pointer transition-all bg-white group/license ${
-                            (idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
-                              ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-200 shadow-xs'
+                          className={`border-2 border-dashed rounded-lg sm:rounded-xl p-1.5 sm:p-2 flex items-center justify-between cursor-pointer transition-all bg-white group/license ${
+                            hasErr
+                              ? 'border-rose-500 bg-rose-50/70 ring-2 ring-rose-200 shadow-2xs'
                               : 'border-slate-300 hover:border-blue-600 hover:bg-blue-50/70'
                           }`}
                         >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors shrink-0 ${
-                              (idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className={`w-6 h-6 sm:w-7 sm:h-7 rounded-md flex items-center justify-center transition-colors shrink-0 ${
+                              hasErr
                                 ? 'bg-rose-100 text-rose-700'
                                 : 'bg-blue-50 group-hover/license:bg-blue-100 text-blue-600'
                             }`}>
-                              <CreditCard className="w-5 h-5" />
+                              <CreditCard className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                             </div>
-                            <div>
-                              <span className={`text-xs font-extrabold block transition-colors ${
-                                (idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
-                                  ? 'text-rose-800'
-                                  : 'text-slate-800 group-hover/license:text-blue-900'
+                            <div className="min-w-0">
+                              <span className={`text-[10px] sm:text-[11px] font-black block truncate transition-colors ${
+                                hasErr
+                                ? 'text-rose-800'
+                                : 'text-slate-800 group-hover/license:text-blue-900'
                               }`}>
                                 {item.shortLabel} <span className="text-rose-500">*</span>
                               </span>
-                              <span className={`text-[10px] font-bold block ${
-                                (idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
+                              <span className={`text-[9px] font-bold block truncate ${
+                                hasErr
                                   ? 'text-rose-600'
-                                  : 'text-slate-500'
+                                  : 'text-slate-400'
                               }`}>
-                                {(idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
-                                  ? 'بارگذاری این تصویر الزامی است'
-                                  : 'برای بارگذاری کلیک کنید'}
+                                {hasErr ? 'الزامی' : 'انتخاب تصویر'}
                               </span>
                             </div>
                           </div>
-                          <Upload className={`w-4 h-4 shrink-0 ${
-                            (idx === 0 && getFieldError('fltDriverLicenseFront')) || (idx === 1 && getFieldError('fltDriverLicenseBack'))
+                          <Upload className={`w-3 h-3 shrink-0 mr-1 ${
+                            hasErr
                               ? 'text-rose-600'
                               : 'text-slate-400 group-hover/license:text-blue-600'
                           }`} />
@@ -2874,14 +3467,20 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   );
                 })}
               </div>
+              {(getFieldError('fltFrontLicense') || getFieldError('fltBackLicense')) && (
+                <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-1 pr-0.5 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>{getFieldError('fltFrontLicense') || getFieldError('fltBackLicense')}</span>
+                </p>
+              )}
             </div>
 
             {/* Iranian Plate Input */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700 text-center mb-1">
+            <div id="field-fltPlate" className="space-y-1">
+              <label className="block text-[11px] sm:text-xs font-bold text-slate-700 text-center">
                 پلاک خودرو طرف مقابل <span className="text-rose-500">*</span>
               </label>
-              <div className={getFieldError('fltPlate') ? 'p-1 rounded-2xl border-2 border-rose-500 bg-rose-50/40 ring-2 ring-rose-200' : ''}>
+              <div className={getFieldError('fltPlate') ? 'p-0.5 rounded-xl border-2 border-rose-500 bg-rose-50/40 ring-2 ring-rose-200' : ''}>
                 <IranianPlateInput
                   p1={fltP1}
                   pLetter={fltPLetter}
@@ -2894,7 +3493,7 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                 />
               </div>
               {getFieldError('fltPlate') && (
-                <p className="text-[11px] font-bold text-rose-600 flex items-center justify-center gap-1 mt-1 animate-in fade-in">
+                <p className="text-[10px] sm:text-[11px] font-bold text-rose-600 flex items-center justify-center gap-1 mt-0.5 animate-in fade-in">
                   <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                   {getFieldError('fltPlate')}
                 </p>
@@ -2902,22 +3501,22 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             </div>
 
             {/* VIN Barcode Scanner */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">VIN (شماره شاسی)</label>
+            <div id="field-fltVin" className="space-y-1">
+              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700">VIN (شماره شاسی)</label>
               <input
                 type="text"
                 value={fltVin}
                 onChange={(e) => setFltVin(e.target.value)}
                 placeholder="00000000000000000"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-center uppercase tracking-widest text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
+                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-center uppercase tracking-widest text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
                 dir="ltr"
               />
               <button
                 type="button"
                 onClick={() => startBarcodeScanner('flt')}
-                className="w-full py-2.5 px-4 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 font-extrabold text-xs flex items-center justify-center gap-2 transition-all active:scale-98"
+                className="w-full py-1.5 sm:py-2 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer"
               >
-                <ScanLine className="w-4 h-4 text-blue-600" />
+                <ScanLine className="w-3.5 h-3.5 text-blue-600" />
                 اسکن بارکد شماره شاسی (طرف مقابل) - ضدتقلب
               </button>
             </div>
@@ -2927,61 +3526,245 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               type="button"
               disabled={fltInquiring}
               onClick={handleOpenFltInquiry}
-              className="w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-xs shadow-md shadow-blue-500/10 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-75"
+              className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98 disabled:opacity-75 cursor-pointer"
             >
               {fltInquiring ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
                   در حال استعلام از وب‌سرویس سنهاب و راهور...
                 </>
               ) : (
                 <>
-                  <Search className="w-4 h-4" />
+                  <Search className="w-3.5 h-3.5" />
                   استعلام اطلاعات بیمه و هویت طرف مقابل (سنهاب)
                 </>
               )}
             </button>
 
             {fltInquired && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2 text-xs font-bold text-emerald-800">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-1.5 text-xs font-bold text-emerald-800 animate-in fade-in">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 اطلاعات بیمه‌نامه طرف مقابل با موفقیت استعلام و تایید گردید.
               </div>
             )}
 
             {/* Referral Info Box */}
             {(!vicIsDriverSameOwner || !fltIsDriverSameOwner) && (
-              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1 animate-in fade-in">
-                <p className="font-extrabold flex items-center gap-1.5 text-amber-800">
-                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
+              <div className="p-2.5 sm:p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1 animate-in fade-in">
+                <p className="font-black flex items-center gap-1.5 text-amber-800 text-[11px] sm:text-xs">
+                  <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   ارجاع خودکار پرونده به بیمه مالک خودرو:
                 </p>
-                <p className="text-slate-700 leading-relaxed font-medium">
+                <p className="text-slate-700 leading-relaxed font-medium text-[10px] sm:text-[11px]">
                   با توجه به تفاوت راننده و مالک، استعلام اطلاعات بیمه و ارجاع پرونده در سامانه مرکزی به نام **مالک خودرو** انجام می‌گیرد و سوابق راننده نیز در پرونده حفظ خواهد شد.
                 </p>
               </div>
             )}
 
-            <div className="flex flex-wrap gap-3 justify-between pt-2">
+            <div className="flex flex-row items-center gap-2 sm:gap-3 pt-1 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setCurrentStep(4)}
-                className="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors"
+                className="h-9 sm:h-10 px-3.5 sm:px-4 rounded-xl border border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors active:scale-95 shrink-0 cursor-pointer"
               >
                 مرحله قبل
               </button>
               <button
                 type="button"
                 onClick={handleFinishWizard}
-                className="px-4 sm:px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl text-sm shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2 active:scale-95"
+                className="flex-1 h-9 sm:h-10 px-4 sm:px-5 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs sm:text-sm shadow-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
               >
-                <CheckCircle2 className="w-5 h-5" />
-                ثبت نهایی و دریافت کد رهگیری
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>ثبت نهایی و دریافت کد رهگیری</span>
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* MODAL: تأیید رسمی اظهارات با کد پیامکی (OTP) */}
+      {showStatementModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-md flex items-start sm:items-center justify-center p-3 sm:p-4 animate-in fade-in overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-2xl border-2 border-emerald-200 max-h-[92vh] overflow-y-auto text-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                  <Gavel className="w-4.5 h-4.5" />
+                </div>
+                <div className="min-w-0">
+                  <h3 className="font-black text-sm text-slate-900">تأیید رسمی اظهارات و امضای فرم اعلام خسارت</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    اخذ تأییدیه معتبر جهت تثبیت حقوقی اظهارات شما
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowStatementModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center shrink-0 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* متن اظهارات ثبت‌شده */}
+            <div className="space-y-1.5">
+              <span className="text-[11px] font-black text-slate-800">متن اظهارات ثبت‌شده شما:</span>
+              <div className="p-3 rounded-xl bg-slate-50 border-2 border-slate-200 text-[11px] sm:text-xs text-slate-800 font-medium leading-relaxed whitespace-pre-wrap">
+                {writtenReport.trim()}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStatementModal(false);
+                  setCurrentStep(3);
+                }}
+                className="text-[11px] font-black text-blue-700 hover:text-blue-900 cursor-pointer inline-flex items-center gap-1"
+              >
+                <ArrowLeft className="w-3 h-3" />
+                ویرایش متن اظهارات
+              </button>
+            </div>
+
+            {/* تعهدنامه حقوقی */}
+            <div className="p-3 rounded-xl bg-amber-50 border-2 border-amber-200 space-y-2">
+              <p className="text-[10px] sm:text-[11px] text-amber-950 font-bold leading-relaxed">
+                {STATEMENT_LEGAL_NOTICE}
+              </p>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={statementAgreed}
+                  onChange={(e) => setStatementAgreed(e.target.checked)}
+                  className="w-4 h-4 mt-0.5 shrink-0 cursor-pointer accent-emerald-600"
+                />
+                <span className="text-[11px] font-black text-slate-900 leading-snug">
+                  صحت اظهارات فوق را تأیید می‌کنم و می‌پذیرم که این متن به‌عنوان اظهارات رسمی من ثبت شود.
+                </span>
+              </label>
+            </div>
+
+            {/* مرحله OTP */}
+            {!statementOtpSent ? (
+              <button
+                type="button"
+                disabled={!statementAgreed}
+                onClick={() => {
+                  const code = generateStatementOtp();
+                  setStatementOtp(code);
+                  setStatementOtpSent(true);
+                  setStatementOtpError(null);
+                  notifyApp(
+                    `کد تأیید اظهارات به شماره ${vicPhone || session.phone || ''} پیامک شد: ${code}`,
+                    'info'
+                  );
+                }}
+                className={`w-full h-11 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-all ${
+                  statementAgreed
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer active:scale-95'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <Send className="w-4 h-4" />
+                <span>ارسال کد تأیید پیامکی به {toFaDigits(vicPhone || session.phone || '')}</span>
+              </button>
+            ) : (
+              <div className="space-y-3 animate-in fade-in">
+                <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-[11px] font-bold text-sky-950 flex items-center gap-1.5">
+                  <Smartphone className="w-3.5 h-3.5 text-sky-700 shrink-0" />
+                  <span>
+                    کد تأیید پیامک شد (نمایش آزمایشی):{' '}
+                    <strong className="font-mono tracking-widest">{toFaDigits(statementOtp)}</strong>
+                  </span>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-black text-slate-800 mb-1">
+                    کد تأیید شش‌رقمی <span className="text-rose-600">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={enteredStatementOtp}
+                    onChange={(e) => {
+                      setEnteredStatementOtp(
+                        e.target.value
+                          .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+                          .replace(/\D/g, '')
+                          .slice(0, 6)
+                      );
+                      setStatementOtpError(null);
+                    }}
+                    placeholder="------"
+                    className={`w-full px-4 py-3 rounded-xl border-2 text-center text-lg font-black font-mono tracking-[0.4em] text-slate-900 bg-white focus:outline-none transition-all ${
+                      statementOtpError ? 'border-rose-500 bg-rose-50/40' : 'border-emerald-300 focus:border-emerald-600'
+                    }`}
+                    dir="ltr"
+                  />
+                  {statementOtpError && (
+                    <p className="text-[11px] font-bold text-rose-700 flex items-center gap-1 mt-1.5 animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                      {statementOtpError}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (enteredStatementOtp !== statementOtp) {
+                      setStatementOtpError('کد تأیید وارد شده صحیح نیست.');
+                      return;
+                    }
+                    const isCulpritRole = wizardRole === 'culprit';
+                    const statement = buildConfirmedStatement(
+                      {
+                        party: 'PARTY_ONE',
+                        role: isCulpritRole ? 'مقصر' : 'زیان‌دیده',
+                        fullName: vicName || session.name || '',
+                        phone: vicPhone || session.phone || '',
+                        nationalId: vicNationalId || session.nationalId,
+                        statementText: writtenReport,
+                        hasAudioAttachment: !!audioUrl
+                      },
+                      'OTP',
+                      statementOtp
+                    );
+                    setConfirmedStatement(statement);
+                    setShowStatementModal(false);
+                    notifyApp('اظهارات شما با کد تأیید پیامکی امضا و در پرونده ثبت شد.', 'success');
+                    finalizeCase(statement);
+                  }}
+                  className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center justify-center gap-2 shadow-xs transition-all active:scale-95 cursor-pointer"
+                >
+                  <BadgeCheck className="w-4 h-4" />
+                  <span>امضای اظهارات و ثبت نهایی پرونده</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const code = generateStatementOtp();
+                    setStatementOtp(code);
+                    setEnteredStatementOtp('');
+                    setStatementOtpError(null);
+                    notifyApp(`کد تأیید جدید: ${code}`, 'info');
+                  }}
+                  className="w-full text-[11px] font-black text-slate-600 hover:text-slate-900 cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <KeyRound className="w-3 h-3" />
+                  ارسال مجدد کد تأیید
+                </button>
+              </div>
+            )}
+
+            <p className="text-[10px] text-slate-500 font-medium leading-relaxed border-t border-slate-100 pt-2.5">
+              پس از ثبت پرونده، درخواست تأیید اظهارات برای طرف مقابل نیز ارسال می‌شود و تا زمان امضای ایشان، وضعیت اظهارات طرف مقابل «در انتظار تأیید» باقی می‌ماند.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Insurance Inquiry Modal (Victim / You) */}
       {vicInquiryModalOpen && (

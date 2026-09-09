@@ -95,7 +95,7 @@ export const AppToastHost: React.FC = () => {
       {/* ===== توست‌های اعلان (بالا-وسط) ===== */}
       {toasts.length > 0 && (
         <div
-          className="fixed top-20 left-1/2 -translate-x-1/2 z-[120] w-[min(94vw,520px)] space-y-2 pointer-events-none"
+          className="fixed top-16 sm:top-20 left-1/2 -translate-x-1/2 z-[120] w-[min(92vw,480px)] space-y-2 pointer-events-none"
           dir="rtl"
           aria-live="polite"
         >
@@ -104,7 +104,7 @@ export const AppToastHost: React.FC = () => {
             return (
               <div
                 key={t.id}
-                className={`pointer-events-auto relative overflow-hidden rounded-2xl border shadow-lg p-3.5 pr-4 flex items-start gap-3 animate-in fade-in slide-in-from-top-3 ${st.wrap}`}
+                className={`pointer-events-auto relative overflow-hidden rounded-xl sm:rounded-2xl border shadow-lg p-2.5 sm:p-3.5 pr-3.5 sm:pr-4 flex items-start gap-2.5 sm:gap-3 animate-in fade-in slide-in-from-top-2 ${st.wrap}`}
                 role="status"
               >
                 <span className={`absolute right-0 top-0 bottom-0 w-1.5 ${st.bar}`} />
@@ -113,10 +113,10 @@ export const AppToastHost: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => dismissToast(t.id)}
-                  className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors shrink-0"
+                  className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors shrink-0 cursor-pointer"
                   title="بستن"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             );

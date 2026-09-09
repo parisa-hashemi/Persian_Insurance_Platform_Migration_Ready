@@ -9,6 +9,11 @@
  */
 
 import { ClaimCase, StaffMember, AssessorNotification, CustomerNotification } from '../../types';
+import {
+  assignNearestExpert,
+  buildAssignmentRecord,
+  AssignmentDecision
+} from '../expertAssignment';
 import { INITIAL_EXPERTS, INITIAL_FIELD_EXPERTS } from '../../data/mockData';
 import {
   loadExpertsFromStorage,
@@ -356,17 +361,36 @@ export function autoDispatchClaimWithAI(
   let newStatus: string;
   let rationale: string;
 
+  // مختصات محل حادثه — مبنای ارجاع مکانی
+  const geoLat = Number(claim.lat);
+  const geoLng = Number(claim.lng);
+  const accidentGeo =
+    !isNaN(geoLat) && !isNaN(geoLng) && geoLat !== 0 && geoLng !== 0
+      ? { lat: geoLat, lng: geoLng }
+      : null;
+
+  // برآورد خسارت اعلامی، مبنای سطح‌بندی اختیارات کارشناس
+  const estimatedDamageToman =
+    Number(claim.estimatedDamageToman) ||
+    (Number((claim as any).totalDamage) ? Math.round(Number((claim as any).totalDamage) / 10) : 0);
+
+  let assignmentDecision: AssignmentDecision | null = null;
+
   if (!requireField) {
     // Desk Assessor
     const allStoredExperts = loadExpertsFromStorage();
     const companyExperts = (allStoredExperts[companyCode] || INITIAL_EXPERTS[companyCode] || INITIAL_EXPERTS.dana || []).filter(e => e.active !== false);
     
-    // Filter available experts not in exclusion list
-    const available = companyExperts.filter(e => !excluded.has(e.id));
-    const candidates = available.length > 0 ? available : companyExperts;
-
-    // Pick expert with least active load or highest rating
-    candidates.sort((a, b) => (b.rating || 4.5) - (a.rating || 4.5));
+    // تخصیص خودکار: نزدیک‌ترین/کم‌بارترین کارشناس واجد اختیار — بدون دخالت کاربر
+    assignmentDecision = assignNearestExpert({
+      experts: companyExperts,
+      accidentLocation: accidentGeo,
+      estimatedDamageToman: estimatedDamageToman,
+      excludeIds: Array.from(excluded)
+    });
+    const candidates = assignmentDecision.assigned
+      ? [assignmentDecision.assigned.expert]
+      : companyExperts.filter(e => !excluded.has(e.id));
     assignedExpert = candidates[0] || {
       id: 'd1',
       name: 'محسن کریمی',
@@ -383,10 +407,20 @@ export function autoDispatchClaimWithAI(
     const allStoredFieldExperts = loadFieldExpertsFromStorage();
     const companyFieldExperts = (allStoredFieldExperts[companyCode] || INITIAL_FIELD_EXPERTS[companyCode] || INITIAL_FIELD_EXPERTS.dana || []).filter(e => e.active !== false);
 
+    // ارجاع بر اساس موقعیت مکانی: نزدیک‌ترین کارشناس میدانی فعال به محل حادثه
+    assignmentDecision = assignNearestExpert({
+      experts: companyFieldExperts,
+      accidentLocation: accidentGeo,
+      estimatedDamageToman: estimatedDamageToman,
+      excludeIds: Array.from(excluded)
+    });
+
     const availableField = companyFieldExperts.filter(e => !excluded.has(e.id));
     const matchedBranch = availableField.filter(e => e.branchId === branchInfo.branchId);
-    
-    if (matchedBranch.length > 0) {
+
+    if (assignmentDecision.assigned) {
+      assignedExpert = assignmentDecision.assigned.expert;
+    } else if (matchedBranch.length > 0) {
       assignedExpert = matchedBranch[0];
     } else if (availableField.length > 0) {
       assignedExpert = availableField[0];
@@ -404,7 +438,11 @@ export function autoDispatchClaimWithAI(
 
     assignedRole = 'کارشناس رسمی ارزیاب میدانی';
     newStatus = 'محول شده به کارشناس';
-    rationale = options?.reason || `پرونده به دلیل نیاز به بازدید حضوری، با توجه به موقعیت مکانی حادثه (${branchInfo.region}) توسط هوش مصنوعی به کارشناس میدانی ${assignedExpert.name} در ${branchInfo.branchName} محول گردید.`;
+    const distanceNote =
+      assignmentDecision?.assigned?.distanceKm !== null && assignmentDecision?.assigned?.distanceKm !== undefined
+        ? ` (نزدیک‌ترین کارشناس فعال، فاصله ${assignmentDecision.assigned.distanceKm} کیلومتر تا محل حادثه)`
+        : '';
+    rationale = options?.reason || `پرونده به دلیل نیاز به بازدید حضوری، با توجه به موقعیت مکانی حادثه (${branchInfo.region}) به کارشناس میدانی ${assignedExpert.name} در ${branchInfo.branchName} محول گردید${distanceNote}.`;
   }
 
   // Generate SMS Notifications (suppress customer SMS for field missions as interaction is handled directly in field)
@@ -474,6 +512,24 @@ ${customerSmsStatusText}
     } : claim.assignedFieldExpert,
     assignedAt: nowShamsi,
     assignedTimestamp: Date.now(),
+    assignmentMethod: assignmentDecision?.method,
+    assignmentDistanceKm: assignmentDecision?.assigned?.distanceKm ?? null,
+    assignmentHistory: [
+      ...(claim.assignmentHistory || []),
+      ...(assignmentDecision
+        ? [buildAssignmentRecord(assignmentDecision, options?.reason || 'ارجاع خودکار سامانه')]
+        : [])
+    ],
+    requiresSpecialistUnit: assignmentDecision?.specialist.required || claim.requiresSpecialistUnit,
+    specialistEscalation:
+      assignmentDecision?.specialist.required && assignmentDecision.specialist.reason
+        ? {
+            reason: assignmentDecision.specialist.reason,
+            ceilingToman: assignmentDecision.specialist.ceilingToman,
+            escalatedAt: nowShamsi,
+            escalatedBy: 'سامانه ارجاع خودکار'
+          }
+        : claim.specialistEscalation,
     smsDispatchLogs: [
       ...(claim.smsDispatchLogs || []),
       expertSmsLog,

@@ -1351,47 +1351,49 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
           </div>
         )}
 
-        {/* Field Expert & Branch Dispatch Live Card (Light Theme) */}
+        {/* Field Expert & Branch Dispatch Live Card (Light Theme - Compact & Responsive) */}
         {(claimCase.assignedFieldExpert || claimCase.assignedBranch) && (
-          <div className="p-5 bg-sky-50/80 border-2 border-sky-200 text-slate-900 rounded-3xl text-xs space-y-3.5 shadow-xs animate-in fade-in">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200/80 pb-2.5">
-              <div className="flex items-center gap-2 font-bold text-sky-950">
-                <div className="w-8 h-8 rounded-xl bg-sky-600 text-white flex items-center justify-center font-bold shadow-xs">
-                  <UserCheck className="w-4.5 h-4.5" />
+          <div className="p-3 sm:p-4 bg-sky-50/85 border border-sky-200 text-slate-900 rounded-xl sm:rounded-2xl text-xs space-y-2 sm:space-y-2.5 shadow-2xs animate-in fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 border-b border-sky-200/80 pb-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 font-bold text-sky-950 min-w-0">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold shadow-2xs shrink-0">
+                  <UserCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </div>
-                <span className="text-xs sm:text-sm font-black">وضعیت کارشناسی میدانی و هماهنگی شعبه بیمه ({getInsurerPersianName(claimCase.culpritInsurer)}):</span>
+                <span className="text-[11px] sm:text-xs font-black truncate">
+                  وضعیت کارشناسی میدانی و هماهنگی شعبه بیمه ({getInsurerPersianName(claimCase.culpritInsurer)}):
+                </span>
               </div>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-sky-200/80 text-sky-900 border border-sky-300 self-start sm:self-auto">
+              <span className="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-extrabold bg-sky-200/80 text-sky-900 border border-sky-300 self-start sm:self-auto shrink-0">
                 {claimCase.status}
               </span>
             </div>
 
-            <p className="text-slate-700 text-xs leading-relaxed font-medium">
+            <p className="text-slate-700 text-[11px] sm:text-xs leading-relaxed font-medium">
               {claimCase.assignedFieldExpert
-                ? `کارشناس رسمی میدانی «${claimCase.assignedFieldExpert.name}» (${claimCase.assignedFieldExpert.role}) توسط شرکت بیمه جهت بازدید حضوری از خودروها و محل حادثه تخصیص یافته است.`
-                : 'شرکت بیمه‌گر در حال تخصیص و اعزام کارشناس میدانی متخصص به محل حادثه جهت بازرسی فیزیکی، احراز اصالت و تعیین خسارت می‌باشد.'}
+                ? `کارشناس رسمی میدانی «${claimCase.assignedFieldExpert.name}» (${claimCase.assignedFieldExpert.role}) توسط شرکت بیمه جهت بازدید حضوری تخصیص یافته است.`
+                : 'شرکت بیمه‌گر در حال تخصیص و اعزام کارشناس میدانی متخصص به محل حادثه جهت بازرسی فیزیکی و تعیین خسارت می‌باشد.'}
             </p>
 
             {/* Expert & Assigned Branch Details Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5 pt-0.5 text-xs">
               {claimCase.assignedFieldExpert && (
-                <div className="bg-white p-3.5 rounded-2xl border border-sky-200 space-y-1.5 shadow-2xs">
-                  <div className="flex items-center gap-1.5 text-sky-800 font-bold text-[11px]">
-                    <UserCheck className="w-3.5 h-3.5 text-sky-600" />
-                    <span>مشخصات کارشناس میدانی تخصیص‌یافته:</span>
+                <div className="bg-white p-2.5 sm:p-3 rounded-lg sm:rounded-xl border border-sky-200 space-y-1 shadow-2xs">
+                  <div className="flex items-center gap-1 text-sky-800 font-bold text-[10px] sm:text-[11px]">
+                    <UserCheck className="w-3 h-3 text-sky-600 shrink-0" />
+                    <span>مشخصات کارشناس میدانی:</span>
                   </div>
-                  <div className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                  <div className="font-extrabold text-slate-900 text-[11px] sm:text-xs">
                     {claimCase.assignedFieldExpert.name} ({claimCase.assignedFieldExpert.role})
                   </div>
                   {claimCase.assignedFieldExpert.phone && (
-                    <div className="text-[11px] text-slate-600 flex items-center gap-1 font-medium">
-                      <Phone className="w-3 h-3 text-sky-600" />
+                    <div className="text-[10px] sm:text-[11px] text-slate-600 flex items-center gap-1 font-medium">
+                      <Phone className="w-3 h-3 text-sky-600 shrink-0" />
                       <span>تلفن تماس: <span className="font-mono text-slate-900 font-bold" dir="ltr">{claimCase.assignedFieldExpert.phone}</span></span>
                     </div>
                   )}
                   {claimCase.fieldVisitSchedule && (
-                    <div className="text-[11px] text-amber-800 flex items-center gap-1 font-bold">
-                      <Calendar className="w-3 h-3 text-amber-600" />
+                    <div className="text-[10px] sm:text-[11px] text-amber-800 flex items-center gap-1 font-bold">
+                      <Calendar className="w-3 h-3 text-amber-600 shrink-0" />
                       <span>
                         زمان هماهنگ‌شده: <strong>
                           {typeof claimCase.fieldVisitSchedule === 'string'
@@ -1405,21 +1407,21 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               )}
 
               {claimCase.assignedBranch && (
-                <div className="bg-white p-3.5 rounded-2xl border border-sky-200 space-y-1.5 shadow-2xs">
-                  <div className="flex items-center gap-1.5 text-slate-700 font-bold text-[11px]">
-                    <Building2 className="w-3.5 h-3.5 text-blue-900" />
-                    <span>نزدیک‌ترین شعبه تخصصی بیمه (محل حضور و بازدید):</span>
+                <div className="bg-white p-2.5 sm:p-3 rounded-lg sm:rounded-xl border border-sky-200 space-y-1 shadow-2xs">
+                  <div className="flex items-center gap-1 text-slate-700 font-bold text-[10px] sm:text-[11px]">
+                    <Building2 className="w-3 h-3 text-blue-900 shrink-0" />
+                    <span>نزدیک‌ترین شعبه تخصصی بیمه (محل بازدید):</span>
                   </div>
-                  <div className="font-extrabold text-slate-900 text-xs sm:text-sm">
+                  <div className="font-extrabold text-slate-900 text-[11px] sm:text-xs">
                     {claimCase.assignedBranch.name} ({claimCase.assignedBranch.city})
                   </div>
-                  <div className="text-[11px] text-slate-600 leading-snug flex items-start gap-1 font-medium">
+                  <div className="text-[10px] sm:text-[11px] text-slate-600 leading-snug flex items-start gap-1 font-medium">
                     <MapPin className="w-3 h-3 text-rose-500 shrink-0 mt-0.5" />
-                    <span>{claimCase.assignedBranch.address}</span>
+                    <span className="line-clamp-2">{claimCase.assignedBranch.address}</span>
                   </div>
                   {claimCase.assignedBranch.phone && (
-                    <div className="text-[11px] text-slate-600 flex items-center gap-1 font-medium">
-                      <Phone className="w-3 h-3 text-sky-600" />
+                    <div className="text-[10px] sm:text-[11px] text-slate-600 flex items-center gap-1 font-medium">
+                      <Phone className="w-3 h-3 text-sky-600 shrink-0" />
                       <span>تلفن شعبه: <span className="font-mono text-slate-900 font-bold" dir="ltr">{claimCase.assignedBranch.phone}</span></span>
                     </div>
                   )}
@@ -1428,9 +1430,9 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             </div>
 
             {/* SMS Notification Banner for Customer */}
-            <div className="p-3 rounded-xl bg-white border border-sky-300 flex items-center gap-2 text-[11px] text-sky-900 font-medium shadow-2xs">
-              <CheckCircle2 className="w-4 h-4 text-sky-600 shrink-0" />
-              <span>پیامک مشخصات کارشناس و آدرس نزدیک‌ترین شعبه جهت حضور و تحویل مدارک، هم‌زمان برای شما و کارشناس میدانی ارسال گردیده است.</span>
+            <div className="p-2 sm:p-2.5 rounded-lg sm:rounded-xl bg-white/90 border border-sky-200 flex items-center gap-1.5 text-[10px] sm:text-[11px] text-sky-900 font-medium">
+              <CheckCircle2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+              <span>پیامک مشخصات کارشناس و آدرس شعبه، برای طرفین و کارشناس میدانی ارسال گردیده است.</span>
             </div>
           </div>
         )}

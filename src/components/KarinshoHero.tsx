@@ -8,6 +8,88 @@ import React, { useState } from 'react';
  */
 export const KarinshoHero: React.FC = () => {
   const [turbo, setTurbo] = useState(false);
+
+  // سنتز صدای گاز و تغییر دور موتور با Web Audio API
+  const playEngineSound = (isAccelerating: boolean) => {
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+
+      if (isAccelerating) {
+        // شتاب و گاز
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = 'sawtooth';
+        osc1.frequency.setValueAtTime(80, now);
+        osc1.frequency.exponentialRampToValueAtTime(260, now + 0.35);
+        osc1.frequency.exponentialRampToValueAtTime(220, now + 0.9);
+        osc1.frequency.exponentialRampToValueAtTime(110, now + 1.8);
+
+        gain1.gain.setValueAtTime(0.01, now);
+        gain1.gain.linearRampToValueAtTime(0.18, now + 0.12);
+        gain1.gain.linearRampToValueAtTime(0.14, now + 0.9);
+        gain1.gain.exponentialRampToValueAtTime(0.001, now + 1.9);
+
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(340, now);
+        osc2.frequency.exponentialRampToValueAtTime(1200, now + 0.45);
+        osc2.frequency.exponentialRampToValueAtTime(700, now + 1.3);
+
+        gain2.gain.setValueAtTime(0.001, now);
+        gain2.gain.linearRampToValueAtTime(0.06, now + 0.25);
+        gain2.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(380, now);
+        filter.frequency.exponentialRampToValueAtTime(1800, now + 0.4);
+        filter.frequency.exponentialRampToValueAtTime(500, now + 1.8);
+
+        osc1.connect(gain1);
+        gain1.connect(filter);
+        osc2.connect(gain2);
+        gain2.connect(filter);
+        filter.connect(ctx.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + 2.0);
+        osc2.stop(now + 2.0);
+      } else {
+        // بازگشت به سرعت عادی
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.exponentialRampToValueAtTime(80, now + 0.45);
+
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.5);
+      }
+    } catch {
+      // Audio permissions or context restrictions
+    }
+  };
+
+  // با کلیک روی ماشین: اگر عادی است گاز می‌دهد، اگر گاز می‌دهد به حالت قبل برمی‌گردد
+  const handleCarClick = () => {
+    setTurbo((prev) => {
+      const next = !prev;
+      playEngineSound(next);
+      return next;
+    });
+  };
   return (
     <section className={`krn-hero${turbo ? ' krn-turbo' : ''}`} dir="rtl" aria-label="کاراینشو — سامانه هوشمند پرداخت و ارزیابی خسارت">
       <style>{`
@@ -153,37 +235,29 @@ export const KarinshoHero: React.FC = () => {
           50%     { transform: translateY(-9px) }
         }
         @media (max-width: 900px) { .krn-chip-3 { display: none } }
-        @media (max-width: 640px) { .krn-chip-2 { display: none } .krn-chip { font-size: 10.5px; padding: 7px 11px } }
-
-
-        /* ================= حالت تِربو ================= */
-        .krn-turbo-btn {
-          position: absolute; z-index: 7;
-          top: clamp(104px, 10vw, 176px); inset-inline-start: clamp(12px, 3vw, 40px);
-          display: inline-flex; align-items: center; gap: 8px;
-          padding: 10px 18px; border-radius: 999px; cursor: pointer;
-          border: 1px solid rgba(147,197,253,.7);
-          background: rgba(255,255,255,.78);
-          backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-          color: #1e3a8a; font-weight: 900; font-size: 12.5px;
-          box-shadow: 0 14px 34px -14px rgba(37,99,235,.45);
-          transition: transform .18s ease, box-shadow .25s ease, background .25s ease, color .25s ease, border-color .25s ease;
-          user-select: none;
-        }
-        .krn-turbo-btn:hover { transform: translateY(-2px) scale(1.03); }
-        .krn-turbo-btn:active { transform: scale(.96); }
-        .krn-turbo .krn-turbo-btn {
-          background: linear-gradient(120deg, #ff3b5c, #ff7a18);
-          color: #fff; border-color: rgba(255,122,24,.65);
-          box-shadow: 0 16px 40px -12px rgba(255,59,92,.65), 0 0 22px rgba(255,122,24,.45);
-          animation: krn-btnpulse 1.1s ease-in-out infinite;
-        }
-        @keyframes krn-btnpulse { 0%,100% { transform: scale(1) } 50% { transform: scale(1.05) } }
         @media (max-width: 640px) {
-          .krn-turbo-btn {
-            top: 10px; inset-inline-start: auto; inset-inline-end: 12px;
-            padding: 8px 13px; font-size: 11px;
-          }
+          .krn-chip { display: none !important; }
+          .krn-brand { padding-top: 18px; }
+          .krn-brand-row { gap: 10px; }
+          .krn-wordmark { font-size: clamp(30px, 9.5vw, 40px); }
+          .krn-tagline { font-size: 11.5px; margin-top: 6px; padding: 0 16px; line-height: 1.5; }
+          .krn-scene { height: 180px; margin-top: 0; }
+          .krn-dots { display: none; }
+        }
+
+
+        /* ================= خودروی تعاملی با کلیک برای گاز دادن ================= */
+        .krn-interactive-car {
+          cursor: pointer;
+          outline: none;
+          -webkit-tap-highlight-color: transparent;
+        }
+        .krn-interactive-car:hover .krn-car {
+          filter: drop-shadow(0 6px 20px rgba(37,99,235,.55));
+        }
+        .krn-interactive-car:active .krn-car {
+          transform: scale(.975) translateY(1.5px);
+          transition: transform .06s ease;
         }
 
         /* سرعت بیشترِ دنیا + چرخ‌ها در حالت تربو */
@@ -246,7 +320,7 @@ export const KarinshoHero: React.FC = () => {
           .krn-aurora, .krn-aurora-b, .krn-spark, .krn-spark-b, .krn-spark-c,
           .krn-spark-d, .krn-chip, .krn-smoke, .krn-smoke-b, .krn-smoke-c, .krn-smoke-d,
           .krn-redp-a, .krn-redp-b, .krn-redp-c, .krn-redp-d, .krn-redp-e,
-          .krn-flame, .krn-turbo-btn { animation: none !important; }
+          .krn-flame { animation: none !important; }
         }
       `}</style>
 
@@ -316,19 +390,6 @@ export const KarinshoHero: React.FC = () => {
 
       {/* ---------- صحنه‌ی متحرک ---------- */}
       <div className="krn-scene">
-        {/* دکمه حالت تربو */}
-        <button
-          type="button"
-          className="krn-turbo-btn"
-          onClick={() => setTurbo((t) => !t)}
-          aria-pressed={turbo}
-          title={turbo ? 'خاموش کردن حالت تربو' : 'روشن کردن حالت تربو'}
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" fill="currentColor" stroke="none" />
-          </svg>
-          <span>{turbo ? 'تربو فعال' : 'حالت تربو'}</span>
-        </button>
         <svg viewBox="0 0 1440 420" preserveAspectRatio="xMinYMax slice">
           <defs>
             {/* sky glow */}
@@ -476,8 +537,24 @@ export const KarinshoHero: React.FC = () => {
             ))}
           </g>
 
-          {/* ====== خودرو (رو به چپ) ====== */}
-          <g transform="translate(300,168)">
+          {/* ====== خودرو (رو به چپ) — تعاملی: کلیک برای گاز دادن و تغییر وضعیت ====== */}
+          <g
+            className="krn-interactive-car"
+            onClick={handleCarClick}
+            role="button"
+            tabIndex={0}
+            aria-label={turbo ? 'کاهش شتاب و بازگشت به سرعت عادی' : 'شتاب و گاز دادن به خودرو'}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleCarClick();
+              }
+            }}
+            transform="translate(300,168)"
+          >
+            {/* ناحیه نامرئی کلیک سراسری ماشین برای لمس و کلیک دقیق */}
+            <rect x="-40" y="-35" width="440" height="215" fill="transparent" />
+
             {/* سایه متحرک زیر ماشین */}
             <ellipse cx="180" cy="152" rx="185" ry="17" fill="url(#krnShadow)" />
 

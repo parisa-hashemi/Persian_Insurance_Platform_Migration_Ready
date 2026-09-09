@@ -204,27 +204,52 @@ button, a, input, select, textarea {
 }
 
 /* ============================================================
-   مقیاس رابط روی نمایشگرهای پهن
-   به‌جای کشیده‌شدن فیلدها، کل رابط بزرگ‌تر می‌شود: چون اندازه‌ها
-   در Tailwind بر مبنای rem است، افزایش font-size ریشه همه‌چیز را
-   (متن، پدینگ، فاصله‌ها و سقف عرض ۹۲rem) با هم بزرگ می‌کند و
-   حاشیه خالی دو طرف پر می‌شود بدون آنکه چیزی کشیده شود.
+   مقیاس استاندارد و پایدار رابط
+   برای خوانایی عالی و جلوگیری از بزرگ‌شدن ناهنجار فیلدها و فونت‌ها
    ============================================================ */
-@media (min-width: 1280px) { html { font-size: 17px; } }
-@media (min-width: 1536px) { html { font-size: 18.5px; } }
-@media (min-width: 1800px) { html { font-size: 20px; } }
-@media (min-width: 2100px) { html { font-size: 21.5px; } }
-@media (min-width: 2500px) { html { font-size: 23px; } }
+@media (min-width: 1800px) { html { font-size: 16.5px; } }
 
 /* ============================================================
    عرض کانتینر سراسری
-   شل همه صفحات w-full max-w-[1720px] mx-auto است. چون سقف بر مبنای
-   rem است، با بزرگ‌شدن font-size ریشه در نمایشگرهای پهن، سقف هم
-   بزرگ می‌شود و حاشیه خالی دو طرف پر می‌شود؛ فیلدها کشیده نمی‌شوند.
-   کارت‌ها و مودال‌ها سقف خودشان (max-w-md تا max-w-4xl) را نگه
-   می‌دارند تا فرم‌ها کشیده و ناخوانا نشوند.
+   شل همه صفحات w-full max-w-[1720px] mx-auto است.
    ============================================================ */
 .krn-shell { width: 100%; max-width: 1720px; margin-inline: auto; }
+
+/* ============================================================
+   کنترل دقیق سایز متن و فونت فیلدهای ورودی (Inputs & Forms)
+   در موبایل کوچک و ظریف می‌ماند و در کامپیوتر/دسکتاپ خوانا و استاندارد است
+   ============================================================ */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea {
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+@media (min-width: 640px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 13.5px;
+  }
+}
+
+@media (min-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 15px;
+    line-height: 1.5;
+  }
+}
+
+@media (min-width: 1024px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
 
 /* ============================================================
    لایه ریسپانسیو موبایل — بدون تغییر در منطق کامپوننت‌ها
@@ -264,11 +289,21 @@ button, a, input, select, textarea {
   tfoot tr { background: var(--krn-ice); }
 }
 
-/* اعداد و شناسه‌های بلند صفحه را در موبایل نمی‌شکنند */
+/* جلوگیری از بیرون‌زدگی متن و تثبیت سایز کوچک و خوانا برای فیلدها در موبایل */
 @media (max-width: 639px) {
   body { overflow-x: hidden; }
   .font-mono, [class*="tabular"] { overflow-wrap: anywhere; }
-  input, select, textarea { font-size: 16px; } /* جلوگیری از زوم خودکار iOS */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+  input.krn-otp-input,
+  input[data-otp="true"] {
+    font-size: 15px !important;
+    letter-spacing: 0.3em !important;
+  }
   img, video, canvas, svg { max-width: 100%; }
 }
 

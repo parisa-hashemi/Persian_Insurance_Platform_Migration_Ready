@@ -313,50 +313,50 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   };
 
   return (
-    <div className="w-full space-y-6 animate-in fade-in" dir="rtl">
+    <div className="w-full space-y-3 sm:space-y-5 animate-in fade-in" dir="rtl">
       
       {/* Iranian Enterprise Portal User Header Card */}
-      <div className="bg-white border-2 border-blue-200 rounded-3xl p-4 sm:p-6 text-slate-900 shadow-md relative overflow-hidden">
+      <div className="bg-white border-2 border-blue-200 rounded-2xl sm:rounded-3xl p-3 sm:p-5 text-slate-900 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[min(24rem,calc(100vw-1.5rem))] h-96 bg-blue-500/5 rounded-full blur-3xl pointer-events-none" />
         
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+        <div className="relative z-10 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 sm:gap-5">
           
           {/* RIGHT SIDE: User Avatar & Name */}
           <div
             onClick={() => setActiveTab('profile')}
-            className="flex items-center gap-4 cursor-pointer group"
+            className="flex items-center gap-2.5 sm:gap-4 cursor-pointer group"
             title="برای مشاهده و ویرایش پروفایل کلیک کنید"
           >
-            <div className="relative">
+            <div className="relative shrink-0">
               {session.avatarUrl ? (
                 <img
                   src={session.avatarUrl}
                   alt={session.name}
-                  className="w-16 h-16 rounded-2xl object-cover shadow-md border-2 border-blue-300 group-hover:border-blue-400 transition-colors"
+                  className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl object-cover shadow-xs border-2 border-blue-300 group-hover:border-blue-400 transition-colors"
                 />
               ) : (
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black text-2xl shadow-md border-2 border-blue-200 group-hover:border-blue-400 transition-colors">
+                <div className="w-11 h-11 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-black text-lg sm:text-xl shadow-xs border-2 border-blue-200 group-hover:border-blue-400 transition-colors">
                   {session.name ? session.name.charAt(0) : 'ک'}
                 </div>
               )}
-              <div className="absolute -bottom-1 -left-1 bg-emerald-500 text-white p-1 rounded-full border-2 border-white shadow" title="هویت تایید شده">
-                <BadgeCheck className="w-3.5 h-3.5" />
+              <div className="absolute -bottom-1 -left-1 bg-emerald-500 text-white p-0.5 sm:p-1 rounded-full border-2 border-white shadow" title="هویت تایید شده">
+                <BadgeCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
               </div>
             </div>
 
-            <div className="space-y-1 text-right">
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black text-blue-900 tracking-tight group-hover:text-blue-700 transition-colors">
+            <div className="space-y-0.5 text-right min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="text-base sm:text-xl font-black text-blue-900 tracking-tight group-hover:text-blue-700 transition-colors truncate">
                   {session.name || 'مشتری گرامی'}
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300">
-                  پورتال خودخدمت بیمه‌گذار
+                <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-300 shrink-0">
+                  پورتال خودخدمت
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-700">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] sm:text-xs text-slate-700">
                 <span className="flex items-center gap-1 font-mono text-slate-700 font-bold">
-                  <Phone className="w-3.5 h-3.5 text-blue-800" />
+                  <Phone className="w-3 h-3 text-blue-800 shrink-0" />
                   {session.phone || '۰۹۱۲۳۴۵۶۷۸۹'}
                 </span>
                 {session.nationalId && (
@@ -370,18 +370,18 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
           </div>
 
           {/* LEFT SIDE: Quick Dashboard Stats */}
-          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto border-t md:border-t-0 border-slate-200 pt-4 md:pt-0">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2.5 w-full md:w-auto border-t md:border-t-0 border-slate-100 md:border-slate-200 pt-2.5 md:pt-0 shrink-0">
             <button
               onClick={() => {
                 setActiveTab('cases');
                 setFinancialFilter('all');
               }}
-              className="p-3.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-2xl text-center flex-1 min-w-[88px] transition-all shadow-sm cursor-pointer"
+              className="p-1.5 sm:p-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl text-center transition-all shadow-xs cursor-pointer active:scale-95"
             >
-              <span className="block text-xl font-black text-amber-900 font-mono">
+              <span className="block text-base sm:text-lg font-black text-amber-900 font-mono">
                 {myCases.length}
               </span>
-              <span className="text-[10px] text-amber-950 font-extrabold block mt-0.5">
+              <span className="text-[9px] sm:text-[10px] text-amber-950 font-extrabold block truncate">
                 کل پرونده‌ها
               </span>
             </button>
@@ -391,16 +391,16 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 setActiveTab('cases');
                 setFinancialFilter('debts_and_receivables');
               }}
-              className="p-3.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-2xl text-center flex-1 min-w-[96px] transition-all shadow-sm cursor-pointer"
+              className="p-1.5 sm:p-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl text-center transition-all shadow-xs cursor-pointer active:scale-95"
               title="مشاهده پرونده‌های دارای بدهی و طلب مالی"
             >
               <div className="flex items-center justify-center gap-1">
-                <Scale className="w-4 h-4 text-emerald-700" />
-                <span className="block text-xl font-black text-emerald-900 font-mono">
+                <Scale className="w-3.5 h-3.5 text-emerald-700" />
+                <span className="block text-base sm:text-lg font-black text-emerald-900 font-mono">
                   {casesWithDebtCount}
                 </span>
               </div>
-              <span className="text-[10px] text-emerald-950 font-extrabold block mt-0.5">
+              <span className="text-[9px] sm:text-[10px] text-emerald-950 font-extrabold block truncate">
                 بدهی و طلب
               </span>
             </button>
@@ -410,12 +410,12 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 setActiveTab('cases');
                 setFinancialFilter('all');
               }}
-              className="p-3.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-2xl text-center flex-1 min-w-[88px] transition-all shadow-sm cursor-pointer"
+              className="p-1.5 sm:p-2.5 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-center transition-all shadow-xs cursor-pointer active:scale-95"
             >
-              <span className="block text-xl font-black text-blue-900 font-mono">
+              <span className="block text-base sm:text-lg font-black text-blue-900 font-mono">
                 {activeClaimsCount}
               </span>
-              <span className="text-[10px] text-blue-900 font-extrabold block mt-0.5">
+              <span className="text-[9px] sm:text-[10px] text-blue-900 font-extrabold block truncate">
                 در حال بررسی
               </span>
             </button>
@@ -426,30 +426,33 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
       {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
-        <div className="space-y-6 animate-in fade-in">
+        <div className="space-y-3 sm:space-y-4 animate-in fade-in">
           
-          {/* Main Action Modules */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Main Action Modules - Compact & Grid-Responsive */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
             {/* Module 1: File Accident */}
             <div
               onClick={onStartWizard}
-              className="bg-gradient-to-br from-blue-600 to-indigo-700 p-5 rounded-3xl shadow-lg hover:shadow-2xl hover:-translate-y-1.5 transition-all duration-300 text-white cursor-pointer relative overflow-hidden group flex flex-col justify-between"
+              className="col-span-2 sm:col-span-1 lg:col-span-1 bg-gradient-to-br from-blue-600 to-indigo-700 p-3 sm:p-4 rounded-xl sm:rounded-2xl shadow-md hover:shadow-xl hover:-translate-y-1 transition-all duration-300 text-white cursor-pointer relative overflow-hidden group flex sm:flex-col justify-between items-center sm:items-stretch gap-3"
             >
-              <div className="absolute -bottom-6 -left-6 w-28 h-28 bg-sky-300/25 rounded-full blur-xl group-hover:scale-150 transition-transform" />
-              <div className="relative z-10 space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-md">
-                  <CarFront className="w-6 h-6" />
+              <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-sky-300/20 rounded-full blur-xl group-hover:scale-150 transition-transform pointer-events-none" />
+              
+              <div className="relative z-10 flex sm:flex-col items-center sm:items-start gap-2.5 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white shadow-xs shrink-0">
+                  <CarFront className="w-5 h-5 sm:w-6 sm:h-6" />
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-base">ثبت آنلاین تصادف</h3>
-                  <p className="text-[11px] text-blue-100 mt-1 leading-relaxed">
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-xs sm:text-sm text-white truncate">ثبت آنلاین تصادف</h3>
+                  <p className="text-[10px] sm:text-[11px] text-blue-100 font-medium line-clamp-1 leading-snug sm:mt-0.5">
                     ثبت آنلاین تصادف با GPS و ارسال مستندات
                   </p>
                 </div>
               </div>
-              <div className="pt-3 flex items-center gap-1 text-xs font-bold text-sky-200">
-                <span>شروع ثبت حادثه</span>
-                <ArrowLeft className="w-4 h-4" />
+
+              <div className="relative z-10 pt-0 sm:pt-2 flex items-center gap-1 text-[11px] sm:text-xs font-bold text-sky-200 shrink-0">
+                <span className="hidden sm:inline">شروع ثبت حادثه</span>
+                <span className="sm:hidden px-2 py-0.5 rounded-lg bg-white/20 text-white font-black text-[10px]">شروع</span>
+                <ArrowLeft className="w-3.5 h-3.5" />
               </div>
             </div>
 
@@ -459,49 +462,49 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 setActiveTab('cases');
                 setFinancialFilter('debts_and_receivables');
               }}
-              className="bg-white p-5 rounded-3xl border-2 border-emerald-300 shadow-sm hover:border-emerald-500 hover:shadow-md hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+              className="col-span-1 bg-white p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-emerald-300 shadow-2xs hover:border-emerald-500 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
             >
-              <div className="space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center justify-center group-hover:scale-110 transition-transform shadow-xs">
-                  <Scale className="w-6 h-6 text-emerald-800" />
+              <div className="space-y-1.5 sm:space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs shrink-0">
+                    <Scale className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-800" />
+                  </div>
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300 shrink-0">
+                    {casesWithDebtCount} مورد
+                  </span>
                 </div>
                 <div>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-emerald-950 text-base">بدهی و طلب</h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-900 border border-emerald-300">
-                      {casesWithDebtCount} مورد
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed font-medium">
-                    دیدن طلب از مقصران، بدهی‌ها و شماره تماس
+                  <h3 className="font-extrabold text-emerald-950 text-xs sm:text-sm truncate">بدهی و طلب</h3>
+                  <p className="text-[9px] sm:text-[11px] text-slate-600 line-clamp-1 sm:line-clamp-2 leading-snug font-medium mt-0.5">
+                    دیدن طلب از مقصران، بدهی‌ها و تماس
                   </p>
                 </div>
               </div>
-              <div className="pt-3 flex items-center gap-1 text-xs font-bold text-emerald-800">
-                <span>مشاهده تراز و تماس</span>
-                <ArrowLeft className="w-4 h-4" />
+              <div className="pt-1.5 sm:pt-2 flex items-center gap-1 text-[10px] sm:text-xs font-bold text-emerald-800">
+                <span className="truncate">مشاهده تراز</span>
+                <ArrowLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
               </div>
             </div>
 
             {/* Module 3: Own Damage (بیمه بدنه) */}
             <div
               onClick={() => onNavigate('bodily')}
-              className="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-sm hover:border-blue-600 hover:shadow-md hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
+              className="col-span-1 bg-white p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-slate-200 shadow-2xs hover:border-blue-600 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
             >
-              <div className="space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-sky-100 text-sky-900 border border-sky-300 flex items-center justify-center group-hover:scale-110 transition-transform shadow-xs">
-                  <ShieldPlus className="w-6 h-6" />
+              <div className="space-y-1.5 sm:space-y-2.5">
+                <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-sky-100 text-sky-900 border border-sky-300 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs shrink-0">
+                  <ShieldPlus className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-blue-900 text-base">خسارت بدنه</h3>
-                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed font-medium">
-                    استعلام و ثبت خسارت بدنه مستقل از ثالث
+                  <h3 className="font-extrabold text-blue-900 text-xs sm:text-sm truncate">خسارت بدنه</h3>
+                  <p className="text-[9px] sm:text-[11px] text-slate-600 line-clamp-1 sm:line-clamp-2 leading-snug font-medium mt-0.5">
+                    استعلام و ثبت خسارت بدنه
                   </p>
                 </div>
               </div>
-              <div className="pt-3 flex items-center gap-1 text-xs font-bold text-sky-900">
-                <span>استعلام و ثبت بدنه</span>
-                <ArrowLeft className="w-4 h-4" />
+              <div className="pt-1.5 sm:pt-2 flex items-center gap-1 text-[10px] sm:text-xs font-bold text-sky-900">
+                <span className="truncate">ثبت بدنه</span>
+                <ArrowLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
               </div>
             </div>
 
@@ -511,69 +514,69 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                 setActiveTab('cases');
                 setFinancialFilter('all');
               }}
-              className="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-sm hover:border-amber-500 hover:shadow-md hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col justify-between relative"
+              className="col-span-1 bg-white p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-slate-200 shadow-2xs hover:border-amber-500 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col justify-between relative"
             >
-              <div className="space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-900 border border-amber-300 flex items-center justify-center group-hover:scale-110 transition-transform shadow-xs">
-                  <FolderSearch className="w-6 h-6" />
+              <div className="space-y-1.5 sm:space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-amber-100 text-amber-900 border border-amber-300 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs shrink-0">
+                    <FolderSearch className="w-4 h-4 sm:w-5 sm:h-5" />
+                  </div>
+                  {activeClaimsCount > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full text-[9px] sm:text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
+                      {activeClaimsCount} فعال
+                    </span>
+                  )}
                 </div>
                 <div>
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-blue-900 text-base">پرونده‌های من</h3>
-                    {activeClaimsCount > 0 && (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                        {activeClaimsCount} فعال
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed font-medium">
-                    پیگیری وضعیت ارزیابی، پرداخت و کارشناسی
+                  <h3 className="font-extrabold text-blue-900 text-xs sm:text-sm truncate">پرونده‌های من</h3>
+                  <p className="text-[9px] sm:text-[11px] text-slate-600 line-clamp-1 sm:line-clamp-2 leading-snug font-medium mt-0.5">
+                    پیگیری وضعیت و کارشناسی
                   </p>
                 </div>
               </div>
-              <div className="pt-3 flex items-center gap-1 text-xs font-bold text-amber-800">
-                <span>لیست کل پرونده‌ها</span>
-                <ArrowLeft className="w-4 h-4" />
+              <div className="pt-1.5 sm:pt-2 flex items-center gap-1 text-[10px] sm:text-xs font-bold text-amber-800">
+                <span className="truncate">لیست پرونده‌ها</span>
+                <ArrowLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
               </div>
             </div>
 
             {/* Module 5: My Profile */}
             <div
               onClick={() => setActiveTab('profile')}
-              className="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-sm hover:border-blue-600 hover:shadow-md hover:-translate-y-1.5 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
+              className="col-span-1 bg-white p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-slate-200 shadow-2xs hover:border-blue-600 hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer group flex flex-col justify-between"
             >
-              <div className="space-y-3">
-                <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-900 border border-blue-300 flex items-center justify-center group-hover:scale-110 transition-transform shadow-xs">
-                  <User className="w-6 h-6" />
+              <div className="space-y-1.5 sm:space-y-2.5">
+                <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-100 text-blue-900 border border-blue-300 flex items-center justify-center group-hover:scale-105 transition-transform shadow-2xs shrink-0">
+                  <User className="w-4 h-4 sm:w-5 sm:h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-blue-900 text-base">پروفایل من</h3>
-                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed font-medium">
-                    ویرایش نام، کد ملی، شماره تماس و تصویر
+                  <h3 className="font-extrabold text-blue-900 text-xs sm:text-sm truncate">پروفایل من</h3>
+                  <p className="text-[9px] sm:text-[11px] text-slate-600 line-clamp-1 sm:line-clamp-2 leading-snug font-medium mt-0.5">
+                    ویرایش مشخصات و مدارک
                   </p>
                 </div>
               </div>
-              <div className="pt-3 flex items-center gap-1 text-xs font-bold text-blue-900">
-                <span>ویرایش پروفایل</span>
-                <ArrowLeft className="w-4 h-4" />
+              <div className="pt-1.5 sm:pt-2 flex items-center gap-1 text-[10px] sm:text-xs font-bold text-blue-900">
+                <span className="truncate">ویرایش پروفایل</span>
+                <ArrowLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
               </div>
             </div>
           </div>
 
           {/* Quick Financial Debt/Receivable Spotlight Banner */}
           {(totalReceivablesFromCulprit > 0 || totalDebtsToVictim > 0 || totalReceivablesFromInsurer > 0) && (
-            <div className="bg-gradient-to-br from-white via-slate-50/60 to-blue-50/30 rounded-3xl p-4 sm:p-6 shadow-xs border border-slate-200/90 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/70 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-700 border border-indigo-200/70">
-                    <Scale className="w-5 h-5 sm:w-6 sm:h-6" />
+            <div className="bg-gradient-to-br from-white via-slate-50/60 to-blue-50/30 rounded-2xl sm:rounded-3xl p-3 sm:p-5 shadow-2xs border border-slate-200/90 space-y-2.5 sm:space-y-3.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-200/70 pb-2.5 sm:pb-3">
+                <div className="flex items-center gap-2 sm:gap-2.5">
+                  <div className="p-1.5 sm:p-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200/70 shrink-0">
+                    <Scale className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div>
-                    <h3 className="text-base sm:text-lg font-black text-slate-900">
+                    <h3 className="text-xs sm:text-base font-black text-slate-900">
                       تراز مالی، بدهی‌ها و مطالبات پرونده‌های شما
                     </h3>
-                    <p className="text-xs text-slate-500 font-medium">
-                      خلاصه مبالغ قابل وصول از مقصران، شرکت‌های بیمه‌گر و بدهی‌های مازاد
+                    <p className="text-[10px] sm:text-xs text-slate-500 font-medium">
+                      خلاصه مبالغ قابل وصول از مقصران، بیمه‌گر و بدهی‌های مازاد
                     </p>
                   </div>
                 </div>
@@ -584,68 +587,68 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
                     setActiveTab('cases');
                     setFinancialFilter('debts_and_receivables');
                   }}
-                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer active:scale-95"
+                  className="px-3 py-1.5 sm:px-4 sm:py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] sm:text-xs rounded-lg sm:rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1 self-start sm:self-auto cursor-pointer active:scale-95"
                 >
-                  <span>مشاهده جزئیات و تماس با طرفین</span>
-                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>مشاهده جزئیات و تماس</span>
+                  <ArrowLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 text-xs">
                 
                 {/* 1. Receivables from Culprits */}
-                <div className="bg-emerald-50/60 border border-emerald-200/70 p-4 rounded-2xl space-y-1.5">
-                  <div className="flex items-center justify-between text-emerald-800 font-bold text-[11px]">
-                    <span className="flex items-center gap-1.5">
-                      <TrendingUp className="w-4 h-4 text-emerald-600" />
-                      طلب شما از مقصران حادثه:
+                <div className="bg-emerald-50/60 border border-emerald-200/70 p-2.5 sm:p-3.5 rounded-xl space-y-1">
+                  <div className="flex items-center justify-between text-emerald-800 font-bold text-[10px] sm:text-[11px]">
+                    <span className="flex items-center gap-1 truncate">
+                      <TrendingUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>طلب از مقصران حادثه:</span>
                     </span>
-                    <span className="text-[10px] bg-emerald-100/90 px-2 py-0.5 rounded-md text-emerald-800 font-bold border border-emerald-200/60">
+                    <span className="text-[9px] bg-emerald-100 px-1.5 py-0.2 rounded text-emerald-800 font-bold border border-emerald-200/60 shrink-0">
                       مازاد تعهد
                     </span>
                   </div>
-                  <div className="text-xl font-black font-mono text-emerald-900 tracking-tight">
+                  <div className="text-base sm:text-lg font-black font-mono text-emerald-900 tracking-tight">
                     {formatCurrency(totalReceivablesFromCulprit)}
                   </div>
-                  <span className="text-[10px] text-slate-500 block font-medium">
+                  <span className="text-[9px] sm:text-[10px] text-slate-500 block font-medium truncate">
                     قابل وصول مستقیم از رانندگان مقصر
                   </span>
                 </div>
 
                 {/* 2. Receivables from Insurers */}
-                <div className="bg-sky-50/60 border border-sky-200/70 p-4 rounded-2xl space-y-1.5">
-                  <div className="flex items-center justify-between text-sky-800 font-bold text-[11px]">
-                    <span className="flex items-center gap-1.5">
-                      <Building2 className="w-4 h-4 text-sky-600" />
-                      سهم پرداختی شرکت‌های بیمه:
+                <div className="bg-sky-50/60 border border-sky-200/70 p-2.5 sm:p-3.5 rounded-xl space-y-1">
+                  <div className="flex items-center justify-between text-sky-800 font-bold text-[10px] sm:text-[11px]">
+                    <span className="flex items-center gap-1 truncate">
+                      <Building2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                      <span>سهم پرداختی شرکت‌های بیمه:</span>
                     </span>
-                    <span className="text-[10px] bg-sky-100/90 px-2 py-0.5 rounded-md text-sky-800 font-bold border border-sky-200/60">
+                    <span className="text-[9px] bg-sky-100 px-1.5 py-0.2 rounded text-sky-800 font-bold border border-sky-200/60 shrink-0">
                       واریز به شبا
                     </span>
                   </div>
-                  <div className="text-xl font-black font-mono text-sky-900 tracking-tight">
+                  <div className="text-base sm:text-lg font-black font-mono text-sky-900 tracking-tight">
                     {formatCurrency(totalReceivablesFromInsurer)}
                   </div>
-                  <span className="text-[10px] text-slate-500 block font-medium">
+                  <span className="text-[9px] sm:text-[10px] text-slate-500 block font-medium truncate">
                     در انتظار واریز به حساب شبای شما
                   </span>
                 </div>
 
                 {/* 3. Debts to Victims */}
-                <div className="bg-rose-50/60 border border-rose-200/70 p-4 rounded-2xl space-y-1.5">
-                  <div className="flex items-center justify-between text-rose-800 font-bold text-[11px]">
-                    <span className="flex items-center gap-1.5">
-                      <TrendingDown className="w-4 h-4 text-rose-600" />
-                      بدهی شما به زیان‌دیدگان:
+                <div className="bg-rose-50/60 border border-rose-200/70 p-2.5 sm:p-3.5 rounded-xl space-y-1">
+                  <div className="flex items-center justify-between text-rose-800 font-bold text-[10px] sm:text-[11px]">
+                    <span className="flex items-center gap-1 truncate">
+                      <TrendingDown className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                      <span>بدهی به زیان‌دیدگان:</span>
                     </span>
-                    <span className="text-[10px] bg-rose-100/90 px-2 py-0.5 rounded-md text-rose-800 font-bold border border-rose-200/60">
+                    <span className="text-[9px] bg-rose-100 px-1.5 py-0.2 rounded text-rose-800 font-bold border border-rose-200/60 shrink-0">
                       بدهکاری
                     </span>
                   </div>
-                  <div className="text-xl font-black font-mono text-rose-800 tracking-tight">
+                  <div className="text-base sm:text-lg font-black font-mono text-rose-800 tracking-tight">
                     {formatCurrency(totalDebtsToVictim)}
                   </div>
-                  <span className="text-[10px] text-slate-500 block font-medium">
+                  <span className="text-[9px] sm:text-[10px] text-slate-500 block font-medium truncate">
                     مازاد تعهد بیمه‌نامه شما به عنوان مقصر
                   </span>
                 </div>
@@ -659,10 +662,10 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
       {/* TAB 2: MY CASES (پرونده‌های من) */}
       {activeTab === 'cases' && (
-        <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-6 animate-in fade-in">
+        <div className="bg-white rounded-2xl sm:rounded-3xl border-2 border-slate-200 p-3.5 sm:p-6 shadow-sm space-y-4 sm:space-y-6 animate-in fade-in">
           
           {/* Header */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-200 pb-3 sm:pb-5">
             <div>
               <div className="flex items-center gap-2">
                 <FolderSearch className="w-6 h-6 text-amber-500" />
@@ -1147,9 +1150,9 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
       {/* TAB 3: MY PROFILE (پروفایل من) */}
       {activeTab === 'profile' && (
-        <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-6 animate-in fade-in">
+        <div className="bg-white rounded-2xl sm:rounded-3xl border-2 border-slate-200 p-3.5 sm:p-6 shadow-sm space-y-4 sm:space-y-6 animate-in fade-in">
           
-          <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3 sm:pb-4">
             <div>
               <h2 className="text-xl font-black text-blue-900 flex items-center gap-2">
                 <User className="w-6 h-6 text-blue-900" />
