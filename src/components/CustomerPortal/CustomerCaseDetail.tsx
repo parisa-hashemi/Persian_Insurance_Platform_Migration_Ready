@@ -1,5 +1,12 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { notifyApp, confirmApp } from '../../lib/appNotify';
+import { resolveObjectorIdentity, buildObjectionRecord } from '../../lib/objectorIdentity';
+import {
+  hasFinalCouncilVerdict, councilFinalAmount, COUNCIL_VERDICT_NOTICE,
+  isAwaitingExpertResponse, awaitingResponseNotice,
+  fileSecondObjection, escalateToHighCouncil,
+  INDEPENDENT_ASSESSOR_FEE, INDEPENDENT_ASSESSOR_IBAN, INDEPENDENT_ASSESSOR_ACCOUNT_NAME
+} from '../../lib/objectionWorkflow';
 import { ArrowLeft, Clock, CheckCircle2, AlertCircle, Building2, FileText, CreditCard, AlertTriangle, Upload, Send, MessageSquare, Camera, Image as ImageIcon, Eye, Plus, Paperclip, UserCheck, FilePlus, Video, Trash2, Lock, Shield, ShieldCheck, Users, Filter, CheckSquare, Star, ShieldAlert, MapPin, X, XCircle, Sparkles, Banknote, ExternalLink, FileCheck, Maximize2, Phone, Calendar, Car, FileSpreadsheet, DollarSign, Info, PhoneCall, MessageSquarePlus, Headphones, Scale, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Layers, LifeBuoy, Copy, Check, Zap } from 'lucide-react';
 import { ClaimCase, UserSession, CaseStatus, AdditionalDocItem, ExpertComplaint, CustomerTicket, PaymentOrder } from '../../types';
 import { formatCurrency, parseMoneyNumber, getInsurerPersianName, loadComplaintsFromStorage, saveComplaintsToStorage, loadCrmTicketsFromStorage, saveCrmTicketsToStorage, loadPaymentOrdersFromStorage, savePaymentOrdersToStorage } from '../../lib/storage';
@@ -316,7 +323,16 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
    * نمایش هم‌زمان دو عدد متفاوت بود. اکنون هر دو از همین مقدار تغذیه می‌شوند.
    * در بیمه بدنه سقف تعهد شخص ثالث اعمال نمی‌شود.
    */
+  /** رأی قطعی شورای عالی صادر شده؟ اگر بله، هیچ اعتراض جدیدی پذیرفته نیست. */
+  const councilVerdictIssued = hasFinalCouncilVerdict(claimCase);
+  /** قفل بین‌مرحله‌ای: اعتراض ثبت شده ولی ارزیابی مجدد هنوز نیامده */
+  const awaitingExpertResponse = isAwaitingExpertResponse(claimCase);
+
   const officialPayableAmount = useMemo(() => {
+    // رأی شورا فصل‌الخطاب است و بر هر محاسبه‌ی دیگری اولویت دارد
+    const verdictAmount = councilFinalAmount(claimCase);
+    if (verdictAmount) return verdictAmount;
+
     const breakdown = calculateClaimDamageWithPolicyLimits(claimCase);
     const fromAssessment = Number(claimCase.assessment?.payable || 0);
     const fromStoredPayout = Number(claimCase.insurerPayableAmount || 0);
@@ -569,6 +585,8 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     const newObjChatMsg = {
       sender: 'customer' as const,
       name: uploaderName,
+      // کد ملی فرستنده همراه پیام ثبت می‌شود تا پیام‌های اعتراضی قابل احراز باشند
+      nationalId: resolveObjectorIdentity(claimCase, session).nationalId,
       text: messageText,
       files: customerChatFile ? [customerChatFile.dataUrl] : [],
       time: currentTime
@@ -626,6 +644,13 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   const [objection1Reason, setObjection1Reason] = useState('');
 
   const [showObjection2Modal, setShowObjection2Modal] = useState(false);
+  // اعتراض دوم: انتخاب مسیر (ارزیاب مستقل با پرداخت / ثبت تعمیرگاه)
+  const [showPathModal, setShowPathModal] = useState(false);
+  const [chosenPath, setChosenPath] = useState<'INDEPENDENT_ASSESSOR' | 'WORKSHOP_INVOICE'>('INDEPENDENT_ASSESSOR');
+  const [payRef, setPayRef] = useState('');
+  const [pathReason, setPathReason] = useState('');
+  const [wsName, setWsName] = useState('');
+  const [wsPhone, setWsPhone] = useState('');
   const [objection2Reason, setObjection2Reason] = useState('');
 
   const [showWorkshopModal, setShowWorkshopModal] = useState(false);
@@ -645,12 +670,89 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
 
   const [chatMessageInput, setChatMessageInput] = useState('');
 
+  /** اعتراض دوم — ثبت مسیر انتخابی مشتری */
+  const handleSecondObjectionPath = () => {
+    if (!pathReason.trim()) {
+      notifyApp('لطفاً علت اعتراض را وارد نمایید.');
+      return;
+    }
+    if (chosenPath === 'INDEPENDENT_ASSESSOR' && !payRef.trim()) {
+      notifyApp('کد پیگیری واریز هزینه کارشناسی الزامی است.');
+      return;
+    }
+    if (chosenPath === 'WORKSHOP_INVOICE' && !wsName.trim()) {
+      notifyApp('نام تعمیرگاه الزامی است.');
+      return;
+    }
+
+    const objector = resolveObjectorIdentity(claimCase, session);
+    const updated = fileSecondObjection(claimCase, chosenPath, pathReason.trim(), objector, {
+      payment: chosenPath === 'INDEPENDENT_ASSESSOR'
+        ? { referenceCode: payRef.trim(), paidAt: new Date().toLocaleString('fa-IR'), amount: INDEPENDENT_ASSESSOR_FEE }
+        : undefined,
+      workshop: chosenPath === 'WORKSHOP_INVOICE'
+        ? { shopName: wsName.trim(), shopPhone: wsPhone.trim(), province: workshopProvince, city: workshopCity }
+        : undefined
+    });
+
+    onUpdateCase({
+      ...updated,
+      objectionFiledBy: buildObjectionRecord(objector, 2, pathReason.trim()),
+      objectionFiledByHistory: [
+        ...(claimCase.objectionFiledByHistory || []),
+        buildObjectionRecord(objector, 2, pathReason.trim())
+      ]
+    });
+    setShowPathModal(false);
+    setPathReason(''); setPayRef(''); setWsName(''); setWsPhone('');
+    notifyApp(chosenPath === 'INDEPENDENT_ASSESSOR'
+      ? 'اعتراض دوم ثبت شد. پرونده جهت ارجاع به ارزیاب مستقل در صف قرار گرفت.'
+      : 'اعتراض دوم ثبت شد. اطلاعات تعمیرگاه برای بررسی به کارشناس اولیه ارسال شد.');
+  };
+
+  /** اعتراض سوم — ارجاع به شورای عالی کارشناسی */
+  const handleEscalateToCouncil = () => {
+    const objector = resolveObjectorIdentity(claimCase, session);
+    onUpdateCase(escalateToHighCouncil(claimCase, {
+      reason: 'پافشاری بر اعتراض پس از دو مرحله بازبینی کارشناسی',
+      applicantRole: (objector.role as any) || 'زیان‌دیده',
+      urgency: 'عادی',
+      objector
+    }));
+    notifyApp('پرونده به شورای عالی کارشناسی ارجاع شد. رأی شورا فصل‌الخطاب و غیرقابل اعتراض خواهد بود.');
+  };
+
   // Handle Stage 1 Objection (AI automatically re-assigns to a DIFFERENT assessor #2 & sends SMS alerts)
   const handleObjectionStage1 = (e: React.FormEvent) => {
     e.preventDefault();
     if (!objection1Reason.trim()) return;
 
-    const updated = dispatchObjectionStageWithAI(claimCase, 1, objection1Reason.trim());
+    const dispatched = dispatchObjectionStageWithAI(claimCase, 1, objection1Reason.trim());
+
+    // هویت معترض (نام + کد ملی + نقش) در لحظه‌ی ثبت اعتراض تثبیت می‌شود
+    const objector = resolveObjectorIdentity(claimCase, session);
+    const objectionRecord = buildObjectionRecord(objector, 1, objection1Reason.trim());
+
+    const updated: ClaimCase = {
+      ...dispatched,
+      // قفل تا رسیدن ارزیابی مجدد کارشناس اولیه
+      awaitingAssessmentForStage: 1,
+      objectionPendingSince: objectionRecord.filedAt,
+      objectionFiledBy: objectionRecord,
+      objectionFiledByHistory: [
+        ...(claimCase.objectionFiledByHistory || []),
+        objectionRecord
+      ],
+      history: [
+        ...(dispatched.history || []),
+        {
+          status: dispatched.status,
+          time: objectionRecord.filedAt,
+          user: objector.name,
+          note: `ثبت اعتراض مرحله اول توسط ${objector.name} (${objector.role})${objector.nationalId ? ` با کد ملی ${objector.nationalId}` : ' — کد ملی احراز نشد'}.`
+        }
+      ]
+    };
 
     onUpdateCase(updated);
     setShowObjection1Modal(false);
@@ -663,11 +765,15 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     e.preventDefault();
     if (!objection2Reason.trim()) return;
 
+    const objector = resolveObjectorIdentity(claimCase, session);
+    const objectionRecord = buildObjectionRecord(objector, 2, objection2Reason.trim());
+
     const initialChat = [
       ...(claimCase.objectionChat || []),
       {
         sender: 'customer' as const,
-        name: session.name || claimCase.victimName || 'زیان‌دیده',
+        name: objector.name,
+        nationalId: objector.nationalId,
         text: `[اعتراض دوم] ${objection2Reason.trim()}`,
         time: new Date().toLocaleString('fa-IR')
       }
@@ -678,13 +784,18 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       objectionStage: 2,
       status: 'در انتظار پاسخ به ارزیاب',
       objectionChat: initialChat,
+      objectionFiledBy: objectionRecord,
+      objectionFiledByHistory: [
+        ...(claimCase.objectionFiledByHistory || []),
+        objectionRecord
+      ],
       history: [
         ...(claimCase.history || []),
         {
           status: 'در انتظار پاسخ به ارزیاب',
           time: new Date().toLocaleString('fa-IR'),
           user: session.name || 'زیان‌دیده',
-          note: `ثبت اعتراض دوم زیان‌دیده: «${objection2Reason.trim()}». پرونده نزد ارزیاب دوم (${claimCase.assignedExpert?.name || 'ارزیاب'}) باقی ماند و گفتگوی مستقیم فعال شد.`
+          note: `ثبت اعتراض دوم توسط ${objector.name} (${objector.role})${objector.nationalId ? ` با کد ملی ${objector.nationalId}` : ''}: «${objection2Reason.trim()}». پرونده نزد ارزیاب دوم (${claimCase.assignedExpert?.name || 'ارزیاب'}) باقی ماند و گفتگوی مستقیم فعال شد.`
         }
       ]
     };
@@ -3247,7 +3358,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                                       </p>
                                     </div>
 
-                                    {!card.isFinal ? (
+                                    {!card.isFinal && !councilVerdictIssued && !awaitingExpertResponse ? (
                                       <div className="space-y-2 pt-1">
                                         {/* Round 1 assessment: Stage 1 Objection */}
                                         {card.roundVersion <= 1 && (!claimCase.objectionStage || claimCase.objectionStage === 0) && (
@@ -3264,19 +3375,28 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                                           </button>
                                         )}
 
-                                        {/* Round 2 assessment: Stage 2 Objection & Workshop Registration */}
+                                        {/* اعتراض سوم — ارجاع به شورای عالی (پس از مرحله ۲) */}
+                                        {(claimCase.objectionStage || 0) >= 2 && !claimCase.highCommitteeReview && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => { e.stopPropagation(); handleEscalateToCouncil(); }}
+                                            className="w-full py-3 bg-gradient-to-r from-slate-900 to-indigo-800 hover:from-slate-800 text-white rounded-xl font-black text-xs shadow-lg transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer border border-amber-400/40"
+                                          >
+                                            <Scale className="w-4 h-4 text-amber-400" />
+                                            پافشاری بر اعتراض — ارجاع به شورای عالی کارشناسی
+                                          </button>
+                                        )}
+
+                                        {/* Round 2 assessment: انتخاب مسیر اعتراض دوم */}
                                         {(card.roundVersion === 2 || claimCase.objectionStage === 1) && (
                                           <div className="space-y-2">
                                             <button
                                               type="button"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setShowWorkshopModal(true);
-                                              }}
+                                              onClick={(e) => { e.stopPropagation(); setShowPathModal(true); }}
                                               className="w-full py-3 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white rounded-xl font-black text-xs shadow-lg shadow-indigo-500/25 transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
                                             >
-                                              <Building2 className="w-4 h-4" />
-                                              اعتراض به ارزیابی دوم (ثبت تعمیرگاه و فاکتور)
+                                              <Scale className="w-4 h-4" />
+                                              اعتراض دوم — انتخاب ارزیاب مستقل یا ثبت تعمیرگاه
                                             </button>
 
                                             <button
@@ -3360,7 +3480,108 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
         })()}
 
         {/* Bank Account IBAN Input Form Modal/Section */}
-        {hasAnyCompletedAssessment && !isCulprit && (showBankForm || claimCase.payoutInfo?.iban || claimCase.status === 'در انتظار پرداخت') && (
+        {/* قفل بین‌مرحله‌ای — اعتراض ثبت شده و در انتظار ارزیابی مجدد است */}
+        {awaitingExpertResponse && !councilVerdictIssued && (
+          <div className="bg-gradient-to-br from-amber-50 via-orange-50/50 to-white border-2 border-amber-400 rounded-3xl p-5 space-y-3 shadow-md">
+            <div className="flex items-center gap-2.5 border-b border-amber-200 pb-3">
+              <div className="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shrink-0">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="font-black text-amber-950 text-sm">
+                  اعتراض شما در حال بررسی است — پرونده موقتاً قفل می‌باشد
+                </h4>
+                <span className="text-[11px] text-amber-700 font-bold">
+                  مرحله {claimCase.awaitingAssessmentForStage} اعتراض
+                  {claimCase.objectionPendingSince && ` • ثبت‌شده در ${claimCase.objectionPendingSince}`}
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-amber-950 font-medium leading-relaxed bg-white/80 p-3 rounded-2xl border border-amber-200">
+              {awaitingResponseNotice(claimCase)}
+            </p>
+
+            {/* نمایش گام‌های پیش‌رو */}
+            <div className="flex items-center gap-2 flex-wrap text-[11px] font-bold">
+              {[
+                ['اعتراض ثبت شد', true],
+                ['بازبینی کارشناس', false],
+                ['تایید یا اعتراض مجدد شما', false]
+              ].map(([label, done], i) => (
+                <React.Fragment key={String(label)}>
+                  {i > 0 && <span className="text-amber-300">←</span>}
+                  <span className={`px-2.5 py-1 rounded-full border ${
+                    done ? 'bg-amber-500 text-white border-amber-600' : 'bg-white text-amber-800 border-amber-300'
+                  }`}>
+                    {label}
+                  </span>
+                </React.Fragment>
+              ))}
+            </div>
+
+            {claimCase.reassessReason && (
+              <p className="text-[11px] text-amber-800 font-bold">
+                اعتراض ثبت‌شده: «{claimCase.reassessReason}»
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* کارت رأی قطعی شورای عالی — اعتراض بسته، مسیر به ثبت شبا هدایت می‌شود */}
+        {councilVerdictIssued && !isCulprit && (
+          <div className="bg-gradient-to-br from-emerald-50 via-teal-50/60 to-white border-2 border-emerald-400 rounded-3xl p-5 sm:p-6 space-y-3 shadow-lg">
+            <div className="flex items-center justify-between gap-3 flex-wrap border-b border-emerald-200 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shadow-md shrink-0">
+                  <Scale className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="font-black text-emerald-950 text-sm">رأی قطعی شورای عالی کارشناسی</h4>
+                  <span className="text-[11px] text-emerald-700 font-bold">
+                    کد رأی: {claimCase.highCommitteeReview?.verdictCode} • {claimCase.highCommitteeReview?.verdictDate}
+                  </span>
+                </div>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black">
+                فصل‌الخطاب و غیرقابل اعتراض
+              </span>
+            </div>
+
+            <p className="text-xs text-emerald-950 font-medium leading-relaxed bg-white/80 p-3 rounded-2xl border border-emerald-200">
+              {claimCase.highCommitteeReview?.finalVerdict}
+            </p>
+
+            <div className="p-4 bg-emerald-900 text-white rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-center sm:text-right space-y-1">
+                <span className="text-[10px] text-emerald-200 font-bold block">مبلغ نهایی مصوب شورا جهت واریز:</span>
+                <span className="text-xl sm:text-2xl font-black text-emerald-300 font-mono">
+                  {formatCurrency(officialPayableAmount)}
+                </span>
+              </div>
+              {!claimCase.payoutInfo?.iban && claimCase.status !== 'پرداخت شده' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowForm(true);
+                    setTimeout(() => document.getElementById('iban-section')?.scrollIntoView({ behavior: 'smooth' }), 120);
+                  }}
+                  className="px-5 py-3 rounded-2xl bg-white text-emerald-900 font-black text-xs shadow-md hover:bg-emerald-50 transition-all cursor-pointer flex items-center gap-2 active:scale-95"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  ثبت شماره شبا و دریافت خسارت
+                </button>
+              )}
+            </div>
+
+            <p className="text-[11px] text-emerald-800 font-bold flex items-start gap-1.5 leading-relaxed">
+              <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              {COUNCIL_VERDICT_NOTICE}
+            </p>
+          </div>
+        )}
+
+        {hasAnyCompletedAssessment && !isCulprit && (councilVerdictIssued || showBankForm || claimCase.payoutInfo?.iban || claimCase.status === 'در انتظار پرداخت') && (
           <div id="iban-section" className="bg-gradient-to-br from-sky-50/90 via-blue-50/50 to-white border-2 border-sky-300 rounded-3xl p-4 sm:p-5 sm:p-6 space-y-4 shadow-lg scroll-mt-6">
             <div className="flex items-center justify-between border-b border-sky-100 pb-3">
               <div className="flex items-center gap-2">
@@ -4285,6 +4506,104 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
       )}
 
       {/* Objection Stage 1 Modal */}
+      {/* مودال انتخاب مسیر اعتراض دوم */}
+      {showPathModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowPathModal(false)}>
+          <div className="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+            <div className="p-5 border-b border-slate-200 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-2xl bg-indigo-700 text-white flex items-center justify-center shrink-0">
+                  <Scale className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm">اعتراض دوم — انتخاب مسیر رسیدگی</h3>
+                  <p className="text-[11px] text-slate-500 font-medium mt-0.5">یکی از دو مسیر زیر را انتخاب فرمایید</p>
+                </div>
+              </div>
+              <button onClick={() => setShowPathModal(false)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 cursor-pointer">
+                <X className="w-4.5 h-4.5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setChosenPath('INDEPENDENT_ASSESSOR')}
+                  className={`p-4 rounded-2xl border-2 text-right transition-all cursor-pointer space-y-1.5 ${
+                    chosenPath === 'INDEPENDENT_ASSESSOR' ? 'border-indigo-600 bg-indigo-50' : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="font-black text-slate-900 text-xs block">۱. ارزیاب مستقل</span>
+                  <span className="text-[11px] text-slate-600 font-medium block leading-relaxed">
+                    ارجاع پرونده به کارشناس مستقل جدید. نیازمند واریز هزینه کارشناسی.
+                  </span>
+                  <span className="text-[11px] font-black text-indigo-800 block pt-1">
+                    هزینه: {formatCurrency(INDEPENDENT_ASSESSOR_FEE)}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setChosenPath('WORKSHOP_INVOICE')}
+                  className={`p-4 rounded-2xl border-2 text-right transition-all cursor-pointer space-y-1.5 ${
+                    chosenPath === 'WORKSHOP_INVOICE' ? 'border-emerald-600 bg-emerald-50' : 'border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="font-black text-slate-900 text-xs block">۲. ثبت اطلاعات تعمیرگاه</span>
+                  <span className="text-[11px] text-slate-600 font-medium block leading-relaxed">
+                    ارسال فاکتور و مشخصات تعمیرگاه برای بررسی مجدد توسط همان کارشناس اول.
+                  </span>
+                  <span className="text-[11px] font-black text-emerald-800 block pt-1">بدون هزینه</span>
+                </button>
+              </div>
+
+              <textarea
+                value={pathReason}
+                onChange={(e) => setPathReason(e.target.value)}
+                rows={3}
+                placeholder="علت اعتراض دوم را شرح دهید..."
+                className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none text-xs font-bold resize-none"
+              />
+
+              {chosenPath === 'INDEPENDENT_ASSESSOR' ? (
+                <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-2.5">
+                  <span className="font-black text-indigo-900 text-xs block">اطلاعات واریز هزینه کارشناسی</span>
+                  <div className="bg-white rounded-xl border border-indigo-200 p-3 space-y-1.5 text-[11px] font-bold text-slate-700">
+                    <div className="flex justify-between gap-2"><span>مبلغ:</span><span className="font-mono font-black text-slate-900">{formatCurrency(INDEPENDENT_ASSESSOR_FEE)}</span></div>
+                    <div className="flex justify-between gap-2"><span>شبا مقصد:</span><span className="font-mono text-slate-900" dir="ltr">{INDEPENDENT_ASSESSOR_IBAN}</span></div>
+                    <div className="flex justify-between gap-2"><span>نام حساب:</span><span className="text-slate-900">{INDEPENDENT_ASSESSOR_ACCOUNT_NAME}</span></div>
+                  </div>
+                  <input
+                    value={payRef}
+                    onChange={(e) => setPayRef(e.target.value)}
+                    placeholder="کد پیگیری واریز را وارد کنید"
+                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none text-xs font-bold font-mono"
+                    dir="ltr"
+                  />
+                </div>
+              ) : (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2.5">
+                  <span className="font-black text-emerald-900 text-xs block">مشخصات تعمیرگاه</span>
+                  <input value={wsName} onChange={(e) => setWsName(e.target.value)} placeholder="نام تعمیرگاه"
+                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-200 focus:border-emerald-500 focus:outline-none text-xs font-bold" />
+                  <input value={wsPhone} onChange={(e) => setWsPhone(e.target.value)} placeholder="تلفن تعمیرگاه"
+                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-200 focus:border-emerald-500 focus:outline-none text-xs font-bold font-mono" dir="ltr" />
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleSecondObjectionPath}
+                className="w-full py-3.5 rounded-2xl bg-indigo-700 hover:bg-indigo-800 text-white font-black text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" /> ثبت نهایی اعتراض دوم
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showObjection1Modal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
           <div className="bg-white rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl space-y-4 animate-in zoom-in-95">

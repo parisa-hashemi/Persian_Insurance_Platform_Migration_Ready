@@ -30,6 +30,7 @@ import {
 import { RoleType, UserSession, InsurerInfo, StaffMember } from '../types';
 import { CompanyRegistrationModal } from './CompanyRegistrationModal';
 import { ExpertOtpLoginForm } from './ExpertOtpLoginForm';
+import { DEFAULT_COUNCIL_MEMBERS } from '../lib/objectionWorkflow';
 import { CustomerOtpLoginForm } from './CustomerOtpLoginForm';
 import { SearchableCompanySelect } from './common/SearchableCompanySelect';
 import { KarinshoHero } from './KarinshoHero';
@@ -134,6 +135,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
 
   // Form states for Reviewer
   const [reviewerCompany, setReviewerCompany] = useState('dana');
+  const [councilMemberIdx, setCouncilMemberIdx] = useState(0);
   const [reviewerId, setReviewerId] = useState('rvd1');
   const [reviewerPass, setReviewerPass] = useState('1111');
 
@@ -230,6 +232,21 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
       nationalId: rv.nationalId,
       branchId: rv.branchId,
       licenseCode: rv.licenseCode
+    });
+  };
+
+  /** ورود اعضای شورای عالی کارشناسی (مدیران ارشد فنی) */
+  const handleCouncilLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    const compInfo = insurersList.find((c) => c.code === reviewerCompany);
+    const member = DEFAULT_COUNCIL_MEMBERS[councilMemberIdx] || DEFAULT_COUNCIL_MEMBERS[0];
+    onSelectPortal('council', {
+      id: `council-${councilMemberIdx}`,
+      role: 'council',
+      name: member.name,
+      roleTitle: member.title,
+      company: reviewerCompany,
+      companyName: compInfo?.name
     });
   };
 
@@ -389,6 +406,7 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                     <option value="specialist">کارشناس تخصصی خسارت (خسارت‌های مازاد بر ۱۰۰ میلیون تومان)</option>
                     <option value="fieldexpert">کارشناس میدانی (بازدید صحنه و ارزیابی حضوری)</option>
                     <option value="reviewer">بازبین کیفیت و ریسک (Audit & Reviewer)</option>
+                    <option value="council">شورای عالی کارشناسی (رأی نهایی پرونده‌های اعتراضی)</option>
                     <option value="finance">مدیریت مالی و خزانه‌داری (دستور پرداخت، حواله پایا و اسناد)</option>
                     <option value="crm">امور مشتریان و CRM (کال‌سنتر و پیگیری شکایات)</option>
                     <option value="admin">مدیر ارشد سامانه (System Administrator)</option>
@@ -487,6 +505,35 @@ export const PortalGateway: React.FC<PortalGatewayProps> = ({
                     onLoginSuccess={onSelectPortal}
                     onRefreshData={refreshDynamicData}
                   />
+                )}
+
+                {/* شورای عالی کارشناسی */}
+                {orgRole === 'council' && (
+                  <form onSubmit={handleCouncilLogin} className="space-y-3 md:space-y-4 animate-in fade-in">
+                    <SearchableCompanySelect
+                      insurersList={insurersList}
+                      selectedCompanyCode={reviewerCompany}
+                      onSelectCompany={(code) => setReviewerCompany(code)}
+                    />
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1.5">عضو شورای عالی کارشناسی</label>
+                      <select
+                        value={councilMemberIdx}
+                        onChange={(e) => setCouncilMemberIdx(Number(e.target.value))}
+                        className="w-full px-3.5 py-3 rounded-xl border-2 border-slate-200 focus:border-indigo-500 focus:outline-none text-xs font-bold bg-white"
+                      >
+                        {DEFAULT_COUNCIL_MEMBERS.map((m, i) => (
+                          <option key={m.name} value={i}>{m.name} — {m.title}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <button
+                      type="submit"
+                      className="w-full py-3.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-black text-xs shadow-md transition-all cursor-pointer"
+                    >
+                      ورود به پنل شورای عالی کارشناسی
+                    </button>
+                  </form>
                 )}
 
                 {/* 5. Finance */}

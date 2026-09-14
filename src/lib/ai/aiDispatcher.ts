@@ -621,14 +621,24 @@ export function dispatchObjectionStageWithAI(
       previousAssessorIds: updatedPrev
     };
 
-    // Auto-dispatch via AI excluding previous assessor
-    const dispatchResult = autoDispatchClaimWithAI(baseUpdated, {
-      excludeExpertIds: updatedPrev,
-      forceDeskExpert: true,
-      reason: `ثبت اعتراض مرحله اول زیان‌دیده (علت: «${objectionReason.trim()}»). ارجاع خودکار به ارزیاب مستقل جدید (${currentAssessorName} مستثنی گردید).`
-    });
-
-    return dispatchResult.updatedCase;
+    // اصلاح مطابق ضوابط کارفرما:
+    // اعتراض اول باید به «همان کارشناس اولیه» جهت بازبینی برگردد، نه به ارزیاب جدید.
+    // ارجاع به ارزیاب مستقل تازه فقط در اعتراض دوم و با پرداخت هزینه انجام می‌شود.
+    return {
+      ...baseUpdated,
+      status: 'در انتظار بازبینی اعتراض توسط کارشناس اولیه',
+      reassessType: 'اعتراض اول — بازبینی کارشناس اولیه',
+      assignedExpert: claim.assignedExpert,
+      history: [
+        ...(baseUpdated.history || []),
+        {
+          status: 'در انتظار بازبینی اعتراض توسط کارشناس اولیه',
+          time: nowShamsi,
+          user: claim.victimName || 'زیان‌دیده',
+          note: `ثبت اعتراض مرحله اول (علت: «${objectionReason.trim()}»). پرونده جهت بازبینی به همان کارشناس اولیه (${currentAssessorName}) ارجاع شد.`
+        }
+      ]
+    };
   }
 
   if (stage === 2) {

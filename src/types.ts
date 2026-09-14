@@ -1,4 +1,4 @@
-export type RoleType = 'customer' | 'insurer' | 'assessor' | 'fieldexpert' | 'reviewer' | 'finance' | 'crm' | 'admin';
+export type RoleType = 'customer' | 'insurer' | 'assessor' | 'fieldexpert' | 'reviewer' | 'finance' | 'crm' | 'admin' | 'council';
 
 export type CaseStatus =
   | 'در انتظار تایید مقصر'
@@ -621,12 +621,75 @@ export interface ClaimCase {
   reInspectionHistory?: ReInspectionRequest[];
   /** شورای کارشناسی عالی (در صورت پافشاری طرفین بر اعتراض) */
   highCommitteeReview?: HighCommitteeReview;
+  /** مسیر انتخابی مشتری در اعتراض دوم */
+  objectionSecondPath?: 'INDEPENDENT_ASSESSOR' | 'WORKSHOP_INVOICE';
+  /**
+   * قفل بین‌مرحله‌ای اعتراض.
+   * وقتی مشتری اعتراض ثبت می‌کند، شماره‌ی همان مرحله اینجا نوشته می‌شود و تا زمانی
+   * که کارشناس ارزیابی جدید را ثبت نکرده، مشتری نه می‌تواند تایید کند و نه اعتراض
+   * مجدد بزند. کارشناس با ثبت ارزیابی این فیلد را پاک می‌کند.
+   */
+  awaitingAssessmentForStage?: number;
+  /** زمان ثبت اعتراضی که در انتظار پاسخ کارشناس است */
+  objectionPendingSince?: string;
+  /** پرداخت هزینه کارشناسی ارزیاب مستقل */
+  independentAssessorPayment?: {
+    referenceCode: string;
+    paidAt: string;
+    amount: number;
+    iban: string;
+    status: 'PENDING' | 'PAID';
+  };
+  /** درجه فوریت پرونده در کارتابل شورا */
+  councilUrgency?: string;
+  /** قفل فقط‌خواندنی برای کارشناس ارزیاب و کارشناس تخصصی پس از ارجاع به شورا */
+  isLockedForExperts?: boolean;
+  /** جلسه حضوری دعوت‌شده توسط شورا */
+  councilHearing?: {
+    date: string;
+    time: string;
+    location: string;
+    reason: string;
+    invitedBy: string;
+    invitedAt: string;
+    smsText: string;
+    status: 'INVITED' | 'ATTENDED' | 'NO_SHOW';
+    minutes?: string;
+    minutesAt?: string;
+  };
   objectionChat?: Array<{
     sender: 'customer' | 'expert' | 'system';
     name: string;
+    /** کد ملی فرستنده (برای پیام‌های معترض) جهت احراز هویت در پرونده اعتراض */
+    nationalId?: string;
     text: string;
     files?: string[];
     time: string;
+  }>;
+  /**
+   * هویت احرازشده‌ی معترض.
+   * طبق ضوابط، اعتراض باید به شخص حقیقی قابل ردیابی باشد؛ بنابراین در لحظه‌ی ثبت
+   * اعتراض، نام و کد ملی معترض در پرونده تثبیت می‌شود (نه صرفاً نام نمایشی).
+   */
+  objectionFiledBy?: {
+    name: string;
+    nationalId?: string;
+    phone?: string;
+    role: 'زیان‌دیده' | 'مقصر' | string;
+    party?: 'PARTY_ONE' | 'PARTY_TWO';
+    stage: number;
+    filedAt: string;
+    reason?: string;
+  };
+  /** سابقه‌ی کامل معترضان در مراحل مختلف اعتراض */
+  objectionFiledByHistory?: Array<{
+    name: string;
+    nationalId?: string;
+    phone?: string;
+    role: string;
+    stage: number;
+    filedAt: string;
+    reason?: string;
   }>;
   workshopInfo?: {
     province: string;
@@ -903,6 +966,8 @@ export interface HighCommitteeReview {
     title: string;
     vote?: 'تایید ارزیابی اولیه' | 'افزایش خسارت' | 'تعدیل مبالغ' | 'بازدید میدانی مجدد';
     notes?: string;
+    /** مبلغ مدنظر عضو شورا (ریال) جهت محاسبه میانگین آراء */
+    proposedAmount?: number;
   }>;
   finalVerdict?: string;
   finalAmount?: number;

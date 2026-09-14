@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { FaqAssistantModal } from '../common/FaqAssistantModal';
 import {
   User,
   FolderSearch,
@@ -26,7 +27,8 @@ import {
   Building2,
   TrendingUp,
   TrendingDown,
-  AlertTriangle
+  AlertTriangle,
+  MessageCircleQuestion
 } from 'lucide-react';
 import { ClaimCase, UserSession } from '../../types';
 import { updateCustomerProfile, formatCurrency, getInsurerPersianName } from '../../lib/storage';
@@ -74,6 +76,8 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
   const [profNationalId, setProfNationalId] = useState(session.nationalId || '0012345678');
   const [profAvatar, setProfAvatar] = useState<string | undefined>(session.avatarUrl);
   const [profileSuccessMsg, setProfileSuccessMsg] = useState<string | null>(null);
+  // بات پاسخگویی به پرسش‌های متداول بیمه‌گذاران (بند ۷ کارفرما)
+  const [isFaqOpen, setIsFaqOpen] = useState(false);
 
   // Filter cases belonging to current customer session
   const myCases = cases.filter((c) => {
@@ -1347,6 +1351,19 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
         </div>
       )}
+
+      {/* دستیار پاسخگویی به پرسش‌های متداول — دکمه شناور همیشه در دسترس */}
+      <button
+        type="button"
+        onClick={() => setIsFaqOpen(true)}
+        className="fixed bottom-6 left-6 z-40 px-4 py-3 rounded-2xl bg-indigo-700 hover:bg-indigo-800 text-white font-black text-xs shadow-lg shadow-indigo-700/30 transition-all flex items-center gap-2 cursor-pointer active:scale-95 border border-indigo-800"
+        title="پاسخ فوری به پرسش‌های متداول بیمه‌ای"
+      >
+        <MessageCircleQuestion className="w-4.5 h-4.5" />
+        <span className="hidden sm:inline">سوالی دارید؟ دستیار پاسخگو</span>
+      </button>
+
+      <FaqAssistantModal isOpen={isFaqOpen} onClose={() => setIsFaqOpen(false)} />
 
       {/* DEBT & RECEIVABLE MODAL */}
       {debtModalCase && (

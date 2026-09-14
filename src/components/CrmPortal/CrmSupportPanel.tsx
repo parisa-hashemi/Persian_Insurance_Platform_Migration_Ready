@@ -1,5 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { notifyApp } from '../../lib/appNotify';
+import { FaqAssistantModal } from '../common/FaqAssistantModal';
+import { normalizeDigits } from '../../lib/contactPrivacy';
 import { Headphones, LayoutDashboard, AlertTriangle, Bell, MessageSquare, Users, FileSpreadsheet, PhoneCall, Search, Plus, Send, CheckCircle2, Clock, User, Shield, Copy, Check, Building, Layers, ChevronLeft, BookOpen, ArrowRight, X } from 'lucide-react';
 import {
   UserSession,
@@ -92,6 +94,8 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
   // Global Quick Search Bar State
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   const [copiedFaqId, setCopiedFaqId] = useState<string | null>(null);
+  // پایگاه دانش کامل پرسش‌های متداول بیمه‌گذاران (۲۷ پرسش) برای کارشناس کال‌سنتر
+  const [isFullFaqOpen, setIsFullFaqOpen] = useState(false);
   const [showFaqDrawer, setShowFaqDrawer] = useState(false);
 
   // Modals
@@ -207,27 +211,84 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
   }, [followUps, tickets, callLogs, cases]);
 
   // Search Results for Global Search Bar
-  const searchResults = useMemo(() => {
-    if (!globalSearchTerm.trim()) return null;
-    const term = globalSearchTerm.trim().toLowerCase();
+  /**
+   * جستجوی سریع پرونده (الزام کارفرما — بند ۷).
+   *
+   * نسخه‌ی پیشین سه ایراد داشت که عملاً جستجو را بی‌اثر می‌کرد:
+   *   ۱. ارقام فارسی/عربی نرمال نمی‌شد؛ تایپ «۰۰۱۲۳۴۵۶۷۸» با کیبورد فارسی هیچ
+   *      کد ملیِ ذخیره‌شده با ارقام لاتین را پیدا نمی‌کرد.
+   *   ۲. پلاک با مقایسه‌ی خام تطبیق می‌شد؛ «۱۲ب۳۴۵» با «۱۲ ب ۳۴۵ ایران ۷۷»
+   *      مطابقت نمی‌کرد چون فاصله‌ها حذف نمی‌شدند.
+   *   ۳. پلاک و کد ملیِ «مقصر» اصلاً جستجو نمی‌شد.
+   *
+   * اکنون همه‌ی مقادیر پیش از مقایسه به شکل متعارف درمی‌آیند.
+   */
+  const canonicalize = (value?: string | null): string =>
+    normalizeDigits(String(value || ''))
+      .toLowerCase()
+      .replace(/[\s\-_/،,.]/g, '');
 
-    const matchedCases = cases.filter(
-      c =>
-        c.id.toLowerCase().includes(term) ||
-        c.victimName.toLowerCase().includes(term) ||
-        c.victimPhone.includes(term) ||
-        (c.victimPlate && c.victimPlate.toLowerCase().includes(term)) ||
-        (c.victimNationalId && c.victimNationalId.includes(term)) ||
-        c.culpritName.toLowerCase().includes(term) ||
-        c.culpritPhone.includes(term)
-    );
+  /** تشخیص نوع عبارت جستجوشده جهت نمایش به کارشناس کال‌سنتر. */
+  const searchModeLabel = useMemo(() => {
+    const q = canonicalize(globalSearchTerm);
+    if (!q) return null;
+    if (/^\d{10}$/.test(q)) return 'کد ملی';
+    if (/^09\d{9}$/.test(q)) return 'شماره موبایل';
+    if (/^[a-z]{2}\d/.test(q)) return 'شماره پرونده';
+    if (/ایران/.test(canonicalize(globalSearchTerm)) || /^\d{2}[\u0600-\u06FF]\d{3}/.test(q))
+      return 'شماره پلاک';
+    return 'جستجوی آزاد';
+  }, [globalSearchTerm]);
+
+  const searchResults = useMemo(() => {
+    const term = canonicalize(globalSearchTerm);
+    if (term.length < 2) return null;
+
+    const has = (value?: string | null) => canonicalize(value).includes(term);
 
     const matchedCustomers = aggregatedCustomers.filter(
-      cust =>
-        cust.name.toLowerCase().includes(term) ||
-        cust.phone.includes(term) ||
-        (cust.nationalId && cust.nationalId.includes(term))
+      cust => has(cust.name) || has(cust.phone) || has(cust.nationalId)
     );
+
+    /**
+     * پل کد ملی ← پرونده.
+     *
+     * رکورد پرونده خودش فیلد کد ملی ندارد (کد ملی در پروفایل مشتری ثبت می‌شود و
+     * پرونده از طریق «شماره موبایل» به مشتری متصل است). به همین دلیل جستجوی کد ملی
+     * پیش از این هیچ پرونده‌ای برنمی‌گرداند — دقیقاً ایرادی که کارفرما گزارش کرد.
+     * اینجا ابتدا مشتریِ دارای آن کد ملی پیدا می‌شود و سپس پرونده‌های مرتبط او.
+     */
+    const caseIdsViaCustomer = new Set<string>();
+    for (const cust of matchedCustomers) {
+      for (const rc of cust.relatedCases) {
+        caseIdsViaCustomer.add(rc.id);
+      }
+    }
+
+    /**
+     * علت تطابق هر پرونده مشخص می‌شود تا کارشناس کال‌سنتر بداند چرا این پرونده
+     * برگشته است — مثلاً وقتی کد ملیِ جستجوشده متعلق به «مقصر» است، نمایش کد ملی
+     * زیان‌دیده در ردیف نتیجه گمراه‌کننده خواهد بود.
+     */
+    const matchedCases = cases
+      .map(c => {
+        let matchReason: string | null = null;
+        if (has(c.id)) matchReason = 'شماره پرونده';
+        else if (has(c.victimPlate)) matchReason = 'پلاک زیان‌دیده';
+        else if (has(c.culpritPlate)) matchReason = 'پلاک مقصر';
+        else if (has(c.plate)) matchReason = 'پلاک خودرو';
+        else if (has(c.victimNationalId)) matchReason = 'کد ملی زیان‌دیده';
+        else if (has(c.culpritNationalId)) matchReason = 'کد ملی مقصر';
+        else if (has(c.victimName)) matchReason = 'نام زیان‌دیده';
+        else if (has(c.culpritName)) matchReason = 'نام مقصر';
+        else if (has(c.victimPhone)) matchReason = 'موبایل زیان‌دیده';
+        else if (has(c.culpritPhone)) matchReason = 'موبایل مقصر';
+        else if (has(c.objectionFiledBy?.nationalId)) matchReason = 'کد ملی معترض';
+        else if (has(c.objectionFiledBy?.name)) matchReason = 'نام معترض';
+        else if (caseIdsViaCustomer.has(c.id)) matchReason = 'پروفایل مشتری مرتبط';
+        return matchReason ? { ...c, __matchReason: matchReason } : null;
+      })
+      .filter((c): c is ClaimCase & { __matchReason: string } => c !== null);
 
     return {
       cases: matchedCases,
@@ -334,8 +395,13 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
   return (
     <div className="space-y-6 pb-12 animate-in fade-in" dir="rtl">
       {/* HEADER BANNER */}
-      <div className="bg-gradient-to-r from-blue-600 via-slate-900 to-indigo-600 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800/40 relative overflow-hidden">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-gradient-to-r from-blue-600 via-slate-900 to-indigo-600 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-blue-800/40 relative isolate">
+        {/* لایه‌ی تزئینی جداگانه و بریده‌شده.
+            توجه: overflow-hidden نباید روی خودِ کادر باشد، وگرنه کادر نتایج جستجو
+            (که absolute است و بیرون از کادر باز می‌شود) بریده و نامرئی می‌شود. */}
+        <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl" />
+        </div>
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
@@ -400,7 +466,7 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
               type="text"
               value={globalSearchTerm}
               onChange={e => setGlobalSearchTerm(e.target.value)}
-              placeholder="جستجوی هوشمند در پرونده‌ها و مشتریان (شماره پرونده، نام زیان‌دیده، شماره موبایل، پلاک، کدملی)..."
+              placeholder="جستجوی سریع پرونده: شماره پرونده، شماره پلاک یا کد ملی (ارقام فارسی و لاتین هر دو)..."
               className="w-full pl-4 pr-12 py-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-white placeholder:text-slate-400 text-xs font-bold focus:outline-none focus:bg-white focus:text-slate-900 focus:border-amber-400 transition-all shadow-inner"
             />
             {globalSearchTerm && (
@@ -412,6 +478,24 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
               </button>
             )}
           </div>
+
+          {/* نوع ورودی تشخیص داده‌شده — کمک به کارشناس کال‌سنتر حین مکالمه */}
+          {searchModeLabel && (
+            <div className="flex items-center gap-2 mt-2 text-[11px] font-bold text-slate-300">
+              <span>نوع تشخیص داده‌شده:</span>
+              <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-200 border border-amber-400/40 font-black">
+                {searchModeLabel}
+              </span>
+              {searchResults && (
+                <>
+                  <span className="text-slate-500">•</span>
+                  <span>
+                    {searchResults.cases.length} پرونده از {cases.length} پرونده
+                  </span>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Quick Search Dropdown Results */}
           {searchResults && (
@@ -439,12 +523,66 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
                         }}
                         className="p-3 rounded-xl bg-slate-50 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 transition-all cursor-pointer text-xs space-y-1"
                       >
-                        <div className="flex items-center justify-between font-black text-blue-900">
-                          <span>پرونده {c.id}</span>
-                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-100 text-amber-900">{c.status}</span>
+                        <div className="flex items-center justify-between font-black text-blue-900 gap-2">
+                          <span className="flex items-center gap-1.5 flex-wrap">
+                            <span>پرونده {c.id}</span>
+                            {(c as any).__matchReason && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200 font-black">
+                                تطابق: {(c as any).__matchReason}
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 shrink-0">{c.status}</span>
                         </div>
                         <div className="text-slate-700 text-[11px]">
-                          {c.carType} • {c.victimName} ({c.victimPhone})
+                          {c.carType} • {c.victimName}
+                        </div>
+                        {/* هر سه معیار جستجو کنار هم، تا کارشناس تطابق را فوراً تایید کند */}
+                        <div className="space-y-0.5 text-[10px] text-slate-500 font-bold pt-0.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sky-700">زیان‌دیده:</span>
+                            <span className="font-mono">{c.victimPlate || '—'}</span>
+                            <span className="text-slate-300">|</span>
+                            <span className="font-mono">{c.victimNationalId || '—'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-rose-700">مقصر:</span>
+                            <span className="font-mono">{c.culpritPlate || '—'}</span>
+                            <span className="text-slate-300">|</span>
+                            <span className="font-mono">{c.culpritNationalId || '—'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* مشتریان منطبق — پیش از این شمارنده‌اش وجود داشت ولی فهرستش رندر نمی‌شد */}
+              {searchResults.customers.length > 0 && (
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">مشتریان منطبق:</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {searchResults.customers.map(cust => (
+                      <div
+                        key={cust.id}
+                        onClick={() => {
+                          setSelectedCustomerPhone(cust.phone);
+                          setActiveTab('hub360');
+                          setGlobalSearchTerm('');
+                        }}
+                        className="p-3 rounded-xl bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 transition-all cursor-pointer text-xs space-y-1"
+                      >
+                        <div className="flex items-center justify-between font-black text-emerald-900">
+                          <span>{cust.name}</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-900">
+                            {cust.totalClaimsCount} پرونده
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap text-[10px] text-slate-500 font-bold">
+                          <span className="font-mono">کد ملی {cust.nationalId || '—'}</span>
+                          <span className="text-slate-300">|</span>
+                          <span className="font-mono" dir="ltr">{cust.phone}</span>
                         </div>
                       </div>
                     ))}
@@ -472,12 +610,22 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
                 راهنمای پاسخگویی استاندارد و اسکریپت‌های مکالمه تلفنی (Call Scripts)
               </h3>
             </div>
-            <button
-              onClick={() => setShowFaqDrawer(false)}
-              className="text-xs font-bold text-slate-500 hover:text-slate-800"
-            >
-              <span className="inline-flex items-center gap-1.5"><X className="w-3.5 h-3.5" />بستن</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsFullFaqOpen(true)}
+                className="px-3 py-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-black shadow-2xs transition-all cursor-pointer inline-flex items-center gap-1.5"
+                title="پایگاه دانش کامل پرسش‌های متداول بیمه‌گذاران"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>پایگاه دانش کامل</span>
+              </button>
+              <button
+                onClick={() => setShowFaqDrawer(false)}
+                className="text-xs font-bold text-slate-500 hover:text-slate-800"
+              >
+                <span className="inline-flex items-center gap-1.5"><X className="w-3.5 h-3.5" />بستن</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1056,6 +1204,8 @@ export const CrmSupportPanel: React.FC<CrmSupportPanelProps> = ({
           </div>
         </div>
       )}
+
+      <FaqAssistantModal isOpen={isFullFaqOpen} onClose={() => setIsFullFaqOpen(false)} />
     </div>
   );
 };

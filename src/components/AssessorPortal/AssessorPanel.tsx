@@ -1,7 +1,13 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { notifyApp, confirmApp } from '../../lib/appNotify';
+import { maskPhone, MASKED_PHONE_NOTICE } from '../../lib/contactPrivacy';
+import { QuadrupleInquiriesCard } from '../common/QuadrupleInquiriesCard';
+import { getOrGenerateCaseQuadrupleInquiries } from '../../lib/quadrupleInquiries';
+import { resolveChassis } from '../../lib/chassisRegistry';
+import { isCaseLockedByCouncil, COUNCIL_LOCK_NOTICE, isAwaitingExpertResponse } from '../../lib/objectionWorkflow';
 import {
   ClipboardCheck,
+  UserCheck,
   Award,
   CheckCircle2,
   XCircle,
@@ -1309,6 +1315,11 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
       notifyApp('این پرونده در وضعیت «رد شده (سلب صلاحیت)» قرار دارد و امکان ثبت یا ارسال ارزیابی وجود ندارد.');
       return;
     }
+    // قفل شورای عالی: رأی شورا فصل‌الخطاب است و کارشناس حق تغییر مبلغ یا مدرک ندارد
+    if (isCaseLockedByCouncil(activeCase)) {
+      notifyApp(COUNCIL_LOCK_NOTICE);
+      return;
+    }
 
     const calculatedGross = computePartsGross();
     const calculatedSalvage = computePartsSalvage();
@@ -1383,6 +1394,10 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     const updated: ClaimCase = {
       ...activeCase,
       status: caseFinalStatus,
+      // پاسخ کارشناس داده شد → قفل بین‌مرحله‌ای مشتری باز می‌شود تا بتواند
+      // ارزیابی جدید را تایید کند یا مجدداً اعتراض بزند.
+      awaitingAssessmentForStage: undefined,
+      objectionPendingSince: undefined,
       assignedReviewer: autoReviewer,
       reviewerReturn: undefined, // Clear return reason on re-submission
       reviewerReturnReason: undefined,
@@ -2861,6 +2876,31 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                       <p className="font-medium leading-relaxed bg-white/70 p-2.5 rounded-xl border border-amber-200 text-amber-950">
                         {activeCase.reassessReason || 'زیان‌دیده نسبت به مبالغ تعیین‌شده و عدم تایید تعویض قطعات آسیب‌دیده اعتراض نموده و پرونده جهت ارزیابی به کارشناس مجدد محول گردیده است.'}
                       </p>
+
+                      {/* هویت احرازشده‌ی معترض — اعتراض باید به شخص حقیقی قابل ردیابی باشد */}
+                      {activeCase.objectionFiledBy && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2 bg-white/80 border border-amber-200 rounded-xl px-3 py-2 text-[11px] font-bold text-amber-950">
+                          <UserCheck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                          <span>معترض:</span>
+                          <span className="font-black">{activeCase.objectionFiledBy.name}</span>
+                          <span className="px-2 py-0.5 rounded-md bg-amber-200 text-amber-900 font-black text-[10px]">
+                            {activeCase.objectionFiledBy.role}
+                          </span>
+                          <span className="text-amber-300">|</span>
+                          <span>کد ملی:</span>
+                          {activeCase.objectionFiledBy.nationalId ? (
+                            <span className="font-mono font-black" dir="ltr">
+                              {activeCase.objectionFiledBy.nationalId}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-black text-[10px]">
+                              احراز نشد
+                            </span>
+                          )}
+                          <span className="text-amber-300">|</span>
+                          <span className="text-amber-700 font-medium">{activeCase.objectionFiledBy.filedAt}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -2964,7 +3004,53 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
               {/* TAB 1: Summary & Checklist */}
               {activeTab === 'summary' && (
                 <div className="space-y-6 animate-in fade-in">
-                  
+
+                  {/* اعتراض در انتظار پاسخ همین کارشناس */}
+                  {isAwaitingExpertResponse(activeCase) && !isCaseLockedByCouncil(activeCase) && (
+                    <div className="p-4 bg-amber-500 text-white rounded-2xl flex items-start gap-3 text-xs shadow-md border border-amber-600">
+                      <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <span className="font-black block">
+                          اعتراض مرحله {activeCase.awaitingAssessmentForStage} — در انتظار بازبینی شما
+                        </span>
+                        <p className="font-medium leading-relaxed text-amber-50">
+                          این پرونده به دلیل اعتراض مشتری به «شما» (کارشناس اولیه) بازگردانده شده است. تا زمانی که ارزیابی
+                          مجدد را ثبت نکنید، پرونده برای مشتری قفل است و امکان تایید یا اعتراض جدید ندارد.
+                        </p>
+                        {activeCase.reassessReason && (
+                          <p className="font-bold bg-white/20 rounded-lg px-2.5 py-1.5 mt-1">
+                            علت اعتراض: «{activeCase.reassessReason}»
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* بنر قفل شورای عالی */}
+                  {isCaseLockedByCouncil(activeCase) && (
+                    <div className="p-4 bg-slate-900 text-white rounded-2xl border-2 border-amber-400 flex items-start gap-3 text-xs shadow-md">
+                      <Lock className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <span className="font-black block text-amber-300">پرونده در شورای عالی کارشناسی — فقط‌خواندنی</span>
+                        <p className="font-medium leading-relaxed text-slate-200">{COUNCIL_LOCK_NOTICE}</p>
+                        {activeCase.highCommitteeReview?.finalVerdict && (
+                          <p className="font-bold text-emerald-300 pt-1">
+                            رأی قطعی: {activeCase.highCommitteeReview.finalVerdict} — {formatCurrency(activeCase.highCommitteeReview.finalAmount || 0)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* استعلامات چهارگانه — سنهاب، فناوران (Core)، کروکی راهور، ثبت احوال.
+                      شماره شاسی از همین استعلام استخراج می‌شود و دیگر از کاربر پرسیده نمی‌شود. */}
+                  <QuadrupleInquiriesCard
+                    inquiries={getOrGenerateCaseQuadrupleInquiries(activeCase)}
+                    victimVin={activeCase.victimVin}
+                    culpritVin={activeCase.culpritVin}
+                    caseId={activeCase.id}
+                  />
+
                   {/* Both Parties Overview Card — روشن و یکپارچه */}
                   <div className="bg-white text-slate-900 p-5 rounded-2xl space-y-4 shadow-sm border border-blue-200">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -2985,7 +3071,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                           طرف اول ({activeCase.partyOneRole || 'زیان‌دیده'})
                         </span>
                         <p className="font-extrabold text-slate-900 text-sm">{activeCase.victimName || activeCase.partyOneName}</p>
-                        <p className="text-slate-500 font-mono" dir="ltr">{activeCase.victimPhone || activeCase.partyOnePhone}</p>
+                        <p className="text-slate-500 font-mono" dir="ltr" title={MASKED_PHONE_NOTICE}>{maskPhone(activeCase.victimPhone || activeCase.partyOnePhone)}</p>
                         <p className="text-slate-700 font-semibold pt-1">پلاک: {activeCase.victimPlate}</p>
                       </div>
 
@@ -2994,7 +3080,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                           طرف دوم ({activeCase.partyTwoRole || 'مقصر'})
                         </span>
                         <p className="font-extrabold text-slate-900 text-sm">{activeCase.culpritName || activeCase.partyTwoName}</p>
-                        <p className="text-slate-500 font-mono" dir="ltr">{activeCase.culpritPhone || activeCase.partyTwoPhone}</p>
+                        <p className="text-slate-500 font-mono" dir="ltr" title={MASKED_PHONE_NOTICE}>{maskPhone(activeCase.culpritPhone || activeCase.partyTwoPhone)}</p>
                         <p className="text-slate-700 font-semibold pt-1">پلاک: {activeCase.culpritPlate}</p>
                       </div>
                     </div>
@@ -4846,9 +4932,9 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     <IranianPlateWidget plateStr={preliminaryCheckCase.victimPlate || '۱۲-الف-۴۵۶-ایران-۴۵'} />
                     
                     <div className="bg-white p-2.5 rounded-xl border border-slate-100 space-y-1 text-[11px] text-slate-700">
-                      <p><span className="text-slate-400 font-normal">شماره تلفن:</span> <span className="font-mono dir-ltr inline-block font-bold">{preliminaryCheckCase.victimPhone || '۰۹۱۲***۴۵۶۷'}</span></p>
+                      <p><span className="text-slate-400 font-normal">شماره تلفن:</span> <span className="font-mono dir-ltr inline-block font-bold">{maskPhone(preliminaryCheckCase.victimPhone)}</span></p>
                       <p><span className="text-slate-400 font-normal">کد ملی:</span> <span className="font-mono text-slate-800 font-bold">۰۰۱۲۳۴۵۶۷۸</span></p>
-                      <p className="truncate"><span className="text-slate-400 font-normal">شماره شاسی (VIN):</span> <span className="font-mono text-[10px] text-slate-600">{preliminaryCheckCase.victimVin || 'IRN998822110033'}</span></p>
+                      <p className="truncate"><span className="text-slate-400 font-normal">شماره شاسی (VIN):</span> <span className="font-mono text-[10px] text-slate-600" title={resolveChassis(preliminaryCheckCase, 'victim').sourceLabelFa}>{resolveChassis(preliminaryCheckCase, 'victim').vin || '—'}</span></p>
                     </div>
                   </div>
                 </div>
@@ -4887,9 +4973,9 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     <IranianPlateWidget plateStr={preliminaryCheckCase.culpritPlate || '۵۶-الف-۴۵۶-ایران-۱۲'} />
 
                     <div className="bg-white p-2.5 rounded-xl border border-slate-100 space-y-1 text-[11px] text-slate-700">
-                      <p><span className="text-slate-400 font-normal">شماره تلفن:</span> <span className="font-mono dir-ltr inline-block font-bold">{preliminaryCheckCase.culpritPhone || '۰۹۳۵***۸۸۹۹'}</span></p>
+                      <p><span className="text-slate-400 font-normal">شماره تلفن:</span> <span className="font-mono dir-ltr inline-block font-bold">{maskPhone(preliminaryCheckCase.culpritPhone)}</span></p>
                       <p><span className="text-slate-400 font-normal">کد ملی:</span> <span className="font-mono text-slate-800 font-bold">۰۰۵۵۴۴۳۳۲۲</span></p>
-                      <p className="truncate"><span className="text-slate-400 font-normal">شماره شاسی (VIN):</span> <span className="font-mono text-[10px] text-slate-600">{preliminaryCheckCase.culpritVin || 'IRN112233445566'}</span></p>
+                      <p className="truncate"><span className="text-slate-400 font-normal">شماره شاسی (VIN):</span> <span className="font-mono text-[10px] text-slate-600" title={resolveChassis(preliminaryCheckCase, 'culprit').sourceLabelFa}>{resolveChassis(preliminaryCheckCase, 'culprit').vin || '—'}</span></p>
                     </div>
                   </div>
                 </div>
@@ -5552,7 +5638,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   <div>
                     <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">موبایل</label>
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono font-bold text-slate-800">
-                      {preliminaryCheckCase.victimPhone || '09224511513'}
+                      {maskPhone(preliminaryCheckCase.victimPhone || '09224511513')}
                     </div>
                   </div>
                   <div>
@@ -5623,7 +5709,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   <div>
                     <label className="block text-[11px] text-slate-500 font-bold mb-1.5 text-center">موبایل مقصر</label>
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center font-mono font-bold text-slate-800">
-                      {preliminaryCheckCase.culpritPhone || '09126989561'}
+                      {maskPhone(preliminaryCheckCase.culpritPhone || '09126989561')}
                     </div>
                   </div>
                   <div>
@@ -6047,7 +6133,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     درخواست تماس فوری امور مشتریان (CRM) با مشتری
                   </h3>
                   <p className="text-[11px] text-slate-500 font-mono">
-                    پرونده {activeCase.id} • مخاطب: {activeCase.victimName} ({activeCase.victimPhone})
+                    پرونده {activeCase.id} • مخاطب: {activeCase.victimName} ({maskPhone(activeCase.victimPhone)})
                   </p>
                 </div>
               </div>
@@ -6462,6 +6548,31 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                   </span>
                 </div>
                 
+                {/* هویت احرازشده‌ی معترض */}
+                {activeCase.objectionFiledBy && (
+                  <div className="bg-white p-3 rounded-xl border-2 border-amber-300 flex flex-wrap items-center gap-2 text-[11px] font-bold text-amber-950">
+                    <UserCheck className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>ثبت‌کننده اعتراض:</span>
+                    <span className="font-black text-slate-900">{activeCase.objectionFiledBy.name}</span>
+                    <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-black text-[10px] border border-amber-300">
+                      {activeCase.objectionFiledBy.role}
+                    </span>
+                    <span className="text-amber-300">|</span>
+                    <span>کد ملی:</span>
+                    {activeCase.objectionFiledBy.nationalId ? (
+                      <span className="font-mono font-black text-slate-900" dir="ltr">
+                        {activeCase.objectionFiledBy.nationalId}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 border border-rose-300 font-black text-[10px]">
+                        احراز نشد
+                      </span>
+                    )}
+                    <span className="text-amber-300">|</span>
+                    <span className="font-medium text-amber-700">{activeCase.objectionFiledBy.filedAt}</span>
+                  </div>
+                )}
+
                 <div className="bg-white/90 p-4 rounded-xl border border-amber-200 text-slate-900 space-y-1.5 leading-relaxed font-medium">
                   <span className="text-slate-500 font-bold block text-[11px]">شرح اعتراض زیان‌دیده ({activeCase.victimName || 'مشتری'}):</span>
                   <p className="text-slate-900 font-bold text-xs sm:text-sm">
@@ -6476,7 +6587,15 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     <div className="space-y-1.5 max-h-32 overflow-y-auto">
                       {activeCase.objectionChat.map((msg, idx) => (
                         <div key={idx} className="p-2.5 rounded-lg bg-white border border-amber-100 text-xs flex items-start justify-between gap-2">
-                          <span className="font-bold text-slate-800">{msg.name}: <span className="font-normal text-slate-700">{msg.text}</span></span>
+                          <span className="font-bold text-slate-800">
+                            {msg.name}
+                            {msg.nationalId && (
+                              <span className="text-[10px] text-slate-400 font-mono font-normal mr-1" dir="ltr">
+                                ({msg.nationalId})
+                              </span>
+                            )}
+                            : <span className="font-normal text-slate-700">{msg.text}</span>
+                          </span>
                           <span className="text-[10px] text-slate-400 font-mono shrink-0">{msg.time}</span>
                         </div>
                       ))}

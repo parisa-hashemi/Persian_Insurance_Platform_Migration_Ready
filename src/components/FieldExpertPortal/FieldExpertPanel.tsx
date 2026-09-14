@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { notifyApp } from '../../lib/appNotify';
+import { maskPhone, MASKED_PHONE_NOTICE } from '../../lib/contactPrivacy';
 import {
   MapPin,
   Car,
@@ -50,6 +51,7 @@ import { compressImageFile } from '../../lib/imageCompressor';
 import { Car3DViewer, ALL_INSPECTION_PARTS } from '../Car3DViewer';
 import { AIAssessmentDraftCard } from '../AI/AIAssessmentDraftCard';
 import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
+import { FieldChassisScanCard } from './FieldChassisScanCard';
 import { handleExpertRejectionWithAI } from '../../lib/ai/aiDispatcher';
 import { getExactPersianPartName, getPartKeyFromPersianName } from '../../lib/ai/aiDraftGenerator';
 import {
@@ -1575,7 +1577,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   <div className="space-y-2 text-xs text-slate-700">
                     <div className="flex justify-between py-1 border-b border-slate-200">
                       <span className="text-slate-500">زیان‌دیده:</span>
-                      <span className="font-bold">{selectedCase.victimName} ({selectedCase.victimPhone})</span>
+                      <span className="font-bold" title={MASKED_PHONE_NOTICE}>{selectedCase.victimName} ({maskPhone(selectedCase.victimPhone)})</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-200">
                       <span className="text-slate-500">پلاک زیان‌دیده:</span>
@@ -1587,7 +1589,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-200">
                       <span className="text-slate-500">مقصر حادثه:</span>
-                      <span className="font-bold">{selectedCase.culpritName} ({selectedCase.culpritPhone})</span>
+                      <span className="font-bold" title={MASKED_PHONE_NOTICE}>{selectedCase.culpritName} ({maskPhone(selectedCase.culpritPhone)})</span>
                     </div>
                     <div className="flex justify-between py-1 border-b border-slate-200">
                       <span className="text-slate-500">پلاک مقصر:</span>
@@ -1785,6 +1787,36 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   لطفاً تطابق خطوط ترمز، زاویه و ارتفاع نقاط برخورد دو خودرو، کهنگی یا تازگی رنگ‌پریدگی‌ها، وضعیت شماره شاسی (VIN) و قطعات داغی را به دقت ارزیابی نمایید.
                 </p>
               </div>
+
+              {/* احراز میدانی شاسی — تنها استثنای مجاز برای اسکن مجدد (بند ۶ کارفرما) */}
+              <FieldChassisScanCard
+                claimCase={selectedCase}
+                expertId={session.id}
+                expertName={session.name}
+                onVerified={(verification) => {
+                  onUpdateCase({
+                    ...selectedCase,
+                    fieldChassisVerification: verification,
+                    history: [
+                      ...(selectedCase.history || []),
+                      {
+                        status: selectedCase.status,
+                        time: new Date().toLocaleString('fa-IR'),
+                        user: session.name || 'کارشناس میدانی',
+                        note:
+                          verification.antiFraudStatus === 'AUTHENTIC'
+                            ? `احراز اصالت شاسی در محل انجام شد؛ بارکد اسکن‌شده با شاسی استعلام‌شده منطبق است (${verification.scannedVin}).`
+                            : `هشدار ضدتقلب: شاسی اسکن‌شده در محل (${verification.scannedVin}) با شاسی مرجع پرونده (${verification.registeredVin}) مغایرت دارد.`
+                      }
+                    ]
+                  });
+                  notifyApp(
+                    verification.antiFraudStatus === 'AUTHENTIC'
+                      ? 'اصالت شماره شاسی در محل تایید و در پرونده ثبت شد.'
+                      : 'هشدار: مغایرت شماره شاسی ثبت شد و پرونده نیازمند بررسی دستی است.'
+                  );
+                }}
+              />
 
               {/* AI Evidence Intelligence & Authenticity Evaluation */}
               <EvidenceIntelligenceCard

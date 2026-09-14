@@ -27,6 +27,7 @@ import { FieldExpertPanel } from './components/FieldExpertPortal/FieldExpertPane
 
 // Reviewer Components
 import { ReviewerPanel } from './components/ReviewerPortal/ReviewerPanel';
+import { HighCouncilPanel } from './components/CouncilPortal/HighCouncilPanel';
 
 // Finance Components
 import { FinanceManagerPanel } from './components/FinancePortal/FinanceManagerPanel';
@@ -50,6 +51,8 @@ export default function App() {
         return 'customerDashboard';
       case 'reviewer':
         return 'reviewerPanel';
+      case 'council':
+        return 'councilPanel';
       case 'finance':
         return 'financePanel';
       case 'crm':
@@ -139,6 +142,9 @@ export default function App() {
       case 'reviewer':
         setActiveView('reviewerPanel');
         break;
+      case 'council':
+        setActiveView('councilPanel');
+        break;
       case 'finance':
         setActiveView('financePanel');
         break;
@@ -197,6 +203,8 @@ export default function App() {
       setActiveView('customerCaseDetail');
     } else if (session.role === 'reviewer') {
       setActiveView('reviewerPanel');
+    } else if (session.role === 'council') {
+      setActiveView('councilPanel');
     } else if (session.role === 'finance') {
       setActiveView('financePanel');
     } else if (session.role === 'crm') {
@@ -416,6 +424,15 @@ export default function App() {
             cases={cases}
             onUpdateCase={handleUpdateCase}
             onLogout={handleLogout}
+          />
+        )}
+
+        {/* View 11b: شورای عالی کارشناسی */}
+        {activeView === 'councilPanel' && session && (
+          <HighCouncilPanel
+            session={session}
+            cases={cases}
+            onUpdateCase={handleUpdateCase}
           />
         )}
 
