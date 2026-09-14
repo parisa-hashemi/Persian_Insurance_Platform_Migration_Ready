@@ -232,7 +232,7 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
     return true;
   });
 
-  const activeClaimsCount = myCases.filter((c) => c.status !== 'پرداخت شده' && c.status !== 'رد شده').length;
+  const activeClaimsCount = myCases.filter((c) => c.status !== 'پرداخت شده' && !c.status.startsWith('رد شده') && !c.isRejectedAboveCeilingWithoutCroqui).length;
 
   const copyPhoneNumber = (phone: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -282,6 +282,9 @@ export const CustomerDashboard: React.FC<CustomerDashboardProps> = ({
 
   // Helper for Status Badge Color
   const getStatusBadgeClass = (status: string) => {
+    if (status.startsWith('رد شده') || status.includes('بیش از ۷۰ میلیون') || status.includes('مازاد بر سقف ۷۰ میلیون')) {
+      return 'bg-rose-100 text-rose-950 border-rose-300 font-extrabold';
+    }
     if (status.startsWith('ارجاع')) {
       return 'bg-emerald-100 text-emerald-950 border-emerald-300 font-extrabold';
     }

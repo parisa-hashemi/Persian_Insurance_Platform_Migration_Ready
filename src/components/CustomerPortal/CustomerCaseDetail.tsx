@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef } from 'react';
 import { notifyApp, confirmApp } from '../../lib/appNotify';
-import { ArrowLeft, Clock, CheckCircle2, AlertCircle, Building2, FileText, CreditCard, AlertTriangle, Upload, Send, MessageSquare, Camera, Image as ImageIcon, Eye, Plus, Paperclip, UserCheck, FilePlus, Video, Trash2, Lock, Shield, ShieldCheck, Users, Filter, CheckSquare, Star, ShieldAlert, MapPin, X, Sparkles, Banknote, ExternalLink, FileCheck, Maximize2, Phone, Calendar, Car, FileSpreadsheet, DollarSign, Info, PhoneCall, MessageSquarePlus, Headphones, Scale, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Layers, LifeBuoy, Copy, Check, Zap } from 'lucide-react';
+import { ArrowLeft, Clock, CheckCircle2, AlertCircle, Building2, FileText, CreditCard, AlertTriangle, Upload, Send, MessageSquare, Camera, Image as ImageIcon, Eye, Plus, Paperclip, UserCheck, FilePlus, Video, Trash2, Lock, Shield, ShieldCheck, Users, Filter, CheckSquare, Star, ShieldAlert, MapPin, X, XCircle, Sparkles, Banknote, ExternalLink, FileCheck, Maximize2, Phone, Calendar, Car, FileSpreadsheet, DollarSign, Info, PhoneCall, MessageSquarePlus, Headphones, Scale, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Layers, LifeBuoy, Copy, Check, Zap } from 'lucide-react';
 import { ClaimCase, UserSession, CaseStatus, AdditionalDocItem, ExpertComplaint, CustomerTicket, PaymentOrder } from '../../types';
 import { formatCurrency, parseMoneyNumber, getInsurerPersianName, loadComplaintsFromStorage, saveComplaintsToStorage, loadCrmTicketsFromStorage, saveCrmTicketsToStorage, loadPaymentOrdersFromStorage, savePaymentOrdersToStorage } from '../../lib/storage';
 import { compressImageFile } from '../../lib/imageCompressor';
@@ -11,6 +11,7 @@ import { CustomerTicketsSection } from './CustomerTicketsSection';
 import { CustomerExpertCallModal } from './CustomerExpertCallModal';
 import { AIChatCopilotModal } from '../AI/AIChatCopilotModal';
 import { CustomerDebtModal } from './CustomerDebtModal';
+import { JudicialDiminutionReportModal } from './JudicialDiminutionReportModal';
 import { dispatchObjectionStageWithAI, autoDispatchClaimWithAI } from '../../lib/ai/aiDispatcher';
 
 // Helper to detect Iranian bank name from IBAN (Sheba) code
@@ -137,6 +138,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   };
   const [disputeSubject, setDisputeSubject] = useState('مبلغ ارزیابی نامتناسب');
   const [disputeDesc, setDisputeDesc] = useState('');
+  const [showJudicialDiminutionModal, setShowJudicialDiminutionModal] = useState(false);
 
   // Rating state
   const [ratingStars, setRatingStars] = useState<number>(0);
@@ -306,6 +308,30 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
   );
 
   const hasAnyCompletedAssessment = isFieldAssessmentCompleted || isDeskAssessmentCompleted;
+
+  /**
+   * مبلغ رسمی و یکتای قابل پرداخت.
+   * پیش از این کارت شبا از `assessment.payable` خام استفاده می‌کرد ولی کارت ارزیابی
+   * مقدار محدودشده به سقف تعهد (`min(totalClaim, ceiling)`) را نشان می‌داد؛ نتیجه
+   * نمایش هم‌زمان دو عدد متفاوت بود. اکنون هر دو از همین مقدار تغذیه می‌شوند.
+   * در بیمه بدنه سقف تعهد شخص ثالث اعمال نمی‌شود.
+   */
+  const officialPayableAmount = useMemo(() => {
+    const breakdown = calculateClaimDamageWithPolicyLimits(claimCase);
+    const fromAssessment = Number(claimCase.assessment?.payable || 0);
+    const fromStoredPayout = Number(claimCase.insurerPayableAmount || 0);
+    const base =
+      fromAssessment > 0
+        ? fromAssessment
+        : breakdown.insurerPayablePortion > 0
+        ? breakdown.insurerPayablePortion
+        : fromStoredPayout;
+
+    if (isBodyClaim) return Math.max(0, base);
+
+    const ceiling = Number(breakdown.policyMaxFinancialLimit || 0);
+    return ceiling > 0 ? Math.max(0, Math.min(base, ceiling)) : Math.max(0, base);
+  }, [claimCase, isBodyClaim]);
 
   const isWaitingForNewAssessment = Boolean(
     claimCase.status === 'در انتظار ارجاع به ارزیاب مجدد' ||
@@ -1057,10 +1083,14 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
     // مبلغ نهایی قابل پرداخت برای امور مالی و خزانه‌داری:
     // بر اساس محاسبه‌ی رسمی «تفکیک خسارت و سقف تعهد مالی بیمه‌نامه» (شامل کسر داغی،
     // افت ارزش، فرانشیز و اعمال سقف تعهد) — نه رقم خام ارزیابی.
+    // همان مقدار یکتایی که به کاربر نمایش داده شده، تا مبلغ ارسالی به خزانه‌داری
+    // دقیقاً برابر مبلغ روی صفحه باشد.
     const payableFinal =
-      damageCalc.insurerPayablePortion && damageCalc.insurerPayablePortion > 0
+      officialPayableAmount > 0
+        ? officialPayableAmount
+        : damageCalc.insurerPayablePortion > 0
         ? damageCalc.insurerPayablePortion
-        : claimCase.assessment?.payable || 245000000;
+        : Number(claimCase.assessment?.payable || 0);
 
     // Generate real-time SMS dispatch logs for claimant
     const victimSmsLog = {
@@ -1335,6 +1365,36 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             )}
           </div>
         </div>
+
+        {/* Rejection Banner for Claims Exceeding 70M without Croqui */}
+        {(claimCase.isRejectedAboveCeilingWithoutCroqui ||
+          claimCase.status === 'رد شده - بیش از ۷۰ میلیون بدون کروکی' ||
+          claimCase.status === 'رد شده - مازاد بر سقف ۷۰ میلیون بدون کروکی') && (
+          <div className="bg-rose-50 border-2 border-rose-400 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-3 shadow-md animate-in fade-in">
+            <div className="flex items-center gap-3 border-b border-rose-200 pb-3">
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-rose-600 text-white flex items-center justify-center font-bold shrink-0 shadow-md">
+                <XCircle className="w-6 h-6 sm:w-7 sm:h-7" />
+              </div>
+              <div className="space-y-0.5">
+                <h3 className="font-black text-rose-950 text-sm sm:text-base">
+                  پرونده رد شده و خسارت پرداخت نمی‌شود
+                </h3>
+                <p className="text-[11px] sm:text-xs text-rose-800 font-bold">
+                  تشخیص کارشناس میدانی: مبلغ خسارت بیشتر از سقف ۷۰ میلیون تومان بوده است
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 bg-white/95 rounded-2xl border border-rose-200 text-xs text-rose-950 leading-relaxed font-medium space-y-2.5">
+              <p className="font-bold text-slate-900 text-xs sm:text-sm">
+                {claimCase.rejectionReason || 'چون بیشتر از ۷۰ میلیون بوده پرونده رد شده و پرداخت نمی‌شود.'}
+              </p>
+              <div className="p-3 bg-rose-100/70 rounded-xl text-[11px] text-rose-900 font-bold leading-relaxed border border-rose-200">
+                مقررات ابلاغی بیمه مرکزی: طبق ضوابط قانون بیمه شخص ثالث، رسیدگی و پرداخت پرونده‌های فاقد کروکی صرفاً تا سقف ۷۰ میلیون تومان مجاز است. در صورتی که برآورد کارشناسی بیش از ۷۰ میلیون تومان باشد، پرونده بدون کروکی امکان پرداخت ندارد و رد خواهد شد.
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Culprit View-Only Role Notice */}
         {isCulprit && (
@@ -2157,19 +2217,19 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                 ? 'عدم انطباق جزئی قطعات با صحنه تصادف'
                 : 'عدم صوری بودن و تایید قطعی اصالت فیزیکی صحنه تصادف',
               verdictType: claimCase.fieldExpertVerdict === 'FRAUD_REJECTED' ? 'danger' : claimCase.fieldExpertVerdict === 'PARTIAL_MISMATCH' ? 'warning' : 'success',
-              directDamage: calc.directDamageAmount || claimCase.assessment?.gross || 245000000,
+              directDamage: calc.directDamageAmount || Number(claimCase.assessment?.gross || 0),
               diminution: calc.diminutionAmount,
               diminutionPercent: calc.diminutionPercent,
               salvage: claimCase.assessment?.salvage || calc.franchiseAmount || 0,
-              totalClaim: calc.totalClaimAmount,
+              totalClaim: isBodyClaim ? calc.totalClaimAmount : Math.max(0, (calc.directDamageAmount || Number(claimCase.assessment?.gross || 0)) - (claimCase.assessment?.salvage || calc.franchiseAmount || 0)),
               policyCeiling: calc.policyMaxFinancialLimit,
-              insurerPayable: claimCase.assessment?.payable || calc.insurerPayablePortion || 245000000,
+              insurerPayable: officialPayableAmount,
               culpritDebt: calc.culpritExcessDebt,
               exceedsCeiling: calc.exceedsCeiling,
               notes: claimCase.fieldExpertReportNote || claimCase.assessment?.reviewerNote || claimCase.assessment?.notes || 'بررسی فیزیکی صحنه تصادف، انطباق قطعات، ارتفاع برخورد و اصالت‌سنجی در محل حادثه با حضور طرفین انجام شد و آسیب‌ها به تایید رسید.',
               officialInsuranceMessage: isBodyClaim
-                ? `بیمه‌گذار گرامی (${claimCase.victimName || claimCase.ownerName || 'محترم'})؛ گزارش کارشناسی خسارت بدنه پرونده ${claimCase.id} توسط کارشناس رسمی میدانی ثبت و به مبلغ ${formatCurrency(claimCase.assessment?.payable || calc.insurerPayablePortion || 245000000)} تایید گردید. لطفاً جهت واریز وجه، نظر کارشناس را تایید نموده و شماره شبا خود را ثبت فرمایید تا بلافاصله به کارتابل مدیر مالی ارجاع شود.`
-                : `زیان‌دیده گرامی (${claimCase.victimName || 'پریسا'})؛ برآورد کارشناسی خسارت پرونده ${claimCase.id} به مبلغ ${formatCurrency(claimCase.assessment?.payable || calc.insurerPayablePortion || 245000000)} توسط شرکت بیمه تایید گردید. پوشش ۱۰۰٪ تعهد بیمه‌نامه اعمال شده و پس از تایید شماره شبا، مبلغ خسارت مستقیماً به حساب شما واریز خواهد شد.`,
+                ? `بیمه‌گذار گرامی (${claimCase.victimName || claimCase.ownerName || 'محترم'})؛ گزارش کارشناسی خسارت بدنه پرونده ${claimCase.id} توسط کارشناس رسمی میدانی ثبت و به مبلغ ${formatCurrency(officialPayableAmount)} تایید گردید. لطفاً جهت واریز وجه، نظر کارشناس را تایید نموده و شماره شبا خود را ثبت فرمایید تا بلافاصله به کارتابل مدیر مالی ارجاع شود.`
+                : `زیان‌دیده گرامی (${claimCase.victimName || 'پریسا'})؛ برآورد کارشناسی خسارت پرونده ${claimCase.id} به مبلغ ${formatCurrency(officialPayableAmount)} توسط شرکت بیمه تایید گردید. پوشش ۱۰۰٪ تعهد بیمه‌نامه اعمال شده و پس از تایید شماره شبا، مبلغ خسارت مستقیماً به حساب شما واریز خواهد شد.`,
               victimSms: calc.victimSmsText,
               culpritSms: calc.culpritSmsText,
               photos: fieldDocs,
@@ -2201,7 +2261,9 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               const roundTitle = a.round || `ارزیابی نوبت ${roundNum}`;
               const directDamageVal = Number(a.gross !== undefined ? a.gross : (a.parts && a.parts.length > 0 ? a.parts.reduce((s: number, p: any) => s + Number(p.partPrice || 0) + Number(p.repairPrice || 0), 0) : calc.directDamageAmount));
               const salvageVal = Number(a.salvage !== undefined ? a.salvage : (a.parts && a.parts.length > 0 ? a.parts.reduce((s: number, p: any) => s + (p.salvageNeeded && p.salvageValue ? Number(p.salvageValue) : 0), 0) : 0));
-              const totalClaimVal = Math.max(0, (directDamageVal - salvageVal) + calc.diminutionAmount);
+              const totalClaimVal = isBodyClaim
+                ? Math.max(0, (directDamageVal - salvageVal) + calc.diminutionAmount)
+                : Math.max(0, directDamageVal - salvageVal);
               const payableAmt = Math.min(totalClaimVal, calc.policyMaxFinancialLimit);
 
               cards.push({
@@ -2246,7 +2308,9 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
             const isHistorical = Boolean(isWaitingForNewAssessment && (claimCase.objectionStage || 0) >= 1);
             const directDamageVal = Number(claimCase.assessment.gross !== undefined ? claimCase.assessment.gross : (claimCase.assessment.parts && claimCase.assessment.parts.length > 0 ? claimCase.assessment.parts.reduce((s: number, p: any) => s + Number(p.partPrice || 0) + Number(p.repairPrice || 0), 0) : calc.directDamageAmount));
             const salvageVal = Number(claimCase.assessment.salvage !== undefined ? claimCase.assessment.salvage : (claimCase.assessment.parts && claimCase.assessment.parts.length > 0 ? claimCase.assessment.parts.reduce((s: number, p: any) => s + (p.salvageNeeded && p.salvageValue ? Number(p.salvageValue) : 0), 0) : 0));
-            const totalClaimVal = Math.max(0, (directDamageVal - salvageVal) + calc.diminutionAmount);
+            const totalClaimVal = isBodyClaim
+              ? Math.max(0, (directDamageVal - salvageVal) + calc.diminutionAmount)
+              : Math.max(0, directDamageVal - salvageVal);
             const payableAmt = Math.min(totalClaimVal, calc.policyMaxFinancialLimit);
             const currentRound = claimCase.assessment.version ? Number(claimCase.assessment.version) : 1;
 
@@ -2478,19 +2542,38 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                               </span>
                             </div>
 
-                            <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
-                              <div className="flex items-center justify-between mb-1">
-                                <span className="text-slate-500 font-bold text-[11px]">افت ارزش خودرو</span>
-                                {diminutionPercent > 0 && (
-                                  <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1 py-0.2 rounded border border-amber-300">
-                                    {diminutionPercent}%
-                                  </span>
-                                )}
+                            {isBodyClaim ? (
+                              <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-slate-500 font-bold text-[11px]">افت ارزش خودرو</span>
+                                  {diminutionPercent > 0 && (
+                                    <span className="text-[9px] font-black text-amber-700 bg-amber-100 px-1 py-0.2 rounded border border-amber-300">
+                                      {diminutionPercent}%
+                                    </span>
+                                  )}
+                                </div>
+                                <span className={`font-bold text-xs sm:text-sm font-mono ${diminution > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
+                                  {diminution > 0 ? formatCurrency(diminution) : 'شامل نمی‌شود'}
+                                </span>
                               </div>
-                              <span className={`font-bold text-xs sm:text-sm font-mono ${diminution > 0 ? 'text-amber-700' : 'text-slate-400'}`}>
-                                {diminution > 0 ? formatCurrency(diminution) : 'شامل نمی‌شود'}
-                              </span>
-                            </div>
+                            ) : (
+                              <div className="bg-amber-50/70 p-3 rounded-2xl border border-amber-300 shadow-2xs flex flex-col justify-between">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span className="text-amber-950 font-bold text-[11px]">افت ارزش خودرو</span>
+                                  <span className="text-[9px] font-black text-amber-800 bg-amber-200/90 px-1.5 py-0.5 rounded">
+                                    پیگیری قضایی
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowJudicialDiminutionModal(true)}
+                                  className="w-full mt-1.5 py-1.5 px-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] rounded-xl flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                                >
+                                  <Scale className="w-3.5 h-3.5 text-slate-900" />
+                                  <span>گزارش رسمی</span>
+                                </button>
+                              </div>
+                            )}
 
                             <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs">
                               <span className="text-slate-500 block mb-1 font-bold text-[11px]">کسر داغی / استهلاک</span>
@@ -2500,7 +2583,9 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                             </div>
 
                             <div className="bg-indigo-50/60 p-3 rounded-2xl border border-indigo-200 shadow-2xs">
-                              <span className="text-indigo-900 block mb-1 font-extrabold text-[11px]">مجموع کل خسارت</span>
+                              <span className="text-indigo-900 block mb-1 font-extrabold text-[11px]">
+                                {isBodyClaim ? 'مجموع کل خسارت' : 'مجموع خسارت مستقیم فیزیکی'}
+                              </span>
                               <span className="font-black text-indigo-950 text-xs sm:text-sm font-mono">
                                 {formatCurrency(totalClaim)}
                               </span>
@@ -2573,7 +2658,11 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
                           {isVictim ? (
                             <div className="space-y-1.5 text-slate-700 leading-relaxed">
                               <p>
-                                زیان‌دیده گرامی ({claimCase.victimName || 'محترم'})؛ مجموع خسارت فیزیکی و افت ارزش خودروی شما پس از کسر داغی در این ارزیابی به مبلغ <strong className="text-slate-950 font-mono">{formatCurrency(totalClaim)}</strong> برآورد گردید.
+                                {isBodyClaim ? (
+                                  <>بیمه‌گذار گرامی ({claimCase.victimName || claimCase.ownerName || 'محترم'})؛ مجموع خسارت مستقیم و افت ارزش خودرو پس از کسر فرانشیز و داغی در این ارزیابی به مبلغ <strong className="text-slate-950 font-mono">{formatCurrency(totalClaim)}</strong> برآورد گردید.</>
+                                ) : (
+                                  <>زیان‌دیده گرامی ({claimCase.victimName || 'محترم'})؛ ارزیابی خسارت فیزیکی خودروی شما (قطعات و اجرت پس از کسر داغی) به مبلغ <strong className="text-slate-950 font-mono">{formatCurrency(totalClaim)}</strong> مصوب و تایید گردید.</>
+                                )}
                               </p>
                               <p className="text-emerald-800 font-medium bg-emerald-50/80 p-2 rounded-xl border border-emerald-200">
                                 <strong>سهم پرداختی بیمه:</strong> مبلغ <strong className="font-mono">{formatCurrency(insurerPayable)}</strong> (حداکثر تا سقف تعهد مالی بیمه‌نامه شخص ثالث مقصر) پس از تایید شماره شبا، مستقیماً به حساب شما واریز خواهد شد.
@@ -3298,7 +3387,7 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
               <div className="space-y-1 text-center sm:text-right">
                 <span className="text-[10px] text-sky-200 font-bold">مبلغ خالص مصوب جهت واریز به حساب شما:</span>
                 <div className="text-xl sm:text-2xl font-black text-emerald-300">
-                  {formatCurrency(claimCase.assessment?.payable || claimCase.insurerPayableAmount || 245000000)}
+                  {formatCurrency(officialPayableAmount)}
                 </div>
               </div>
               <div className="text-[11px] text-sky-200/90 bg-white/10 px-3.5 py-2 rounded-xl border border-white/10 text-center">
@@ -5502,6 +5591,13 @@ export const CustomerCaseDetail: React.FC<CustomerCaseDetailProps> = ({
         claim={claimCase}
         session={session}
         userRole="customer"
+      />
+
+      {/* Judicial Diminution Report Modal for Dispute Resolution Council */}
+      <JudicialDiminutionReportModal
+        isOpen={showJudicialDiminutionModal}
+        onClose={() => setShowJudicialDiminutionModal(false)}
+        claimCase={claimCase}
       />
 
       {/* Toast Feedback Notification */}

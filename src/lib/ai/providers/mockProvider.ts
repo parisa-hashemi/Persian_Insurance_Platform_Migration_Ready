@@ -95,6 +95,18 @@ export class MockIntelligenceProvider implements IAIProvider {
       });
     }
 
+    // حذف موارد تکراری: فراخوانی‌های پنل کارشناس هم `claim.files` و هم همان آرایه را
+    // به عنوان evidenceItems پاس می‌دهند؛ بدون این حذف، هر مدرک دوبار شمرده می‌شد.
+    const seenEvidenceKeys = new Set<string>();
+    const dedupedFiles = allFiles.filter((f) => {
+      const key = `${f.name || ''}::${f.dataUrl || ''}`;
+      if (seenEvidenceKeys.has(key)) return false;
+      seenEvidenceKeys.add(key);
+      return true;
+    });
+    allFiles.length = 0;
+    allFiles.push(...dedupedFiles);
+
     const hasKroki = !!(claim.hasKroki || claim.sceneReportCode || claim.croquiData || claim.customerKrokiPhoto || allFiles.some(f => f.name?.includes('کروکی')));
 
     // Standard 8 angles for car accident documentation
@@ -179,8 +191,16 @@ export class MockIntelligenceProvider implements IAIProvider {
     }
 
     // Completeness score
+    // محاسبه بر مبنای «پوشش واقعی» و نه صرفاً تعداد فایل:
+    //  ۷۰٪ سهم زوایای استاندارد هشت‌گانه + ۲۰٪ سهم کروکی + ۱۰٪ سهم حجم مدارک تکمیلی
     const uploadedCount = allFiles.length;
-    const completenessScore = Math.min(100, Math.round((uploadedCount / Math.max(4, REQUIRED_ANGLES.length)) * 100));
+    const coveredAngles = REQUIRED_ANGLES.length - missingAnglesFa.length;
+    const angleRatio = REQUIRED_ANGLES.length > 0 ? coveredAngles / REQUIRED_ANGLES.length : 0;
+    const volumeRatio = Math.min(1, uploadedCount / REQUIRED_ANGLES.length);
+    const completenessScore = Math.min(
+      100,
+      Math.round(angleRatio * 70 + (hasKroki ? 20 : 0) + volumeRatio * 10)
+    );
 
     // Smart evidence requests
     const smartEvidenceRequests: Array<{

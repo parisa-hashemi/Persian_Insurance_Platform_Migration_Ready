@@ -28,6 +28,8 @@ export type CaseStatus =
   | 'در انتظار پرداخت'
   | 'پرداخت شده'
   | 'رد شده'
+  | 'رد شده - بیش از ۷۰ میلیون بدون کروکی'
+  | 'رد شده - مازاد بر سقف ۷۰ میلیون بدون کروکی'
   | 'نیروی انتظامی: مقصری تعیین نشد'
   | 'تصادف ۵۰-۵۰ — پیگیری از بیمه بدنه طرفین'
   | 'تردید در اصالت تصادف'
@@ -98,6 +100,41 @@ export interface CarDamageSpot {
   color?: 'yellow' | 'orange' | 'red' | 'gray' | 'emerald';
   note?: string;
   updatedAt?: string;
+}
+
+export interface InquiryResultItem {
+  service: 'SANHAB' | 'FANAVARAN' | 'CROQUI' | 'REGISTRY';
+  serviceNameFa: string;
+  trackingCode: string;
+  inquiryDate: string;
+  status: 'VERIFIED' | 'FAILED' | 'PENDING';
+  statusLabelFa: string;
+  details: Record<string, any>;
+  summaryText: string;
+}
+
+export interface QuadrupleInquiries {
+  sanhab: InquiryResultItem;
+  fanavaran: InquiryResultItem;
+  croqui: InquiryResultItem;
+  civilRegistry: InquiryResultItem;
+  verifiedAt: string;
+  allVerified: boolean;
+  chassisExtracted?: boolean;
+  chassisVin?: string;
+}
+
+export interface FieldChassisVerification {
+  verified: boolean;
+  verifiedAt?: string;
+  scannedVin?: string;
+  registeredVin?: string;
+  matchesRegisteredVin: boolean;
+  verifiedByExpertId?: string;
+  verifiedByExpertName?: string;
+  method: 'CAMERA_BARCODE_SCAN' | 'PHYSICAL_STAMP_CHECK';
+  antiFraudStatus: 'AUTHENTIC' | 'MISMATCH_ALERT';
+  note?: string;
 }
 
 export interface PoliceReport {
@@ -439,6 +476,13 @@ export interface ClaimCase {
     by: string;
   };
   additionalDocs?: AdditionalDocItem[];
+  isRejectedAboveCeilingWithoutCroqui?: boolean;
+  rejectionReason?: string;
+  rejectionNotice?: string;
+  rejectedByRole?: string;
+  rejectedByExpertName?: string;
+  rejectedAt?: string;
+  expertEvaluatedAmountToman?: number;
   correctionRequest?: {
     reason: string;
     requestedAt: string;
@@ -570,7 +614,13 @@ export interface ClaimCase {
   reassessReason?: string;
   reassessType?: string;
   thirdAssessmentActive?: boolean;
-  objectionStage?: number; // 0: None, 1: First Objection, 2: Second Objection (Chat with Expert 2), 3: Third Objection (Workshop Info), 4: Field Visit / Branch Visit
+  objectionStage?: number; // 0: None, 1: First Objection (Review by Initial Expert), 2: Persistent Dispute (Escalated to High Committee)
+  /** مرحله بازدید مجدد (مانند بعد از دمونتاژ قطعات خودرو در تعمیرگاه) */
+  reInspectionRequest?: ReInspectionRequest;
+  /** سابقه مأموریت‌های بازدید مجدد خودرو */
+  reInspectionHistory?: ReInspectionRequest[];
+  /** شورای کارشناسی عالی (در صورت پافشاری طرفین بر اعتراض) */
+  highCommitteeReview?: HighCommitteeReview;
   objectionChat?: Array<{
     sender: 'customer' | 'expert' | 'system';
     name: string;
@@ -725,6 +775,15 @@ export interface ClaimCase {
     ceiling: number;
     conventionalVehicle?: boolean;
   };
+  sanhabInquiry?: {
+    trackingCode: string;
+    status: string;
+    date?: string;
+  };
+  quadrupleInquiries?: QuadrupleInquiries;
+  fieldChassisVerification?: FieldChassisVerification;
+  chassisLocked?: boolean;
+  chassisSource?: string;
   smsDispatchLogs?: Array<{
     id: string;
     recipientType: 'VICTIM' | 'CULPRIT' | 'FIELD_EXPERT' | 'INSURED' | 'CUSTOMER' | string;
@@ -800,6 +859,56 @@ export interface ClaimCase {
   crmFollowUpReason?: string;
   crmFollowUpRequestedBy?: string;
   crmFollowUpRequestedAt?: string;
+}
+
+/** اطلاعات مأموریت بازدید مجدد خودرو (مثلاً بعد از دمونتاژ قطعات در تعمیرگاه) */
+export interface ReInspectionRequest {
+  id: string;
+  caseId: string;
+  requestedAt: string;
+  requestedBy: string;
+  requesterRole: 'زیان‌دیده' | 'تعمیرگاه' | 'ارزیاب رومیزی' | 'کارشناس CRM';
+  status: 'در انتظار اعزام کارشناس' | 'کارشناس تخصیص داده شد' | 'در حال انجام بازدید' | 'تکمیل و ثبت گزارش';
+  reason: 'دمونتاژ قطعات و کشف خسارت پنهان' | 'تعویض قطعات اسکلتی و شاسی' | 'عدم تطابق فاکتور تعمیرگاه با ارزیابی اولیه' | 'دستور کمیته عالی کارشناسی' | 'سایر';
+  description: string;
+  workshopName?: string;
+  workshopAddress?: string;
+  workshopPhone?: string;
+  disassembledParts?: string[];
+  assignedFieldExpert?: {
+    id: string;
+    name: string;
+    phone: string;
+  };
+  scheduledTime?: string;
+  report?: {
+    completedAt: string;
+    expertNotes: string;
+    additionalApprovedAmount?: number;
+    additionalParts?: string[];
+    photos?: string[];
+  };
+}
+
+/** اطلاعات رسیدگی در کمیته یا شورای کارشناسی عالی (در صورت پافشاری بر اعتراض) */
+export interface HighCommitteeReview {
+  id: string;
+  caseId: string;
+  referredAt: string;
+  reason: string;
+  applicantRole: 'زیان‌دیده' | 'مقصر' | 'طرفین حادثه' | 'واحد حقوقی و بازرسی';
+  status: 'در حال بررسی در شورای عالی' | 'جلسه شورا تشکیل شد' | 'صدور رأی قطعی';
+  members: Array<{
+    name: string;
+    title: string;
+    vote?: 'تایید ارزیابی اولیه' | 'افزایش خسارت' | 'تعدیل مبالغ' | 'بازدید میدانی مجدد';
+    notes?: string;
+  }>;
+  finalVerdict?: string;
+  finalAmount?: number;
+  verdictDate?: string;
+  verdictCode?: string;
+  isBindingAndFinal: boolean;
 }
 
 export type StaffRoleCategory =

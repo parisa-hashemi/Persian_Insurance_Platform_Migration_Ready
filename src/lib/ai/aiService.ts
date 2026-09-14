@@ -87,6 +87,43 @@ export class AIService {
   }
 
   /**
+   * امضای مدارک پرونده.
+   * کلید کش تحلیل مدارک باید به «تمام» منابع مدرکی که provider می‌خواند وابسته باشد
+   * (files + additionalDocs + آیتم‌های ارسالی)، وگرنه با بارگذاری مدرک جدید
+   * کلید تغییر نمی‌کند و نتیجه‌ی قدیمی (درصد پوشش فریزشده) برگردانده می‌شود.
+   */
+  public static buildEvidenceSignature(
+    claim: ClaimCase,
+    evidenceItems: (MediaFile | AdditionalDocItem)[] = []
+  ): string {
+    const filesCount = Array.isArray(claim.files) ? claim.files.length : 0;
+    const docsCount = Array.isArray((claim as any).additionalDocs)
+      ? (claim as any).additionalDocs.length
+      : 0;
+    const itemsCount = Array.isArray(evidenceItems) ? evidenceItems.length : 0;
+    const names = [
+      ...(Array.isArray(claim.files) ? claim.files.map((f: any) => f?.name || '') : []),
+      ...(Array.isArray((claim as any).additionalDocs)
+        ? (claim as any).additionalDocs.map((d: any) => d?.title || d?.docType || '')
+        : []),
+      ...(Array.isArray(evidenceItems)
+        ? evidenceItems.map((i: any) => i?.name || i?.title || i?.docType || '')
+        : [])
+    ].join('|');
+
+    // هش سبک و پایدار از نام مدارک، تا جایگزینی یک مدرک (بدون تغییر تعداد) هم تشخیص داده شود
+    let hash = 0;
+    for (let i = 0; i < names.length; i++) {
+      hash = (hash * 31 + names.charCodeAt(i)) | 0;
+    }
+
+    const croquiKey = (claim as any).croquiData ? 'C1' : 'C0';
+    const krokiKey = claim.hasKroki ? 'K1' : 'K0';
+
+    return `${filesCount}-${docsCount}-${itemsCount}-${hash}-${croquiKey}-${krokiKey}`;
+  }
+
+  /**
    * Helper to manage cached results
    */
   private getCachedResult<T>(cacheKey: string, forceFresh = false): AIResult<T> | null {
@@ -140,7 +177,7 @@ export class AIService {
       );
     }
 
-    const cacheKey = `evidence_${claim.id}_${evidenceItems.length}`;
+    const cacheKey = `evidence_${claim.id}_${AIService.buildEvidenceSignature(claim, evidenceItems)}`;
     const cached = this.getCachedResult<EvidenceIntelligenceResult>(cacheKey, options?.forceFresh);
     if (cached) return cached;
 

@@ -194,15 +194,19 @@ export function calculateClaimDamageWithPolicyLimits(claimCase: ClaimCase): Dama
   const caseId = claimCase.id;
   const insurerName = getInsurerPersianName(claimCase.culpritInsurer);
 
-  // تولید متن پیامک و ابلاغیه رسمی برای زیان‌دیده
+  // تولید متن پیامک و ابلاغیه رسمی برای زیان‌دیده (عدم افشای رقم ریالی افت قیمت طبق مصوبه جهت پیشگیری از تنش با سقف بیمه‌نامه)
+  const physicalNet = Math.max(0, directDamageGross - salvageDeduction);
+  const physicalExcessDebt = Math.max(0, physicalNet - policyMaxFinancialLimit);
+
   const victimSmsText = exceedsCeiling
     ? `زیان‌دیده گرامی (${victimName})؛
-ارزیابی پرونده خسارت ${caseId} به مجموع ${formatCurrency(totalClaimAmount)} (شامل خسارت فیزیکی برآورد شده ${formatCurrency(directDamageGross)} پس از کسر داغی ${formatCurrency(salvageDeduction)} و افزودن افت ارزش خودرو ${formatCurrency(effectiveDiminutionAmount)}) تایید و مصوب گردید.
-با توجه به سقف تعهد مالی بیمه‌نامه شخص ثالث مقصر (${formatCurrency(policyMaxFinancialLimit)})، مبلغ ${formatCurrency(insurerPayablePortion)} توسط شرکت ${insurerName} مستقیماً به شماره شبای شما واریز می‌گردد.
-مبلغ مازاد به میزان ${formatCurrency(culpritExcessDebt)} به عنوان بدهی قانونی و شخصی مقصر حادثه (${culpritName}) تعیین شده و مستقیماً از مقصر حادثه قابل مطالبه و وصول می‌باشد.
+ارزیابی خسارت فیزیکی پرونده ${caseId} به مبلغ خالص ${formatCurrency(physicalNet)} (قطعات و دستمزد پس از کسر داغی) تایید و تصویب گردید.
+با توجه به سقف تعهد مالی بیمه‌نامه شخص ثالث مقصر (${formatCurrency(policyMaxFinancialLimit)})، مبلغ مصوب تا سقف تعهد توسط شرکت ${insurerName} مستقیماً به شماره شبای شما واریز می‌گردد.
+${physicalExcessDebt > 0 ? `مبلغ مازاد خسارت فیزیکی به میزان ${formatCurrency(physicalExcessDebt)} از مقصر حادثه قابل مطالبه است. ` : ''}همچنین بر اساس رأی وحدت رویه شماره ۸۵۱ دیوان عالی کشور، گزارش مستند ارزیابی خسارت و افت قیمت جهت اقدام در شورای حل اختلاف برای شما صادر گردیده است.
 کد پیگیری سنهاب: SNH-${caseId.replace(/[^0-9]/g, '') || '98412'}`
     : `زیان‌دیده گرامی (${victimName})؛
-ارزیابی خسارت پرونده ${caseId} به مبلغ کل ${formatCurrency(totalClaimAmount)} (شامل خسارت فیزیکی و افت ارزش خودرو پس از کسر داغی) تایید شد. با توجه به پوشش کامل در سقف تعهد مالی بیمه‌نامه، کل مبلغ ${formatCurrency(insurerPayablePortion)} توسط ${insurerName} به شماره شبای شما واریز خواهد شد.`;
+ارزیابی خسارت فیزیکی پرونده ${caseId} به مبلغ خالص ${formatCurrency(physicalNet)} تایید شد. با توجه به پوشش کامل در سقف تعهد مالی بیمه‌نامه، کل مبلغ توسط ${insurerName} به شماره شبای شما واریز خواهد شد.
+در صورت تمایل به مطالبه افت قیمت خودرو از مقصر، گزارش مستند ارزیابی جهت ارائه به شورای حل اختلاف در پرونده شما در دسترس است.`;
 
   // تولید متن پیامک و ابلاغیه رسمی برای مقصر
   const culpritSmsText = exceedsCeiling

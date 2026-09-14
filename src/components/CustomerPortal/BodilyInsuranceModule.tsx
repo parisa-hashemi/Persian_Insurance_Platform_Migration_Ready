@@ -27,15 +27,139 @@ import {
   Info,
   Phone,
   ShieldCheck,
-  Zap
+  Zap,
+  CreditCard,
+  FileCheck,
+  HelpCircle,
+  ChevronRight,
+  ChevronDown,
+  RefreshCw
 } from 'lucide-react';
 import { ClaimCase, UserSession, MediaFile } from '../../types';
 import { compressImageFile } from '../../lib/imageCompressor';
 import { queryBodyPolicyByNationalId, BodyPolicyRecord, findBestMatchingBranch } from '../../data/bodyInsuranceData';
+import {
+  evaluateBodyInsuranceCroquiRequirement,
+  BODY_CROQUI_CONDITIONS,
+  NO_CROQUI_CEILING_TOMAN,
+  NO_CROQUI_CEILING_LABEL
+} from '../../lib/accidentRules';
+import { sampleCroquis } from '../../data/mockData';
+
+export interface BodyAccidentTypeItem {
+  key: string;
+  label: string;
+  shortDesc: string;
+  category: 'collision' | 'standalone' | 'security' | 'natural';
+  badge: string;
+  requiresPoliceCroqui: boolean;
+  requiresOfficialReport: boolean;
+  officialAuthorityLabel?: string;
+}
+
+export const BODY_ACCIDENT_TYPES_LIST: BodyAccidentTypeItem[] = [
+  {
+    key: 'FIXED_OBJECT',
+    label: 'برخورد با جسم یا مانع ثابت',
+    shortDesc: 'گاردریل، جدول، درخت، تیر برق، دیوار، ستون پارکینگ',
+    category: 'collision',
+    badge: 'خسارت اول زیر ۷۰ میلیون: بدون کروکی',
+    requiresPoliceCroqui: false,
+    requiresOfficialReport: false
+  },
+  {
+    key: 'ROLLOVER',
+    label: 'واژگونی، چپ‌کردن یا سقوط خودرو',
+    shortDesc: 'خسارت شدید به اتاق، سقف، ستون‌ها و شاسی خودرو',
+    category: 'collision',
+    badge: 'کروکی راهور الزامی است',
+    requiresPoliceCroqui: true,
+    requiresOfficialReport: false
+  },
+  {
+    key: 'TWO_VEHICLE',
+    label: 'تصادف با خودروی دیگر (خسارت راننده مقصر)',
+    shortDesc: 'استفاده از پوشش بدنه برای جبران خسارت خودروی خود راننده',
+    category: 'collision',
+    badge: 'خسارت اول زیر ۷۰ میلیون: بدون کروکی',
+    requiresPoliceCroqui: false,
+    requiresOfficialReport: false
+  },
+  {
+    key: 'CHAIN',
+    label: 'تصادف زنجیره‌ای یا با وسایل سنگین',
+    shortDesc: 'کامیون، تریلی، اتوبوس یا تصادفات زنجیره‌ای پی‌درپی',
+    category: 'collision',
+    badge: 'کروکی راهور الزامی است',
+    requiresPoliceCroqui: true,
+    requiresOfficialReport: false
+  },
+  {
+    key: 'HIT_AND_RUN',
+    label: 'تصادف نامعلوم در حالت توقف (فرار مقصر)',
+    shortDesc: 'آسیب به خودرو در زمان پارک و نامعلوم بودن راننده ضارب',
+    category: 'collision',
+    badge: 'کروکی نامعلوم / صورتجلسه پلیس الزامی است',
+    requiresPoliceCroqui: true,
+    requiresOfficialReport: false
+  },
+  {
+    key: 'THEFT',
+    label: 'سرقت کلی خودرو یا قطعات و لوازم',
+    shortDesc: 'سرقت رینگ و لاستیک، زاپاس، کامپیوتر خودرو (ECU)، ضبط و باند',
+    category: 'security',
+    badge: 'گزارش رسمی کلانتری ۱۱۰ الزامی است',
+    requiresPoliceCroqui: false,
+    requiresOfficialReport: true,
+    officialAuthorityLabel: 'گزارش انتظامی کلانتری ۱۱۰ و مراجع قضایی'
+  },
+  {
+    key: 'FIRE',
+    label: 'آتش‌سوزی، صاعقه یا انفجار',
+    shortDesc: 'حریق موتور، سیم‌کشی یا سوختگی قطعات و بدنه',
+    category: 'standalone',
+    badge: 'گزارش آتش‌نشانی ۱۲۵ الزامی است',
+    requiresPoliceCroqui: false,
+    requiresOfficialReport: true,
+    officialAuthorityLabel: 'گزارش کارشناسی سازمان آتش‌نشانی (۱۲۵)'
+  },
+  {
+    key: 'GLASS_BREAK',
+    label: 'شکست شیشه مستقل از تصادف',
+    shortDesc: 'شکست شیشه جلو یا عقب بدون تصادف فیزیکی بدنه',
+    category: 'standalone',
+    badge: 'معاف از کروکی (بدون کروکی)',
+    requiresPoliceCroqui: false,
+    requiresOfficialReport: false
+  },
+  {
+    key: 'NATURAL_DISASTER',
+    label: 'بلایای طبیعی (سیل، زلزله، طوفان، تگرگ)',
+    shortDesc: 'خسارت شدید تگرگ، آب‌گرفتگی سیلاب یا سقوط اشیاء در طوفان',
+    category: 'natural',
+    badge: 'تاییدیه مرجع رسمی الزامی است',
+    requiresPoliceCroqui: false,
+    requiresOfficialReport: true,
+    officialAuthorityLabel: 'تاییدیه ستاد مدیریت بحران / هواشناسی یا کلانتری'
+  },
+  {
+    key: 'VANDALISM',
+    label: 'خط و خش عمدی، اسیدپاشی یا تخریب',
+    shortDesc: 'خسارت عمدی اشخاص ثالث یا پاشیدن مواد شیمیایی و اسیدی',
+    category: 'security',
+    badge: 'گزارش رسمی کلانتری ۱۱۰ الزامی است',
+    requiresPoliceCroqui: false,
+    requiresOfficialReport: true,
+    officialAuthorityLabel: 'گزارش انتظامی کلانتری ۱۱۰'
+  }
+];
 
 interface BodilyInsuranceModuleProps {
   session: UserSession;
   cases: ClaimCase[];
+  initialMode?: 'create' | 'list';
+  initialAccidentType?: string;
+  initialEstimatedDamage?: number;
   onSubmitBodily: (newCase: ClaimCase) => void;
   onBack: () => void;
   onOpenCaseDetail?: (caseId: string) => void;
@@ -44,11 +168,16 @@ interface BodilyInsuranceModuleProps {
 export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
   session,
   cases,
+  initialMode = 'list',
+  initialAccidentType,
+  initialEstimatedDamage,
   onSubmitBodily,
   onBack,
   onOpenCaseDetail
 }) => {
-  const [viewState, setViewState] = useState<'list' | 'create_step1' | 'create_step2' | 'success'>('list');
+  const [viewState, setViewState] = useState<'list' | 'create_step1' | 'create_step2' | 'success'>(
+    initialMode === 'create' ? 'create_step1' : 'list'
+  );
 
   // National ID and inquiry state
   const [nationalId, setNationalId] = useState(session.nationalId || '0012345678');
@@ -59,7 +188,16 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
   // Form Fields
   const [ownerName, setOwnerName] = useState(session.name || 'مهدی کشاورز');
   const [ownerPhone, setOwnerPhone] = useState(session.phone || '09123456789');
-  const [damageType, setDamageType] = useState('تصادف تک‌وسیله (برخورد با مانع / جدول / گاردریل)');
+
+  // Accident Type: synchronized with initialAccidentType from wizard if present!
+  const [selectedAccidentTypeKey, setSelectedAccidentTypeKey] = useState<string>(() => {
+    if (initialAccidentType && BODY_ACCIDENT_TYPES_LIST.some((t) => t.key === initialAccidentType)) {
+      return initialAccidentType;
+    }
+    return 'FIXED_OBJECT';
+  });
+  const [isTransferredFromWizard, setIsTransferredFromWizard] = useState<boolean>(!!initialAccidentType);
+
   const [incidentDate, setIncidentDate] = useState('۱۴۰۳/۰۵/۲۲');
   const [incidentTime, setIncidentTime] = useState('۱۴:۳۰');
   const [province, setProvince] = useState('تهران');
@@ -110,6 +248,67 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
   // Last submitted case result
   const [createdCase, setCreatedCase] = useState<ClaimCase | null>(null);
 
+  // --- کارت بیمه بدنه (پیش‌فرض خالی است تا کاربر خودش بارگذاری کند) ---
+  const [bodyPolicyCardPhoto, setBodyPolicyCardPhoto] = useState<string | null>(null);
+  const [bodyPolicyNumberManual, setBodyPolicyNumberManual] = useState('');
+
+  // --- شرایط و ضوابط کروکی بیمه بدنه ---
+  const [estimatedDamageToman, setEstimatedDamageToman] = useState<number>(() => {
+    if (initialEstimatedDamage && initialEstimatedDamage > 0) {
+      return initialEstimatedDamage;
+    }
+    return 45_000_000;
+  });
+
+  // کروکی پلیس راهور و گزارش مراجع رسمی
+  const [croquiType, setCroquiType] = useState<'electronic' | 'paper' | 'judicial'>('electronic');
+  const [krokiCode, setKrokiCode] = useState<string>('');
+  const [krokiPhoto, setKrokiPhoto] = useState<MediaFile | null>(null);
+  const [paperSerial, setPaperSerial] = useState<string>('');
+  const [officialReportCode, setOfficialReportCode] = useState<string>('');
+  const [officialReportFile, setOfficialReportFile] = useState<MediaFile | null>(null);
+  const [optionalCroquiEnabled, setOptionalCroquiEnabled] = useState<boolean>(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // ارزیابی هوشمند کروکی بر اساس نوع سانحه و مبلغ
+  const selectedAccidentItem =
+    BODY_ACCIDENT_TYPES_LIST.find((t) => t.key === selectedAccidentTypeKey) ||
+    BODY_ACCIDENT_TYPES_LIST[0];
+
+  const isOverCeiling = estimatedDamageToman > NO_CROQUI_CEILING_TOMAN;
+  const isPoliceCroquiMandatory =
+    selectedAccidentItem.requiresPoliceCroqui || isOverCeiling;
+  const isOfficialReportMandatory = selectedAccidentItem.requiresOfficialReport;
+  const isAnyCroquiOrReportRequired = isPoliceCroquiMandatory || isOfficialReportMandatory;
+
+  const croquiReasons: string[] = [];
+  if (isOverCeiling) {
+    croquiReasons.push(
+      `مبلغ برآورد خسارت (${estimatedDamageToman.toLocaleString('fa-IR')} تومان) از سقف پرداخت بدون کروکی (${NO_CROQUI_CEILING_LABEL}) بیشتر است.`
+    );
+  }
+  if (selectedAccidentItem.requiresPoliceCroqui) {
+    croquiReasons.push(
+      `نوع حادثه (${selectedAccidentItem.label}) طبق مقررات بیمه بدنه الزاما نیازمند تنظیم و ارائه کروکی رسمی پلیس راهور است.`
+    );
+  }
+  if (selectedAccidentItem.requiresOfficialReport) {
+    croquiReasons.push(
+      `برای سانحه ${selectedAccidentItem.label}، ارائه ${selectedAccidentItem.officialAuthorityLabel || 'گزارش رسمی مراجع ذی‌صلاح'} الزامی است.`
+    );
+  }
+
+  // Update when props change
+  useEffect(() => {
+    if (initialAccidentType && BODY_ACCIDENT_TYPES_LIST.some((t) => t.key === initialAccidentType)) {
+      setSelectedAccidentTypeKey(initialAccidentType);
+      setIsTransferredFromWizard(true);
+    }
+    if (initialEstimatedDamage && initialEstimatedDamage > 0) {
+      setEstimatedDamageToman(initialEstimatedDamage);
+    }
+  }, [initialAccidentType, initialEstimatedDamage]);
+
   // Strict Body claims filter - exclude third party liability (شخص ثالث)
   const bodilyCases = cases.filter((c) => {
     // Exclude third party liability cases
@@ -138,6 +337,13 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
       handleInquirePolicy(nationalId);
     }
   }, []);
+
+  // Respond to initialMode changes (e.g. when redirected from AccidentWizard)
+  useEffect(() => {
+    if (initialMode === 'create') {
+      setViewState('create_step1');
+    }
+  }, [initialMode]);
 
   // Handle Sanhab Body Policy Inquiry
   const handleInquirePolicy = (idToQuery: string) => {
@@ -178,6 +384,56 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
       fileName: `voice_note_${Date.now()}.mp3`
     };
     setAudioFile(recordedAudio);
+  };
+
+  const handlePolicyCardUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const url = await compressImageFile(file, 1200, 0.8);
+      setBodyPolicyCardPhoto(url);
+    }
+  };
+
+  const handleKrokiUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const url = await compressImageFile(file, 1200, 0.8);
+      setKrokiPhoto({
+        name: 'برگه کروکی پلیس راهور (بیمه بدنه)',
+        type: 'image',
+        dataUrl: url,
+        fileName: file.name
+      });
+    }
+  };
+
+  const handlePaperCroquiUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const url = await compressImageFile(file, 1200, 0.8);
+      setKrokiPhoto({
+        name: 'تصویر برگه کروکی فیزیکی راهور',
+        type: 'image',
+        dataUrl: url,
+        fileName: file.name
+      });
+    }
+  };
+
+  const handleOfficialReportUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const isPdf = file.type === 'application/pdf';
+      const url = isPdf
+        ? URL.createObjectURL(file)
+        : await compressImageFile(file, 1200, 0.8);
+      setOfficialReportFile({
+        name: selectedAccidentItem.officialAuthorityLabel || 'گزارش رسمی مراجع انتظامی',
+        type: isPdf ? 'document' : 'image',
+        dataUrl: url,
+        fileName: file.name
+      });
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video' | 'audio') => {
@@ -225,6 +481,20 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
     const allFiles: MediaFile[] = [...photos];
     if (videoFile) allFiles.push(videoFile);
     if (audioFile) allFiles.push(audioFile);
+    if (bodyPolicyCardPhoto) {
+      allFiles.push({
+        name: 'تصویر کارت بیمه بدنه خودرو',
+        type: 'image',
+        dataUrl: bodyPolicyCardPhoto,
+        fileName: 'body_insurance_card.jpg'
+      });
+    }
+    if (krokiPhoto) {
+      allFiles.push(krokiPhoto);
+    }
+    if (officialReportFile) {
+      allFiles.push(officialReportFile);
+    }
 
     // Recommend branch
     const branchMatch = findBestMatchingBranch(inquiredPolicy.insurerCode, address, city);
@@ -233,6 +503,9 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
       id: trackingCode,
       isBodily: true,
       isBodyClaim: true,
+      insuranceType: 'body',
+      claimDepartment: 'BODY_INSURANCE_UNIT',
+      claimDepartmentLabel: 'واحد رسیدگی خسارت بیمه بدنه',
       date: incidentDateTimeStr,
       address: address,
       victimName: ownerName,
@@ -248,9 +521,17 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
       culpritPhone: ownerPhone,
       culpritPlate: inquiredPolicy.plate,
       culpritInsurer: inquiredPolicy.insurerCode,
-      culpritPolicyNo: inquiredPolicy.policyNo,
+      culpritPolicyNo: bodyPolicyNumberManual || inquiredPolicy.policyNo,
+      bodyPolicyNumber: bodyPolicyNumberManual || inquiredPolicy.policyNo,
+      bodyPolicyCardPhoto: bodyPolicyCardPhoto || undefined,
+      bodyClaimCountThisYear: 1,
+      bodyPolicyLessThan30Days: false,
+      bodyCroquiReasons: croquiReasons,
+      croquiRequired: isAnyCroquiOrReportRequired,
+      croquiRequirementReasons: croquiReasons,
+      estimatedDamageToman: estimatedDamageToman,
       bodyInsuranceInfo: {
-        policyNo: inquiredPolicy.policyNo,
+        policyNo: bodyPolicyNumberManual || inquiredPolicy.policyNo,
         insurerCode: inquiredPolicy.insurerCode,
         insurerName: inquiredPolicy.insurerName,
         nationalId: nationalId,
@@ -261,7 +542,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
         franchisePercent: inquiredPolicy.franchisePercent,
         expireDate: inquiredPolicy.expireDate,
         autoSanhabMatched: true,
-        damageType: damageType
+        damageType: selectedAccidentItem.label
       },
       assignedBranch: {
         branchId: branchMatch.bestBranch.id,
@@ -275,11 +556,14 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
       status: 'ارجاع شده به شرکت بیمه',
       priority: 'normal',
       approved: true,
+      hasKroki: !isAnyCroquiOrReportRequired || !!krokiPhoto || !!krokiCode || !!paperSerial || !!officialReportCode,
+      customerKrokiPhoto: krokiPhoto?.dataUrl || undefined,
+      sceneReportCode: krokiCode || paperSerial || officialReportCode || undefined,
       writtenReport: incidentDescription,
       files: allFiles,
       audioExplanation: audioFile,
       videoExplanation: videoFile,
-      customerKrokiPhoto: allFiles.find(f => f.name?.includes('کروکی') || f.fileName?.includes('kroki'))?.dataUrl || undefined,
+      accidentTypeKey: selectedAccidentTypeKey,
       additionalDocs: [
         ...allFiles.map((f, idx) => ({
           id: `bodily-doc-${idx}-${Date.now()}`,
@@ -303,7 +587,7 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
           time: new Date().toLocaleString('fa-IR'),
           user: ownerName,
           userRole: 'بیمه‌گذار بدنه',
-          note: `ثبت خودخدمت خسارت بیمه بدنه خودرو و ارجاع برخط به شرکت ${inquiredPolicy.insurerName} با توجه به کد ملی (${nationalId}).`
+          note: `ثبت خودخدمت خسارت بیمه بدنه خودرو و ارجاع برخط به واحد بیمه بدنه شرکت ${inquiredPolicy.insurerName}.${isAnyCroquiOrReportRequired ? ' (کروکی / گزارش رسمی الصاق گردید)' : ' (واجد شرایط رسیدگی بدون کروکی تا سقف ۷۰ میلیون تومان)'}`
         }
       ]
     };
@@ -650,93 +934,747 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Accident Details Form */}
-          <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-5">
-            <h3 className="font-black text-blue-900 text-base pb-2 border-b border-slate-200 flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-900" />
-              <span>مشخصات و شرایط سانحه خسارت بدنه</span>
-            </h3>
+            {/* پیام انتقال از فرآیند ثبت سانحه (در صورت ارجاع از ویزارد) */}
+            {isTransferredFromWizard && (
+              <div className="bg-gradient-to-r from-amber-50 to-indigo-50 border-2 border-amber-300/80 rounded-2xl p-4 flex items-start gap-3 shadow-xs">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-sm shrink-0 shadow">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-black text-slate-900">
+                      انتقال مستقیم از فرآیند ثبت خسارت خودرو
+                    </span>
+                    <span className="px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-950 font-bold text-[10px]">
+                      سانحه: {selectedAccidentItem.label}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-700 leading-relaxed font-medium">
+                    اطلاعات حادثه و برآورد اولیه خسارت از مرحله قبل به این بخش منتقل گردید. بر اساس نوع حادثه یا برآورد خسارت، الزامات قانونی کروکی زیر بررسی شده است.
+                  </p>
+                </div>
+              </div>
+            )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  نوع سانحه / علت خسارت بدنه <span className="text-rose-600">*</span>
-                </label>
-                <select
-                  value={damageType}
-                  onChange={(e) => setDamageType(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-                >
-                  <option value="تصادف تک‌وسیله (برخورد با مانع / جدول / گاردریل)">
-                    تصادف تک‌وسیله (برخورد با مانع / جدول / گاردریل)
-                  </option>
-                  <option value="برخورد با خودروی دیگر (بدون کروکی یا خودروی متواری)">
-                    برخورد با خودروی دیگر (بدون کروکی یا خودروی متواری)
-                  </option>
-                  <option value="واژگونی و سقوط خودرو">واژگونی و سقوط خودرو</option>
-                  <option value="سرقت کلی یا جزئی قطعات (رینگ، لاستیک، سیستم صوتی، کامپیوتر)">
-                    سرقت کلی یا جزئی قطعات (رینگ، لاستیک، سیستم صوتی، کامپیوتر)
-                  </option>
-                  <option value="آتش‌سوزی، صاعقه یا انفجار">آتش‌سوزی، صاعقه یا انفجار</option>
-                  <option value="شکست شیشه مستقل از حادثه">شکست شیشه مستقل از حادثه</option>
-                  <option value="بلایای طبیعی (سیل، زلزله، طوفان)">بلایای طبیعی (سیل، زلزله، طوفان)</option>
-                  <option value="سایر خسارات بدنه">سایر خسارات بدنه</option>
-                </select>
+            {/* بخش بارگذاری تصویر کارت یا بیمه‌نامه بدنه (پیش‌فرض خالی است و کاربر باید بارگذاری کند) */}
+            <div className="bg-slate-50 border-2 border-indigo-200 p-5 rounded-2xl space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black text-xs shadow">
+                    <CreditCard className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-indigo-950 flex items-center gap-1.5">
+                      <span>کارت یا بیمه‌نامه بدنه خودرو</span>
+                      <span className="text-rose-600 font-black">* (الزامی)</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      جهت استعلام اصالت بیمه‌نامه و الحاق مستقیم به پرونده خسارت
+                    </p>
+                  </div>
+                </div>
+
+                {bodyPolicyCardPhoto && (
+                  <label className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95 transition-all">
+                    <Camera className="w-3.5 h-3.5" />
+                    <span>تغییر تصویر کارت</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePolicyCardUpload}
+                      className="hidden"
+                    />
+                  </label>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    تاریخ حادثه <span className="text-rose-600">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={incidentDate}
-                    onChange={(e) => setIncidentDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-                  />
+              {bodyPolicyCardPhoto ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                  <div className="sm:col-span-1">
+                    <div className="relative rounded-xl overflow-hidden border-2 border-emerald-400 group aspect-[16/10] bg-slate-900 shadow-sm">
+                      <img
+                        src={bodyPolicyCardPhoto}
+                        alt="کارت بیمه بدنه"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent p-2 flex flex-col justify-between">
+                        <span className="text-[10px] font-bold text-emerald-200 bg-emerald-950/80 px-2 py-0.5 rounded-md self-start border border-emerald-400/40 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          کارت بدنه بارگذاری شد
+                        </span>
+                        <div className="flex items-center justify-between text-[10px] text-white">
+                          <span className="font-mono">{bodyPolicyNumberManual || (inquiredPolicy ? inquiredPolicy.policyNo : 'بیمه‌نامه')}</span>
+                          <button
+                            type="button"
+                            onClick={() => setBodyPolicyCardPhoto(null)}
+                            className="text-rose-300 hover:text-rose-100 underline text-[10px]"
+                          >
+                            حذف تصویر
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-2">
+                    <label className="block text-xs font-bold text-slate-800">
+                      شماره بیمه‌نامه بدنه (بر اساس کارت بارگذاری‌شده):
+                    </label>
+                    <input
+                      type="text"
+                      value={bodyPolicyNumberManual || (inquiredPolicy ? inquiredPolicy.policyNo : '')}
+                      onChange={(e) => setBodyPolicyNumberManual(e.target.value)}
+                      placeholder="مثلاً: ۱۲/۹۹/۴۵۸۰۲/۱۴۰۳"
+                      className="w-full px-3.5 py-2 rounded-xl border-2 border-slate-300 bg-white font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-500"
+                      dir="ltr"
+                    />
+                    <p className="text-[11px] text-slate-500">
+                      تصویر کارت بیمه بدنه با موفقیت دریافت گردید و در پرونده سنهاب ثبت شد.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    ساعت حادثه <span className="text-rose-600">*</span>
+              ) : (
+                <div className="space-y-3">
+                  <label className="border-2 border-dashed border-indigo-300 hover:border-indigo-500 bg-white hover:bg-indigo-50/40 rounded-2xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all group">
+                    <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                      <Camera className="w-6 h-6" />
+                    </div>
+                    <span className="text-xs font-black text-indigo-950 mb-1">
+                      بارگذاری تصویر کارت یا بیمه‌نامه بدنه خودرو
+                    </span>
+                    <span className="text-[11px] text-slate-500 mb-3 max-w-sm">
+                      برای احراز هویت بیمه‌ای، لطفاً عکسی واضح از روی کارت یا صفحه اول بیمه‌نامه بدنه را انتخاب یا عکس‌برداری نمایید.
+                    </span>
+                    <span className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs shadow-sm flex items-center gap-1.5">
+                      <Upload className="w-4 h-4" />
+                      انتخاب تصویر یا عکاسی از کارت بدنه
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePolicyCardUpload}
+                      className="hidden"
+                    />
                   </label>
-                  <input
-                    type="text"
-                    value={incidentTime}
-                    onChange={(e) => setIncidentTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-                  />
+                  <div className="flex items-center gap-2 text-[11px] text-indigo-900 bg-indigo-50/80 p-2.5 rounded-xl border border-indigo-100">
+                    <Info className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span>
+                      جهت دریافت خسارت بدنه، بارگذاری عکس کارت بیمه بدنه الزامی بوده و به پرونده ارزیابی پیوست می‌شود.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* بخش انتخاب نوع حادثه و سانحه */}
+            <div className="bg-white border-2 border-slate-300 p-5 rounded-2xl space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center font-black text-xs shadow">
+                    <Car className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                      <span>نوع حادثه و علت خسارت بدنه</span>
+                      <span className="text-rose-600 font-black">*</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      نوع سانحه تعیین‌کننده الزامی یا اختیاری بودن کروکی پلیس راهور یا گزارش مراجع رسمی است
+                    </p>
+                  </div>
+                </div>
+
+                <span className="text-xs font-black px-3 py-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200">
+                  {selectedAccidentItem.badge}
+                </span>
+              </div>
+
+              {/* شبکه انتخاب سریع سانحه */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {BODY_ACCIDENT_TYPES_LIST.map((typeItem) => {
+                  const isSelected = selectedAccidentTypeKey === typeItem.key;
+                  return (
+                    <button
+                      key={typeItem.key}
+                      type="button"
+                      onClick={() => {
+                        setSelectedAccidentTypeKey(typeItem.key);
+                        setIsTransferredFromWizard(false);
+                      }}
+                      className={`p-3 rounded-xl border-2 text-right transition-all flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-blue-600 bg-blue-50/70 shadow-sm ring-1 ring-blue-500'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`text-xs font-black ${isSelected ? 'text-blue-950' : 'text-slate-900'}`}>
+                            {typeItem.label}
+                          </span>
+                          <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                            isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300'
+                          }`}>
+                            {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-snug line-clamp-2">
+                          {typeItem.shortDesc}
+                        </p>
+                      </div>
+
+                      <div className="pt-2 mt-2 border-t border-slate-100 flex items-center justify-between text-[9.5px]">
+                        <span className={`font-bold px-1.5 py-0.5 rounded ${
+                          typeItem.requiresPoliceCroqui
+                            ? 'bg-rose-100 text-rose-800'
+                            : typeItem.requiresOfficialReport
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {typeItem.requiresPoliceCroqui
+                            ? 'کروکی راهور الزامی'
+                            : typeItem.requiresOfficialReport
+                            ? 'گزارش رسمی الزامی'
+                            : 'معاف از کروکی (شرط اول)'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* بخش مبالغ تخمینی خسارت */}
+            <div className="bg-white border-2 border-slate-300 p-5 rounded-2xl space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <div>
+                  <h3 className="text-xs font-black text-slate-900">
+                    مبلغ تخمینی خسارت به خودرو
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-medium">
+                    سقف پرداخت خسارت بدون کروکی طبق ضوابط بیمه مرکزی: حداکثر ۷۰ میلیون تومان
+                  </p>
+                </div>
+                <span className="text-xs font-black font-mono px-3 py-1 rounded-full bg-slate-100 text-slate-800 border border-slate-200">
+                  {estimatedDamageToman.toLocaleString('fa-IR')} تومان
+                </span>
+              </div>
+
+              {/* Slider for estimated damage */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-800">برآورد تقریبی مبلغ خسارت به خودرو:</span>
+                  <span className={`font-black font-mono ${isOverCeiling ? 'text-rose-700' : 'text-emerald-700'}`}>
+                    {isOverCeiling ? 'بالاتر از سقف معافیت (نیازمند کروکی)' : 'زیر سقف ۷۰ میلیون (معاف از کروکی)'}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={5_000_000}
+                  max={200_000_000}
+                  step={5_000_000}
+                  value={estimatedDamageToman}
+                  onChange={(e) => setEstimatedDamageToman(Number(e.target.value))}
+                  className="w-full accent-blue-600 h-2 bg-slate-200 rounded-lg cursor-pointer"
+                />
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {[20_000_000, 45_000_000, 70_000_000, 95_000_000, 150_000_000].map((val) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setEstimatedDamageToman(val)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition-all ${
+                        estimatedDamageToman === val
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                      }`}
+                    >
+                      {val === 70_000_000 ? '۷۰ میلیون (سقف قانونی)' : `${(val / 1000000).toLocaleString('fa-IR')} میلیون`}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
 
-            {/* Location & Address */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1.5">استان محل حادثه / خودرو</label>
-                <input
-                  type="text"
-                  value={province}
-                  onChange={(e) => setProvince(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-                />
+            {/* بخش اختصاصی ثبت کروکی یا گزارش مراجع رسمی (مانند شخص ثالث با استعلام و نمونه‌ها) */}
+            <div className="bg-white border-2 border-slate-300 p-5 rounded-2xl space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className={`w-8 h-8 rounded-lg text-white flex items-center justify-center font-black text-xs shadow ${
+                    isAnyCroquiOrReportRequired ? 'bg-rose-600' : 'bg-emerald-600'
+                  }`}>
+                    <FileCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black text-slate-900">
+                      {isOfficialReportMandatory
+                        ? 'گزارش رسمی مراجع انتظامی / آتش‌نشانی'
+                        : 'اطلاعات کروکی پلیس راهور (بیمه بدنه)'}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      {isAnyCroquiOrReportRequired
+                        ? 'بر اساس شرایط پرونده، ارائه مدارک زیر الزامی است'
+                        : 'این پرونده واجد شرایط پرداخت بدون کروکی است'}
+                    </p>
+                  </div>
+                </div>
+
+                <span className={`px-3 py-1 rounded-full text-xs font-black border ${
+                  isAnyCroquiOrReportRequired
+                    ? 'bg-rose-50 text-rose-700 border-rose-300'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                }`}>
+                  {isAnyCroquiOrReportRequired ? '⚠️ ارائه کروکی / گزارش الزامی است' : '✓ معاف از کروکی'}
+                </span>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1.5">شهر محل خودرو</label>
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
-                />
+              {/* اگر گزارش یا کروکی الزامی است */}
+              {isAnyCroquiOrReportRequired ? (
+                <div className="space-y-4">
+                  {/* پیام هشدار الزام با دلایل صریح */}
+                  <div className="bg-rose-50 border-2 border-rose-300/80 rounded-2xl p-4 space-y-2">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <h4 className="text-xs font-black text-rose-950">
+                          الزام قانونی: باید اطلاعات مربوط به کروکی یا گزارش رسمی حتماً وارد شود
+                        </h4>
+                        <p className="text-[11px] text-rose-800 font-medium">
+                          طبق قوانین بیمه مرکزی جمهوری اسلامی ایران، به دلایل زیر ارائه کروکی یا گزارش رسمی الزامی است:
+                        </p>
+                        <ul className="list-disc list-inside text-[11px] text-rose-900 font-bold space-y-0.5 pt-1">
+                          {croquiReasons.map((reason, idx) => (
+                            <li key={idx}>{reason}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* اگر حادثه نیاز به گزارش رسمی انتظامی/آتش‌نشانی دارد (سرقت، آتش‌سوزی، بلایای طبیعی، وندالیسم) */}
+                  {isOfficialReportMandatory ? (
+                    <div className="bg-amber-50/80 border-2 border-amber-300 rounded-2xl p-4 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-4 h-4 text-amber-700" />
+                        <span className="text-xs font-black text-amber-950">
+                          ثبت مشخصات {selectedAccidentItem.officialAuthorityLabel || 'گزارش مراجع ذی‌صلاح'}:
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-800 mb-1">
+                            شماره یا کد پرونده / صورتجلسه <span className="text-rose-600">*</span>:
+                          </label>
+                          <input
+                            type="text"
+                            value={officialReportCode}
+                            onChange={(e) => setOfficialReportCode(e.target.value)}
+                            placeholder="مثلاً: کلانتری ۱۰۳ - پرونده ۹۹۴۸/۱۴۰۳"
+                            className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-amber-500"
+                            dir="ltr"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-800 mb-1">
+                            بارگذاری تصویر یا فایل گزارش رسمی <span className="text-rose-600">*</span>:
+                          </label>
+                          <label className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-dashed border-amber-400 hover:bg-amber-50 text-amber-900 font-black text-xs cursor-pointer flex items-center justify-center gap-2 transition-all">
+                            <Upload className="w-4 h-4 text-amber-600" />
+                            <span>{officialReportFile ? 'تغییر فایل گزارش' : 'انتخاب تصویر یا فایل PDF گزارش'}</span>
+                            <input
+                              type="file"
+                              accept="image/*,application/pdf"
+                              onChange={handleOfficialReportUpload}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      </div>
+
+                      {officialReportFile && (
+                        <div className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-amber-200 text-xs">
+                          <div className="flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span className="font-bold text-slate-900">{officialReportFile.name}</span>
+                            <span className="text-slate-400 font-mono text-[10px]">({officialReportFile.fileName})</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setOfficialReportFile(null)}
+                            className="text-rose-600 hover:text-rose-800 text-[11px] font-bold"
+                          >
+                            حذف
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* اگر حادثه نیاز به کروکی پلیس راهور دارد (مانند شخص ثالث: الکترونیک، کاغذی، قضایی) */
+                    <div className="bg-slate-50 border-2 border-slate-300 rounded-2xl p-4 space-y-4">
+                      {/* تب‌های انتخاب نوع کروکی */}
+                      <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+                        <button
+                          type="button"
+                          onClick={() => setCroquiType('electronic')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                            croquiType === 'electronic'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                          <span>کروکی الکترونیک پلیس راهور (سیستمی)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setCroquiType('paper')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                            croquiType === 'paper'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          <span>کروکی کاغذی / سنتی پلیس راهور (فیزیکی)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setCroquiType('judicial')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 ${
+                            croquiType === 'judicial'
+                              ? 'bg-blue-600 text-white shadow-xs'
+                              : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <Building2 className="w-3.5 h-3.5" />
+                          <span>کروکی قضایی / کارشناس دادگستری</span>
+                        </button>
+                      </div>
+
+                      {/* حالت اول: کروکی الکترونیک راهور با نمونه‌های آماده */}
+                      {croquiType === 'electronic' && (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-800 mb-1">
+                              شماره یا کد پیگیری ۱۶ رقمی کروکی الکترونیک پلیس راهور <span className="text-rose-600">*</span>:
+                            </label>
+                            <input
+                              type="text"
+                              value={krokiCode}
+                              onChange={(e) => setKrokiCode(e.target.value)}
+                              placeholder="مثلاً: KR-1403-99812 یا کد ۱۶ رقمی پیامک‌شده از پلیس راهور"
+                              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                              dir="ltr"
+                            />
+                          </div>
+
+                          {/* نمونه‌های آماده کروکی الکترونیک برای تست و استعلام سریع */}
+                          <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl space-y-2">
+                            <span className="text-[11px] font-black text-blue-950 flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+                              نمونه‌های ثبت‌شده در سامانه هوشمند کروکی راهور (کلیک جهت استعلام خودکار):
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {sampleCroquis.slice(0, 3).map((sample, sIdx) => (
+                                <button
+                                  key={sIdx}
+                                  type="button"
+                                  onClick={() => {
+                                    setKrokiCode(sample.reportNumber);
+                                    if (sample.fileUrl) {
+                                      setKrokiPhoto({
+                                        name: sample.title,
+                                        type: 'image',
+                                        dataUrl: sample.fileUrl,
+                                        fileName: `croqui_${sample.reportNumber}.jpg`
+                                      });
+                                    }
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-blue-100/60 border border-blue-200 text-[10.5px] font-bold text-blue-900 flex items-center gap-1.5 transition-all active:scale-95"
+                                >
+                                  <span className="font-mono text-[10px]">{sample.reportNumber}</span>
+                                  <span>-</span>
+                                  <span>{sample.title}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* بارگذاری عکس پیامک یا رسید کروکی الکترونیک */}
+                          <div>
+                            <label className="block text-xs font-bold text-slate-800 mb-1">
+                              بارگذاری تصویر رسید یا برگه کروکی (اختیاری):
+                            </label>
+                            <label className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-dashed border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer flex items-center justify-center gap-2">
+                              <Upload className="w-4 h-4 text-blue-600" />
+                              <span>{krokiPhoto ? 'تغییر تصویر کروکی' : 'انتخاب تصویر رسید یا برگه کروکی'}</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleKrokiUpload}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          {krokiPhoto && (
+                            <div className="flex items-center justify-between p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                <span className="font-bold text-emerald-950">{krokiPhoto.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setKrokiPhoto(null)}
+                                className="text-rose-600 hover:text-rose-800 text-[11px] font-bold"
+                              >
+                                حذف
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* حالت دوم: کروکی کاغذی فیزیکی */}
+                      {croquiType === 'paper' && (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-800 mb-1">
+                              شماره سریال برگه کروکی فیزیکی راهور <span className="text-rose-600">*</span>:
+                            </label>
+                            <input
+                              type="text"
+                              value={paperSerial}
+                              onChange={(e) => setPaperSerial(e.target.value)}
+                              placeholder="مثلاً: ب/۴۴۷۸۰۲"
+                              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                              dir="ltr"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-800 mb-1">
+                              بارگذاری تصویر برگه کروکی رسم‌شده توسط افسر راهور <span className="text-rose-600">*</span>:
+                            </label>
+                            <label className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-dashed border-blue-300 hover:bg-blue-50/50 text-blue-900 font-black text-xs cursor-pointer flex items-center justify-center gap-2 transition-all">
+                              <Camera className="w-4 h-4 text-blue-600" />
+                              <span>{krokiPhoto ? 'تغییر عکس برگه کروکی' : 'انتخاب تصویر یا عکاسی از برگه کروکی'}</span>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handlePaperCroquiUpload}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          {krokiPhoto && (
+                            <div className="flex items-center gap-3 p-2 bg-emerald-50 rounded-xl border border-emerald-200">
+                              <img
+                                src={krokiPhoto.dataUrl}
+                                alt="برگه کروکی"
+                                className="w-14 h-14 object-cover rounded-lg border border-emerald-300"
+                              />
+                              <div className="text-xs">
+                                <span className="font-black text-emerald-950 block">{krokiPhoto.name}</span>
+                                <span className="text-[10px] text-emerald-700 font-mono block">{krokiPhoto.fileName}</span>
+                                <span className="text-[10px] text-emerald-700 font-bold flex items-center gap-1 mt-0.5">
+                                  <Check className="w-3 h-3" />
+                                  تصویر برگه فیزیکی ثبت شد
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* حالت سوم: کروکی قضایی و نظریه کارشناس دادگستری */}
+                      {croquiType === 'judicial' && (
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-800 mb-1">
+                              شماره پرونده قضایی یا نظریه کارشناس رسمی <span className="text-rose-600">*</span>:
+                            </label>
+                            <input
+                              type="text"
+                              value={officialReportCode}
+                              onChange={(e) => setOfficialReportCode(e.target.value)}
+                              placeholder="مثلاً: شعبه ۱۰۴ شورای حل اختلاف - پرونده ۸۸۹۴"
+                              className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                              dir="ltr"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-800 mb-1">
+                              بارگذاری فایل یا تصویر نظریه کارشناس دادگستری <span className="text-rose-600">*</span>:
+                            </label>
+                            <label className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-dashed border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer flex items-center justify-center gap-2">
+                              <Upload className="w-4 h-4 text-blue-600" />
+                              <span>{officialReportFile ? 'تغییر مدرک قضایی' : 'انتخاب فایل یا عکس نظریه قضایی'}</span>
+                              <input
+                                type="file"
+                                accept="image/*,application/pdf"
+                                onChange={handleOfficialReportUpload}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          {officialReportFile && (
+                            <div className="flex items-center justify-between p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                                <span className="font-bold text-emerald-950">{officialReportFile.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setOfficialReportFile(null)}
+                                className="text-rose-600 hover:text-rose-800 text-[11px] font-bold"
+                              >
+                                حذف
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* اگر پرونده معاف از کروکی است (خسارت اول زیر ۷۰ میلیون) */
+                <div className="space-y-3">
+                  <div className="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 space-y-2">
+                    <div className="flex items-start gap-2.5">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-xs font-black text-emerald-950">
+                          واجد شرایط دریافت خسارت بدون کروکی (معاف از کروکی)
+                        </h4>
+                        <p className="text-[11px] text-emerald-800 font-medium mt-0.5 leading-relaxed">
+                          این سانحه به عنوان <strong>خسارت اول در سال جاری</strong> با مبلغ برآوردی زیر سقف قانونی <strong>۷۰ میلیون تومان</strong> و از نوع سانحه <strong>{selectedAccidentItem.label}</strong> ثبت گردیده است. طبق بخشنامه بیمه مرکزی، <strong>بدون نیاز به کروکی پلیس راهور</strong> و صرفاً با کارت بیمه بدنه و عکس‌های خسارت قابل رسیدگی و پرداخت است.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ثبت اختیاری کروکی در صورت تمایل بیمه‌گذار */}
+                  <div className="border border-slate-200 rounded-xl p-3 bg-slate-50">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700">
+                        آیا کروکی یا گزارش پلیس در اختیار دارید و مایل به ثبت آن هستید؟
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setOptionalCroquiEnabled(!optionalCroquiEnabled)}
+                        className="px-3 py-1 rounded-lg text-xs font-black bg-white border border-slate-300 text-slate-800 hover:bg-slate-100"
+                      >
+                        {optionalCroquiEnabled ? 'بستن فرم کروکی' : '+ ثبت کروکی اختیاری'}
+                      </button>
+                    </div>
+
+                    {optionalCroquiEnabled && (
+                      <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-800 mb-1">
+                            شماره یا کد پیگیری کروکی (اختیاری):
+                          </label>
+                          <input
+                            type="text"
+                            value={krokiCode}
+                            onChange={(e) => setKrokiCode(e.target.value)}
+                            placeholder="مثلاً: KR-1403-99812 یا کد ۱۶ رقمی"
+                            className="w-full px-3 py-2 rounded-xl border-2 border-slate-300 bg-white font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                            dir="ltr"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-800 mb-1">
+                            بارگذاری تصویر کروکی (اختیاری):
+                          </label>
+                          <label className="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-dashed border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs cursor-pointer flex items-center justify-center gap-2">
+                            <Upload className="w-4 h-4 text-blue-600" />
+                            <span>{krokiPhoto ? 'تغییر تصویر کروکی' : 'انتخاب تصویر برگه کروکی'}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleKrokiUpload}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* مشخصات زمانی و مکانی سانحه */}
+            <div className="bg-white rounded-3xl border-2 border-slate-200 p-6 shadow-sm space-y-5">
+              <h3 className="font-black text-blue-900 text-base pb-2 border-b border-slate-200 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-blue-900" />
+                <span>مشخصات زمانی، مکانی و شرح حادثه</span>
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                      تاریخ حادثه <span className="text-rose-600">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={incidentDate}
+                      onChange={(e) => setIncidentDate(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                      ساعت حادثه <span className="text-rose-600">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={incidentTime}
+                      onChange={(e) => setIncidentTime(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1.5">استان</label>
+                    <input
+                      type="text"
+                      value={province}
+                      onChange={(e) => setProvince(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-800 mb-1.5">شهر</label>
+                    <input
+                      type="text"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="sm:col-span-3">
+              {/* Location & Address */}
+              <div>
                 <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                  آدرس دقیق محل حادثه یا پارکینگ خودرو (جهت تعیین نزدیک‌ترین شعبه و کارشناس میدانی){' '}
+                  آدرس دقیق محل وقوع حادثه یا پارکینگ خودرو (جهت تعیین نزدیک‌ترین شعبه و ارزیاب خسارت){' '}
                   <span className="text-rose-600">*</span>
                 </label>
                 <div className="relative">
@@ -750,42 +1688,103 @@ export const BodilyInsuranceModule: React.FC<BodilyInsuranceModuleProps> = ({
                   />
                 </div>
               </div>
+
+              {/* Written Report */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  شرح دقیق نحوه وقوع سانحه و قطعات آسیب‌دیده بدنه خودرو <span className="text-rose-600">*</span>
+                </label>
+                <textarea
+                  rows={3}
+                  value={incidentDescription}
+                  onChange={(e) => setIncidentDescription(e.target.value)}
+                  placeholder="توضیح دهید حادثه چطور اتفاق افتاد و کدام قسمت‌ها (سپر، گلگیر، کاپوت، شاسی، سقف و...) آسیب دیده‌اند..."
+                  className="w-full p-3.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* خطای اعتبارسنجی در صورت وجود */}
+              {validationError && (
+                <div className="p-3 bg-rose-50 border-2 border-rose-300 rounded-xl flex items-center gap-2 text-xs text-rose-800 font-black animate-in fade-in">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                  <span>{validationError}</span>
+                </div>
+              )}
+
+              {/* دکمه‌های ناوبری */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setViewState('list')}
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition-colors"
+                >
+                  انصراف
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setValidationError(null);
+                    if (!inquiredPolicy) {
+                      setValidationError('ابتدا باید استعلام بیمه‌نامه بدنه انجام شده و اطلاعات آن تایید شود.');
+                      return;
+                    }
+                    if (!bodyPolicyCardPhoto) {
+                      setValidationError('بارگذاری تصویر کارت یا بیمه‌نامه بدنه خودرو الزامی است. لطفاً تصویر را بارگذاری نمایید.');
+                      return;
+                    }
+                    if (!address.trim()) {
+                      setValidationError('لطفاً آدرس دقیق محل حادثه یا پارکینگ خودرو را وارد نمایید.');
+                      return;
+                    }
+                    if (!incidentDescription.trim()) {
+                      setValidationError('لطفاً شرح سانحه و قطعات آسیب‌دیده را وارد نمایید.');
+                      return;
+                    }
+
+                    // بررسی سخت‌گیرانه کروکی یا گزارش در صورت الزام قانونی
+                    if (isOfficialReportMandatory) {
+                      if (!officialReportCode.trim() && !officialReportFile) {
+                        setValidationError(
+                          `با توجه به نوع سانحه (${selectedAccidentItem.label})، وارد کردن شماره پرونده یا بارگذاری فایل ${selectedAccidentItem.officialAuthorityLabel || 'گزارش رسمی'} حتماً الزامی است.`
+                        );
+                        return;
+                      }
+                    } else if (isPoliceCroquiMandatory) {
+                      if (croquiType === 'electronic') {
+                        if (!krokiCode.trim()) {
+                          setValidationError(
+                            'با توجه به الزام کروکی، باید اطلاعات مربوط به کروکی (کد پیگیری ۱۶ رقمی یا شماره سریال) حتماً وارد شود. می‌توانید از نمونه‌های آماده نیز انتخاب کنید.'
+                          );
+                          return;
+                        }
+                      } else if (croquiType === 'paper') {
+                        if (!paperSerial.trim() && !krokiPhoto) {
+                          setValidationError(
+                            'با توجه به الزام کروکی، وارد کردن شماره سریال یا بارگذاری تصویر برگه کروکی فیزیکی حتماً الزامی است.'
+                          );
+                          return;
+                        }
+                      } else if (croquiType === 'judicial') {
+                        if (!officialReportCode.trim() && !officialReportFile) {
+                          setValidationError(
+                            'با توجه به الزام کروکی قضایی، وارد کردن شماره پرونده یا بارگذاری مدارک حتماً الزامی است.'
+                          );
+                          return;
+                        }
+                      }
+                    }
+
+                    setViewState('create_step2');
+                  }}
+                  className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md border border-blue-300 flex items-center gap-2 active:scale-95 transition-all"
+                >
+                  <span>مرحله بعد: بارگذاری عکس، ویدیو و ضبط صوت</span>
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
-            {/* Written Report */}
-            <div>
-              <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                شرح کتبی سانحه و قطعات آسیب‌دیده <span className="text-rose-600">*</span>
-              </label>
-              <textarea
-                rows={3}
-                value={incidentDescription}
-                onChange={(e) => setIncidentDescription(e.target.value)}
-                placeholder="توضیح دهید حادثه چطور اتفاق افتاد و کدام قطعات (کاپوت، گلگیر، شاسی، چراغ و...) صدمه دیده‌اند..."
-                className="w-full p-3.5 rounded-xl border-2 border-slate-300 bg-white text-xs font-medium text-slate-900 focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            {/* Navigation buttons */}
-            <div className="flex items-center justify-between pt-4 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => setViewState('list')}
-                className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs"
-              >
-                انصراف
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setViewState('create_step2')}
-                disabled={!inquiredPolicy || !address.trim() || !incidentDescription.trim()}
-                className="w-full sm:w-auto justify-center px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs shadow-md border border-blue-300 flex items-center gap-2 active:scale-95 disabled:opacity-50"
-              >
-                <span>مرحله بعد: بارگذاری عکس، ویدیو و ضبط صوت</span>
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-            </div>
           </div>
         </div>
       )}

@@ -24,6 +24,7 @@ import {
 import { ClaimCase, UserSession } from '../../types';
 import { formatCurrency, getInsurerPersianName } from '../../lib/storage';
 import { calculateClaimDamageWithPolicyLimits } from '../../lib/policyLimitCalculator';
+import { JudicialDiminutionReportModal } from './JudicialDiminutionReportModal';
 
 interface CustomerDebtModalProps {
   claimCase: ClaimCase;
@@ -43,6 +44,7 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
   const [copiedSms, setCopiedSms] = useState(false);
   const [showSmsPreview, setShowSmsPreview] = useState(false);
   const [settlementSuccessMsg, setSettlementSuccessMsg] = useState<string | null>(null);
+  const [showJudicialReportModal, setShowJudicialReportModal] = useState(false);
   const [settlementNote, setSettlementNote] = useState('');
   const [settlementAmount, setSettlementAmount] = useState('');
   const [showSettlementForm, setShowSettlementForm] = useState(false);
@@ -88,6 +90,10 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
   const insurerPortion = breakdown.insurerPayablePortion || Math.min(totalClaim, policyLimit);
   const culpritDebt = breakdown.culpritExcessDebt || Math.max(0, totalClaim - policyLimit);
 
+  const isBodyClaim = Boolean(claimCase.isBodyClaim);
+  const directDamageNet = Math.max(0, directDamage - salvage);
+  const displayedClaimTotal = isBodyClaim ? totalClaim : directDamageNet;
+  const displayedCulpritPhysicalDebt = Math.max(0, directDamageNet - policyLimit);
   const culpritName = claimCase.culpritName || 'راننده مقصر';
   const culpritPhone = claimCase.culpritPhone || '---';
   const victimName = claimCase.victimName || 'زیان‌دیده';
@@ -435,14 +441,36 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
               </div>
             )}
 
-            <div className="flex items-center justify-between text-slate-700">
-              <span className="font-medium">۳. افت قیمت خودرو (مشمول ماده ۲ قانون ثالث):</span>
-              <span className="font-mono font-bold text-amber-900">+ {formatCurrency(diminution)}</span>
-            </div>
+            {isBodyClaim ? (
+              <div className="flex items-center justify-between text-slate-700">
+                <span className="font-medium">۳. افت قیمت خودرو (مشمول بیمه بدنه):</span>
+                <span className="font-mono font-bold text-amber-900">+ {formatCurrency(diminution)}</span>
+              </div>
+            ) : (
+              <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Scale className="w-4 h-4 text-amber-800 shrink-0" />
+                  <div>
+                    <span className="font-black text-amber-950 text-xs block">
+                      ۳. افت ارزش خودرو (ماده ۲ قانون ثالث و رأی ۸۵۱ دیوان عالی)
+                    </span>
+                    <span className="text-[10px] text-amber-800">خارج از تعهد مستقیم بیمه‌گر (مطالبه از مقصر)</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowJudicialReportModal(true)}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[11px] rounded-lg inline-flex items-center gap-1.5 shadow-2xs transition-all cursor-pointer shrink-0 self-start sm:self-auto"
+                >
+                  <Scale className="w-3.5 h-3.5" />
+                  <span>گزارش رسمی</span>
+                </button>
+              </div>
+            )}
 
             <div className="flex items-center justify-between pt-2 border-t border-slate-200 font-black text-slate-900">
-              <span>مجموع کل مطالبات قانونی زیان‌دیده:</span>
-              <span className="font-mono text-sm text-blue-900">{formatCurrency(totalClaim)}</span>
+              <span>{isBodyClaim ? 'مجموع کل مطالبات قانونی:' : 'مجموع خسارت مستقیم فیزیکی (قطعات + اجرت - داغی):'}</span>
+              <span className="font-mono text-sm text-blue-900">{formatCurrency(displayedClaimTotal)}</span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-200">
@@ -462,18 +490,18 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
 
               {/* Culprit Excess Debt Portion */}
               <div className={`p-3 rounded-xl border space-y-1 ${
-                culpritDebt > 0 
+                (isBodyClaim ? culpritDebt : displayedCulpritPhysicalDebt) > 0 
                   ? 'bg-rose-100/70 border-rose-300 text-rose-950' 
                   : 'bg-slate-100 border-slate-300 text-slate-700'
               }`}>
                 <span className="text-[11px] font-bold block">
-                  مازاد بدهی قطعی مقصر ({culpritName}):
+                  مازاد بدهی فیزیکی مقصر ({culpritName}):
                 </span>
                 <span className="font-black text-sm font-mono block text-rose-900">
-                  {culpritDebt > 0 ? formatCurrency(culpritDebt) : 'فاقد بدهی مازاد (تسویه کامل)'}
+                  {(isBodyClaim ? culpritDebt : displayedCulpritPhysicalDebt) > 0 ? formatCurrency(isBodyClaim ? culpritDebt : displayedCulpritPhysicalDebt) : 'فاقد بدهی مازاد فیزیکی (پوشش کامل در سقف بیمه)'}
                 </span>
                 <span className="text-[10px] block text-rose-800">
-                  {culpritDebt > 0 ? 'پرداخت مستقیم به زیان‌دیده' : 'پوشش کامل در سقف بیمه'}
+                  {(isBodyClaim ? culpritDebt : displayedCulpritPhysicalDebt) > 0 ? 'پرداخت مستقیم به زیان‌دیده' : 'پوشش کامل در سقف تعهد'}
                 </span>
               </div>
 
@@ -554,8 +582,8 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
           </div>
         )}
 
-        {/* LEGAL NOTE & BOTTOM ACTIONS */}
-        <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl text-[11px] text-amber-950 space-y-1">
+        {/* LEGAL NOTE */}
+        <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-2xl text-[11px] text-amber-950 space-y-1.5">
           <div className="flex items-center gap-1.5 font-bold">
             <Info className="w-3.5 h-3.5 text-amber-700 shrink-0" />
             <span>مستندات قانونی مطالبه مازاد خسارت و افت ارزش خودرو:</span>
@@ -577,6 +605,13 @@ export const CustomerDebtModal: React.FC<CustomerDebtModalProps> = ({
         </div>
 
       </div>
+
+      {/* Official Judicial Report Modal */}
+      <JudicialDiminutionReportModal
+        isOpen={showJudicialReportModal}
+        onClose={() => setShowJudicialReportModal(false)}
+        claimCase={claimCase}
+      />
     </div>
   );
 };

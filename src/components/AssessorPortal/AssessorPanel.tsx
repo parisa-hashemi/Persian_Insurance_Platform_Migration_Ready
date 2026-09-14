@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { notifyApp } from '../../lib/appNotify';
+import { notifyApp, confirmApp } from '../../lib/appNotify';
 import {
   ClipboardCheck,
   Award,
@@ -77,6 +77,7 @@ import {
   markAssessorNotificationAsRead,
   expireCaseManuallyForTesting,
   calculateAssessorSlaDetail,
+  formatShamsiDateSafe,
   adjustCaseAssignmentTimeForTesting,
   requestCrmContactForCase
 } from '../../lib/storage';
@@ -91,6 +92,18 @@ import { AIAssessmentDraftCard } from '../AI/AIAssessmentDraftCard';
 import { getExactPersianPartName, getPartKeyFromPersianName } from '../../lib/ai/aiDraftGenerator';
 import { AIChatCopilotModal } from '../AI/AIChatCopilotModal';
 import { AIResult, EvidenceIntelligenceResult } from '../../lib/ai/types';
+
+/**
+ * نمایش ابزارهای تست SLA (شبیه‌سازی گذر ۷۳ ساعت و اجرای فوری سلب صلاحیت).
+ * این دکمه‌ها وضعیت پرونده را به صورت برگشت‌ناپذیر تغییر می‌دهند، بنابراین فقط در
+ * حالت توسعه (`npm run dev`) فعال‌اند و در بیلد پروڈاکشن و دموی مشتری دیده نمی‌شوند.
+ * فعال‌سازی موقت در بیلد تست (کنسول مرورگر):
+ *   localStorage.setItem('karinsho_sla_test_tools', '1')
+ */
+const SHOW_SLA_TEST_TOOLS: boolean =
+  import.meta.env.DEV ||
+  (typeof window !== 'undefined' &&
+    window.localStorage?.getItem('karinsho_sla_test_tools') === '1');
 
 interface AssessorPanelProps {
   session: UserSession;
@@ -647,15 +660,21 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
   const activeCase = cases.find((c) => c.id === selectedCaseId);
 
   // Load Evidence Intelligence for activeCase
+  // امضای مدارک پرونده؛ با هر بارگذاری/حذف مدرک تغییر می‌کند و باعث تحلیل مجدد می‌شود.
+  const activeEvidenceSignature = useMemo(
+    () => (activeCase ? AIService.buildEvidenceSignature(activeCase) : ''),
+    [activeCase]
+  );
+
   useEffect(() => {
     if (!activeCase) return;
-    if (evidenceAiMap[activeCase.id]) return;
 
     let isMounted = true;
     setIsEvidenceAiLoading(true);
 
     AIService.getInstance()
-      .analyzeEvidence(activeCase, activeCase.files || [])
+      // provider خودش `files` و `additionalDocs` را می‌خواند؛ ارسال دوباره باعث شمارش مضاعف می‌شد.
+      .analyzeEvidence(activeCase)
       .then((res) => {
         if (isMounted) {
           setEvidenceAiMap((prev) => ({ ...prev, [activeCase.id]: res }));
@@ -673,7 +692,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [activeCase?.id]);
+  }, [activeCase?.id, activeEvidenceSignature]);
 
   // Previous Assessments List (For reassigned / objected cases to view previous expert findings)
   const previousAssessmentsList = useMemo(() => {
@@ -2054,7 +2073,9 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-xs">
+                {/* min-width لازم است: با ۱۳ ستون، جدولِ w-full در عرض ۱۴۴۰px
+                    فشرده می‌شد و ستون آخر («ارزیابی») بریده می‌شد. */}
+                <table className="w-full min-w-[1240px] text-right text-xs">
                   <thead className="bg-slate-50 text-slate-600 font-extrabold border-b border-slate-200">
                     <tr>
                       <th className="p-3 text-center whitespace-nowrap">SLA</th>
@@ -2139,8 +2160,11 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                           </td>
                           <td className="p-3 font-medium text-slate-700 whitespace-nowrap">{province}</td>
                           <td className="p-3 font-medium text-slate-700 whitespace-nowrap">{city}</td>
-                          <td className="p-3 max-w-[180px] truncate" title={c.address}>
-                            {c.address || '-'}
+                          {/* truncate روی خودِ <td> اثری ندارد (max-width در سلول جدول
+                              بدون table-layout:fixed نادیده گرفته می‌شود) و باعث می‌شد
+                              ستون آدرس پهن شده و ستون «ارزیابی» از کادر بیرون بزند. */}
+                          <td className="p-3" title={c.address}>
+                            <div className="max-w-[180px] truncate">{c.address || '-'}</div>
                           </td>
                           <td className="p-3 font-mono text-xs text-slate-600 whitespace-nowrap">
                             {isCaseRejected(c) ? (
@@ -2719,11 +2743,16 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                         </div>
                       </div>
 
-                      {/* Manual Test Buttons */}
-                      <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+                      {/* ابزارهای تست SLA — فقط در حالت توسعه (برگشت‌ناپذیرند) */}
+                      <div className={`items-center gap-2 self-start sm:self-auto shrink-0 ${SHOW_SLA_TEST_TOOLS ? 'flex' : 'hidden'}`}>
                         <button
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
+                            const ok = await confirmApp(
+                              'این عملیات صرفاً ابزار تست است و زمان ارجاع پرونده را ۷۳ ساعت به عقب می‌برد. ادامه می‌دهید؟',
+                              { confirmLabel: 'بله، شبیه‌سازی کن', cancelLabel: 'انصراف' }
+                            );
+                            if (!ok) return;
                             const updated = adjustCaseAssignmentTimeForTesting(activeCase.id, 73, cases);
                             const thisCase = updated.find(x => x.id === activeCase.id);
                             if (thisCase) onUpdateCase(thisCase);
@@ -2735,7 +2764,14 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleSimulate72hExpiry(activeCase)}
+                          onClick={async () => {
+                            const ok = await confirmApp(
+                              'هشدار: با اجرای این عملیات، پرونده بلافاصله «سلب صلاحیت» شده و این وضعیت برگشت‌ناپذیر است. آیا مطمئن هستید؟',
+                              { confirmLabel: 'بله، سلب صلاحیت کن', cancelLabel: 'انصراف' }
+                            );
+                            if (!ok) return;
+                            handleSimulate72hExpiry(activeCase);
+                          }}
                           className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-black shadow-xs transition-all flex items-center gap-1"
                         >
                           <AlertTriangle className="w-3.5 h-3.5" />
@@ -2759,7 +2795,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                         />
                       </div>
                       <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono">
-                        <span>زمان ارجاع: {activeCase.assignedAt ? new Date(activeCase.assignedAt).toLocaleDateString('fa-IR') : 'آغاز فرآیند'}</span>
+                        <span>زمان ارجاع: {formatShamsiDateSafe(activeCase.assignedTimestamp ?? activeCase.assignedAt, 'آغاز فرآیند')}</span>
                         <span className="font-bold">{sla.progressPercent}٪ مهلت مصرف شده</span>
                         <span>پایان مهلت: ۷۲ ساعت (۴۳۲۰ دقیقه)</span>
                       </div>
@@ -3276,7 +3312,7 @@ export const AssessorPanel: React.FC<AssessorPanelProps> = ({
                     onRefreshAi={() => {
                       setIsEvidenceAiLoading(true);
                       AIService.getInstance()
-                        .analyzeEvidence(activeCase, activeCase.files || [], { forceFresh: true })
+                        .analyzeEvidence(activeCase, [], { forceFresh: true })
                         .then((res) => {
                           setEvidenceAiMap((prev) => ({ ...prev, [activeCase.id]: res }));
                         })

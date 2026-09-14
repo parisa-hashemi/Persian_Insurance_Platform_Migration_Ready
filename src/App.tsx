@@ -68,6 +68,9 @@ export default function App() {
   });
 
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [bodilyInitialMode, setBodilyInitialMode] = useState<'create' | 'list'>('list');
+  const [bodilyInitialAccidentType, setBodilyInitialAccidentType] = useState<string | undefined>(undefined);
+  const [bodilyInitialEstimatedDamage, setBodilyInitialEstimatedDamage] = useState<number | undefined>(undefined);
 
   // Sync cases to local storage whenever state updates and process 72h timeouts
   useEffect(() => {
@@ -257,7 +260,12 @@ export default function App() {
             session={session}
             cases={cases}
             onNavigate={(view) => {
-              if (view === 'bodily') setActiveView('customerBodily');
+              if (view === 'bodily') {
+                setBodilyInitialMode('list');
+                setBodilyInitialAccidentType(undefined);
+                setBodilyInitialEstimatedDamage(undefined);
+                setActiveView('customerBodily');
+              }
             }}
             onOpenCaseDetail={(caseId) => {
               setSelectedCaseId(caseId);
@@ -275,6 +283,12 @@ export default function App() {
             session={session}
             onComplete={handleNewAccidentCompleted}
             onCancel={() => setActiveView('customerDashboard')}
+            onSwitchToBodily={(typeKey, estDamage) => {
+              setBodilyInitialMode('create');
+              setBodilyInitialAccidentType(typeKey);
+              setBodilyInitialEstimatedDamage(estDamage);
+              setActiveView('customerBodily');
+            }}
           />
         )}
 
@@ -283,6 +297,9 @@ export default function App() {
           <BodilyInsuranceModule
             session={session}
             cases={cases}
+            initialMode={bodilyInitialMode}
+            initialAccidentType={bodilyInitialAccidentType}
+            initialEstimatedDamage={bodilyInitialEstimatedDamage}
             onSubmitBodily={handleBodilySubmit}
             onBack={() => setActiveView('customerDashboard')}
             onOpenCaseDetail={(caseId) => {

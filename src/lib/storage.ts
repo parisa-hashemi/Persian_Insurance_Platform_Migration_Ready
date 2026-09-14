@@ -909,6 +909,36 @@ export interface SlaDetail {
   badgeClass: string;
 }
 
+/**
+ * قالب‌بندی امن تاریخ.
+ * مقادیری مثل `assignedAt` گاهی ISO هستند و گاهی رشته‌ی شمسیِ از پیش قالب‌بندی‌شده
+ * (خروجی toLocaleDateString('fa-IR') در aiDispatcher). پاس دادن رشته‌ی شمسی به
+ * `new Date()` نتیجه‌اش «Invalid Date» است؛ این تابع هر دو حالت را پوشش می‌دهد.
+ */
+export function formatShamsiDateSafe(
+  value?: string | number | null,
+  fallback = 'ثبت‌نشده'
+): string {
+  if (value === undefined || value === null || value === '') return fallback;
+
+  if (typeof value === 'number') {
+    return new Date(value).toLocaleDateString('fa-IR');
+  }
+
+  const raw = String(value).trim();
+
+  // اگر شامل ارقام فارسی باشد، یعنی قبلاً شمسی قالب‌بندی شده است
+  if (/[۰-۹]/.test(raw)) return raw;
+
+  const parsed = new Date(raw);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toLocaleDateString('fa-IR');
+  }
+
+  // رشته‌ی غیرقابل تجزیه را عیناً برگردان، نه «Invalid Date»
+  return raw || fallback;
+}
+
 export function calculateAssessorSlaDetail(c: ClaimCase): SlaDetail {
   let startTime = Date.now();
   if (c.assignedTimestamp) {

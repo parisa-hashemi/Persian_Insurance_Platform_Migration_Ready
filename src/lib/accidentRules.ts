@@ -295,3 +295,190 @@ export function stopWarningSpeech(): void {
     /* no-op */
   }
 }
+
+// ----------------------------------------------------------------
+// قوانین اختصاصی بیمه بدنه خودرو و الزامات کروکی
+// ----------------------------------------------------------------
+
+/**
+ * آیا حادثه مربوط به بیمه بدنه خودرو است؟
+ * شامل تصادفات تک‌وسیله، موانع ثابت، واژگونی، سرقت، آتش‌سوزی، بلایای طبیعی
+ */
+export function isBodyInsuranceIncident(accidentTypeKey?: string | null, wizardRole?: string | null): boolean {
+  if (!accidentTypeKey) return false;
+
+  const bodyTypes = [
+    'FIXED_OBJECT',    // برخورد با جسم ثابت، گاردریل، تیر برق، درخت، جدول، دیوار
+    'ROLLOVER',        // واژگونی یا حادثه تک‌خودرو، سقوط به دره
+    'THEFT',           // سرقت خودرو یا قطعات
+    'VANDALISM',       // خرابکاری و تخریب عمدی
+    'FIRE',            // آتش‌سوزی و انفجار
+    'NATURAL_DISASTER' // سیل، زلزله، طوفان، تگرگ
+  ];
+  return bodyTypes.includes(accidentTypeKey);
+}
+
+/** شروط ده‌گانه الزام به کروکی در بیمه بدنه خودرو */
+export interface BodyInsuranceCroquiCondition {
+  id: string;
+  label: string;
+  shortDesc: string;
+  severity: 'high' | 'medium';
+}
+
+export const BODY_CROQUI_CONDITIONS: BodyInsuranceCroquiCondition[] = [
+  {
+    id: 'body_second_accident',
+    label: 'استفاده مجدد از بیمه بدنه در سال جاری (حادثه دوم به بعد)',
+    shortDesc: 'دریافت خسارت بدون کروکی فقط یک بار در طول سال اعتبار بیمه‌نامه مجاز است.',
+    severity: 'high'
+  },
+  {
+    id: 'body_under_30_days',
+    label: 'گذشت کمتر از ۳۰ روز از تاریخ صدور یا تمدید بیمه‌نامه بدنه',
+    shortDesc: 'تصادفات چندروزه بعد از صدور جهت رفع شبهه خسارت قبلی یا تقلب نیازمند کروکی است.',
+    severity: 'medium'
+  },
+  {
+    id: 'body_rollover_fall',
+    label: 'واژگونی (چپ کردن) یا سقوط خودرو به دره',
+    shortDesc: 'به علت خسارت‌های شدید و سازه‌ای شاسی و اتاق، حضور پلیس و کروکی الزامی است.',
+    severity: 'high'
+  },
+  {
+    id: 'body_fixed_object_heavy',
+    label: 'برخورد با اجسام ثابت (گاردریل، درخت، تیر برق، دیوار، ستون پارکینگ)',
+    shortDesc: 'خسارت شدید به موانع یا سازه جهت تایید عدم صحنه‌سازی نیازمند کروکی است.',
+    severity: 'medium'
+  },
+  {
+    id: 'body_military_heavy_chain',
+    label: 'تصادف با خودروهای نظامی، وسایل سنگین یا تصادفات زنجیره‌ای',
+    shortDesc: 'الزام قانونی تنظیم گزارش و رسم کروکی توسط افسر کاردان راهور.',
+    severity: 'high'
+  },
+  {
+    id: 'body_bodily_injury',
+    label: 'حوادث دارای خسارت جانی، جراحت، مصدومیت یا فوت',
+    shortDesc: 'جنبه جزایی و لزوم تشکیل پرونده انتظامی و ارجاع به پزشکی قانونی.',
+    severity: 'high'
+  },
+  {
+    id: 'body_hit_and_run',
+    label: 'فرار راننده مقصر یا تصادف نامعلوم در زمان پارک خودرو',
+    shortDesc: 'عدم حضور مقصر در صحنه تصادف نیازمند صورتجلسه پلیس و کروکی نامعلوم است.',
+    severity: 'high'
+  },
+  {
+    id: 'body_suspicious_complex',
+    label: 'نامعلوم، پیچیده یا مشکوک بودن علت حادثه / آسیب نامتعارف',
+    shortDesc: 'جهت اثبات صحت و اصالت حادثه و جلوگیری از ابهام در شرکت بیمه.',
+    severity: 'medium'
+  }
+];
+
+export interface BodyCroquiEvaluationInput {
+  estimatedDamageToman: number;
+  claimCountThisYear?: number; // 1 = first time, 2+ = 2nd or more
+  isPolicyUnder30Days?: boolean;
+  selectedConditionIds?: string[];
+  accidentTypeKey?: string;
+  hasBodilyInjury?: boolean;
+}
+
+export interface BodyCroquiEvaluationResult {
+  croquiMandatory: boolean;
+  reasons: string[];
+  noCroquiEligible: boolean;
+  ceilingToman: number;
+  exceedsCeiling: boolean;
+  isSecondAccident: boolean;
+  isUnder30Days: boolean;
+  guidanceText: string;
+}
+
+/**
+ * ارزیابی ضوابط الزامی بودن یا معافیت از کروکی در بیمه بدنه
+ */
+export function evaluateBodyInsuranceCroquiRequirement(
+  input: BodyCroquiEvaluationInput
+): BodyCroquiEvaluationResult {
+  const {
+    estimatedDamageToman = 0,
+    claimCountThisYear = 1,
+    isPolicyUnder30Days = false,
+    selectedConditionIds = [],
+    accidentTypeKey,
+    hasBodilyInjury = false
+  } = input;
+
+  const reasons: string[] = [];
+  const exceedsCeiling = estimatedDamageToman > NO_CROQUI_CEILING_TOMAN;
+  const isSecondAccident = claimCountThisYear > 1;
+
+  // ۱. سقف مبلغ خسارت (بیش از ۷۰ میلیون تومان)
+  if (exceedsCeiling) {
+    reasons.push(
+      `مبلغ خسارت اعلامی (${estimatedDamageToman.toLocaleString('fa-IR')} تومان) از سقف پرداخت بدون کروکی (${NO_CROQUI_CEILING_LABEL}) بیشتر است.`
+    );
+  }
+
+  // ۲. تصادف دوم به بعد در طول مدت یک سال بیمه‌نامه
+  if (isSecondAccident) {
+    reasons.push(
+      'استفاده مجدد از بیمه بدنه در طول سال بیمه‌ای (بار دوم به بعد)؛ پرداخت بدون کروکی تنها یک‌بار در سال مجاز است.'
+    );
+  }
+
+  // ۳. کمتر از ۳۰ روز از تاریخ شروع/تمدید بیمه‌نامه
+  if (isPolicyUnder30Days) {
+    reasons.push(
+      'گذشت کمتر از ۳۰ روز از صدور یا تمدید بیمه‌نامه بدنه (جهت احراز عدم وجود خسارت قبلی و اصالت حادثه).'
+    );
+  }
+
+  // ۴. صدمه جانی
+  if (hasBodilyInjury) {
+    reasons.push('وجود مصدوم یا خسارت جانی در حادثه (الزام قانونی کروکی قضایی/انتظامی).');
+  }
+
+  // ۵. انواع خاص حادثه مثل واژگونی، موانع ثابت، سرقت
+  if (accidentTypeKey === 'ROLLOVER') {
+    reasons.push('واژگونی یا سقوط خودرو (آسیب‌های اساسی اتاق و شاسی).');
+  } else if (accidentTypeKey === 'FIXED_OBJECT' && (exceedsCeiling || selectedConditionIds.includes('body_fixed_object_heavy'))) {
+    reasons.push('برخورد با اجسام ثابت (گاردریل، تیر برق، جدول یا دیوار) با شدت آسیب بالا.');
+  }
+
+  // ۶. سایر شروط انتخابی کاربر
+  BODY_CROQUI_CONDITIONS.forEach((cond) => {
+    if (selectedConditionIds.includes(cond.id)) {
+      if (!reasons.some((r) => r.includes(cond.label))) {
+        reasons.push(cond.label);
+      }
+    }
+  });
+
+  const croquiMandatory = reasons.length > 0;
+  const noCroquiEligible = !croquiMandatory;
+
+  let guidanceText = '';
+  if (noCroquiEligible) {
+    guidanceText =
+      'واجد شرایط دریافت خسارت بدون کروکی: این پرونده مربوط به خسارت بار اول، با مبلغ کمتر از ۷۰ میلیون تومان و فاقد ابهام است و بدون نیاز به کروکی پلیس قابل پرداخت است.';
+  } else {
+    guidanceText =
+      `ارائه کروکی پلیس راهور الزامی است: با توجه به دلایل قانونی فوق، بدون آپلود برگه کروکی رسم‌شده توسط پلیس یا کد رهگیری کروکی الکترونیک، امکان پرداخت خسارت بدنه وجود ندارد.`;
+  }
+
+  return {
+    croquiMandatory,
+    reasons,
+    noCroquiEligible,
+    ceilingToman: NO_CROQUI_CEILING_TOMAN,
+    exceedsCeiling,
+    isSecondAccident,
+    isUnder30Days: isPolicyUnder30Days,
+    guidanceText
+  };
+}
+

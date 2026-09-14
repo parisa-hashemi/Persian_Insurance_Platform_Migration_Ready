@@ -1,6 +1,14 @@
-@import "tailwindcss";
+/* ------------------------------------------------------------------
+   ترتیب @import ها مهم است: طبق استاندارد CSS، تمام @import ها باید
+   پیش از هر قاعده‌ی دیگری بیایند. چون `@import "tailwindcss"` در زمان
+   بیلد به هزاران قاعده‌ی CSS باز می‌شود، اگر @import های فونت بعد از آن
+   بیایند، PostCSS خطای «@import must precede all other statements» می‌دهد.
+   بنابراین ابتدا فونت‌ها، سپس تیلویند، سپس دیزاین‌سیستم.
+   ------------------------------------------------------------------ */
 @import url('https://fonts.googleapis.com/css2?family=Estedad:wght@100..900&display=swap');
 @import url('https://cdn.jsdelivr.net/fontsource/css/estedad@latest/arabic.css');
+@import 'leaflet/dist/leaflet.css';
+@import "tailwindcss";
 @import './styles/karinsho-ds.css';
 
 @theme {

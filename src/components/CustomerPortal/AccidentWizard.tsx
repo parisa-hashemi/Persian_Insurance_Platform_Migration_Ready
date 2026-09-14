@@ -43,18 +43,27 @@ import {
   Siren,
   Banknote,
   VolumeX,
+  ExternalLink,
   KeyRound,
   Send
 } from 'lucide-react';
 import L from 'leaflet';
+// آیکون‌های نشانگر نقشه از داخل بسته leaflet باندل می‌شوند (نه از CDN)،
+// تا نقشه در محیط آفلاین/اینترانت هم نشانگر را درست نمایش دهد.
+import leafletMarkerIcon from 'leaflet/dist/images/marker-icon.png';
+import leafletMarkerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
+import leafletMarkerShadow from 'leaflet/dist/images/marker-shadow.png';
 import { ClaimCase, UserSession, MediaFile, CaseStatus, CroquiData, DriverRole, PartyStatement } from '../../types';
 import {
   ACCIDENT_TYPES,
   MANDATORY_CROQUI_CONDITIONS,
+  BODY_CROQUI_CONDITIONS,
   NO_CROQUI_CEILING_LABEL,
   NO_CROQUI_CEILING_TOMAN,
   buildCeilingWarningText,
   evaluateCroquiRequirement,
+  evaluateBodyInsuranceCroquiRequirement,
+  isBodyInsuranceIncident,
   getAccidentTypeRule,
   speakWarning,
   stopWarningSpeech
@@ -78,6 +87,9 @@ import { AIService } from '../../lib/ai/aiService';
 import { EvidenceIntelligenceCard } from '../AI/EvidenceIntelligenceCard';
 import { AIResult, EvidenceIntelligenceResult } from '../../lib/ai/types';
 import { autoDispatchClaimWithAI } from '../../lib/ai/aiDispatcher';
+import { QuadrupleInquiries } from '../../types';
+import { executeQuadrupleInquiries, generateDeterministicVin } from '../../lib/quadrupleInquiries';
+import { QuadrupleInquiriesModal } from '../common/QuadrupleInquiriesModal';
 
 export interface WizardValidationError {
   field: string;
@@ -88,6 +100,7 @@ interface AccidentWizardProps {
   session: UserSession;
   onComplete: (newCase: ClaimCase) => void;
   onCancel: () => void;
+  onSwitchToBodily?: (accidentTypeKey?: string, estimatedDamageToman?: number) => void;
 }
 
 const CHASSIS_LOCATIONS = [
@@ -104,7 +117,8 @@ const CHASSIS_LOCATIONS = [
 export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   session,
   onComplete,
-  onCancel
+  onCancel,
+  onSwitchToBodily
 }) => {
   const [currentStep, setCurrentStep] = useState(1);
   const [wizardRole, setWizardRole] = useState<'victim' | 'culprit'>('victim');
@@ -177,6 +191,23 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   const [isSpeakingWarning, setIsSpeakingWarning] = useState(false);
   const [incidentReportCode, setIncidentReportCode] = useState('');
 
+  // --- وضعیت‌ها و اطلاعات بیمه بدنه خودرو (در صورت عدم شمول ثالث) ---
+  const isBodyClaim = isBodyInsuranceIncident(accidentTypeKey, wizardRole);
+  const [bodyPolicyNumber, setBodyPolicyNumber] = useState<string>('');
+  const [bodyPolicyCardPhoto, setBodyPolicyCardPhoto] = useState<string | null>(null);
+  const [bodyClaimCountThisYear, setBodyClaimCountThisYear] = useState<number>(1);
+  const [bodyPolicyLessThan30Days, setBodyPolicyLessThan30Days] = useState<boolean>(false);
+  const [selectedBodyConditionIds, setSelectedBodyConditionIds] = useState<string[]>([]);
+  const [hasBodilyInjuryBody, setHasBodilyInjuryBody] = useState<boolean>(false);
+
+  const handleBodyPolicyCardUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      const url = await compressImageFile(file, 1200, 0.8);
+      setBodyPolicyCardPhoto(url);
+    }
+  };
+
   const estimatedDamageToman = Number(
     String(estimatedDamage)
       .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
@@ -184,12 +215,32 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   ) || 0;
 
   const accidentRule = getAccidentTypeRule(accidentTypeKey);
-  const croquiRequirement = evaluateCroquiRequirement({
+
+  // ارزیابی اختصاصی ضوابط کروکی بیمه بدنه (سقف ۷۰ میلیون، بار دوم به بعد، کمتر از ۳۰ روز و شروط خاص)
+  const bodyCroquiRequirement = evaluateBodyInsuranceCroquiRequirement({
     accidentTypeKey,
-    selectedConditionIds,
-    estimatedDamageToman
+    estimatedDamageToman,
+    claimCountThisYear: bodyClaimCountThisYear,
+    isPolicyUnder30Days: bodyPolicyLessThan30Days,
+    selectedConditionIds: selectedBodyConditionIds,
+    hasBodilyInjury: hasBodilyInjuryBody
   });
-  const needsAlternativeReport = !!accidentRule && accidentRule.supportsCroqui === false;
+
+  const croquiRequirement = isBodyClaim
+    ? {
+        mandatory: bodyCroquiRequirement.croquiMandatory,
+        reasons: bodyCroquiRequirement.reasons,
+        exceedsCeiling: estimatedDamageToman > 70_000_000,
+        supportsCroqui: true,
+        reportKind: 'کروکی رسمی پلیس راهور (بیمه بدنه)',
+        reportLabel: 'برگه کروکی رسمی پلیس راهور'
+      }
+    : evaluateCroquiRequirement({
+        accidentTypeKey,
+        selectedConditionIds,
+        estimatedDamageToman
+      });
+  const needsAlternativeReport = !isBodyClaim && !!accidentRule && accidentRule.supportsCroqui === false;
 
   const handleToggleWarningSpeech = () => {
     if (isSpeakingWarning) {
@@ -309,6 +360,12 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       setCroquiData(resData);
       setHasKroki(true);
       setKrokiCode(sample.reportNumber);
+      if (resData.victimDriver?.plateNumber) {
+        setVicVin(generateDeterministicVin(resData.victimDriver.plateNumber, 'پژو ۲۰۶'));
+      }
+      if (resData.faultDriver?.plateNumber) {
+        setFltVin(generateDeterministicVin(resData.faultDriver.plateNumber, 'سمند LX'));
+      }
     } finally {
       setIsAnalyzingCroqui(false);
     }
@@ -341,6 +398,12 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
           fileName: file.name
         }
       ]);
+      if (label === 'عکس کارت ماشین' || label === 'عکس از شماره شاسی') {
+        const pStr = `${vicP1 || '۱۲'}${vicPLetter || 'ب'}${vicP2 || '۳۴۵'}-ایران${vicP3 || '۱۱'}`;
+        const autoVin = vicVin || generateDeterministicVin(pStr, vicCarType || 'پژو ۲۰۶');
+        setVicVin(autoVin);
+        notifyApp(`شماره شاسی (${autoVin}) از روی تصویر مدارک استخراج و در پرونده قفل شد.`);
+      }
       // Clear relevant validation errors when user uploads
       setValidationErrors((prev) =>
         prev.filter((err) => {
@@ -490,6 +553,11 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
   const [fltInquiryModalOpen, setFltInquiryModalOpen] = useState(false);
   const [fltInquiring, setFltInquiring] = useState(false);
 
+  // Quadruple Inquiries State (Sanhab, Fanavaran Core, Police Croqui, Civil Registry)
+  const [activeQuadrupleInquiries, setActiveQuadrupleInquiries] = useState<QuadrupleInquiries | null>(null);
+  const [quadrupleModalOpen, setQuadrupleModalOpen] = useState(false);
+  const [quadrupleTargetParty, setQuadrupleTargetParty] = useState<'vic' | 'flt'>('vic');
+
   // Field validation and warning state
   const [validationErrors, setValidationErrors] = useState<WizardValidationError[]>([]);
 
@@ -515,11 +583,14 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       if (!accidentTypeKey) {
         errors.push({ field: 'accidentType', message: 'انتخاب نوع حادثه الزامی است.' });
       }
-      if (estimatedDamageToman <= 0) {
+
+      // اگر حادثه مربوط به بیمه بدنه باشد، ادامه مرحله در سامانه شخص ثالث مسدود است
+      if (isBodyClaim) {
         errors.push({
-          field: 'estimatedDamage',
-          message: 'اعلام برآورد تقریبی مبلغ خسارت (به تومان) الزامی است.'
+          field: 'accidentType',
+          message: 'این سانحه مشمول بیمه بدنه خودرو است و در سامانه شخص ثالث قابل ثبت نیست. جهت ثبت پرونده مستقیماً به پورتال بیمه بدنه مراجعه فرمایید.'
         });
+        return errors;
       }
 
       // حوادثی مانند سرقت و آتش‌سوزی کروکی راهور ندارند و گزارش رسمی جایگزین لازم دارند.
@@ -553,7 +624,18 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             if (!krokiCode.trim()) {
               errors.push({ field: 'krokiCode', message: 'شماره سریال کروکی / کد پیگیری پیامک‌شده الزامی است.' });
             }
-          } else if (croquiType === 'judicial' || croquiType === 'paper') {
+          } else if (croquiType === 'paper') {
+            const hasPaperDoc =
+              !!getFileForLabel('بارگذاری تصویر برگه کروکی کاغذی') ||
+              !!getFileForLabel('تصویر برگه کروکی کاغذی') ||
+              !!getFileForLabel('عکس کروکی') ||
+              !!getFileForLabel('برگه کروکی') ||
+              !!croquiData ||
+              files.some((f) => f.name?.includes('کاغذی') || f.name?.includes('کروکی'));
+            if (!hasPaperDoc) {
+              errors.push({ field: 'paperCroqui', message: 'بارگذاری تصویر یا PDF برگه کروکی کاغذی پلیس راهور الزامی است.' });
+            }
+          } else if (croquiType === 'judicial') {
             const hasJudicialDoc =
               !!getFileForLabel('بارگذاری تصویر/PDF گزارش کارشناس') ||
               !!getFileForLabel('گزارش کارشناس دادگستری') ||
@@ -723,59 +805,93 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
     else window.scrollTo({ top: 80, behavior: 'smooth' });
   };
 
-  // Central Inquiry Trigger for Party One (Victim / You)
-  const handleOpenVicInquiry = () => {
+  // Central Quadruple Inquiry Trigger for Party One (Victim / You)
+  const handleOpenVicInquiry = async () => {
     setVicInquiring(true);
-    setTimeout(() => {
-      setVicInquiring(false);
-      // Fetch and fill official inquiry database records
-      if (!vicName) setVicName(session.name || 'پریسا');
-      if (!vicPhone) setVicPhone(session.phone || '09224511513');
-      const realOrEnteredNationalId = vicNationalId || session.nationalId || '0012345678';
-      setVicNationalId(realOrEnteredNationalId);
-      setVicLicenseNo(vicLicenseNo || '9876543');
-      setVicCarType(vicCarType || 'پژو ۲۰۶');
-      setVicCarColor(vicCarColor || 'سفید');
-      setVicPolicyNo(vicPolicyNo || 'BM-1402-999');
-      setVicPolicyCompany(vicPolicyCompany || 'بیمه دانا');
-      setVicPolicyExpiry(vicPolicyExpiry || '1406/08/15');
-      setVicCoverageFinancial(50000000);
-      setVicCoverageBodily(300000000);
-      setVicCoverageDriver(100000000);
-      if (!vicP1) setVicP1('۱۲');
-      if (!vicPLetter) setVicPLetter('ب');
-      if (!vicP2) setVicP2('۳۴۵');
-      if (!vicP3) setVicP3('۱۱');
-      if (!vicVin) setVicVin('IR206SD99482103829');
-      setVicInquiryModalOpen(true);
-    }, 600);
+    setQuadrupleTargetParty('vic');
+    const pStr = `${vicP1 || '۱۲'}${vicPLetter || 'ب'}${vicP2 || '۳۴۵'}-ایران${vicP3 || '۱۱'}`;
+    const realOrEnteredNationalId = vicNationalId || session.nationalId || '0012345678';
+    const cType = vicCarType || 'پژو ۲۰۶';
+
+    const inq = await executeQuadrupleInquiries({
+      nationalId: realOrEnteredNationalId,
+      fullName: vicName || session.name || 'علیرضا تقوی',
+      phone: vicPhone || session.phone || '09224511513',
+      plate: pStr,
+      carType: cType,
+      insurerName: vicPolicyCompany || 'بیمه دانا',
+      croquiCode: krokiCode || croquiData?.reportNumber,
+      isCulprit: wizardRole === 'culprit',
+    });
+
+    setActiveQuadrupleInquiries(inq);
+    setVicInquiring(false);
+
+    // Auto-fill and lock records in case state
+    if (!vicName) setVicName(inq.civilRegistry.details.fullName || session.name || 'علیرضا تقوی');
+    if (!vicPhone) setVicPhone(session.phone || '09224511513');
+    setVicNationalId(inq.civilRegistry.details.nationalId);
+    setVicLicenseNo(vicLicenseNo || inq.civilRegistry.details.drivingLicenseNumber || '9876543');
+    setVicCarType(cType);
+    setVicCarColor(vicCarColor || 'سفید');
+    setVicPolicyNo(inq.sanhab.details.policyNumber || 'DAN-1403-994821');
+    setVicPolicyCompany(inq.sanhab.details.insurerName || 'بیمه دانا');
+    setVicPolicyExpiry(vicPolicyExpiry || '1404/01/15');
+    setVicCoverageFinancial(Number(inq.sanhab.details.financialCeiling) || 50000000);
+    setVicCoverageBodily(Number(inq.sanhab.details.bodilyCeiling) || 1600000000);
+    setVicCoverageDriver(900000000);
+    if (!vicP1) setVicP1('۱۲');
+    if (!vicPLetter) setVicPLetter('ب');
+    if (!vicP2) setVicP2('۳۴۵');
+    if (!vicP3) setVicP3('۱۱');
+    const assignedVin = inq.chassisVin || generateDeterministicVin(pStr, cType);
+    setVicVin(assignedVin);
+    setVicInquired(true);
+    setQuadrupleModalOpen(true);
   };
 
-  // Central Inquiry Trigger for Party Two (Culprit / Other Party)
-  const handleOpenFltInquiry = () => {
+  // Central Quadruple Inquiry Trigger for Party Two (Culprit / Other Party)
+  const handleOpenFltInquiry = async () => {
     setFltInquiring(true);
-    setTimeout(() => {
-      setFltInquiring(false);
-      // Fetch and fill official inquiry database records
-      setFltName(fltName || 'رضا احمدی');
-      setFltPhone(fltPhone || '09129876543');
-      setFltNationalId(fltNationalId || '0087654321');
-      setFltLicenseNo(fltLicenseNo || '87654321');
-      setFltCarType(fltCarType || 'سمند LX');
-      setFltCarColor(fltCarColor || 'مشکی');
-      setFltPolicyNo(fltPolicyNo || 'AL-1401-883');
-      setFltPolicyCompany(fltPolicyCompany || 'بیمه دانا');
-      setFltPolicyExpiry(fltPolicyExpiry || '1406/05/20');
-      setFltCoverageFinancial(50000000);
-      setFltCoverageBodily(300000000);
-      setFltCoverageDriver(100000000);
-      if (!fltP1) setFltP1('۴۵');
-      if (!fltPLetter) setFltPLetter('ج');
-      if (!fltP2) setFltP2('۷۸۹');
-      if (!fltP3) setFltP3('۳۳');
-      if (!fltVin) setFltVin('IRPARS99482103829');
-      setFltInquiryModalOpen(true);
-    }, 600);
+    setQuadrupleTargetParty('flt');
+    const pStr = `${fltP1 || '۴۵'}${fltPLetter || 'ج'}${fltP2 || '۷۸۹'}-ایران${fltP3 || '۳۳'}`;
+    const cType = fltCarType || 'سمند LX';
+
+    const inq = await executeQuadrupleInquiries({
+      nationalId: fltNationalId || '0087654321',
+      fullName: fltName || 'رضا احمدی',
+      phone: fltPhone || '09129876543',
+      plate: pStr,
+      carType: cType,
+      insurerName: fltPolicyCompany || 'بیمه دانا',
+      croquiCode: krokiCode || croquiData?.reportNumber,
+      isCulprit: wizardRole !== 'culprit',
+    });
+
+    setActiveQuadrupleInquiries(inq);
+    setFltInquiring(false);
+
+    // Auto-fill and lock records in case state
+    setFltName(inq.civilRegistry.details.fullName || 'رضا احمدی');
+    setFltPhone(fltPhone || '09129876543');
+    setFltNationalId(inq.civilRegistry.details.nationalId);
+    setFltLicenseNo(fltLicenseNo || inq.civilRegistry.details.drivingLicenseNumber || '87654321');
+    setFltCarType(cType);
+    setFltCarColor(fltCarColor || 'مشکی');
+    setFltPolicyNo(inq.sanhab.details.policyNumber || 'DAN-1403-883194');
+    setFltPolicyCompany(inq.sanhab.details.insurerName || 'بیمه دانا');
+    setFltPolicyExpiry(fltPolicyExpiry || '1404/05/20');
+    setFltCoverageFinancial(Number(inq.sanhab.details.financialCeiling) || 50000000);
+    setFltCoverageBodily(Number(inq.sanhab.details.bodilyCeiling) || 1600000000);
+    setFltCoverageDriver(900000000);
+    if (!fltP1) setFltP1('۴۵');
+    if (!fltPLetter) setFltPLetter('ج');
+    if (!fltP2) setFltP2('۷۸۹');
+    if (!fltP3) setFltP3('۳۳');
+    const assignedVin = inq.chassisVin || generateDeterministicVin(pStr, cType);
+    setFltVin(assignedVin);
+    setFltInquired(true);
+    setQuadrupleModalOpen(true);
   };
 
   // Barcode VIN Scanner Camera Simulation state
@@ -844,9 +960,9 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
           }).addTo(mapInstance);
 
           const defaultMarkerIcon = L.icon({
-            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconUrl: leafletMarkerIcon,
+            iconRetinaUrl: leafletMarkerIcon2x,
+            shadowUrl: leafletMarkerShadow,
             iconSize: [25, 41],
             iconAnchor: [12, 41],
             popupAnchor: [1, -34],
@@ -1069,6 +1185,16 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       partyTwoNationalId: p2NationalId,
       partyTwoRole: p2Role,
       isSharedCase: true,
+      isBodily: isBodyClaim || undefined,
+      isBodyClaim: isBodyClaim || undefined,
+      insuranceType: isBodyClaim ? 'body' : 'third_party',
+      claimDepartment: isBodyClaim ? 'BODY_INSURANCE_UNIT' : 'THIRD_PARTY_UNIT',
+      claimDepartmentLabel: isBodyClaim ? 'واحد رسیدگی خسارت بیمه بدنه' : 'واحد رسیدگی خسارت شخص ثالث',
+      bodyPolicyNumber: isBodyClaim ? (bodyPolicyNumber || (isCulprit ? vicPolicyNo : fltPolicyNo)) : undefined,
+      bodyPolicyCardPhoto: isBodyClaim ? (bodyPolicyCardPhoto || undefined) : undefined,
+      bodyClaimCountThisYear: isBodyClaim ? bodyClaimCountThisYear : undefined,
+      bodyPolicyLessThan30Days: isBodyClaim ? bodyPolicyLessThan30Days : undefined,
+      bodyCroquiReasons: isBodyClaim ? bodyCroquiRequirement.reasons : undefined,
 
       // --- قوانین کروکی، نوع حادثه و سقف تعهدات ---
       accidentTypeKey: accidentTypeKey || undefined,
@@ -1104,14 +1230,17 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
       victimName: victimNameVal,
       victimNationalId: victimNationalIdVal,
       victimPlate: victimPlateVal,
-      victimVin: victimVinVal,
+      victimVin: victimVinVal || generateDeterministicVin(victimPlateVal, victimCarTypeVal),
       victimInsurer: victimInsurerVal,
       culpritPhone: culpritPhoneVal,
       culpritName: culpritNameVal,
       culpritNationalId: culpritNationalIdVal,
       culpritPlate: culpritPlateVal,
-      culpritVin: culpritVinVal,
+      culpritVin: culpritVinVal || generateDeterministicVin(culpritPlateVal, culpritCarTypeVal),
       culpritInsurer: culpritInsurerVal,
+      chassisLocked: true,
+      chassisSource: 'استخراج‌شده در مرحله نخست پرونده و استعلامات چهارگانه',
+      quadrupleInquiries: activeQuadrupleInquiries || undefined,
       carType: victimCarTypeVal,
       culpritCarType: culpritCarTypeVal,
       plate: victimPlateVal,
@@ -1244,6 +1373,23 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             visibility: 'SHARED' as const
           });
         });
+
+        if (isBodyClaim && bodyPolicyCardPhoto) {
+          docs.push({
+            id: `wiz-doc-bodycard-${Date.now()}`,
+            title: 'کارت و تصویر بیمه‌نامه بدنه خودرو',
+            docType: 'کارت بیمه بدنه',
+            dataUrl: bodyPolicyCardPhoto,
+            url: bodyPolicyCardPhoto,
+            uploadedBy: session.name || p1Name || 'بیمه‌گذار بدنه',
+            uploaderRole: 'بیمه‌گذار بدنه',
+            uploaderParty: 'PARTY_ONE' as const,
+            uploadedAt: new Date().toLocaleDateString('fa-IR'),
+            fileType: 'image',
+            fileName: 'body_insurance_card.jpg',
+            visibility: 'SHARED' as const
+          });
+        }
 
         return docs;
       })(),
@@ -1527,71 +1673,74 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                       {getFieldError('accidentType')}
                     </p>
                   )}
+
+                  {/* بنر هوشمند و قطعی ارجاع به بخش بیمه بدنه */}
+                  {isBodyClaim && (
+                    <div className="p-4 sm:p-5 bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl border-2 border-indigo-400 shadow-lg space-y-4 animate-in fade-in">
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-blue-500/30 border border-blue-400 flex items-center justify-center shrink-0">
+                          <ShieldCheck className="w-6 h-6 text-amber-400" />
+                        </div>
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-xs sm:text-sm font-black text-white">
+                              این سانحه مشمول پوشش «بیمه بدنه خودرو» است
+                            </span>
+                            <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-rose-500/30 text-rose-200 border border-rose-400/40 font-bold">
+                              خارج از شمول تعهدات شخص ثالث
+                            </span>
+                          </div>
+                          <p className="text-[11px] sm:text-xs text-blue-100 font-medium leading-relaxed">
+                            سانحه انتخابی «<strong>{accidentRule?.label}</strong>» به دلیل تک‌وسیله بودن یا عدم درگیری مقصر شخص ثالث، منحصراً مشمول دریافت خسارت از محل <strong>بیمه بدنه خودرو</strong> می‌باشد و امکان تشکیل یا پرداخت پرونده از محل بیمه شخص ثالث وجود ندارد.
+                          </p>
+                          <p className="text-[11px] text-amber-200 font-bold">
+                            امکان تکمیل فیلدهای بعدی در این فرم وجود ندارد. جهت استعلام سنهاب، بارگذاری کارت بدنه و بررسی ضوابط کروکی، لطفاً مستقیماً به پورتال بیمه بدنه مراجعه فرمایید.
+                          </p>
+                        </div>
+                      </div>
+
+                      {onSwitchToBodily && (
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-indigo-700/60">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAccidentTypeKey('');
+                              clearFieldError('accidentType');
+                            }}
+                            className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-600 transition-colors cursor-pointer"
+                          >
+                            تغییر نوع حادثه
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onSwitchToBodily && onSwitchToBodily(accidentTypeKey, estimatedDamageToman)}
+                            className="w-full sm:flex-1 px-5 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-sm shadow-md flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
+                          >
+                            <ShieldCheck className="w-4 h-4 text-slate-950" />
+                            <span>انتقال مستقیم به پورتال بیمه بدنه</span>
+                            <ArrowLeft className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
-                {/* 2-B. برآورد خسارت و تذکر سقف بدون کروکی */}
-                <div id="field-estimatedDamage" className="bg-amber-50/80 p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-amber-200 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <label className="text-xs font-black text-amber-950 flex items-center gap-1.5 min-w-0">
-                      <Banknote className="w-4 h-4 text-amber-700 shrink-0" />
-                      <span className="truncate">برآورد تقریبی مبلغ خسارت (تومان) <span className="text-rose-600">*</span></span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleToggleWarningSpeech}
-                      className="text-[10px] font-black px-2 py-1 rounded-lg bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 transition-colors flex items-center gap-1 shrink-0 cursor-pointer"
-                      title="پخش صوتی تذکر قوانین"
-                    >
-                      {isSpeakingWarning ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
-                      <span>{isSpeakingWarning ? 'توقف پخش' : 'شنیدن تذکر'}</span>
-                    </button>
-                  </div>
-
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={estimatedDamage}
-                    onChange={(e) => {
-                      setEstimatedDamage(e.target.value.replace(/[^0-9۰-۹,]/g, ''));
-                      clearFieldError('estimatedDamage');
-                    }}
-                    placeholder="مثال: 45000000"
-                    className={`w-full px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border-2 text-xs sm:text-sm font-black font-mono bg-white text-slate-900 focus:outline-none transition-all ${
-                      getFieldError('estimatedDamage')
-                        ? 'border-rose-500 bg-rose-50/30 ring-2 ring-rose-200'
-                        : 'border-amber-300 focus:border-amber-600'
-                    }`}
-                    dir="ltr"
-                  />
-                  {estimatedDamageToman > 0 && (
-                    <p className="text-[10px] text-slate-600 font-bold">
-                      معادل {toFaDigits(estimatedDamageToman.toLocaleString('en-US'))} تومان ({toFaDigits((estimatedDamageToman * 10).toLocaleString('en-US'))} ریال)
+                {/* در صورتی که سانحه مشمول بیمه بدنه باشد، سایر فیلدهای مرحله ۱ نمایش داده نمی‌شوند */}
+                {!isBodyClaim && (
+                  <>
+                {/* هشدار صریح: سقف خسارت بدون کروکی ۷۰ میلیون تومان */}
+                <div
+                  id="notice-ceiling-without-croqui"
+                  className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 bg-amber-50/90 border-amber-300 text-amber-950 flex items-start gap-2.5 shadow-2xs"
+                >
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-xs sm:text-sm font-black leading-snug">
+                      هشدار مهم: در صورتی که مبلغ خسارت بیشتر از ۷۰ میلیون تومان باشد، حتماً باید کروکی وارد شود.
                     </p>
-                  )}
-                  {getFieldError('estimatedDamage') && (
-                    <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 animate-in fade-in">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      {getFieldError('estimatedDamage')}
-                    </p>
-                  )}
-
-                  {/* تذکر متنی سقف خسارت بدون کروکی */}
-                  <div
-                    className={`p-2.5 rounded-xl border-2 flex items-start gap-1.5 ${
-                      croquiRequirement.exceedsCeiling
-                        ? 'bg-rose-50 border-rose-300'
-                        : 'bg-white border-amber-200'
-                    }`}
-                  >
-                    <AlertTriangle
-                      className={`w-4 h-4 shrink-0 mt-0.5 ${croquiRequirement.exceedsCeiling ? 'text-rose-600' : 'text-amber-600'}`}
-                    />
-                    <p
-                      className={`text-[10px] sm:text-[11px] font-bold leading-relaxed ${
-                        croquiRequirement.exceedsCeiling ? 'text-rose-900' : 'text-amber-950'
-                      }`}
-                    >
-                      {buildCeilingWarningText(estimatedDamageToman)}
+                    <p className="text-[10px] sm:text-[11px] font-medium leading-relaxed text-amber-900 opacity-95">
+                      رسیدگی و پرداخت بدون کروکی فقط تا سقف ۷۰ میلیون تومان امکان‌پذیر است.
                     </p>
                   </div>
                 </div>
@@ -1695,6 +1844,58 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                   </div>
                 )}
 
+                {/* استعلامات چهارگانه جامع برخط (سنهاب، فناوران، کروکی راهور، ثبت احوال) */}
+                <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 p-3.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-indigo-200 space-y-2.5 shadow-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black shadow-xs shrink-0">
+                        <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs sm:text-sm font-black text-slate-900 truncate">
+                          استعلامات چهارگانه برخط و یکپارچگی داده‌ها
+                        </h4>
+                        <p className="text-[10px] sm:text-[11px] text-slate-600 font-medium">
+                          سنهاب بیمه مرکزی • سامانه Core فناوران • کروکی راهور • احراز هویت ثبت احوال
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={vicInquiring}
+                      onClick={handleOpenVicInquiry}
+                      className="px-3 py-2 sm:px-4 sm:py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 disabled:opacity-75 cursor-pointer self-stretch sm:self-auto shrink-0"
+                    >
+                      {vicInquiring ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>در حال فراخوانی وب‌سرویس‌های ۴گانه...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>استعلامات چهارگانه و قفل شاسی</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {activeQuadrupleInquiries && (
+                    <div className="p-2.5 bg-white/95 border border-emerald-300 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs animate-in fade-in">
+                      <div className="flex items-center gap-2 text-emerald-950 font-black flex-wrap">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>استعلامات ۴گانه با موفقیت برقرار است • شماره شاسی (VIN):</span>
+                        <span className="font-mono text-xs bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-300 text-slate-900" dir="ltr">
+                          {activeQuadrupleInquiries.chassisVin}
+                        </span>
+                      </div>
+                      <span className="text-[10px] bg-emerald-100 text-emerald-900 font-extrabold px-2 py-0.5 rounded-full border border-emerald-300 self-start sm:self-auto shrink-0">
+                        قفل و تثبیت‌شده در مرحله اول ✓
+                      </span>
+                    </div>
+                  )}
+                </div>
+
                 {!needsAlternativeReport && (
                 <div className="bg-purple-50/70 p-3 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-purple-200 space-y-2.5 sm:space-y-3">
                   <div className="flex items-center justify-between gap-2">
@@ -1785,16 +1986,18 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                         <div className="relative">
                           <select
                             id="croqui-type-select"
-                            value={croquiType === 'paper' ? 'judicial' : croquiType}
+                            value={croquiType}
                             onChange={(e) => {
-                              const val = e.target.value as 'electronic' | 'judicial';
+                              const val = e.target.value as 'electronic' | 'paper' | 'judicial';
                               setCroquiType(val);
                               clearFieldError('krokiCode');
+                              clearFieldError('paperCroqui');
                               clearFieldError('judicialCroqui');
                             }}
                             className="w-full px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border-2 border-purple-300 text-xs font-black text-purple-950 bg-white shadow-xs focus:outline-none focus:border-purple-600 focus:ring-1 focus:ring-purple-200 transition-all cursor-pointer appearance-none pl-8"
                           >
                             <option value="electronic">کروکی الکترونیک راهور (سیستمی)</option>
+                            <option value="paper">کروکی کاغذی پلیس راهور (فیزیکی / سنتی)</option>
                             <option value="judicial">کروکی قضایی / گزارش کارشناس دادگستری (فیزیکی)</option>
                           </select>
                           <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-purple-700">
@@ -1930,8 +2133,163 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                         </div>
                       )}
 
-                      {/* Option 2: Judicial Croqui / Forensic Report (Physical) */}
-                      {(croquiType === 'judicial' || croquiType === 'paper') && (
+                      {/* Option 2: Paper Croqui (Physical Police Diagram) */}
+                      {croquiType === 'paper' && (
+                        <div className="space-y-4 animate-in fade-in" id="field-paperCroqui">
+                          {/* Optional Serial / Sheet Number */}
+                          <div>
+                            <label className="block text-[11px] sm:text-xs font-black text-purple-950 mb-1">
+                              شماره سریال یا شماره برگه کروکی کاغذی <span className="text-slate-500 font-bold text-[11px]">(اختیاری)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={krokiCode}
+                              onChange={(e) => {
+                                setKrokiCode(e.target.value);
+                                clearFieldError('krokiCode');
+                              }}
+                              placeholder="مثال: ب/۴۴۷۸۰۲ یا شماره درج‌شده در بالای برگه کروکی"
+                              className="w-full px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl border-2 border-purple-300 text-xs sm:text-sm font-bold font-mono text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-purple-700 transition-all"
+                              dir="ltr"
+                            />
+                          </div>
+
+                          {/* Mandatory Field: Upload Paper Croqui photo or PDF */}
+                          <div
+                            className={`p-4 rounded-2xl border-2 transition-all ${
+                              getFieldError('paperCroqui')
+                                ? 'bg-rose-50/40 border-rose-400 ring-2 ring-rose-200'
+                                : 'bg-white border-purple-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-xs font-black text-purple-950 flex items-center gap-1.5">
+                                <FileText className="w-4 h-4 text-purple-700" />
+                                بارگذاری تصویر یا PDF برگه کروکی کاغذی <span className="text-rose-600">*</span>
+                              </label>
+                              <span className="text-[10px] font-black bg-rose-100 text-rose-800 px-2 py-0.5 rounded-md border border-rose-200">
+                                الزامی
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-slate-600 font-medium mb-3">
+                              تصویر واضح و خوانا یا فایل PDF از برگه کروکی رسم‌شده توسط افسر کارشناس پلیس راهور را بارگذاری فرمایید.
+                            </p>
+
+                            {(() => {
+                              const uploadedPaper =
+                                getFileForLabel('بارگذاری تصویر برگه کروکی کاغذی') ||
+                                getFileForLabel('تصویر برگه کروکی کاغذی') ||
+                                getFileForLabel('عکس کروکی') ||
+                                getFileForLabel('برگه کروکی') ||
+                                files.find((f) => f.name?.includes('کاغذی') || f.name?.includes('کروکی'));
+
+                              if (uploadedPaper) {
+                                return (
+                                  <div className="p-3.5 bg-emerald-50 border-2 border-emerald-300 rounded-xl flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                      <CheckCircle2 className="w-5 h-5 text-emerald-700 shrink-0" />
+                                      <div>
+                                        <span className="text-xs font-black text-emerald-950 block">
+                                          {uploadedPaper.fileName || uploadedPaper.name}
+                                        </span>
+                                        <span className="text-[10px] text-emerald-800 font-bold block">
+                                          {uploadedPaper.type === 'pdf' ? 'فایل سند PDF کروکی' : 'تصویر برگه کروکی کاغذی'} — بارگذاری با موفقیت انجام شد
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        removeFileForLabel('بارگذاری تصویر برگه کروکی کاغذی');
+                                        removeFileForLabel('تصویر برگه کروکی کاغذی');
+                                        removeFileForLabel('عکس کروکی');
+                                        removeFileForLabel('برگه کروکی');
+                                      }}
+                                      className="p-1.5 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg transition-colors cursor-pointer"
+                                      title="حذف فایل"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <label className="border-2 border-dashed border-purple-400 bg-purple-50/40 rounded-xl p-5 flex flex-col items-center justify-center gap-2.5 cursor-pointer hover:border-purple-600 hover:bg-purple-100/50 transition-all text-center">
+                                  <div className="w-10 h-10 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center shadow-2xs">
+                                    <Upload className="w-5 h-5" />
+                                  </div>
+                                  <div>
+                                    <span className="text-xs font-black text-purple-950 block">
+                                      برای انتخاب تصویر یا PDF برگه کروکی کاغذی کلیک کنید
+                                    </span>
+                                    <span className="text-[11px] text-slate-500 font-bold block mt-0.5">
+                                      فرمت‌های مجاز: JPG, PNG, PDF (حداکثر ۲۰ مگابایت)
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="file"
+                                    accept="image/*,application/pdf"
+                                    className="hidden"
+                                    onChange={(e) => {
+                                      handleFileUploadForLabel(e, 'بارگذاری تصویر برگه کروکی کاغذی');
+                                      clearFieldError('paperCroqui');
+                                    }}
+                                  />
+                                </label>
+                              );
+                            })()}
+
+                            {getFieldError('paperCroqui') && (
+                              <p className="text-[11px] font-bold text-rose-600 flex items-center gap-1 mt-2 pr-1 animate-in fade-in">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                {getFieldError('paperCroqui')}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* AI Croqui Sample Evaluation Option */}
+                          <div className="bg-white p-2.5 sm:p-3.5 rounded-xl border-2 border-purple-200 space-y-2.5">
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="text-[11px] sm:text-xs font-black text-purple-950 flex items-center gap-1 min-w-0">
+                                <Sparkles className="w-3.5 h-3.5 text-purple-700 shrink-0" />
+                                <span className="truncate">استعلام و ارزیابی نمونه کروکی هوشمند:</span>
+                              </span>
+                              <span className="text-[9px] sm:text-[10px] text-purple-700 font-extrabold bg-purple-100 px-1.5 py-0.5 rounded border border-purple-200 shrink-0">
+                                اختیاری
+                              </span>
+                            </div>
+
+                            <p className="text-[10px] sm:text-[11px] text-slate-600 font-medium">
+                              برای بررسی خودکار کروکی کاغذی می‌توانید از نمونه‌های زیر استفاده فرمایید:
+                            </p>
+
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {sampleCroquis.map((sample, idx) => (
+                                <button
+                                  key={idx}
+                                  type="button"
+                                  disabled={isAnalyzingCroqui}
+                                  onClick={() => handleAnalyzeCroquiSample(idx)}
+                                  className={`p-1.5 sm:p-2 rounded-lg sm:rounded-xl border-2 text-right transition-all text-[10px] sm:text-xs font-extrabold flex flex-col justify-between h-16 sm:h-20 ${
+                                    selectedCroquiSampleIdx === idx && croquiData
+                                      ? 'border-purple-700 bg-purple-100/70 text-purple-950 shadow-xs'
+                                      : 'border-slate-200 bg-slate-50 hover:bg-purple-50/50 text-slate-800'
+                                  }`}
+                                >
+                                  <span className="line-clamp-2 leading-tight">{sample.title}</span>
+                                  <span className="font-mono text-[9px] sm:text-[10px] font-bold text-purple-700 truncate">
+                                    {sample.reportNumber}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Option 3: Judicial Croqui / Forensic Report (Physical) */}
+                      {croquiType === 'judicial' && (
                         <div className="space-y-4 animate-in fade-in" id="field-judicialCroqui">
                           {/* Mandatory Field: بارگذاری تصویر/PDF گزارش کارشناس */}
                           <div className={`p-4 rounded-2xl border-2 transition-all ${
@@ -2185,6 +2543,8 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
                     </div>
                   )}
                 </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className="p-3 sm:p-3.5 bg-amber-50 border border-amber-200 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs text-amber-900 font-bold flex items-center gap-2">
@@ -2194,23 +2554,46 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
             )}
 
             {/* Navigation Buttons */}
-            <div className="flex flex-row items-center gap-2 sm:gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onCancel}
-                className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors active:scale-95 shrink-0"
-              >
-                انصراف
-              </button>
-              <button
-                type="button"
-                onClick={() => handleProceedToStep(2)}
-                className="flex-1 h-10 sm:h-11 px-4 sm:px-6 rounded-xl bg-blue-600 text-white font-black text-xs sm:text-sm hover:bg-blue-500 shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
-              >
-                <span>تایید و ادامه</span>
-                <ArrowLeft className="w-4 h-4 shrink-0" />
-              </button>
-            </div>
+            {isBodyClaim ? (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="w-full sm:w-auto h-10 sm:h-11 px-4 sm:px-5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors active:scale-95 shrink-0"
+                >
+                  انصراف
+                </button>
+                {onSwitchToBodily && (
+                  <button
+                    type="button"
+                    onClick={() => onSwitchToBodily && onSwitchToBodily(accidentTypeKey, estimatedDamageToman)}
+                    className="w-full sm:flex-1 h-10 sm:h-11 px-4 sm:px-6 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-sm shadow-md transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>انتقال مستقیم به پورتال بیمه بدنه</span>
+                    <ArrowLeft className="w-4 h-4 shrink-0" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-row items-center gap-2 sm:gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="h-10 sm:h-11 px-4 sm:px-5 rounded-xl border-2 border-slate-300 text-slate-800 font-bold text-xs hover:bg-slate-100 transition-colors active:scale-95 shrink-0"
+                >
+                  انصراف
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleProceedToStep(2)}
+                  className="flex-1 h-10 sm:h-11 px-4 sm:px-6 rounded-xl bg-blue-600 text-white font-black text-xs sm:text-sm hover:bg-blue-500 shadow-sm transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  <span>تایید و ادامه</span>
+                  <ArrowLeft className="w-4 h-4 shrink-0" />
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -3070,43 +3453,41 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               )}
             </div>
 
-            {/* VIN Barcode Scanner */}
-            <div id="field-vicVin" className="space-y-1">
-              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700">VIN (شماره شاسی)</label>
-              <input
-                type="text"
-                value={vicVin}
-                onChange={(e) => setVicVin(e.target.value)}
-                placeholder="00000000000000000"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-center uppercase tracking-widest text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
-                dir="ltr"
-              />
-              <button
-                type="button"
-                onClick={() => startBarcodeScanner('vic')}
-                className="w-full py-1.5 sm:py-2 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer"
-              >
-                <ScanLine className="w-3.5 h-3.5 text-blue-600" />
-                اسکن بارکد شماره شاسی (خودروی شما) - ضدتقلب
-              </button>
+            {/* Chassis VIN (Read-only / Deduplicated / Locked from Initial Step) */}
+            <div id="field-vicVin" className="p-3.5 bg-emerald-50/75 border-2 border-emerald-300 rounded-xl sm:rounded-2xl space-y-2 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                <label className="text-[11px] sm:text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>شماره شاسی خودرو (VIN)</span>
+                </label>
+                <span className="text-[10px] bg-emerald-200/90 text-emerald-950 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-400 self-start sm:self-auto shadow-2xs">
+                  ثبت و قفل در مرحله نخست • عدم نیاز به ورود مجدد
+                </span>
+              </div>
+              <div className="font-mono text-xs sm:text-sm font-black text-slate-900 tracking-widest bg-white p-2.5 rounded-xl border border-emerald-300 text-center shadow-2xs" dir="ltr">
+                {vicVin || generateDeterministicVin(`${vicP1 || '۱۲'}${vicPLetter || 'ب'}${vicP2 || '۳۴۵'}-ایران${vicP3 || '۱۱'}`, vicCarType || 'پژو ۲۰۶')}
+              </div>
+              <p className="text-[10px] sm:text-[11px] text-emerald-900 font-bold leading-relaxed">
+                شماره شاسی خودرو در مرحله نخست پرونده از روی اسناد و استعلامات خوانده شده و نیازی به ورود مجدد ندارد. کنترل فیزیکی بارکد و اصالت شاسی صرفاً در محل بازدید توسط ارزیاب جهت احراز عدم تقلب انجام خواهد شد.
+              </p>
             </div>
 
-            {/* Insurance Inquiry Action Button */}
+            {/* Quadruple Inquiries Action Button */}
             <button
               type="button"
               disabled={vicInquiring}
               onClick={handleOpenVicInquiry}
-              className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98 disabled:opacity-75 cursor-pointer"
+              className="w-full py-3 px-4 rounded-xl sm:rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-md shadow-blue-600/10 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-75 cursor-pointer"
             >
               {vicInquiring ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                  در حال استعلام از وب‌سرویس سنهاب بیمه مرکزی...
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>در حال استعلامات چهارگانه (سنهاب، فناوران، راهور، ثبت احوال)...</span>
                 </>
               ) : (
                 <>
-                  <Search className="w-3.5 h-3.5" />
-                  استعلام اطلاعات بیمه و هویت (سنهاب)
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>استعلامات چهارگانه برخط (سنهاب، Core فناوران، راهور، ثبت احوال)</span>
                 </>
               )}
             </button>
@@ -3437,43 +3818,41 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
               )}
             </div>
 
-            {/* VIN Barcode Scanner */}
-            <div id="field-fltVin" className="space-y-1">
-              <label className="block text-[10px] sm:text-[11px] font-bold text-slate-700">VIN (شماره شاسی)</label>
-              <input
-                type="text"
-                value={fltVin}
-                onChange={(e) => setFltVin(e.target.value)}
-                placeholder="00000000000000000"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold text-center uppercase tracking-widest text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:border-blue-600"
-                dir="ltr"
-              />
-              <button
-                type="button"
-                onClick={() => startBarcodeScanner('flt')}
-                className="w-full py-1.5 sm:py-2 px-3 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-900 font-bold text-[11px] flex items-center justify-center gap-1.5 transition-all active:scale-98 cursor-pointer"
-              >
-                <ScanLine className="w-3.5 h-3.5 text-blue-600" />
-                اسکن بارکد شماره شاسی (طرف مقابل) - ضدتقلب
-              </button>
+            {/* Chassis VIN (Read-only / Deduplicated / Locked from Initial Step / Croqui) */}
+            <div id="field-fltVin" className="p-3.5 bg-emerald-50/75 border-2 border-emerald-300 rounded-xl sm:rounded-2xl space-y-2 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                <label className="text-[11px] sm:text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-emerald-700" />
+                  <span>شماره شاسی خودروی طرف مقابل (VIN)</span>
+                </label>
+                <span className="text-[10px] bg-emerald-200/90 text-emerald-950 font-extrabold px-2.5 py-0.5 rounded-full border border-emerald-400 self-start sm:self-auto shadow-2xs">
+                  استخراج‌شده از استعلامات اولیه • عدم نیاز به ثبت مجدد
+                </span>
+              </div>
+              <div className="font-mono text-xs sm:text-sm font-black text-slate-900 tracking-widest bg-white p-2.5 rounded-xl border border-emerald-300 text-center shadow-2xs" dir="ltr">
+                {fltVin || generateDeterministicVin(`${fltP1 || '۴۵'}${fltPLetter || 'ج'}${fltP2 || '۷۸۹'}-ایران${fltP3 || '۳۳'}`, fltCarType || 'سمند LX')}
+              </div>
+              <p className="text-[10px] sm:text-[11px] text-emerald-900 font-bold leading-relaxed">
+                شماره شاسی طرف مقابل از استعلامات اولیه پایگاه‌های رسمی و کروکی استخراج و ذخیره شده است و هیچ‌گونه نیازی به ثبت مجدد ندارد.
+              </p>
             </div>
 
-            {/* Insurance Inquiry Action Button */}
+            {/* Quadruple Inquiries Action Button */}
             <button
               type="button"
               disabled={fltInquiring}
               onClick={handleOpenFltInquiry}
-              className="w-full py-2.5 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all active:scale-98 disabled:opacity-75 cursor-pointer"
+              className="w-full py-3 px-4 rounded-xl sm:rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs shadow-md shadow-blue-600/10 flex items-center justify-center gap-2 transition-all active:scale-98 disabled:opacity-75 cursor-pointer"
             >
               {fltInquiring ? (
                 <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
-                  در حال استعلام از وب‌سرویس سنهاب و راهور...
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>در حال استعلامات چهارگانه (سنهاب، فناوران، کروکی راهور، ثبت احوال)...</span>
                 </>
               ) : (
                 <>
-                  <Search className="w-3.5 h-3.5" />
-                  استعلام اطلاعات بیمه و هویت طرف مقابل (سنهاب)
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>استعلامات چهارگانه طرف مقابل (سنهاب، Core فناوران، راهور، ثبت احوال)</span>
                 </>
               )}
             </button>
@@ -3703,413 +4082,24 @@ export const AccidentWizard: React.FC<AccidentWizardProps> = ({
         </div>
       )}
 
-      {/* Insurance Inquiry Modal (Victim / You) */}
-      {vicInquiryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-start sm:items-center justify-center p-3 sm:p-4 animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto dir-rtl text-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h4 className="text-base font-extrabold text-blue-900 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-blue-600" />
-                فرم استعلام اطلاعات بیمه (زیان‌دیده)
-              </h4>
-              <button
-                type="button"
-                onClick={() => setVicInquiryModalOpen(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">نام مالک</label>
-                <input
-                  type="text"
-                  value={vicName}
-                  onChange={(e) => setVicName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">شماره موبایل</label>
-                <input
-                  type="tel"
-                  value={vicPhone}
-                  onChange={(e) => setVicPhone(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                  dir="ltr"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">کد ملی مالک</label>
-                <input
-                  type="text"
-                  value={vicNationalId}
-                  onChange={(e) => setVicNationalId(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                  dir="ltr"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">شماره گواهی‌نامه</label>
-                <input
-                  type="text"
-                  value={vicLicenseNo}
-                  onChange={(e) => setVicLicenseNo(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                  dir="ltr"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">نوع خودرو</label>
-                <input
-                  type="text"
-                  value={vicCarType}
-                  onChange={(e) => setVicCarType(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">رنگ خودرو</label>
-                <input
-                  type="text"
-                  value={vicCarColor}
-                  onChange={(e) => setVicCarColor(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">شماره بیمه‌نامه</label>
-                <input
-                  type="text"
-                  value={vicPolicyNo}
-                  onChange={(e) => setVicPolicyNo(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                  dir="ltr"
-                />
-              </div>
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">شرکت بیمه</label>
-                <input
-                  type="text"
-                  value={vicPolicyCompany}
-                  onChange={(e) => setVicPolicyCompany(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                />
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block font-bold text-slate-700 mb-1">تاریخ انقضا</label>
-                <input
-                  type="text"
-                  value={vicPolicyExpiry}
-                  onChange={(e) => setVicPolicyExpiry(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-900 bg-slate-50 text-center focus:bg-white focus:outline-none focus:border-blue-600"
-                  dir="ltr"
-                />
-              </div>
-
-              {/* Coverage Caps */}
-              <div className="sm:col-span-2 p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-                <p className="font-extrabold text-blue-900 text-xs text-center">سقف پوشش‌ها (ریال)</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-center">
-                  <div>
-                    <label className="block text-[10px] text-slate-500 font-bold mb-1">مالی</label>
-                    <input
-                      type="text"
-                      value={(vicCoverageFinancial || 0).toLocaleString('fa-IR')}
-                      readOnly
-                      className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-500 font-bold mb-1">جانی</label>
-                    <input
-                      type="text"
-                      value={(vicCoverageBodily || 0).toLocaleString('fa-IR')}
-                      readOnly
-                      className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-900"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] text-slate-500 font-bold mb-1">راننده</label>
-                    <input
-                      type="text"
-                      value={(vicCoverageDriver || 0).toLocaleString('fa-IR')}
-                      readOnly
-                      className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-[11px] font-bold font-mono text-center bg-white text-blue-900"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setVicInquired(true);
-                  setVicInquiryModalOpen(false);
-                }}
-                className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/10 transition-all active:scale-98"
-              >
-                تایید اطلاعات
-              </button>
-              <button
-                type="button"
-                onClick={() => setVicInquiryModalOpen(false)}
-                className="py-3 px-5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors"
-              >
-                انصراف
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Insurance Inquiry Modal (Culprit / Other Party) */}
-      {fltInquiryModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-start sm:items-center justify-center p-3 sm:p-4 animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto dir-rtl text-slate-900">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h4 className="text-base font-extrabold text-blue-900 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-blue-600" />
-                نتیجه استعلام اطلاعات بیمه و هویت (طرف مقابل)
-              </h4>
-              <button
-                type="button"
-                onClick={() => setFltInquiryModalOpen(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Security & Privacy Banner */}
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs text-amber-950 font-bold space-y-1">
-              <div className="flex items-center gap-1.5 font-black text-amber-900">
-                <ShieldCheck className="w-4 h-4 text-amber-700 shrink-0" />
-                <span>حفظ حریم خصوصی و امنیت اطلاعات طرف مقابل:</span>
-              </div>
-              <p className="leading-relaxed text-slate-700 text-[11px]">
-                مطابق با دستورالعمل‌های امنیتی، در این استعلام تنها <strong>نام و نام خانوادگی</strong>، <strong>شماره پلاک</strong> و <strong>مشخصات بیمه‌نامه شخص ثالث</strong> طرف مقابل نمایش داده شده و سایر اطلاعات شخصی (کد ملی، موبایل و گواهی‌نامه) به صورت محرمانه در سامانه پردازش می‌گردد.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">نام و نام خانوادگی (طرف مقابل)</label>
-                <input
-                  type="text"
-                  value={fltName}
-                  onChange={(e) => setFltName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">شماره پلاک خودرو</label>
-                <input
-                  type="text"
-                  value={`${fltP1} ${fltPLetter} ${fltP2} ایران ${fltP3}`}
-                  readOnly
-                  className="w-full px-3 py-2 rounded-xl border border-emerald-300 font-bold font-mono text-emerald-950 bg-emerald-50 text-center"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">شماره بیمه‌نامه شخص ثالث</label>
-                <input
-                  type="text"
-                  value={fltPolicyNo}
-                  onChange={(e) => setFltPolicyNo(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-mono font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                  dir="ltr"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">شرکت بیمه‌گر شخص ثالث</label>
-                <input
-                  type="text"
-                  value={fltPolicyCompany}
-                  onChange={(e) => setFltPolicyCompany(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-900 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-600"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">نوع و رنگ خودرو (محرمانه)</label>
-                <input
-                  type="text"
-                  value="*** (محرمانه جهت حفظ حریم خصوصی)"
-                  readOnly
-                  disabled
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-400 bg-slate-100 text-center"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">تاریخ انقضای بیمه‌نامه (محرمانه)</label>
-                <input
-                  type="text"
-                  value="*** (محرمانه جهت حفظ حریم خصوصی)"
-                  readOnly
-                  disabled
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-400 bg-slate-100 text-center"
-                  dir="ltr"
-                />
-              </div>
-
-              {/* MASKED SENSITIVE FIELDS */}
-              <div>
-                <label className="block font-bold text-slate-500 mb-1 flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-amber-600" />
-                  شماره موبایل (محرمانه)
-                </label>
-                <input
-                  type="text"
-                  value="*** (محرمانه جهت حفظ حریم خصوصی)"
-                  readOnly
-                  disabled
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-400 bg-slate-100 text-center"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-slate-500 mb-1 flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-amber-600" />
-                  کد ملی (محرمانه)
-                </label>
-                <input
-                  type="text"
-                  value="*** (محرمانه - ثبت شده در سامانه)"
-                  readOnly
-                  disabled
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-400 bg-slate-100 text-center"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block font-bold text-slate-500 mb-1 flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-amber-600" />
-                  شماره گواهی‌نامه (محرمانه)
-                </label>
-                <input
-                  type="text"
-                  value="*** (محرمانه - استعلام مستقیم از راهور)"
-                  readOnly
-                  disabled
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 font-bold text-slate-400 bg-slate-100 text-center"
-                />
-              </div>
-
-              {/* Coverage Caps */}
-              <div className="sm:col-span-2 p-3 bg-slate-100 border border-slate-200 rounded-2xl space-y-1.5 text-center">
-                <p className="font-extrabold text-slate-600 text-xs flex items-center justify-center gap-1">
-                  <Lock className="w-3.5 h-3.5 text-amber-600" />
-                  پوشش‌ها و تعهدات مالی بیمه‌نامه (محرمانه)
-                </p>
-                <p className="text-[11px] text-slate-500 font-bold">
-                  *** (اطلاعات تعهدات مالی به صورت خودکار توسط سامانه بیمه مرکزی و ارزیاب ارزیابی می‌گردد)
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setFltInquired(true);
-                  setFltInquiryModalOpen(false);
-                }}
-                className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md shadow-emerald-600/10 transition-all active:scale-98"
-              >
-                تایید اطلاعات
-              </button>
-              <button
-                type="button"
-                onClick={() => setFltInquiryModalOpen(false)}
-                className="py-3 px-5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition-colors"
-              >
-                انصراف
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Camera VIN Barcode Scanner Simulator Modal */}
-      {scannerModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-md flex items-start sm:items-center justify-center p-3 sm:p-4 animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-sm w-full p-6 text-center text-slate-900 space-y-5 border border-slate-200 shadow-2xl relative overflow-hidden dir-rtl">
-            <button
-              type="button"
-              onClick={() => setScannerModalOpen(false)}
-              className="absolute top-4 right-4 p-1 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="space-y-1">
-              <h4 className="font-extrabold text-base flex items-center justify-center gap-2 text-blue-900">
-                <ScanLine className="w-5 h-5 animate-pulse text-blue-600" />
-                دوربین اسکن بارکد شماره شاسی (VIN)
-              </h4>
-              <p className="text-xs text-slate-500">
-                کارت خودرو را مقابل دوربین نگه دارید
-              </p>
-            </div>
-
-            {/* Simulated Viewfinder */}
-            <div className="relative w-full h-44 bg-slate-950 rounded-2xl border-2 border-slate-800 flex items-center justify-center overflow-hidden">
-              {/* Corner Targets */}
-              <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-blue-500" />
-              <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-blue-500" />
-              <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-blue-500" />
-              <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-blue-500" />
-
-              {/* Laser Scan Line Animation */}
-              <div className="absolute left-4 right-4 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent shadow-[0_0_15px_#ef4444] animate-bounce" />
-
-              {/* Barcode Mock Card */}
-              <div className="opacity-40 space-y-2 pointer-events-none text-center">
-                <div className="w-28 h-6 bg-slate-800 rounded mx-auto border border-slate-700 flex items-center justify-center text-[10px] font-mono tracking-widest text-indigo-300">
-                  ||||| | |||| ||
-                </div>
-                <div className="text-[10px] font-mono text-slate-400">
-                  VIN SCANNER AI ACTIVE
-                </div>
-              </div>
-
-              {scannerSuccess && (
-                <div className="absolute inset-0 bg-emerald-950/90 backdrop-blur-sm flex flex-col items-center justify-center gap-2 animate-in zoom-in">
-                  <CheckCircle2 className="w-12 h-12 text-emerald-400 animate-bounce" />
-                  <p className="text-xs font-extrabold text-emerald-200">
-                    شماره شاسی با موفقیت استخراج شد!
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Progress indicator */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs text-slate-600 font-mono">
-                <span>{scannerProgress}%</span>
-                <span>
-                  {scannerSuccess ? 'شناسایی نهایی' : 'در حال اسکن نوری...'}
-                </span>
-              </div>
-              <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-                <div
-                  className="bg-blue-600 h-2 transition-all duration-300"
-                  style={{ width: `${scannerProgress}%` }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Quadruple Inquiries Modal (Sanhab, Fanavaran Core, Police Croqui, Civil Registry) */}
+      <QuadrupleInquiriesModal
+        isOpen={quadrupleModalOpen}
+        onClose={() => setQuadrupleModalOpen(false)}
+        inquiries={activeQuadrupleInquiries}
+        partyLabel={quadrupleTargetParty === 'flt' ? 'طرف مقابل (مقصر/راننده دیگر)' : 'شما (زیان‌دیده/طرف اول)'}
+        onApplyInquiryData={(inq) => {
+          if (quadrupleTargetParty === 'flt') {
+            setFltInquired(true);
+            if (inq.chassisVin) setFltVin(inq.chassisVin);
+          } else {
+            setVicInquired(true);
+            if (inq.chassisVin) setVicVin(inq.chassisVin);
+          }
+          setQuadrupleModalOpen(false);
+          notifyApp('اطلاعات استعلامات چهارگانه با موفقیت در پرونده اعمال و شماره شاسی قفل گردید.');
+        }}
+      />
 
       {/* Future Police / Kroki Inquiry Modal */}
       {showFuturePoliceModal && (

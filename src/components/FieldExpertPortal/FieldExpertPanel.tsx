@@ -134,6 +134,7 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
 
   // Rejection modal
   const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showAbove70RejectModal, setShowAbove70RejectModal] = useState(false);
   const [caseToReject, setCaseToReject] = useState<ClaimCase | null>(null);
   const [rejectReason, setRejectReason] = useState('خارج از محدوده جغرافیایی و ترافیک سنگین');
   const [rejectDescription, setRejectDescription] = useState('');
@@ -241,6 +242,9 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
         c.status === 'پرداخت شده' ||
         c.status === 'مختومه - پرداخت شد' ||
         c.status.includes('رد خسارت - صوری بودن') ||
+        c.isRejectedAboveCeilingWithoutCroqui === true ||
+        c.status.includes('بیش از ۷۰ میلیون') ||
+        c.status.includes('مازاد بر سقف ۷۰ میلیون') ||
         c.fieldExpertFinal === true ||
         Boolean(c.assessment && (c.assessment.fieldInspectionConfirmed || c.assessment.isFinalDecision))
       );
@@ -258,6 +262,9 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
         c.status === 'پرداخت شده' ||
         c.status === 'مختومه - پرداخت شد' ||
         c.status.includes('رد خسارت - صوری بودن') ||
+        c.isRejectedAboveCeilingWithoutCroqui === true ||
+        c.status.includes('بیش از ۷۰ میلیون') ||
+        c.status.includes('مازاد بر سقف ۷۰ میلیون') ||
         c.fieldExpertFinal === true ||
         Boolean(c.assessment && (c.assessment.fieldInspectionConfirmed || c.assessment.isFinalDecision));
       if (isCompleted) return false;
@@ -283,6 +290,9 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
         c.status === 'پرداخت شده' ||
         c.status === 'مختومه - پرداخت شد' ||
         c.status.includes('رد خسارت - صوری بودن') ||
+        c.isRejectedAboveCeilingWithoutCroqui === true ||
+        c.status.includes('بیش از ۷۰ میلیون') ||
+        c.status.includes('مازاد بر سقف ۷۰ میلیون') ||
         c.fieldExpertFinal === true ||
         Boolean(c.assessment && (c.assessment.fieldInspectionConfirmed || c.assessment.isFinalDecision));
       if (isCompleted) return false;
@@ -303,7 +313,10 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
     if (!selectedCase) return false;
     return Boolean(
       selectedCase.rejectedByAssessorIds?.includes(session.id) ||
-      selectedCase.status === 'رد شده توسط کارشناس میدانی'
+      selectedCase.status === 'رد شده توسط کارشناس میدانی' ||
+      selectedCase.isRejectedAboveCeilingWithoutCroqui ||
+      selectedCase.status.includes('مازاد بر سقف ۷۰ میلیون') ||
+      selectedCase.status.includes('بیش از ۷۰ میلیون')
     );
   }, [selectedCase, session.id]);
 
@@ -820,6 +833,49 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
   const totalScrapValue = useMemo(() => fieldParts.reduce((acc, p) => acc + p.scrapPrice, 0), [fieldParts]);
   const grossDamage = totalPartsCost + totalWageCost;
   const netPayable = Math.max(0, grossDamage - totalScrapValue);
+  const netPayableToman = Math.round(netPayable / 10);
+  const isCaseWithoutCroqui = useMemo(() => {
+    if (!selectedCase) return false;
+    return !selectedCase.hasKroki && !selectedCase.policeReport && !selectedCase.croquiRecord && !selectedCase.customerKrokiPhoto;
+  }, [selectedCase]);
+  const isAbove70MillionWithoutCroqui = isCaseWithoutCroqui && netPayableToman > 70_000_000;
+
+  const handleRejectAboveCeilingWithoutCroqui = () => {
+    if (!selectedCase) return;
+    const nowTimeStr = new Date().toLocaleDateString('fa-IR') + ' ' + new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+    const rejectionMsg = `چون بیشتر از ۷۰ میلیون بوده پرونده رد شده و پرداخت نمی‌شود. (برآورد خسارت کارشناسی میدانی: ${netPayableToman.toLocaleString('fa-IR')} تومان در پرونده بدون کروکی).`;
+
+    const updated: ClaimCase = {
+      ...selectedCase,
+      status: 'رد شده - بیش از ۷۰ میلیون بدون کروکی',
+      isRejectedAboveCeilingWithoutCroqui: true,
+      rejectionReason: rejectionMsg,
+      rejectionNotice: rejectionMsg,
+      rejectedByRole: 'کارشناس میدانی',
+      rejectedByExpertName: session.name,
+      rejectedAt: nowTimeStr,
+      expertEvaluatedAmountToman: netPayableToman,
+      fieldExpertFinal: true,
+      fieldExpertVerdict: 'FRAUD_REJECTED',
+      fieldExpertReportNote: rejectionMsg,
+      history: [
+        ...(selectedCase.history || []),
+        {
+          status: 'رد شده - بیش از ۷۰ میلیون بدون کروکی',
+          time: nowTimeStr,
+          user: session.name,
+          userRole: 'کارشناس میدانی',
+          note: `رد کامل پرونده توسط کارشناس میدانی «${session.name}»: ${rejectionMsg}`
+        }
+      ]
+    };
+
+    onUpdateCase(updated);
+    setSelectedCase(null);
+    setShowAbove70RejectModal(false);
+    setActionSuccessMsg(`پرونده ${selectedCase.id} با موفقیت به مشتری رد شد: «چون بیشتر از ۷۰ میلیون بوده پرونده رد شده و پرداخت نمی‌شود».`);
+    setTimeout(() => setActionSuccessMsg(null), 7000);
+  };
 
   // Add Photo
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2222,6 +2278,31 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 </div>
               </div>
 
+              {/* Warning Banner and Quick Reject for Exceeding 70M Without Croqui */}
+              {isAbove70MillionWithoutCroqui && !isCaseReadOnly && (
+                <div className="p-4 bg-rose-50 border-2 border-rose-400 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-rose-950 font-bold shadow-sm animate-in fade-in">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <span className="font-black text-sm block text-rose-950">
+                        تخطی از سقف قانونی خسارت بدون کروکی (برآورد بیش از ۷۰ میلیون تومان):
+                      </span>
+                      <p className="text-[11px] text-rose-900 font-medium leading-relaxed">
+                        این پرونده بدون کروکی پلیس ثبت شده و برآورد کارشناسی شما ({netPayableToman.toLocaleString('fa-IR')} تومان) بیش از سقف ۷۰ میلیون تومان است. طبق ضوابط بیمه مرکزی، پرداخت پرونده‌های فاقد کروکی صرفاً تا سقف ۷۰ میلیون مجاز است و در صورت فراتر رفتن برآورد، پرونده باید رد شده و عدم پرداخت به مشتری ابلاغ شود.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAbove70RejectModal(true)}
+                    className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shrink-0 flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    <span>رد پرونده به مشتری (بیش از ۷۰ میلیون بدون کروکی)</span>
+                  </button>
+                </div>
+              )}
+
               <div className="flex items-center justify-between pt-2">
                 {!isCaseReadOnly ? (
                   <button
@@ -2488,8 +2569,46 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                   </div>
                 </div>
 
+                {/* Rejection Notice for Already Rejected Case */}
+                {selectedCase.isRejectedAboveCeilingWithoutCroqui && (
+                  <div className="p-4 bg-rose-100 border-2 border-rose-400 rounded-2xl text-xs space-y-2 text-rose-950 font-bold">
+                    <div className="flex items-center gap-2 text-rose-900">
+                      <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                      <span className="font-black text-sm">پرونده به دلیل خسارت بیش از ۷۰ میلیون تومان بدون کروکی رد شده است.</span>
+                    </div>
+                    <p className="text-[11px] font-medium leading-relaxed">
+                      {selectedCase.rejectionReason || 'چون بیشتر از ۷۰ میلیون بوده پرونده رد شده و پرداخت نمی‌شود.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* Warning Banner for 70M Exceeded Without Croqui */}
+                {isAbove70MillionWithoutCroqui && !isCaseReadOnly && (
+                  <div className="p-4 bg-rose-50 border-2 border-rose-400 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-rose-950 font-bold shadow-md animate-in fade-in">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
+                      <div className="space-y-1">
+                        <span className="font-black text-sm block text-rose-950">
+                          هشدار سقف قانونی بدون کروکی: برآورد کارشناسی بیش از ۷۰ میلیون تومان است!
+                        </span>
+                        <p className="text-[11px] text-rose-900 font-medium leading-relaxed">
+                          این پرونده بدون کروکی پلیس ثبت شده است و برآورد کارشناسی شما معادل {netPayableToman.toLocaleString('fa-IR')} تومان می‌باشد که بالاتر از سقف قانونی ۷۰ میلیون تومان است. طبق قوانین بیمه مرکزی، امکان تایید پرداخت برای این پرونده وجود ندارد و پرونده رد شده و پرداخت نمی‌شود.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowAbove70RejectModal(true)}
+                      className="px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shrink-0 flex items-center justify-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      <span>رد پرونده به مشتری</span>
+                    </button>
+                  </div>
+                )}
+
                 {/* Warning Banner for Ceiling Exceeded */}
-                {Math.round(netPayable / 10) > PRIMARY_EXPERT_CEILING_TOMAN && !isCaseReadOnly && (
+                {Math.round(netPayable / 10) > PRIMARY_EXPERT_CEILING_TOMAN && !isAbove70MillionWithoutCroqui && !isCaseReadOnly && (
                   <div className="p-4 bg-amber-50 border-2 border-amber-300 rounded-2xl flex items-start gap-3 text-xs text-amber-950 font-bold shadow-2xs">
                     <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
                     <div className="space-y-1">
@@ -2546,14 +2665,25 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                         <span>ثبت موقت اطلاعات (پیش‌نویس بدون ارسال)</span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={handleSubmitDirectToInsurer}
-                        className="px-4 sm:px-8 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-lg shadow-emerald-600/30 flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
-                      >
-                        <Send className="w-5 h-5" />
-                        <span>تایید نهایی گزارش میدانی و ارسال به بیمه‌گر جهت تسویه</span>
-                      </button>
+                      {isAbove70MillionWithoutCroqui ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowAbove70RejectModal(true)}
+                          className="px-4 sm:px-8 py-3.5 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-black text-sm shadow-lg shadow-rose-600/30 flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <XCircle className="w-5 h-5" />
+                          <span>رد پرونده به مشتری (خسارت بیش از ۷۰ میلیون بدون کروکی)</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleSubmitDirectToInsurer}
+                          className="px-4 sm:px-8 py-3.5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-lg shadow-emerald-600/30 flex items-center gap-2 active:scale-95 transition-all cursor-pointer"
+                        >
+                          <Send className="w-5 h-5" />
+                          <span>تایید نهایی گزارش میدانی و ارسال به بیمه‌گر جهت تسویه</span>
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <span className="text-xs font-black text-slate-500 flex items-center gap-1.5">
@@ -2699,6 +2829,67 @@ export const FieldExpertPanel: React.FC<FieldExpertPanelProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REJECT CLAIM OVER 70M WITHOUT CROQUI */}
+      {showAbove70RejectModal && selectedCase && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl space-y-4 animate-in zoom-in-95 border-2 border-rose-400 text-right" dir="rtl">
+            <div className="flex items-center justify-between pb-3 border-b border-rose-100">
+              <div className="flex items-center gap-2 text-rose-700">
+                <AlertTriangle className="w-6 h-6" />
+                <h3 className="font-black text-sm sm:text-base">رد پرونده به مشتری (خسارت بیش از ۷۰ میلیون بدون کروکی)</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAbove70RejectModal(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center font-bold text-xs cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs leading-relaxed text-slate-700">
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-2xl space-y-1">
+                <span className="font-black text-amber-950 block text-xs">مشخصات پرونده و ارزیابی فیزیکی:</span>
+                <p className="text-[11px] text-amber-900">
+                  شماره پرونده: <strong>{selectedCase.id}</strong> | خودرو: <strong>{selectedCase.carType || selectedCase.carModel}</strong> ({selectedCase.plateNumber || selectedCase.victimPlate})
+                </p>
+                <p className="text-[11px] text-amber-900">
+                  مبلغ خالص برآورد خسارت شما: <strong className="text-rose-700 font-mono text-xs">{netPayableToman.toLocaleString('fa-IR')} تومان</strong> (سقف مجاز پرونده‌های بدون کروکی: ۷۰,۰۰۰,۰۰۰ تومان)
+                </p>
+              </div>
+
+              <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-2xl space-y-1.5 text-rose-950 font-bold">
+                <span className="font-black text-xs block text-rose-900">پیام قطعی رد پرونده به زیان‌دیده (مشتری):</span>
+                <div className="p-3 bg-white rounded-xl border border-rose-200 text-slate-900 text-xs font-black">
+                  «چون بیشتر از ۷۰ میلیون بوده پرونده رد شده و پرداخت نمی‌شود.»
+                </div>
+                <p className="text-[10px] text-rose-800 font-medium leading-relaxed">
+                  طبق بخشنامه بیمه مرکزی، پرداخت خسارت بدون کروکی صرفاً تا سقف ۷۰ میلیون تومان امکان‌پذیر است. با تایید این بخش، پرونده مستقیماً با وضعیت «رد شده - بیش از ۷۰ میلیون بدون کروکی» در کارتابل زیان‌دیده قرار گرفته و کلیه مراحل پرداخت متوقف می‌گردد.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowAbove70RejectModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs cursor-pointer hover:bg-slate-50"
+              >
+                انصراف و بازبینی قطعات
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectAboveCeilingWithoutCroqui}
+                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-xs shadow-md shadow-rose-600/30 flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer"
+              >
+                <XCircle className="w-4 h-4" />
+                <span>تایید قطعی رد پرونده و ارسال پیام به مشتری</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1290,10 +1290,10 @@ ${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructi
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-xs">
+                <table className="w-full min-w-[980px] text-right text-xs">
                   <thead className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200">
                     <tr>
-                      <th className="p-3.5">کد پیگیری</th>
+                      <th className="p-3.5 whitespace-nowrap">کد پیگیری</th>
                       <th className="p-3.5">تاریخ</th>
                       <th className="p-3.5">زیان‌دیده</th>
                       <th className="p-3.5">مقصر</th>
@@ -1318,7 +1318,9 @@ ${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructi
                           <span className="font-bold block text-slate-900">{c.culpritName}</span>
                           <span className="text-[10px] text-slate-500 font-mono">{c.culpritPlate}</span>
                         </td>
-                        <td className="p-3.5 max-w-xs truncate text-slate-700">{c.address || '-'}</td>
+                        <td className="p-3.5 text-slate-700" title={c.address}>
+                          <div className="max-w-[240px] truncate">{c.address || '-'}</div>
+                        </td>
                         <td className="p-3.5">
                           <div className="flex flex-col gap-1 items-start">
                             <span
@@ -1344,7 +1346,7 @@ ${dispatchInstructions.trim() ? `دستور بیمه‌گر: ${dispatchInstructi
                             )}
                           </div>
                         </td>
-                        <td className="p-3.5 text-center">
+                        <td className="p-3.5 text-center whitespace-nowrap">
                           <button
                             onClick={() => onOpenCaseDetail(c.id)}
                             className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-black text-[11px] transition-all shadow-sm active:scale-95"
